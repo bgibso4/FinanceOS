@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id           String        @id @default(uuid())
+  name         String
+  type         String
+  institution  String?
+  currency     String        @default("USD")
+  isActive     Boolean       @default(true)
+  notes        String?
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+}
+
+model Category {
+  id          String       @id @default(uuid())
+  name        String
+  parentId    String?
+  parent      Category?    @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children    Category[]   @relation("CategoryToCategory")
+  type        String
+  createdAt   DateTime     @default(now())
+  transactions Transaction[]
+  budgets     CategoryBudget[]
+  rules       Rule[]
+}
+
+model Rule {
+  id         String       @id @default(uuid())
+  matchType  String
+  matchValue String
+  categoryId String
+  category   Category     @relation(fields: [categoryId], references: [id])
+  priority   Int          @default(100)
+  isEnabled  Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+}
+
+model Transaction {
+  id                 String      @id @default(uuid())
+  date               DateTime
+  amount             Float
+  accountId          String
+  account            Account     @relation(fields: [accountId], references: [id])
+  merchant           String
+  merchantNormalized String      @default("")
+  categoryId         String?
+  category           Category?   @relation(fields: [categoryId], references: [id])
+  tags               String?
+  note               String?
+  isTransfer         Boolean     @default(false)
+  transferGroupId    String?
+  confidenceScore    Float       @default(0)
+  externalId         String?
+  importHash         String?
+  
+  // Linked transaction tracking (returns, reimbursements, offsets)
+  isOffset           Boolean     @default(false)
+  linkedTransactionId String?
+  linkedTransaction  Transaction? @relation("TransactionOffset", fields: [linkedTransactionId], references: [id], onDelete: SetNull)
+  offsetTransactions Transaction[] @relation("TransactionOffset")
+  
+  createdAt          DateTime    @default(now())
+
+  @@index([date])
+  @@index([merchantNormalized])
+  @@index([importHash])
+  @@index([linkedTransactionId])
+  @@unique([accountId, externalId])
+}
+
+model MonthlySnapshot {
+  id              String   @id @default(uuid())
+  month           String
+  incomeTotal     Float
+  spendingTotal   Float
+  savingsTotal    Float
+  savingsRatePct  Float
+  categoryTotals  String
+  merchantTotals  String
+  createdAt       DateTime @default(now())
+}
+
+model CategoryBudget {
+  id          String   @id @default(uuid())
+  month       String
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+  limitAmount Float
+  createdAt   DateTime @default(now())
+
+  @@unique([month, categoryId], name: "month_categoryId")
+}
+
+model ExchangeRate {
+  id           String   @id @default(uuid())
+  fromCurrency String
+  toCurrency   String
+  rate         Float
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  @@unique([fromCurrency, toCurrency])
+}
+
+model UserSettings {
+  id           String   @id @default(uuid())
+  baseCurrency String   @default("USD")
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+}

@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 255, 255, 255;
+  --foreground: 19, 24, 40;
+  --muted: 99, 115, 139;
+  --card: 255, 255, 255;
+  --card-foreground: 19, 24, 40;
+  --accent: 59, 130, 246;
+}
+
+.dark {
+  --background: 15, 23, 42;
+  --foreground: 248, 250, 252;
+  --muted: 148, 163, 184;
+  --card: 30, 41, 59;
+  --card-foreground: 248, 250, 252;
+  --accent: 96, 165, 250;
+}
+
+body {
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  min-height: 100vh;
+}
+
+.glass {
+  background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.7),
+      rgba(255, 255, 255, 0.4)
+    )
+    border-box;
+  backdrop-filter: blur(16px);
+}
+
+.dark .glass {
+  background: linear-gradient(
+      135deg,
+      rgba(30, 41, 59, 0.7),
+      rgba(30, 41, 59, 0.4)
+    )
+    border-box;
+}
