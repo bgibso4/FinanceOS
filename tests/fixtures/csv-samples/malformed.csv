@@ -1,0 +1,4 @@
+Date,Description,Amount
+not-a-date,SOME MERCHANT,-50.00
+2024-01-15,VALID MERCHANT,not-a-number
+2024-01-14,,
