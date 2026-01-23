@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
   const parsed = createSchema.parse(body);
   const categorization =
     parsed.categoryId !== undefined
-      ? { categoryId: parsed.categoryId, confidenceScore: 0.99 }
+      ? { categoryId: parsed.categoryId, confidence: 0.99 }
       : await autoCategorize(prisma, parsed.merchant, parsed.note ?? null);
 
   // Parse date as UTC to avoid timezone issues

@@ -153,8 +153,8 @@ export async function findPotentialReturns(
     const dateScore = Math.max(0, 1 - (daysDiff / 180));
     
     // Merchant similarity score
-    const matchWords = match.merchantNormalized.split(' ').filter(w => w.length > 3);
-    const commonWords = merchantWords.filter(w => matchWords.includes(w)).length;
+    const matchWords = match.merchantNormalized.split(' ').filter((w: string) => w.length > 3);
+    const commonWords = merchantWords.filter((w: string) => matchWords.includes(w)).length;
     const merchantScore = commonWords / Math.max(merchantWords.length, matchWords.length, 1);
     
     // Exact merchant match bonus

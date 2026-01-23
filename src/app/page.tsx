@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ChartRenderer } from "@/components/chart-renderer";
@@ -107,7 +107,7 @@ type BalanceData = {
   totalLiabilities: number;
 };
 
-export default function DashboardPage() {
+function DashboardPageContent() {
   const searchParams = useSearchParams();
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [balanceData, setBalanceData] = useState<BalanceData | null>(null);
@@ -437,5 +437,13 @@ export default function DashboardPage() {
         </Card>
       )}
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="p-4">Loading dashboard...</div>}>
+      <DashboardPageContent />
+    </Suspense>
   );
 }

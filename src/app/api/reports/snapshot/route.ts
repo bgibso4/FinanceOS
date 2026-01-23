@@ -26,27 +26,37 @@ export async function POST(req: NextRequest) {
     const savings = incomeNum - spendingNum;
     const savingsRate = incomeNum > 0 ? (savings / incomeNum) * 100 : 0;
 
-    // Upsert the snapshot (create or update if exists)
-    const snapshot = await prisma.monthlySnapshot.upsert({
-      where: { month },
-      update: {
-        incomeTotal: incomeNum,
-        spendingTotal: spendingNum,
-        savingsTotal: savings,
-        savingsRatePct: savingsRate,
-        categoryTotals: "{}",
-        merchantTotals: "{}"
-      },
-      create: {
-        month,
-        incomeTotal: incomeNum,
-        spendingTotal: spendingNum,
-        savingsTotal: savings,
-        savingsRatePct: savingsRate,
-        categoryTotals: "{}",
-        merchantTotals: "{}"
-      }
+    // Find existing snapshot or create new one
+    const existing = await prisma.monthlySnapshot.findFirst({
+      where: { month }
     });
+
+    let snapshot;
+    if (existing) {
+      snapshot = await prisma.monthlySnapshot.update({
+        where: { id: existing.id },
+        data: {
+          incomeTotal: incomeNum,
+          spendingTotal: spendingNum,
+          savingsTotal: savings,
+          savingsRatePct: savingsRate,
+          categoryTotals: "{}",
+          merchantTotals: "{}"
+        }
+      });
+    } else {
+      snapshot = await prisma.monthlySnapshot.create({
+        data: {
+          month,
+          incomeTotal: incomeNum,
+          spendingTotal: spendingNum,
+          savingsTotal: savings,
+          savingsRatePct: savingsRate,
+          categoryTotals: "{}",
+          merchantTotals: "{}"
+        }
+      });
+    }
 
     return NextResponse.json({ snapshot });
   } catch (error) {

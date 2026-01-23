@@ -17,18 +17,48 @@ export async function GET(req: NextRequest) {
     for (let i = 11; i >= 0; i--) {
       const d = new Date(endYear, endM - 1 - i, 1);
       const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const startDate = new Date(d.getFullYear(), d.getMonth(), 1);
-      const endDate = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-      
-      const data = await dashboardAnalytics(prisma, {}, startDate, endDate);
-      
+
+      // Build filter strings and UTC dates to match Monthly Detail behavior
+      const year = d.getFullYear();
+      const monthNum = d.getMonth() + 1;
+      const lastDay = new Date(year, monthNum, 0).getDate();
+      const startDateStr = `${year}-${String(monthNum).padStart(2, '0')}-01`;
+      const endDateStr = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+      // Create UTC dates like Monthly Detail does (filters.ts lines 50, 57)
+      const startDate = new Date(Date.UTC(year, monthNum - 1, 1, 0, 0, 0, 0));
+      const endDate = new Date(Date.UTC(year, monthNum - 1, lastDay, 23, 59, 59, 999));
+
+      // Calculate from actual transactions first
+      const data = await dashboardAnalytics(prisma, { startDate: startDateStr, endDate: endDateStr }, startDate, endDate);
+
+      let income = data.netCashflow.income;
+      let spending = data.netCashflow.spending;
+      let savings = data.netCashflow.savings;
+      let savingsRate = data.savingsRate.rate;
+
+      // If no transaction data exists, fall back to backfilled snapshot
+      if (income === 0 && spending === 0) {
+        const snapshot = await prisma.monthlySnapshot.findFirst({
+          where: { month }
+        });
+
+        if (snapshot) {
+          income = snapshot.incomeTotal;
+          spending = snapshot.spendingTotal;
+          savings = snapshot.savingsTotal;
+          // Convert from percentage to decimal to match dashboardAnalytics format
+          savingsRate = snapshot.savingsRatePct / 100;
+        }
+      }
+
       results.push({
         month,
         label: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-        income: data.netCashflow.income,
-        spending: data.netCashflow.spending,
-        savings: data.netCashflow.savings,
-        savingsRate: data.savingsRate.rate
+        income,
+        spending,
+        savings,
+        savingsRate
       });
     }
     

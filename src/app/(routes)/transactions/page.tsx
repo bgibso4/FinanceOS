@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,7 +56,7 @@ const stripEmojis = (str: string) => str.replace(/[\p{Emoji}\p{Emoji_Presentatio
 const sortByName = (a: { name: string }, b: { name: string }) => 
   stripEmojis(a.name).localeCompare(stripEmojis(b.name));
 
-export default function TransactionsPage() {
+function TransactionsPageContent() {
   const searchParams = useSearchParams();
   const tab = (searchParams.get('tab') || 'review') as "review" | "all";
   
@@ -1350,5 +1350,13 @@ export default function TransactionsPage() {
         )}
       </Modal>
     </div>
+  );
+}
+
+export default function TransactionsPage() {
+  return (
+    <Suspense fallback={<div className="p-4">Loading transactions...</div>}>
+      <TransactionsPageContent />
+    </Suspense>
   );
 }

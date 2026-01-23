@@ -143,7 +143,7 @@ export function formatAmountCompact(
 ): string {
   return formatAmount(amount, currency, {
     showCurrency: 'auto',
-    baseCurrency,
+    baseCurrency: baseCurrency as Currency,
     showConverted: false,
   });
 }
@@ -159,7 +159,7 @@ export function formatAmountWithConversion(
 ): string {
   return formatAmount(amount, currency, {
     showCurrency: 'auto',
-    baseCurrency,
+    baseCurrency: baseCurrency as Currency,
     exchangeRates,
     showConverted: true,
   });

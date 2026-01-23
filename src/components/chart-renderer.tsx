@@ -107,8 +107,8 @@ export function ChartRenderer({ spec }: Props) {
       )}
       {spec.type === "pie" && (
         <PieChart>
-          <Tooltip 
-            formatter={(value: number) => `$${value.toLocaleString()}`}
+          <Tooltip
+            formatter={(value: number | undefined) => value !== undefined ? `$${value.toLocaleString()}` : '$0'}
             contentStyle={{ fontSize: '13px', fontFamily: 'inherit' }}
           />
           <Legend 
