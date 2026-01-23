@@ -40,6 +40,9 @@ prisma/dev.db
 prisma/dev.db.backup
 prisma/*.db
 prisma/*.db-journal
+prisma/*.db.backup*
+*.sqlite
+*.sqlite3
 
 # IDE
 .vscode/
