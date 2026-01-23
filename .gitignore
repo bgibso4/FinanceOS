@@ -58,3 +58,7 @@ Thumbs.db
 # test scripts
 test-*.js
 update-*.js
+
+
+# Agent 
+docs
