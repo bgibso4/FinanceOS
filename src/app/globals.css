@@ -27,20 +27,10 @@ body {
 }
 
 .glass {
-  background: linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.7),
-      rgba(255, 255, 255, 0.4)
-    )
-    border-box;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.4)) border-box;
   backdrop-filter: blur(16px);
 }
 
 .dark .glass {
-  background: linear-gradient(
-      135deg,
-      rgba(30, 41, 59, 0.7),
-      rgba(30, 41, 59, 0.4)
-    )
-    border-box;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(30, 41, 59, 0.4)) border-box;
 }

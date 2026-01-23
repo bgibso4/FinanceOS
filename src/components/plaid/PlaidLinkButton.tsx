@@ -81,11 +81,7 @@ export function PlaidLinkButton({
   const defaultText = reconnect ? 'Reconnect Bank' : 'Connect Bank';
 
   return (
-    <Button
-      onClick={() => open()}
-      disabled={!ready || loading}
-      className={className}
-    >
+    <Button className={className} disabled={!ready || loading} onClick={() => open()}>
       {loading ? 'Loading...' : buttonText || defaultText}
     </Button>
   );

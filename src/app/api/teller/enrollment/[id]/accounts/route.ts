@@ -3,10 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { tellerFetch, TellerAccountsResponse } from '@/lib/teller';
 import { decryptAccessToken } from '@/lib/encryption';
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const enrollmentId = params.id;
     console.log('[Teller Enrollment Accounts API] Fetching accounts for enrollment:', enrollmentId);
@@ -17,10 +14,7 @@ export async function GET(
     });
 
     if (!enrollment) {
-      return NextResponse.json(
-        { error: 'Enrollment not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Enrollment not found' }, { status: 404 });
     }
 
     // Decrypt access token
@@ -31,10 +25,7 @@ export async function GET(
 
     // Fetch accounts from Teller
     console.log('[Teller Enrollment Accounts API] Fetching accounts from Teller...');
-    const accounts = await tellerFetch<TellerAccountsResponse>(
-      '/accounts',
-      accessToken
-    );
+    const accounts = await tellerFetch<TellerAccountsResponse>('/accounts', accessToken);
 
     console.log('[Teller Enrollment Accounts API] Found', accounts.length, 'accounts');
 

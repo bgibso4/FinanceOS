@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   // Get all active accounts with their transactions
@@ -7,26 +7,26 @@ export async function GET() {
     where: { isActive: true },
     include: {
       transactions: {
-        select: { amount: true, isTransfer: true }
-      }
-    }
+        select: { amount: true, isTransfer: true },
+      },
+    },
   });
 
   // Calculate balance for each account
-  const accountBalances = accounts.map(account => {
+  const accountBalances = accounts.map((account) => {
     const balance = account.transactions.reduce((sum, tx) => sum + tx.amount, 0);
     return {
       id: account.id,
       name: account.name,
       type: account.type,
       institution: account.institution,
-      balance
+      balance,
     };
   });
 
   // Calculate totals by type
   const totalsByType: Record<string, number> = {};
-  accountBalances.forEach(acc => {
+  accountBalances.forEach((acc) => {
     totalsByType[acc.type] = (totalsByType[acc.type] ?? 0) + acc.balance;
   });
 
@@ -35,13 +35,13 @@ export async function GET() {
   // Liabilities: credit, loan
   const assetTypes = ['checking', 'savings', 'brokerage', 'retirement', 'crypto', 'cash', 'other'];
   const liabilityTypes = ['credit', 'loan'];
-  
+
   const totalAssets = accountBalances
-    .filter(a => assetTypes.includes(a.type))
+    .filter((a) => assetTypes.includes(a.type))
     .reduce((sum, a) => sum + a.balance, 0);
-  
+
   const totalLiabilities = accountBalances
-    .filter(a => liabilityTypes.includes(a.type))
+    .filter((a) => liabilityTypes.includes(a.type))
     .reduce((sum, a) => sum + Math.abs(a.balance), 0);
 
   const netWorth = totalAssets - totalLiabilities;
@@ -51,6 +51,6 @@ export async function GET() {
     totalsByType,
     totalAssets,
     totalLiabilities,
-    netWorth
+    netWorth,
   });
 }

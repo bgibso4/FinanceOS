@@ -182,9 +182,9 @@ export function TellerInstitutionConnect({
 
   return (
     <Button
-      onClick={handleClick}
-      disabled={!ready || loading || !tellerConnect}
       className={className}
+      disabled={!ready || loading || !tellerConnect}
+      onClick={handleClick}
     >
       {loading ? 'Loading...' : buttonText || 'Connect New Institution'}
     </Button>

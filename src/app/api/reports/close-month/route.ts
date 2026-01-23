@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { prisma } from "@/lib/prisma";
-import { ensureSnapshot } from "@/lib/analytics";
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { prisma } from '@/lib/prisma';
+import { ensureSnapshot } from '@/lib/analytics';
 
 const schema = z.object({
-  month: z.string().optional()
+  month: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {

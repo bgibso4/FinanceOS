@@ -54,10 +54,12 @@ prisma/
 ## Key Database Models
 
 ### Account
+
 - `id`, `name`, `type`, `institution`, `currency`, `isActive`
 - Types: checking, credit, brokerage, retirement, crypto, cash, loan, other
 
 ### Transaction
+
 - `id`, `date`, `amount`, `merchant`, `merchantNormalized`
 - `accountId`, `categoryId`, `confidenceScore`
 - `externalId` - for external integrations (unique per account)
@@ -66,9 +68,11 @@ prisma/
 - `linkedTransactionId` - for returns/reimbursements
 
 ### Category
+
 - `id`, `name`, `type` (income/expense), `parentId` (for grouping)
 
 ### Rule
+
 - Auto-categorization rules with `matchType`, `matchValue`, `priority`
 
 ## API Patterns
@@ -77,16 +81,14 @@ All routes use Next.js App Router with Zod validation:
 
 ```typescript
 // Dynamic params
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   // ...
 }
 ```
 
 Standard responses:
+
 - GET lists: `{ accounts: [...] }`
 - POST create: returns created object
 - PATCH update: returns updated object
@@ -95,6 +97,7 @@ Standard responses:
 ## Import & Deduplication
 
 CSV import (`src/lib/import.ts`) uses three-tier deduplication:
+
 1. **externalId** - unique constraint on (accountId, externalId)
 2. **importHash** - SHA256 of accountId|date|amount|merchantNormalized
 3. **Normalized merchant match** - date + amount + merchantNormalized
@@ -102,6 +105,7 @@ CSV import (`src/lib/import.ts`) uses three-tier deduplication:
 ## Auto-Categorization
 
 In `src/lib/categorization.ts`:
+
 1. Apply custom rules (confidence: 0.98)
 2. Check keyword catalog (confidence: 0.72)
 3. Return uncategorized (confidence: 0.3)
@@ -111,11 +115,12 @@ Manual categorization sets confidence to 1.0.
 ## Design System
 
 Use `ds` object from `src/lib/design-system.ts`:
+
 ```typescript
-ds.text.primary    // Text colors
-ds.bg.secondary    // Background colors
-ds.border.default  // Border colors
-ds.status.success  // Status colors (bg, text, border)
+ds.text.primary; // Text colors
+ds.bg.secondary; // Background colors
+ds.border.default; // Border colors
+ds.status.success; // Status colors (bg, text, border)
 ```
 
 ## UI Patterns

@@ -35,10 +35,7 @@ export async function GET() {
             enrollment.accessTokenIv
           );
 
-          const accounts = await tellerFetch<TellerAccountsResponse>(
-            '/accounts',
-            accessToken
-          );
+          const accounts = await tellerFetch<TellerAccountsResponse>('/accounts', accessToken);
 
           return {
             ...enrollment,

@@ -29,10 +29,7 @@ export async function syncPlaidTransactions(
   daysToSync: number = 30
 ): Promise<SyncResult> {
   const plaid = getPlaidClient();
-  const accessToken = decryptAccessToken(
-    connection.accessTokenEncrypted,
-    connection.accessTokenIv
-  );
+  const accessToken = decryptAccessToken(connection.accessTokenEncrypted, connection.accessTokenIv);
 
   let cursor = connection.transactionCursor || undefined;
   let hasMore = true;
@@ -189,10 +186,7 @@ function mapPlaidTransaction(plaidTx: PlaidTransaction, accountId: string) {
   };
 }
 
-async function removeTransaction(
-  transactionId: string,
-  accountId: string
-): Promise<boolean> {
+async function removeTransaction(transactionId: string, accountId: string): Promise<boolean> {
   const result = await prisma.transaction.deleteMany({
     where: { accountId, externalId: transactionId },
   });

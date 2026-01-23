@@ -1,18 +1,26 @@
-import { PrismaClient } from "@prisma/client";
-import { addMonths, endOfMonth, format, isAfter, isBefore, startOfMonth, subMonths } from "date-fns";
-import { FilterParams } from "./types";
-import { convertAmount, parseExchangeRates } from "./currency";
+import { PrismaClient } from '@prisma/client';
+import {
+  addMonths,
+  endOfMonth,
+  format,
+  isAfter,
+  isBefore,
+  startOfMonth,
+  subMonths,
+} from 'date-fns';
+import { FilterParams } from './types';
+import { convertAmount, parseExchangeRates } from './currency';
 
 // Helper to get exchange rates and base currency from database
 async function getCurrencySettings(prisma: PrismaClient) {
   const [rates, settings] = await Promise.all([
     prisma.exchangeRate.findMany(),
-    prisma.userSettings.findFirst()
+    prisma.userSettings.findFirst(),
   ]);
-  
+
   const rateMap = parseExchangeRates(rates);
   const baseCurrency = settings?.baseCurrency || 'USD';
-  
+
   return { rateMap, baseCurrency };
 }
 
@@ -29,57 +37,62 @@ function convertTransactionAmount(
 
 export function buildWhere(filters: FilterParams, startDate: Date, endDate: Date) {
   const where: any = {
-    date: { gte: startDate, lte: endDate }
+    date: { gte: startDate, lte: endDate },
   };
   if (filters.accounts) where.accountId = { in: filters.accounts };
   if (filters.categories) where.categoryId = { in: filters.categories };
-  if (filters.merchant) where.merchant = { contains: filters.merchant, mode: "insensitive" };
+  if (filters.merchant) where.merchant = { contains: filters.merchant, mode: 'insensitive' };
   if (filters.tags) where.tags = { array_contains: filters.tags };
   return where;
 }
 
-export async function dashboardAnalytics(prisma: PrismaClient, filters: FilterParams, startDate: Date, endDate: Date) {
+export async function dashboardAnalytics(
+  prisma: PrismaClient,
+  filters: FilterParams,
+  startDate: Date,
+  endDate: Date
+) {
   // Get currency settings
   const { rateMap, baseCurrency } = await getCurrencySettings(prisma);
-  
+
   let allTransactions = await prisma.transaction.findMany({
     where: {
       ...buildWhere(filters, startDate, endDate),
-      isTransfer: false
+      isTransfer: false,
     },
-    include: { 
+    include: {
       category: true,
       account: true,
       linkedTransaction: true,
-      offsetTransactions: true
-    }
+      offsetTransactions: true,
+    },
   });
 
   // Filter by date string to handle timezone issues when using custom date ranges
   if (filters.startDate || filters.endDate) {
-    allTransactions = allTransactions.filter(tx => {
+    allTransactions = allTransactions.filter((tx) => {
       const txDateStr = tx.date.toISOString().split('T')[0]; // Get YYYY-MM-DD
       if (filters.startDate && txDateStr < filters.startDate) return false;
       if (filters.endDate && txDateStr > filters.endDate) return false;
       return true;
     });
   }
-  
+
   // Exclude offset transactions from calculations (they'll be applied to original purchases)
-  const transactions = allTransactions.filter(tx => !tx.isOffset);
-  
+  const transactions = allTransactions.filter((tx) => !tx.isOffset);
+
   // Find returns that are linked to purchases in this period (even if return is outside period)
-  const purchaseIds = transactions.map(tx => tx.id);
+  const purchaseIds = transactions.map((tx) => tx.id);
   const linkedReturns = await prisma.transaction.findMany({
     where: {
       isOffset: true,
-      linkedTransactionId: { in: purchaseIds }
-    }
+      linkedTransactionId: { in: purchaseIds },
+    },
   });
-  
+
   // Build a map of purchase -> total return amount
   const returnAmounts = new Map<string, number>();
-  linkedReturns.forEach(ret => {
+  linkedReturns.forEach((ret) => {
     if (ret.linkedTransactionId) {
       const current = returnAmounts.get(ret.linkedTransactionId) || 0;
       returnAmounts.set(ret.linkedTransactionId, current + Math.abs(ret.amount));
@@ -89,16 +102,26 @@ export async function dashboardAnalytics(prisma: PrismaClient, filters: FilterPa
   // Calculate income and spending with returns applied (converted to base currency)
   let income = 0;
   let spending = 0;
-  
-  transactions.forEach(tx => {
+
+  transactions.forEach((tx) => {
     const accountCurrency = tx.account?.currency || 'USD';
     const amount = Number(tx.amount);
     const returnAmount = returnAmounts.get(tx.id) || 0;
-    
+
     // Convert to base currency
-    const convertedAmount = convertTransactionAmount(amount, accountCurrency, baseCurrency, rateMap);
-    const convertedReturnAmount = convertTransactionAmount(returnAmount, accountCurrency, baseCurrency, rateMap);
-    
+    const convertedAmount = convertTransactionAmount(
+      amount,
+      accountCurrency,
+      baseCurrency,
+      rateMap
+    );
+    const convertedReturnAmount = convertTransactionAmount(
+      returnAmount,
+      accountCurrency,
+      baseCurrency,
+      rateMap
+    );
+
     if (amount > 0) {
       income += convertedAmount;
     } else {
@@ -106,52 +129,52 @@ export async function dashboardAnalytics(prisma: PrismaClient, filters: FilterPa
       spending += Math.abs(convertedAmount) - convertedReturnAmount;
     }
   });
-  
+
   const savings = income - spending;
 
   // Get previous period transactions for month-over-month comparison
   const periodLength = endDate.getTime() - startDate.getTime();
   const prevStart = new Date(startDate.getTime() - periodLength);
   const prevEnd = new Date(startDate.getTime() - 1);
-  
+
   let allPrevTransactions = await prisma.transaction.findMany({
     where: {
       ...buildWhere(filters, prevStart, prevEnd),
-      isTransfer: false
+      isTransfer: false,
     },
-    include: { 
+    include: {
       category: true,
       account: true,
       linkedTransaction: true,
-      offsetTransactions: true
-    }
+      offsetTransactions: true,
+    },
   });
 
   // Filter previous period by date string too
   if (filters.startDate || filters.endDate) {
     const prevStartStr = prevStart.toISOString().split('T')[0];
     const prevEndStr = prevEnd.toISOString().split('T')[0];
-    allPrevTransactions = allPrevTransactions.filter(tx => {
+    allPrevTransactions = allPrevTransactions.filter((tx) => {
       const txDateStr = tx.date.toISOString().split('T')[0];
       if (txDateStr < prevStartStr) return false;
       if (txDateStr > prevEndStr) return false;
       return true;
     });
   }
-  
-  const prevTransactions = allPrevTransactions.filter(tx => !tx.isOffset);
-  
+
+  const prevTransactions = allPrevTransactions.filter((tx) => !tx.isOffset);
+
   // Get returns for previous period
-  const prevPurchaseIds = prevTransactions.map(tx => tx.id);
+  const prevPurchaseIds = prevTransactions.map((tx) => tx.id);
   const prevLinkedReturns = await prisma.transaction.findMany({
     where: {
       isOffset: true,
-      linkedTransactionId: { in: prevPurchaseIds }
-    }
+      linkedTransactionId: { in: prevPurchaseIds },
+    },
   });
-  
+
   const prevReturnAmounts = new Map<string, number>();
-  prevLinkedReturns.forEach(ret => {
+  prevLinkedReturns.forEach((ret) => {
     if (ret.linkedTransactionId) {
       const current = prevReturnAmounts.get(ret.linkedTransactionId) || 0;
       prevReturnAmounts.set(ret.linkedTransactionId, current + Math.abs(ret.amount));
@@ -160,16 +183,26 @@ export async function dashboardAnalytics(prisma: PrismaClient, filters: FilterPa
 
   let prevIncome = 0;
   let prevSpending = 0;
-  
-  prevTransactions.forEach(tx => {
+
+  prevTransactions.forEach((tx) => {
     const accountCurrency = tx.account?.currency || 'USD';
     const amount = Number(tx.amount);
     const returnAmount = prevReturnAmounts.get(tx.id) || 0;
-    
+
     // Convert to base currency
-    const convertedAmount = convertTransactionAmount(amount, accountCurrency, baseCurrency, rateMap);
-    const convertedReturnAmount = convertTransactionAmount(returnAmount, accountCurrency, baseCurrency, rateMap);
-    
+    const convertedAmount = convertTransactionAmount(
+      amount,
+      accountCurrency,
+      baseCurrency,
+      rateMap
+    );
+    const convertedReturnAmount = convertTransactionAmount(
+      returnAmount,
+      accountCurrency,
+      baseCurrency,
+      rateMap
+    );
+
     if (amount > 0) {
       prevIncome += convertedAmount;
     } else {
@@ -177,19 +210,37 @@ export async function dashboardAnalytics(prisma: PrismaClient, filters: FilterPa
     }
   });
 
-  const categoryTotals: Record<string, { amount: number; type: string | null; txCount: number; returnAmount: number }> = {};
+  const categoryTotals: Record<
+    string,
+    { amount: number; type: string | null; txCount: number; returnAmount: number }
+  > = {};
   for (const tx of transactions) {
-    const key = tx.category?.name ?? "Uncategorized";
+    const key = tx.category?.name ?? 'Uncategorized';
     const accountCurrency = tx.account?.currency || 'USD';
     const returnAmount = returnAmounts.get(tx.id) || 0;
-    
-    categoryTotals[key] = categoryTotals[key] ?? { amount: 0, type: tx.category?.type ?? null, txCount: 0, returnAmount: 0 };
-    
+
+    categoryTotals[key] = categoryTotals[key] ?? {
+      amount: 0,
+      type: tx.category?.type ?? null,
+      txCount: 0,
+      returnAmount: 0,
+    };
+
     // Add all transactions (positive and negative) to get net amount per category
     const txAmount = Number(tx.amount);
-    const convertedAmount = convertTransactionAmount(txAmount, accountCurrency, baseCurrency, rateMap);
-    const convertedReturnAmount = convertTransactionAmount(returnAmount, accountCurrency, baseCurrency, rateMap);
-    
+    const convertedAmount = convertTransactionAmount(
+      txAmount,
+      accountCurrency,
+      baseCurrency,
+      rateMap
+    );
+    const convertedReturnAmount = convertTransactionAmount(
+      returnAmount,
+      accountCurrency,
+      baseCurrency,
+      rateMap
+    );
+
     if (txAmount < 0) {
       // For expenses, subtract any returns
       categoryTotals[key].amount += Math.abs(convertedAmount) - convertedReturnAmount;
@@ -198,34 +249,44 @@ export async function dashboardAnalytics(prisma: PrismaClient, filters: FilterPa
       // For income/credits, subtract from the category total (reduces net spending)
       categoryTotals[key].amount -= convertedAmount;
     }
-    
+
     categoryTotals[key].txCount += 1;
   }
 
   // Previous period category totals for comparison (with returns applied and converted)
   const prevCategoryTotals: Record<string, number> = {};
   for (const tx of prevTransactions) {
-    const key = tx.category?.name ?? "Uncategorized";
+    const key = tx.category?.name ?? 'Uncategorized';
     const accountCurrency = tx.account?.currency || 'USD';
     const amount = Number(tx.amount);
     const returnAmount = prevReturnAmounts.get(tx.id) || 0;
-    
+
     prevCategoryTotals[key] = prevCategoryTotals[key] ?? 0;
-    
+
     if (amount < 0) {
       // For expenses, subtract any returns
       const netAmount = Math.abs(amount) - returnAmount;
-      const convertedNetAmount = convertTransactionAmount(netAmount, accountCurrency, baseCurrency, rateMap);
+      const convertedNetAmount = convertTransactionAmount(
+        netAmount,
+        accountCurrency,
+        baseCurrency,
+        rateMap
+      );
       prevCategoryTotals[key] += convertedNetAmount;
     } else {
       // For income/credits, subtract from the category total
-      const convertedAmount = convertTransactionAmount(amount, accountCurrency, baseCurrency, rateMap);
+      const convertedAmount = convertTransactionAmount(
+        amount,
+        accountCurrency,
+        baseCurrency,
+        rateMap
+      );
       prevCategoryTotals[key] -= convertedAmount;
     }
   }
 
   const spendByCategory = Object.entries(categoryTotals)
-    .filter(([, meta]) => (meta.type ?? "expense") !== "income")
+    .filter(([, meta]) => (meta.type ?? 'expense') !== 'income')
     .map(([category, meta]) => {
       const prevAmount = prevCategoryTotals[category] ?? 0;
       const currentAmount = meta.amount;
@@ -238,7 +299,7 @@ export async function dashboardAnalytics(prisma: PrismaClient, filters: FilterPa
         monthOverMonth,
         isOutlier,
         txCount: meta.txCount,
-        prevAmount
+        prevAmount,
       };
     })
     .sort((a, b) => b.amount - a.amount);
@@ -257,26 +318,36 @@ export async function dashboardAnalytics(prisma: PrismaClient, filters: FilterPa
         monthOverMonth,
         isOutlier,
         txCount: meta.txCount,
-        prevAmount
+        prevAmount,
       };
     })
     .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
-    // Removed .slice(0, 10) to show all categories
+  // Removed .slice(0, 10) to show all categories
 
   const merchantTotals: Record<string, number> = {};
   const prevMerchantTotals: Record<string, number> = {};
-  
+
   for (const tx of transactions) {
     if (Number(tx.amount) >= 0) continue;
     const accountCurrency = tx.account?.currency || 'USD';
-    const convertedAmount = convertTransactionAmount(Math.abs(Number(tx.amount)), accountCurrency, baseCurrency, rateMap);
+    const convertedAmount = convertTransactionAmount(
+      Math.abs(Number(tx.amount)),
+      accountCurrency,
+      baseCurrency,
+      rateMap
+    );
     merchantTotals[tx.merchant] = (merchantTotals[tx.merchant] ?? 0) + convertedAmount;
   }
-  
+
   for (const tx of prevTransactions) {
     if (Number(tx.amount) >= 0) continue;
     const accountCurrency = tx.account?.currency || 'USD';
-    const convertedAmount = convertTransactionAmount(Math.abs(Number(tx.amount)), accountCurrency, baseCurrency, rateMap);
+    const convertedAmount = convertTransactionAmount(
+      Math.abs(Number(tx.amount)),
+      accountCurrency,
+      baseCurrency,
+      rateMap
+    );
     prevMerchantTotals[tx.merchant] = (prevMerchantTotals[tx.merchant] ?? 0) + convertedAmount;
   }
 
@@ -294,17 +365,27 @@ export async function dashboardAnalytics(prisma: PrismaClient, filters: FilterPa
     // Use UTC date string to avoid timezone conversion
     const month = tx.date.toISOString().split('T')[0].substring(0, 7); // Get YYYY-MM
     monthBuckets[month] = monthBuckets[month] ?? { income: 0, spending: 0 };
-    
+
     const accountCurrency = tx.account?.currency || 'USD';
     const returnAmount = returnAmounts.get(tx.id) || 0;
-    
+
     if (Number(tx.amount) > 0) {
-      const convertedAmount = convertTransactionAmount(Number(tx.amount), accountCurrency, baseCurrency, rateMap);
+      const convertedAmount = convertTransactionAmount(
+        Number(tx.amount),
+        accountCurrency,
+        baseCurrency,
+        rateMap
+      );
       monthBuckets[month].income += convertedAmount;
     } else {
       // Apply returns to reduce spending (converted)
       const netSpending = Math.abs(Number(tx.amount)) - returnAmount;
-      const convertedNetSpending = convertTransactionAmount(netSpending, accountCurrency, baseCurrency, rateMap);
+      const convertedNetSpending = convertTransactionAmount(
+        netSpending,
+        accountCurrency,
+        baseCurrency,
+        rateMap
+      );
       monthBuckets[month].spending += convertedNetSpending;
     }
   }
@@ -324,23 +405,31 @@ export async function dashboardAnalytics(prisma: PrismaClient, filters: FilterPa
   for (let i = 0; i < 3; i++) {
     const windowStart = startOfMonth(subMonths(endDate, i));
     const windowEnd = endOfMonth(windowStart);
-    const windowTx = transactions.filter((tx) => !isBefore(tx.date, windowStart) && !isAfter(tx.date, windowEnd));
-    const windowIncome = windowTx.filter((tx) => Number(tx.amount) > 0).reduce((acc, tx) => acc + Number(tx.amount), 0);
-    const windowSpending = windowTx.filter((tx) => Number(tx.amount) < 0).reduce((acc, tx) => acc + Number(tx.amount), 0);
+    const windowTx = transactions.filter(
+      (tx) => !isBefore(tx.date, windowStart) && !isAfter(tx.date, windowEnd)
+    );
+    const windowIncome = windowTx
+      .filter((tx) => Number(tx.amount) > 0)
+      .reduce((acc, tx) => acc + Number(tx.amount), 0);
+    const windowSpending = windowTx
+      .filter((tx) => Number(tx.amount) < 0)
+      .reduce((acc, tx) => acc + Number(tx.amount), 0);
     rollingWindow.push(windowIncome > 0 ? (windowIncome + windowSpending) / windowIncome : 0);
   }
-  const rollingAvg = rollingWindow.length ? rollingWindow.reduce((a, b) => a + b, 0) / rollingWindow.length : 0;
+  const rollingAvg = rollingWindow.length
+    ? rollingWindow.reduce((a, b) => a + b, 0) / rollingWindow.length
+    : 0;
 
   const trendAlerts = buildTrendAlerts(categoryTotals, prevTransactions);
 
   return {
-    netCashflow: { 
-      income, 
-      spending: Math.abs(spending), 
+    netCashflow: {
+      income,
+      spending: Math.abs(spending),
       savings,
       prevIncome,
       prevSpending: Math.abs(prevSpending),
-      prevSavings: prevIncome + prevSpending
+      prevSavings: prevIncome + prevSpending,
     },
     savingsRate: { rate: savingsRate, delta, rollingAvg },
     spendByCategory,
@@ -349,7 +438,7 @@ export async function dashboardAnalytics(prisma: PrismaClient, filters: FilterPa
     incomeVsSpending,
     trendAlerts,
     transactionCount: transactions.length,
-    prevTransactionCount: prevTransactions.length
+    prevTransactionCount: prevTransactions.length,
   };
 }
 
@@ -359,7 +448,7 @@ function buildTrendAlerts(
 ) {
   const prevTotals: Record<string, number> = {};
   previousTx.forEach((tx) => {
-    const category = tx.category?.name ?? "Uncategorized";
+    const category = tx.category?.name ?? 'Uncategorized';
     prevTotals[category] = (prevTotals[category] ?? 0) + Number(tx.amount);
   });
 
@@ -371,34 +460,36 @@ function buildTrendAlerts(
       title: `${category} change`,
       description: `${category} moved by ${deltaAmount.toFixed(2)}`,
       deltaAmount,
-      deltaPct
+      deltaPct,
     };
   });
 
-  return alerts
-    .sort((a, b) => Math.abs(b.deltaAmount) - Math.abs(a.deltaAmount))
-    .slice(0, 5);
+  return alerts.sort((a, b) => Math.abs(b.deltaAmount) - Math.abs(a.deltaAmount)).slice(0, 5);
 }
 
 export async function monthlySnapshot(prisma: PrismaClient, month: string) {
-  const [year, m] = month.split("-").map((n) => parseInt(n, 10));
+  const [year, m] = month.split('-').map((n) => parseInt(n, 10));
   const start = new Date(year, m - 1, 1);
   const end = endOfMonth(start);
 
   const transactions = await prisma.transaction.findMany({
     where: { date: { gte: start, lte: end }, isTransfer: false },
-    include: { category: true }
+    include: { category: true },
   });
 
-  const income = transactions.filter((t) => Number(t.amount) > 0).reduce((acc, t) => acc + Number(t.amount), 0);
-  const spending = transactions.filter((t) => Number(t.amount) < 0).reduce((acc, t) => acc + Number(t.amount), 0);
+  const income = transactions
+    .filter((t) => Number(t.amount) > 0)
+    .reduce((acc, t) => acc + Number(t.amount), 0);
+  const spending = transactions
+    .filter((t) => Number(t.amount) < 0)
+    .reduce((acc, t) => acc + Number(t.amount), 0);
   const savings = income + spending;
   const savingsRatePct = income > 0 ? (savings / income) * 100 : 0;
 
   const categoryTotals: Record<string, number> = {};
   const merchantTotals: Record<string, number> = {};
   for (const tx of transactions) {
-    const category = tx.category?.name ?? "Uncategorized";
+    const category = tx.category?.name ?? 'Uncategorized';
     categoryTotals[category] = (categoryTotals[category] ?? 0) + Number(tx.amount);
     merchantTotals[tx.merchant] = (merchantTotals[tx.merchant] ?? 0) + Number(tx.amount);
   }
@@ -409,7 +500,7 @@ export async function monthlySnapshot(prisma: PrismaClient, month: string) {
     savingsTotal: savings,
     savingsRatePct,
     categoryTotals,
-    merchantTotals
+    merchantTotals,
   };
 }
 
@@ -425,8 +516,8 @@ export async function ensureSnapshot(prisma: PrismaClient, month: string) {
       savingsTotal: calc.savingsTotal,
       savingsRatePct: calc.savingsRatePct,
       categoryTotals: JSON.stringify(calc.categoryTotals),
-      merchantTotals: JSON.stringify(calc.merchantTotals)
-    }
+      merchantTotals: JSON.stringify(calc.merchantTotals),
+    },
   });
 }
 
@@ -437,8 +528,8 @@ export function paceForecast(spent: number, limit: number, startDate: Date, endD
   const pace = spent / elapsedDays;
   const forecast = pace * totalDays;
 
-  let status: "on-track" | "trending-over" | "over" = "on-track";
-  if (forecast > limit * 1.05) status = "trending-over";
-  if (spent > limit) status = "over";
+  let status: 'on-track' | 'trending-over' | 'over' = 'on-track';
+  if (forecast > limit * 1.05) status = 'trending-over';
+  if (spent > limit) status = 'over';
   return { forecast, status };
 }

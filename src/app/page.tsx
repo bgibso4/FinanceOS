@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import React, { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ChartRenderer } from "@/components/chart-renderer";
-import { DashboardPayload, ChartSpec } from "@/lib/types";
-import { loadPinned } from "@/lib/pinned";
-import { ds } from "@/lib/design-system";
+import React, { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { ChartRenderer } from '@/components/chart-renderer';
+import { DashboardPayload, ChartSpec } from '@/lib/types';
+import { loadPinned } from '@/lib/pinned';
+import { ds } from '@/lib/design-system';
 
 // Helper to format currency
 const formatCurrency = (amount: number) => {
@@ -25,15 +25,23 @@ const calcChange = (current: number, previous: number) => {
 };
 
 // Change indicator component
-const ChangeIndicator = ({ current, previous, inverted = false }: { current: number; previous: number; inverted?: boolean }) => {
+const ChangeIndicator = ({
+  current,
+  previous,
+  inverted = false,
+}: {
+  current: number;
+  previous: number;
+  inverted?: boolean;
+}) => {
   const change = calcChange(current, previous);
   const isPositive = inverted ? change < 0 : change > 0;
   const isNeutral = Math.abs(change) < 1;
-  
+
   if (isNeutral) {
     return <span className={`text-xs ${ds.text.muted}`}>No change</span>;
   }
-  
+
   return (
     <span className={`text-xs font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
       {change > 0 ? '↑' : '↓'} {Math.abs(change).toFixed(1)}%
@@ -42,16 +50,16 @@ const ChangeIndicator = ({ current, previous, inverted = false }: { current: num
 };
 
 // Mini sparkline component
-const Sparkline = ({ data, color = "#3b82f6" }: { data: number[]; color?: string }) => {
+const Sparkline = ({ data, color = '#3b82f6' }: { data: number[]; color?: string }) => {
   if (data.length < 2) return null;
-  
+
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
   const height = 40;
   const width = 100;
   const padding = 4;
-  
+
   const points = data.map((value, i) => {
     const x = padding + (i / (data.length - 1)) * (width - padding * 2);
     const y = padding + (height - padding * 2) - ((value - min) / range) * (height - padding * 2);
@@ -62,31 +70,28 @@ const Sparkline = ({ data, color = "#3b82f6" }: { data: number[]; color?: string
   const areaPath = `${linePath} L ${points[points.length - 1].x},${height - padding} L ${points[0].x},${height - padding} Z`;
 
   return (
-    <svg width={width} height={height} className="overflow-visible">
+    <svg className="overflow-visible" height={height} width={width}>
       <defs>
-        <linearGradient id={`sparkGradient-${color.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.3}/>
-          <stop offset="100%" stopColor={color} stopOpacity={0.05}/>
+        <linearGradient id={`sparkGradient-${color.replace('#', '')}`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+          <stop offset="100%" stopColor={color} stopOpacity={0.05} />
         </linearGradient>
       </defs>
-      <path
-        d={areaPath}
-        fill={`url(#sparkGradient-${color.replace('#', '')})`}
-      />
+      <path d={areaPath} fill={`url(#sparkGradient-${color.replace('#', '')})`} />
       <path
         d={linePath}
         fill="none"
         stroke={color}
-        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
+        strokeWidth="2"
       />
       {/* End dot */}
       <circle
         cx={points[points.length - 1].x}
         cy={points[points.length - 1].y}
-        r="3"
         fill={color}
+        r="3"
       />
     </svg>
   );
@@ -115,41 +120,41 @@ function DashboardPageContent() {
 
   useEffect(() => {
     const queryParams = new URLSearchParams();
-    const preset = searchParams.get("preset") || "last-3-months";
-    const account = searchParams.get("account");
-    const category = searchParams.get("category");
-    const startDate = searchParams.get("startDate");
-    const endDate = searchParams.get("endDate");
-    
-    queryParams.set("preset", preset);
-    if (account) queryParams.set("account", account);
-    if (category) queryParams.set("category", category);
-    if (startDate) queryParams.set("startDate", startDate);
-    if (endDate) queryParams.set("endDate", endDate);
-    
+    const preset = searchParams.get('preset') || 'last-3-months';
+    const account = searchParams.get('account');
+    const category = searchParams.get('category');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+
+    queryParams.set('preset', preset);
+    if (account) queryParams.set('account', account);
+    if (category) queryParams.set('category', category);
+    if (startDate) queryParams.set('startDate', startDate);
+    if (endDate) queryParams.set('endDate', endDate);
+
     const queryString = queryParams.toString();
     console.log('Dashboard fetching with params:', queryString);
-    
-    fetch(`/api/analytics/dashboard${queryString ? `?${queryString}` : ""}`)
+
+    fetch(`/api/analytics/dashboard${queryString ? `?${queryString}` : ''}`)
       .then((r) => r.json())
       .then((d) => {
         console.log('Dashboard data received:', d);
         setData(d);
       })
       .catch(() => {});
-    
-    fetch("/api/accounts/balances")
+
+    fetch('/api/accounts/balances')
       .then((r) => r.json())
       .then((d) => setBalanceData(d))
       .catch(() => {});
-    
+
     const pinnedItems = loadPinned();
     setPinned(pinnedItems.map((p) => p.chartSpec));
   }, [searchParams]);
 
   const totalSpending = data?.spendByCategory.reduce((sum, c) => sum + c.amount, 0) ?? 0;
-  const savingsSparkline = data?.incomeVsSpending.map(d => d.income - d.spending) ?? [];
-  const spendingSparkline = data?.incomeVsSpending.map(d => d.spending) ?? [];
+  const savingsSparkline = data?.incomeVsSpending.map((d) => d.income - d.spending) ?? [];
+  const spendingSparkline = data?.incomeVsSpending.map((d) => d.spending) ?? [];
   const biggestExpense = data?.topMerchants[0];
   const avgDailySpend = data && data.transactionCount > 0 ? data.netCashflow.spending / 30 : 0;
 
@@ -161,8 +166,12 @@ function DashboardPageContent() {
           <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
               <div>
-                <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wide`}>Net Worth</div>
-                <div className={`text-3xl font-bold mt-1 ${balanceData.netWorth >= 0 ? ds.text.primary : 'text-red-600'}`}>
+                <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wide`}>
+                  Net Worth
+                </div>
+                <div
+                  className={`text-3xl font-bold mt-1 ${balanceData.netWorth >= 0 ? ds.text.primary : 'text-red-600'}`}
+                >
                   {formatCurrency(balanceData.netWorth)}
                 </div>
                 <div className="flex items-center gap-4 mt-2 text-sm">
@@ -174,26 +183,34 @@ function DashboardPageContent() {
                   </span>
                 </div>
               </div>
-              
+
               {/* Top 5 Accounts by Balance - Compact List */}
               <div className="flex-1 max-w-md">
-                <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wide mb-2`}>Top Accounts</div>
+                <div
+                  className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wide mb-2`}
+                >
+                  Top Accounts
+                </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                   {balanceData.accounts
                     .sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance))
                     .slice(0, 5)
-                    .map(acc => (
+                    .map((acc) => (
                       <div key={acc.id} className="flex items-center justify-between">
                         <span className={`${ds.text.secondary} truncate mr-2`}>{acc.name}</span>
-                        <span className={`font-semibold ${acc.balance >= 0 ? ds.text.primary : 'text-red-600'}`}>
+                        <span
+                          className={`font-semibold ${acc.balance >= 0 ? ds.text.primary : 'text-red-600'}`}
+                        >
                           {formatCurrency(acc.balance)}
                         </span>
                       </div>
                     ))}
                   {balanceData.accounts.length > 5 && (
                     <div className="flex items-center justify-between">
-                      <span className={`${ds.text.muted} text-xs italic`}>+{balanceData.accounts.length - 5} more</span>
-                      <span></span>
+                      <span className={`${ds.text.muted} text-xs italic`}>
+                        +{balanceData.accounts.length - 5} more
+                      </span>
+                      <span />
                     </div>
                   )}
                 </div>
@@ -209,13 +226,25 @@ function DashboardPageContent() {
           <CardContent className="pt-5 pb-4">
             <div className="flex items-start justify-between">
               <div>
-                <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wide`}>Net Cashflow</div>
-                <div className={`text-2xl font-bold mt-1 ${(data?.netCashflow.savings ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {data ? formatCurrency(data.netCashflow.savings) : "—"}
+                <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wide`}>
+                  Net Cashflow
                 </div>
-                {data && <ChangeIndicator current={data.netCashflow.savings} previous={data.netCashflow.prevSavings} />}
+                <div
+                  className={`text-2xl font-bold mt-1 ${(data?.netCashflow.savings ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                >
+                  {data ? formatCurrency(data.netCashflow.savings) : '—'}
+                </div>
+                {data && (
+                  <ChangeIndicator
+                    current={data.netCashflow.savings}
+                    previous={data.netCashflow.prevSavings}
+                  />
+                )}
               </div>
-              <Sparkline data={savingsSparkline} color={(data?.netCashflow.savings ?? 0) >= 0 ? "#16a34a" : "#dc2626"} />
+              <Sparkline
+                color={(data?.netCashflow.savings ?? 0) >= 0 ? '#16a34a' : '#dc2626'}
+                data={savingsSparkline}
+              />
             </div>
           </CardContent>
         </Card>
@@ -223,11 +252,18 @@ function DashboardPageContent() {
         <Card>
           <CardContent className="pt-5 pb-4">
             <div>
-              <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wide`}>Income</div>
-              <div className="text-2xl font-bold mt-1 text-green-600">
-                {data ? formatCurrency(data.netCashflow.income) : "—"}
+              <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wide`}>
+                Income
               </div>
-              {data && <ChangeIndicator current={data.netCashflow.income} previous={data.netCashflow.prevIncome} />}
+              <div className="text-2xl font-bold mt-1 text-green-600">
+                {data ? formatCurrency(data.netCashflow.income) : '—'}
+              </div>
+              {data && (
+                <ChangeIndicator
+                  current={data.netCashflow.income}
+                  previous={data.netCashflow.prevIncome}
+                />
+              )}
             </div>
           </CardContent>
         </Card>
@@ -236,13 +272,21 @@ function DashboardPageContent() {
           <CardContent className="pt-5 pb-4">
             <div className="flex items-start justify-between">
               <div>
-                <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wide`}>Spending</div>
-                <div className="text-2xl font-bold mt-1 text-red-600">
-                  {data ? formatCurrency(data.netCashflow.spending) : "—"}
+                <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wide`}>
+                  Spending
                 </div>
-                {data && <ChangeIndicator current={data.netCashflow.spending} previous={data.netCashflow.prevSpending} inverted />}
+                <div className="text-2xl font-bold mt-1 text-red-600">
+                  {data ? formatCurrency(data.netCashflow.spending) : '—'}
+                </div>
+                {data && (
+                  <ChangeIndicator
+                    inverted
+                    current={data.netCashflow.spending}
+                    previous={data.netCashflow.prevSpending}
+                  />
+                )}
               </div>
-              <Sparkline data={spendingSparkline} color="#dc2626" />
+              <Sparkline color="#dc2626" data={spendingSparkline} />
             </div>
           </CardContent>
         </Card>
@@ -250,13 +294,20 @@ function DashboardPageContent() {
         <Card>
           <CardContent className="pt-5 pb-4">
             <div>
-              <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wide`}>Savings Rate</div>
-              <div className={`text-2xl font-bold mt-1 ${(data?.savingsRate.rate ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {data ? `${(data.savingsRate.rate * 100).toFixed(1)}%` : "—"}
+              <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wide`}>
+                Savings Rate
+              </div>
+              <div
+                className={`text-2xl font-bold mt-1 ${(data?.savingsRate.rate ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}
+              >
+                {data ? `${(data.savingsRate.rate * 100).toFixed(1)}%` : '—'}
               </div>
               {data && (
-                <span className={`text-xs font-medium ${data.savingsRate.delta >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {data.savingsRate.delta >= 0 ? '↑' : '↓'} {Math.abs(data.savingsRate.delta * 100).toFixed(1)}pp
+                <span
+                  className={`text-xs font-medium ${data.savingsRate.delta >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                >
+                  {data.savingsRate.delta >= 0 ? '↑' : '↓'}{' '}
+                  {Math.abs(data.savingsRate.delta * 100).toFixed(1)}pp
                 </span>
               )}
             </div>
@@ -269,26 +320,32 @@ function DashboardPageContent() {
         <Card>
           <CardContent className="pt-5 pb-4">
             <div className={`text-xs ${ds.text.muted}`}>Transactions</div>
-            <div className={`text-xl font-bold ${ds.text.primary}`}>{data?.transactionCount ?? "—"}</div>
+            <div className={`text-xl font-bold ${ds.text.primary}`}>
+              {data?.transactionCount ?? '—'}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-5 pb-4">
             <div className={`text-xs ${ds.text.muted}`}>Avg Daily Spend</div>
-            <div className={`text-xl font-bold ${ds.text.primary}`}>{formatCurrency(avgDailySpend)}</div>
+            <div className={`text-xl font-bold ${ds.text.primary}`}>
+              {formatCurrency(avgDailySpend)}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-5 pb-4">
             <div className={`text-xs ${ds.text.muted}`}>Top Merchant</div>
-            <div className={`text-xl font-bold ${ds.text.primary} truncate`}>{biggestExpense?.merchant ?? "—"}</div>
+            <div className={`text-xl font-bold ${ds.text.primary} truncate`}>
+              {biggestExpense?.merchant ?? '—'}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-5 pb-4">
             <div className={`text-xs ${ds.text.muted}`}>3-Mo Savings Avg</div>
             <div className={`text-xl font-bold ${ds.text.primary}`}>
-              {data ? `${(data.savingsRate.rollingAvg * 100).toFixed(1)}%` : "—"}
+              {data ? `${(data.savingsRate.rollingAvg * 100).toFixed(1)}%` : '—'}
             </div>
           </CardContent>
         </Card>
@@ -304,12 +361,18 @@ function DashboardPageContent() {
             {data && (
               <ChartRenderer
                 spec={{
-                  type: "area",
-                  title: "",
+                  type: 'area',
+                  title: '',
                   series: [
-                    { label: "Income", data: data.incomeVsSpending.map((d) => ({ x: d.month, y: d.income })) },
-                    { label: "Spending", data: data.incomeVsSpending.map((d) => ({ x: d.month, y: d.spending })) }
-                  ]
+                    {
+                      label: 'Income',
+                      data: data.incomeVsSpending.map((d) => ({ x: d.month, y: d.income })),
+                    },
+                    {
+                      label: 'Spending',
+                      data: data.incomeVsSpending.map((d) => ({ x: d.month, y: d.spending })),
+                    },
+                  ],
                 }}
               />
             )}
@@ -319,8 +382,13 @@ function DashboardPageContent() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <div className={`text-sm font-semibold ${ds.text.secondary}`}>Spending by Category</div>
-              <a href="/analytics" className={`text-xs ${ds.status.info.text} hover:text-blue-700 font-medium`}>
+              <div className={`text-sm font-semibold ${ds.text.secondary}`}>
+                Spending by Category
+              </div>
+              <a
+                className={`text-xs ${ds.status.info.text} hover:text-blue-700 font-medium`}
+                href="/analytics"
+              >
                 Details →
               </a>
             </div>
@@ -329,9 +397,16 @@ function DashboardPageContent() {
             {data && (
               <ChartRenderer
                 spec={{
-                  type: "pie",
-                  title: "",
-                  series: [{ label: "Spend", data: data.spendByCategory.slice(0, 6).map((c) => ({ x: c.category, y: c.amount })) }]
+                  type: 'pie',
+                  title: '',
+                  series: [
+                    {
+                      label: 'Spend',
+                      data: data.spendByCategory
+                        .slice(0, 6)
+                        .map((c) => ({ x: c.category, y: c.amount })),
+                    },
+                  ],
                 }}
               />
             )}
@@ -352,18 +427,25 @@ function DashboardPageContent() {
                 return (
                   <div key={cat.category}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className={`text-sm font-medium ${ds.text.secondary} truncate`}>{cat.category}</span>
+                      <span className={`text-sm font-medium ${ds.text.secondary} truncate`}>
+                        {cat.category}
+                      </span>
                       <div className="flex items-center gap-2">
-                        <span className={`text-sm font-semibold ${ds.text.primary}`}>{formatCurrency(cat.amount)}</span>
+                        <span className={`text-sm font-semibold ${ds.text.primary}`}>
+                          {formatCurrency(cat.amount)}
+                        </span>
                         {cat.monthOverMonth !== 0 && (
-                          <span className={`text-xs ${cat.monthOverMonth > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {cat.monthOverMonth > 0 ? '↑' : '↓'}{Math.abs(cat.monthOverMonth).toFixed(0)}%
+                          <span
+                            className={`text-xs ${cat.monthOverMonth > 0 ? 'text-red-600' : 'text-green-600'}`}
+                          >
+                            {cat.monthOverMonth > 0 ? '↑' : '↓'}
+                            {Math.abs(cat.monthOverMonth).toFixed(0)}%
                           </span>
                         )}
                       </div>
                     </div>
                     <div className={`h-1.5 ${ds.bg.tertiary} rounded-full overflow-hidden`}>
-                      <div 
+                      <div
                         className={`h-full rounded-full ${cat.isOutlier ? 'bg-amber-500' : 'bg-blue-500'}`}
                         style={{ width: `${percentage}%` }}
                       />
@@ -383,13 +465,19 @@ function DashboardPageContent() {
             <div className="space-y-2">
               {(data?.topMerchants ?? []).slice(0, 5).map((m, idx) => (
                 <div key={m.merchant} className="flex items-center gap-2">
-                  <div className={`w-5 h-5 rounded-full ${ds.bg.tertiary} flex items-center justify-center text-xs font-medium ${ds.text.muted}`}>
+                  <div
+                    className={`w-5 h-5 rounded-full ${ds.bg.tertiary} flex items-center justify-center text-xs font-medium ${ds.text.muted}`}
+                  >
                     {idx + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className={`text-sm ${ds.text.secondary} truncate block`}>{m.merchant}</span>
+                    <span className={`text-sm ${ds.text.secondary} truncate block`}>
+                      {m.merchant}
+                    </span>
                   </div>
-                  <div className={`text-sm font-semibold ${ds.text.primary}`}>{formatCurrency(m.amount)}</div>
+                  <div className={`text-sm font-semibold ${ds.text.primary}`}>
+                    {formatCurrency(m.amount)}
+                  </div>
                 </div>
               ))}
             </div>
@@ -406,9 +494,14 @@ function DashboardPageContent() {
                 const isIncrease = alert.deltaAmount > 0;
                 return (
                   <div key={alert.title} className="flex items-center justify-between py-1">
-                    <span className={`text-sm ${ds.text.secondary} truncate`}>{alert.title.replace(' change', '')}</span>
-                    <span className={`text-sm font-medium ${isIncrease ? 'text-red-600' : 'text-green-600'}`}>
-                      {isIncrease ? '+' : ''}{formatCurrency(alert.deltaAmount)}
+                    <span className={`text-sm ${ds.text.secondary} truncate`}>
+                      {alert.title.replace(' change', '')}
+                    </span>
+                    <span
+                      className={`text-sm font-medium ${isIncrease ? 'text-red-600' : 'text-green-600'}`}
+                    >
+                      {isIncrease ? '+' : ''}
+                      {formatCurrency(alert.deltaAmount)}
                     </span>
                   </div>
                 );

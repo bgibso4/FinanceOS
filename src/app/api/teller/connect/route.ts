@@ -29,10 +29,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!enrollment) {
-      return NextResponse.json(
-        { error: 'Enrollment not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Enrollment not found' }, { status: 404 });
     }
 
     console.log('[Teller Connect API] Linking to enrollment:', enrollment.institutionName);

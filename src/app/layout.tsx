@@ -1,21 +1,22 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-import { AppShell } from "@/components/app-shell";
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { AppShell } from '@/components/app-shell';
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "FinanceOS",
-  description: "Personal finance cockpit with auto-categorization and analytics."
+  title: 'FinanceOS',
+  description: 'Personal finance cockpit with auto-categorization and analytics.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html suppressHydrationWarning lang="en">
       <head>
-        <script dangerouslySetInnerHTML={{
-          __html: `
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
             (function() {
               const theme = localStorage.getItem('theme') || 'system';
               const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -24,8 +25,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 document.documentElement.classList.add('dark');
               }
             })();
-          `
-        }} />
+          `,
+          }}
+        />
       </head>
       <body className={inter.className}>
         <AppShell>{children}</AppShell>

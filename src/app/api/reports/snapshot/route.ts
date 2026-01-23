@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
 
     if (!month || income === undefined || spending === undefined) {
       return NextResponse.json(
-        { error: "Month, income, and spending are required" },
+        { error: 'Month, income, and spending are required' },
         { status: 400 }
       );
     }
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
     if (isNaN(incomeNum) || isNaN(spendingNum)) {
       return NextResponse.json(
-        { error: "Income and spending must be valid numbers" },
+        { error: 'Income and spending must be valid numbers' },
         { status: 400 }
       );
     }
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     // Find existing snapshot or create new one
     const existing = await prisma.monthlySnapshot.findFirst({
-      where: { month }
+      where: { month },
     });
 
     let snapshot;
@@ -40,9 +40,9 @@ export async function POST(req: NextRequest) {
           spendingTotal: spendingNum,
           savingsTotal: savings,
           savingsRatePct: savingsRate,
-          categoryTotals: "{}",
-          merchantTotals: "{}"
-        }
+          categoryTotals: '{}',
+          merchantTotals: '{}',
+        },
       });
     } else {
       snapshot = await prisma.monthlySnapshot.create({
@@ -52,15 +52,15 @@ export async function POST(req: NextRequest) {
           spendingTotal: spendingNum,
           savingsTotal: savings,
           savingsRatePct: savingsRate,
-          categoryTotals: "{}",
-          merchantTotals: "{}"
-        }
+          categoryTotals: '{}',
+          merchantTotals: '{}',
+        },
       });
     }
 
     return NextResponse.json({ snapshot });
   } catch (error) {
-    console.error("Failed to create snapshot:", error);
-    return NextResponse.json({ error: "Failed to create snapshot" }, { status: 500 });
+    console.error('Failed to create snapshot:', error);
+    return NextResponse.json({ error: 'Failed to create snapshot' }, { status: 500 });
   }
 }

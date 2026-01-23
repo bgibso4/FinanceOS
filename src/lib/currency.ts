@@ -55,17 +55,17 @@ export function getExchangeRate(
   rates: Map<string, number>
 ): number {
   if (fromCurrency === toCurrency) return 1;
-  
+
   const key = `${fromCurrency}_${toCurrency}`;
   const rate = rates.get(key);
-  
+
   if (rate !== undefined) return rate;
-  
+
   // Try reverse rate
   const reverseKey = `${toCurrency}_${fromCurrency}`;
   const reverseRate = rates.get(reverseKey);
   if (reverseRate !== undefined) return 1 / reverseRate;
-  
+
   // No rate found, return 1 (no conversion)
   console.warn(`No exchange rate found for ${fromCurrency} -> ${toCurrency}`);
   return 1;
@@ -101,7 +101,7 @@ export function formatAmount(
 
   const symbol = getCurrencySymbol(currency);
   const isBaseCurrency = currency === baseCurrency;
-  
+
   // Format the native amount
   const formattedAmount = new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 2,
@@ -109,9 +109,7 @@ export function formatAmount(
   }).format(Math.abs(amount));
 
   // Determine if we should show currency code
-  const shouldShowCurrency = 
-    showCurrency === true || 
-    (showCurrency === 'auto' && !isBaseCurrency);
+  const shouldShowCurrency = showCurrency === true || (showCurrency === 'auto' && !isBaseCurrency);
 
   // Build the main display
   let display = `${amount < 0 ? '-' : ''}${symbol}${formattedAmount}`;
@@ -184,7 +182,7 @@ export function formatAmountForAnalytics(
 export function getDefaultExchangeRates(): Map<string, number> {
   const rates = new Map<string, number>();
   rates.set('CAD_USD', 0.72); // 1 CAD = 0.72 USD (approximate)
-  rates.set('EUR_USD', 1.10); // 1 EUR = 1.10 USD (approximate)
+  rates.set('EUR_USD', 1.1); // 1 EUR = 1.10 USD (approximate)
   rates.set('GBP_USD', 1.27); // 1 GBP = 1.27 USD (approximate)
   return rates;
 }
@@ -194,7 +192,7 @@ export function getDefaultExchangeRates(): Map<string, number> {
  */
 export function parseExchangeRates(rates: ExchangeRate[]): Map<string, number> {
   const rateMap = new Map<string, number>();
-  rates.forEach(r => {
+  rates.forEach((r) => {
     const key = `${r.fromCurrency}_${r.toCurrency}`;
     rateMap.set(key, r.rate);
   });

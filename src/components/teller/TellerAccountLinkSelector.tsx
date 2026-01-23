@@ -118,19 +118,13 @@ export function TellerAccountLinkSelector({
   );
 
   if (loading) {
-    return (
-      <div className={`text-sm ${ds.text.muted}`}>
-        Loading available accounts...
-      </div>
-    );
+    return <div className={`text-sm ${ds.text.muted}`}>Loading available accounts...</div>;
   }
 
   if (enrollments.length === 0) {
     return (
       <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
-        <p className={`text-sm ${ds.text.secondary} mb-2`}>
-          No institutions connected yet.
-        </p>
+        <p className={`text-sm ${ds.text.secondary} mb-2`}>No institutions connected yet.</p>
         <p className={`text-sm ${ds.text.muted}`}>
           Connect to a bank first in the "Connected Institutions" section above.
         </p>
@@ -155,6 +149,7 @@ export function TellerAccountLinkSelector({
       </p>
 
       <Select
+        className="w-full"
         value={selectedAccountId}
         onChange={(e) => {
           const accountId = e.target.value;
@@ -165,7 +160,6 @@ export function TellerAccountLinkSelector({
             setSelectedEnrollmentId(account.enrollmentId);
           }
         }}
-        className="w-full"
       >
         <option value="">Select a bank account...</option>
         {enrollments.map((enrollment) => (
@@ -180,9 +174,9 @@ export function TellerAccountLinkSelector({
       </Select>
 
       <Button
-        onClick={handleLink}
-        disabled={!selectedAccountId || linking}
         className="w-full bg-blue-600 hover:bg-blue-700"
+        disabled={!selectedAccountId || linking}
+        onClick={handleLink}
       >
         {linking ? 'Linking...' : 'Link Account'}
       </Button>

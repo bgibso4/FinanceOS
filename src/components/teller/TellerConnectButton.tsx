@@ -187,7 +187,11 @@ export function TellerConnectButton({
           }
 
           // Store accounts and show selector
-          console.log('[TellerConnect] Showing account selector with', data.accounts.length, 'accounts');
+          console.log(
+            '[TellerConnect] Showing account selector with',
+            data.accounts.length,
+            'accounts'
+          );
           setAvailableAccounts(data.accounts);
           setPendingPayload({
             accessToken: payload.accessToken,
@@ -216,24 +220,27 @@ export function TellerConnectButton({
     }
   }, [tellerConnect]);
 
-  const handleAccountSelect = useCallback((tellerAccountId: string) => {
-    if (!pendingPayload) return;
+  const handleAccountSelect = useCallback(
+    (tellerAccountId: string) => {
+      if (!pendingPayload) return;
 
-    console.log('[TellerConnect] Account selected:', tellerAccountId);
-    console.log('[TellerConnect] Calling parent onSuccess handler');
+      console.log('[TellerConnect] Account selected:', tellerAccountId);
+      console.log('[TellerConnect] Calling parent onSuccess handler');
 
-    onSuccess({
-      accessToken: pendingPayload.accessToken,
-      enrollmentId: pendingPayload.enrollmentId,
-      tellerAccountId,
-      institutionName: pendingPayload.institutionName,
-    });
+      onSuccess({
+        accessToken: pendingPayload.accessToken,
+        enrollmentId: pendingPayload.enrollmentId,
+        tellerAccountId,
+        institutionName: pendingPayload.institutionName,
+      });
 
-    // Close selector and reset state
-    setShowAccountSelector(false);
-    setAvailableAccounts([]);
-    setPendingPayload(null);
-  }, [pendingPayload, onSuccess]);
+      // Close selector and reset state
+      setShowAccountSelector(false);
+      setAvailableAccounts([]);
+      setPendingPayload(null);
+    },
+    [pendingPayload, onSuccess]
+  );
 
   const handleAccountSelectorCancel = useCallback(() => {
     console.log('[TellerConnect] Account selection cancelled');
@@ -253,19 +260,19 @@ export function TellerConnectButton({
   return (
     <>
       <Button
-        onClick={handleClick}
-        disabled={!ready || loading || !tellerConnect}
         className={className}
+        disabled={!ready || loading || !tellerConnect}
+        onClick={handleClick}
       >
         {loading ? 'Loading...' : 'Connect Bank'}
       </Button>
 
       <TellerAccountSelector
-        isOpen={showAccountSelector}
         accounts={availableAccounts}
-        onSelect={handleAccountSelect}
-        onCancel={handleAccountSelectorCancel}
         financeOSAccountName={accountName}
+        isOpen={showAccountSelector}
+        onCancel={handleAccountSelectorCancel}
+        onSelect={handleAccountSelect}
       />
     </>
   );

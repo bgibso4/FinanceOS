@@ -1,17 +1,19 @@
-import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { prisma } from '@/lib/prisma';
 
 const ruleSchema = z.object({
-  matchType: z.enum(["merchantContains", "merchantRegex", "noteContains"]),
+  matchType: z.enum(['merchantContains', 'merchantRegex', 'noteContains']),
   matchValue: z.string(),
   categoryId: z.string(),
   priority: z.number().int().min(1).default(100),
-  isEnabled: z.boolean().default(true)
+  isEnabled: z.boolean().default(true),
 });
 
 export async function GET() {
-  const rules = await prisma.rule.findMany({ orderBy: [{ priority: "asc" }, { createdAt: "asc" }] });
+  const rules = await prisma.rule.findMany({
+    orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
+  });
   return NextResponse.json({ rules });
 }
 

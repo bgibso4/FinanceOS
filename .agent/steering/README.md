@@ -22,6 +22,7 @@ inclusion: always
 ```
 
 Options:
+
 - `always` - Include in every AI interaction
 - `on-request` - Only include when specifically requested
 - `disabled` - Don't include (archived)

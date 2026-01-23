@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { prisma } from '@/lib/prisma';
 
 const patchSchema = z.object({
-  matchType: z.enum(["merchantContains", "merchantRegex", "noteContains"]).optional(),
+  matchType: z.enum(['merchantContains', 'merchantRegex', 'noteContains']).optional(),
   matchValue: z.string().optional(),
   categoryId: z.string().optional(),
   priority: z.number().int().optional(),
-  isEnabled: z.boolean().optional()
+  isEnabled: z.boolean().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -20,17 +20,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  
+
   try {
     await prisma.rule.delete({
-      where: { id }
+      where: { id },
     });
-    
+
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to delete rule" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to delete rule' }, { status: 500 });
   }
 }

@@ -198,73 +198,73 @@ function mapTellerTransaction(tellerTx: TellerTransaction, accountId: string) {
 function mapTellerCategory(tellerCategory: string): string | null {
   const categoryMap: Record<string, string> = {
     // Transportation
-    'transportation': 'Transport',
-    'car': 'Transport',
-    'gas': 'Transport',
-    'parking': 'Transport',
-    'public_transit': 'Transport',
-    'rideshare': 'Transport',
-    'taxi': 'Transport',
+    transportation: 'Transport',
+    car: 'Transport',
+    gas: 'Transport',
+    parking: 'Transport',
+    public_transit: 'Transport',
+    rideshare: 'Transport',
+    taxi: 'Transport',
 
     // Food
-    'food_and_drink': 'Food & Dining',
-    'groceries': 'Groceries',
-    'restaurant': 'Food & Dining',
-    'coffee': 'Coffee',
-    'fast_food': 'Food & Dining',
+    food_and_drink: 'Food & Dining',
+    groceries: 'Groceries',
+    restaurant: 'Food & Dining',
+    coffee: 'Coffee',
+    fast_food: 'Food & Dining',
 
     // Shopping
-    'shopping': 'Shopping',
-    'clothing': 'Shopping',
-    'electronics': 'Shopping',
-    'general_merchandise': 'Shopping',
+    shopping: 'Shopping',
+    clothing: 'Shopping',
+    electronics: 'Shopping',
+    general_merchandise: 'Shopping',
 
     // Entertainment
-    'entertainment': 'Entertainment',
-    'streaming': 'Entertainment',
-    'music': 'Entertainment',
-    'movies': 'Entertainment',
-    'games': 'Entertainment',
+    entertainment: 'Entertainment',
+    streaming: 'Entertainment',
+    music: 'Entertainment',
+    movies: 'Entertainment',
+    games: 'Entertainment',
 
     // Bills & Utilities
-    'utilities': 'Utilities',
-    'bills': 'Bills',
-    'phone': 'Phone',
-    'internet': 'Internet',
-    'insurance': 'Insurance',
+    utilities: 'Utilities',
+    bills: 'Bills',
+    phone: 'Phone',
+    internet: 'Internet',
+    insurance: 'Insurance',
 
     // Home
-    'home': 'Home',
-    'rent': 'Rent',
-    'mortgage': 'Mortgage',
-    'home_improvement': 'Home',
+    home: 'Home',
+    rent: 'Rent',
+    mortgage: 'Mortgage',
+    home_improvement: 'Home',
 
     // Health
-    'healthcare': 'Healthcare',
-    'pharmacy': 'Healthcare',
-    'doctor': 'Healthcare',
-    'gym': 'Health & Fitness',
+    healthcare: 'Healthcare',
+    pharmacy: 'Healthcare',
+    doctor: 'Healthcare',
+    gym: 'Health & Fitness',
 
     // Income
-    'income': 'Income',
-    'payroll': 'Income',
-    'deposit': 'Income',
-    'interest': 'Income',
+    income: 'Income',
+    payroll: 'Income',
+    deposit: 'Income',
+    interest: 'Income',
 
     // Transfers
-    'transfer': 'Transfer',
-    'atm': 'Transfer',
-    'withdrawal': 'Transfer',
+    transfer: 'Transfer',
+    atm: 'Transfer',
+    withdrawal: 'Transfer',
 
     // Travel
-    'travel': 'Travel',
-    'lodging': 'Travel',
-    'airline': 'Travel',
+    travel: 'Travel',
+    lodging: 'Travel',
+    airline: 'Travel',
 
     // Other
-    'fees': 'Fees',
-    'bank_fees': 'Fees',
-    'subscription': 'Subscriptions',
+    fees: 'Fees',
+    bank_fees: 'Fees',
+    subscription: 'Subscriptions',
   };
 
   // Try exact match first

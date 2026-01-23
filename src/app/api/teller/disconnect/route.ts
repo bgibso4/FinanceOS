@@ -30,11 +30,9 @@ export async function POST(req: NextRequest) {
         connection.accessTokenEncrypted,
         connection.accessTokenIv
       );
-      await tellerFetch(
-        `/accounts/${connection.tellerAccountId}`,
-        accessToken,
-        { method: 'DELETE' }
-      );
+      await tellerFetch(`/accounts/${connection.tellerAccountId}`, accessToken, {
+        method: 'DELETE',
+      });
     } catch (tellerError) {
       // Log but continue - we still want to remove local connection
       console.error('Error removing Teller enrollment:', tellerError);

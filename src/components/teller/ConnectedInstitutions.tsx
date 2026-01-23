@@ -105,12 +105,15 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
           }));
 
         // Group by institution name
-        const grouped = plaidConnections.reduce((acc: Record<string, PlaidConnection[]>, conn: PlaidConnection) => {
-          const key = conn.institutionName || 'Unknown Institution';
-          if (!acc[key]) acc[key] = [];
-          acc[key].push(conn);
-          return acc;
-        }, {});
+        const grouped = plaidConnections.reduce(
+          (acc: Record<string, PlaidConnection[]>, conn: PlaidConnection) => {
+            const key = conn.institutionName || 'Unknown Institution';
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(conn);
+            return acc;
+          },
+          {}
+        );
 
         setPlaidInstitutions(
           Object.entries(grouped).map(([name, connections]) => ({
@@ -176,7 +179,9 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
   };
 
   const togglePlaidExpanded = (institutionName: string) => {
-    setExpandedPlaidInstitution(expandedPlaidInstitution === institutionName ? null : institutionName);
+    setExpandedPlaidInstitution(
+      expandedPlaidInstitution === institutionName ? null : institutionName
+    );
   };
 
   if (loading) {
@@ -194,32 +199,34 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
     <div className={`${ds.bg.secondary} rounded-lg p-6 border ${ds.border.default}`}>
       <div className="flex items-center justify-between mb-4">
         <h3 className={`text-lg font-semibold ${ds.text.primary}`}>Connected Institutions</h3>
-        <div className="relative" ref={menuRef}>
-          <Button
-            onClick={() => setShowConnectMenu(!showConnectMenu)}
-          >
+        <div ref={menuRef} className="relative">
+          <Button onClick={() => setShowConnectMenu(!showConnectMenu)}>
             Connect New Institution
           </Button>
           {showConnectMenu && (
-            <div className={`absolute right-0 mt-2 w-56 rounded-lg shadow-lg ${ds.bg.primary} border ${ds.border.default} z-50 overflow-hidden`}>
-              <div className={`p-2 text-xs font-semibold ${ds.text.muted} uppercase tracking-wide border-b ${ds.border.default}`}>
+            <div
+              className={`absolute right-0 mt-2 w-56 rounded-lg shadow-lg ${ds.bg.primary} border ${ds.border.default} z-50 overflow-hidden`}
+            >
+              <div
+                className={`p-2 text-xs font-semibold ${ds.text.muted} uppercase tracking-wide border-b ${ds.border.default}`}
+              >
                 Choose Provider
               </div>
               <div className="p-2 space-y-2">
                 <div>
                   <TellerInstitutionConnect
-                    onSuccess={handleConnect}
                     buttonText="Teller"
                     className="w-full"
+                    onSuccess={handleConnect}
                   />
                   <p className={`text-xs ${ds.text.muted} mt-1`}>Best for major US banks</p>
                 </div>
                 <div>
                   <PlaidLinkButton
                     accountId=""
-                    onSuccess={handlePlaidSuccess}
                     buttonText="Plaid"
                     className="w-full"
+                    onSuccess={handlePlaidSuccess}
                   />
                   <p className={`text-xs ${ds.text.muted} mt-1`}>Sandbox mode - for testing</p>
                 </div>
@@ -257,10 +264,10 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                         <h4 className={`font-semibold ${ds.text.primary}`}>
                           {enrollment.institutionName}
                         </h4>
-                        <span className={`text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400`}>
+                        <span className="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                           Teller
                         </span>
-                        <span className={`text-xs px-2 py-0.5 rounded bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200`}>
+                        <span className="text-xs px-2 py-0.5 rounded bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
                           Connected
                         </span>
                       </div>
@@ -269,9 +276,7 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-sm ${ds.text.muted}`}>
-                        {isExpanded ? '▼' : '▶'}
-                      </span>
+                      <span className={`text-sm ${ds.text.muted}`}>{isExpanded ? '▼' : '▶'}</span>
                     </div>
                   </div>
                 </div>
@@ -284,7 +289,8 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                       <h5 className={`text-sm font-semibold ${ds.text.secondary} mb-2`}>
                         Available Accounts
                       </h5>
-                      {!enrollment.availableAccounts || enrollment.availableAccounts.length === 0 ? (
+                      {!enrollment.availableAccounts ||
+                      enrollment.availableAccounts.length === 0 ? (
                         <p className={`text-sm ${ds.text.muted}`}>No accounts found</p>
                       ) : (
                         <div className="space-y-2">
@@ -333,8 +339,8 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                     {/* Actions */}
                     <div className="flex gap-2 pt-3 border-t">
                       <Button
-                        onClick={() => handleDisconnect(enrollment.id, enrollment.institutionName)}
                         variant="destructive"
+                        onClick={() => handleDisconnect(enrollment.id, enrollment.institutionName)}
                       >
                         Disconnect
                       </Button>
@@ -366,10 +372,10 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                         <h4 className={`font-semibold ${ds.text.primary}`}>
                           {institution.institutionName}
                         </h4>
-                        <span className={`text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300`}>
+                        <span className="text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300">
                           Plaid
                         </span>
-                        <span className={`text-xs px-2 py-0.5 rounded bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200`}>
+                        <span className="text-xs px-2 py-0.5 rounded bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
                           Connected
                         </span>
                       </div>
@@ -378,9 +384,7 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-sm ${ds.text.muted}`}>
-                        {isExpanded ? '▼' : '▶'}
-                      </span>
+                      <span className={`text-sm ${ds.text.muted}`}>{isExpanded ? '▼' : '▶'}</span>
                     </div>
                   </div>
                 </div>
@@ -405,7 +409,8 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                                 </span>
                                 <p className={`text-xs ${ds.text.muted} mt-1`}>
                                   Status: {conn.status}
-                                  {conn.lastSyncAt && ` • Last synced: ${new Date(conn.lastSyncAt).toLocaleDateString()}`}
+                                  {conn.lastSyncAt &&
+                                    ` • Last synced: ${new Date(conn.lastSyncAt).toLocaleDateString()}`}
                                 </p>
                               </div>
                               <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">

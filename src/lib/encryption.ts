@@ -25,7 +25,7 @@ export function encryptAccessToken(accessToken: string): { encrypted: string; iv
 
   return {
     encrypted,
-    iv: iv.toString('base64')
+    iv: iv.toString('base64'),
   };
 }
 

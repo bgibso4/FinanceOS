@@ -108,7 +108,7 @@ export async function tellerFetch<T>(
   const response = await fetch(url, {
     method,
     headers: {
-      'Authorization': authHeader,
+      Authorization: authHeader,
       'Content-Type': 'application/json',
     },
     body: body ? JSON.stringify(body) : undefined,

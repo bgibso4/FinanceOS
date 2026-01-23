@@ -1,24 +1,26 @@
-"use client";
+'use client';
 
-import React, { useEffect, useState } from "react";
-import { v4 as uuid } from "uuid";
-import { Drawer } from "./ui/drawer";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { ChartRenderer } from "./chart-renderer";
-import { AgentResponse, ChartSpec } from "@/lib/types";
-import { loadPinned, savePinned } from "@/lib/pinned";
+import React, { useEffect, useState } from 'react';
+import { v4 as uuid } from 'uuid';
+import { Drawer } from './ui/drawer';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { ChartRenderer } from './chart-renderer';
+import { AgentResponse, ChartSpec } from '@/lib/types';
+import { loadPinned, savePinned } from '@/lib/pinned';
 
 type Props = {
-  trigger?: "button" | "floating";
+  trigger?: 'button' | 'floating';
   buttonLabel?: string;
   onPin?: (spec: ChartSpec) => void;
 };
 
-export function ChatAnalyst({ trigger = "button", buttonLabel = "Ask Analyst", onPin }: Props) {
+export function ChatAnalyst({ trigger = 'button', buttonLabel = 'Ask Analyst', onPin }: Props) {
   const [open, setOpen] = useState(false);
-  const [question, setQuestion] = useState("");
-  const [messages, setMessages] = useState<{ role: "user" | "agent"; content: string; chartSpec?: ChartSpec }[]>([]);
+  const [question, setQuestion] = useState('');
+  const [messages, setMessages] = useState<
+    { role: 'user' | 'agent'; content: string; chartSpec?: ChartSpec }[]
+  >([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -28,19 +30,22 @@ export function ChatAnalyst({ trigger = "button", buttonLabel = "Ask Analyst", o
   const ask = async () => {
     if (!question.trim()) return;
     const q = question.trim();
-    setQuestion("");
-    setMessages((m) => [...m, { role: "user", content: q }]);
+    setQuestion('');
+    setMessages((m) => [...m, { role: 'user', content: q }]);
     setLoading(true);
     try {
-      const res = await fetch("/api/agent/query", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q })
+      const res = await fetch('/api/agent/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q }),
       });
       const data: AgentResponse = await res.json();
-      setMessages((m) => [...m, { role: "agent", content: data.textAnswer, chartSpec: data.chartSpec }]);
+      setMessages((m) => [
+        ...m,
+        { role: 'agent', content: data.textAnswer, chartSpec: data.chartSpec },
+      ]);
     } catch (err) {
-      setMessages((m) => [...m, { role: "agent", content: "Unable to process request." }]);
+      setMessages((m) => [...m, { role: 'agent', content: 'Unable to process request.' }]);
     } finally {
       setLoading(false);
     }
@@ -48,22 +53,27 @@ export function ChatAnalyst({ trigger = "button", buttonLabel = "Ask Analyst", o
 
   const pinChart = (spec: ChartSpec) => {
     const existing = loadPinned();
-    const entry = { id: uuid(), title: spec.title, chartSpec: spec, createdAt: new Date().toISOString() };
+    const entry = {
+      id: uuid(),
+      title: spec.title,
+      chartSpec: spec,
+      createdAt: new Date().toISOString(),
+    };
     savePinned([entry, ...existing].slice(0, 20));
     onPin?.(spec);
   };
 
   const triggerButton =
-    trigger === "floating" ? (
+    trigger === 'floating' ? (
       <button
-        onClick={() => setOpen(true)}
         className="fixed bottom-24 right-6 z-40 flex items-center gap-2 rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-2xl transition hover:-translate-y-0.5 hover:shadow-[0_20px_60px_rgba(15,23,42,0.35)]"
+        onClick={() => setOpen(true)}
       >
         <span className="text-lg">💬</span>
         <span>{buttonLabel}</span>
       </button>
     ) : (
-      <Button variant="outline" className="ml-auto" onClick={() => setOpen(true)}>
+      <Button className="ml-auto" variant="outline" onClick={() => setOpen(true)}>
         {buttonLabel}
       </Button>
     );
@@ -71,18 +81,18 @@ export function ChatAnalyst({ trigger = "button", buttonLabel = "Ask Analyst", o
   return (
     <>
       {triggerButton}
-      <Drawer open={open} onClose={() => setOpen(false)} title="Chat Analyst (read-only)">
+      <Drawer open={open} title="Chat Analyst (read-only)" onClose={() => setOpen(false)}>
         <div className="flex flex-col gap-3">
           <div className="space-y-2">
             <Input
+              disabled={loading}
               placeholder="Ask about spending, merchants, or trends..."
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && ask()}
-              disabled={loading}
+              onKeyDown={(e) => e.key === 'Enter' && ask()}
             />
-            <Button onClick={ask} disabled={loading}>
-              {loading ? "Thinking..." : "Send"}
+            <Button disabled={loading} onClick={ask}>
+              {loading ? 'Thinking...' : 'Send'}
             </Button>
           </div>
 

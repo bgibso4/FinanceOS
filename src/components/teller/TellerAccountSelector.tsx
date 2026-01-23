@@ -51,24 +51,27 @@ export function TellerAccountSelector({
   if (!isOpen) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onCancel} title="Select Bank Account">
+    <Modal isOpen={isOpen} title="Select Bank Account" onClose={onCancel}>
       <div className="space-y-4">
         <p className={`text-sm ${ds.text.secondary}`}>
-          Select which bank account to link to <span className="font-semibold">{financeOSAccountName}</span>:
+          Select which bank account to link to{' '}
+          <span className="font-semibold">{financeOSAccountName}</span>:
         </p>
 
         <div className="space-y-2">
           {accounts.map((account) => (
             <button
               key={account.id}
-              onClick={() => onSelect(account.id)}
               className={`w-full text-left p-4 rounded-lg border ${ds.border.default} hover:border-blue-500 hover:${ds.bg.hover} transition-colors`}
+              onClick={() => onSelect(account.id)}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium">{account.name}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded ${getAccountTypeColor(account.type)}`}>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded ${getAccountTypeColor(account.type)}`}
+                    >
                       {getAccountTypeDisplay(account.type, account.subtype)}
                     </span>
                   </div>
@@ -85,7 +88,7 @@ export function TellerAccountSelector({
         </div>
 
         <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button onClick={onCancel} className="bg-gray-600 hover:bg-gray-700">
+          <Button className="bg-gray-600 hover:bg-gray-700" onClick={onCancel}>
             Cancel
           </Button>
         </div>

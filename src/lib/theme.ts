@@ -12,11 +12,13 @@ export function setTheme(theme: Theme) {
 
 export function applyTheme(theme: Theme) {
   if (typeof window === 'undefined') return;
-  
+
   const root = document.documentElement;
-  
+
   if (theme === 'system') {
-    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light';
     root.classList.toggle('dark', systemTheme === 'dark');
   } else {
     root.classList.toggle('dark', theme === 'dark');
@@ -26,9 +28,9 @@ export function applyTheme(theme: Theme) {
 // Initialize theme on page load
 if (typeof window !== 'undefined') {
   applyTheme(getTheme());
-  
+
   // Listen for system theme changes
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (_e) => {
     if (getTheme() === 'system') {
       applyTheme('system');
     }

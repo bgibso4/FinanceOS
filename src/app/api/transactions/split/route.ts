@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { prisma } from '@/lib/prisma';
 
 const splitSchema = z.object({
   transactionId: z.string(),
@@ -9,17 +9,19 @@ const splitSchema = z.object({
       z.object({
         amount: z.number(),
         categoryId: z.string().nullable().optional(),
-        note: z.string().optional()
+        note: z.string().optional(),
       })
     )
-    .min(2)
+    .min(2),
 });
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const parsed = splitSchema.parse(body);
 
-  const parent = await prisma.transaction.findUniqueOrThrow({ where: { id: parsed.transactionId } });
+  const parent = await prisma.transaction.findUniqueOrThrow({
+    where: { id: parsed.transactionId },
+  });
 
   const created = await prisma.$transaction(async (tx) => {
     await tx.transaction.delete({ where: { id: parent.id } });
@@ -35,8 +37,8 @@ export async function POST(req: NextRequest) {
             note: part.note ?? parent.note,
             tags: parent.tags,
             isTransfer: parent.isTransfer,
-            confidenceScore: parent.confidenceScore
-          }
+            confidenceScore: parent.confidenceScore,
+          },
         })
       )
     );

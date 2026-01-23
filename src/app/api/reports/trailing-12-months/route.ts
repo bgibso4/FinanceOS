@@ -1,18 +1,20 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { dashboardAnalytics } from "@/lib/analytics";
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { dashboardAnalytics } from '@/lib/analytics';
 
 export async function GET(req: NextRequest) {
   try {
     const search = req.nextUrl.searchParams;
-    const endMonth = search.get("month") || (() => {
-      const now = new Date();
-      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    })();
-    
+    const endMonth =
+      search.get('month') ||
+      (() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      })();
+
     const [endYear, endM] = endMonth.split('-').map(Number);
     const results = [];
-    
+
     // Get data for 12 months ending with the specified month
     for (let i = 11; i >= 0; i--) {
       const d = new Date(endYear, endM - 1 - i, 1);
@@ -30,7 +32,12 @@ export async function GET(req: NextRequest) {
       const endDate = new Date(Date.UTC(year, monthNum - 1, lastDay, 23, 59, 59, 999));
 
       // Calculate from actual transactions first
-      const data = await dashboardAnalytics(prisma, { startDate: startDateStr, endDate: endDateStr }, startDate, endDate);
+      const data = await dashboardAnalytics(
+        prisma,
+        { startDate: startDateStr, endDate: endDateStr },
+        startDate,
+        endDate
+      );
 
       let income = data.netCashflow.income;
       let spending = data.netCashflow.spending;
@@ -40,7 +47,7 @@ export async function GET(req: NextRequest) {
       // If no transaction data exists, fall back to backfilled snapshot
       if (income === 0 && spending === 0) {
         const snapshot = await prisma.monthlySnapshot.findFirst({
-          where: { month }
+          where: { month },
         });
 
         if (snapshot) {
@@ -58,13 +65,13 @@ export async function GET(req: NextRequest) {
         income,
         spending,
         savings,
-        savingsRate
+        savingsRate,
       });
     }
-    
+
     return NextResponse.json({ months: results });
   } catch (error) {
-    console.error("Failed to generate trailing 12 months report:", error);
-    return NextResponse.json({ error: "Failed to generate report" }, { status: 500 });
+    console.error('Failed to generate trailing 12 months report:', error);
+    return NextResponse.json({ error: 'Failed to generate report' }, { status: 500 });
   }
 }

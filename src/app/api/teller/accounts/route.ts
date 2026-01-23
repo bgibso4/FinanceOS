@@ -15,10 +15,7 @@ export async function POST(req: NextRequest) {
 
     // Fetch accounts from Teller
     console.log('[Teller Accounts API] Fetching accounts from Teller...');
-    const accounts = await tellerFetch<TellerAccountsResponse>(
-      '/accounts',
-      parsed.accessToken
-    );
+    const accounts = await tellerFetch<TellerAccountsResponse>('/accounts', parsed.accessToken);
 
     console.log('[Teller Accounts API] Found', accounts.length, 'accounts');
 
