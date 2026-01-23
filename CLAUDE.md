@@ -134,10 +134,60 @@ ds.status.success; // Status colors (bg, text, border)
 
 Uses `.env` with `DATABASE_URL` for Prisma. No external services required.
 
-## Testing
+## Code Quality & Linting
+
+This project uses a comprehensive linting and formatting setup that runs automatically.
+
+### Available Commands
 
 ```bash
-npm run lint
+npm run lint          # Check for ESLint issues (errors block, warnings allowed)
+npm run lint:fix      # Auto-fix ESLint issues
+npm run format        # Format all files with Prettier
+npm run format:check  # Check formatting without changes
+npm run typecheck     # Run TypeScript type checking
+npm run check         # Run all checks (typecheck + lint + format)
+```
+
+### Pre-commit Hooks
+
+Husky + lint-staged automatically runs on every commit:
+
+- **JS/TS files**: ESLint fix + Prettier format
+- **JSON/CSS/MD files**: Prettier format
+
+Commits will fail if there are ESLint errors (warnings are allowed).
+
+### Configuration Files
+
+| File                | Purpose                                                    |
+| ------------------- | ---------------------------------------------------------- |
+| `eslint.config.mjs` | ESLint 9 flat config (TypeScript, React, Prettier)         |
+| `.prettierrc`       | Prettier rules (single quotes, semicolons, 100 char width) |
+| `.editorconfig`     | Cross-editor consistency (indentation, line endings)       |
+| `.husky/pre-commit` | Pre-commit hook running lint-staged                        |
+
+### Key Rules
+
+- **Formatting**: Single quotes, semicolons, 2-space indent, 100 char line width
+- **Unused variables**: Prefix with `_` to ignore (e.g., `_unused`, `catch (_err)`)
+- **Console logs**: Only `console.warn` and `console.error` allowed (others trigger warnings)
+- **React**: Self-closing components, no useless fragments, props sorted
+- **TypeScript**: `any` types trigger warnings, unused vars trigger warnings
+
+### Agent Workflow
+
+When making code changes:
+
+1. Write your code
+2. Run `npm run lint:fix` to auto-fix formatting and simple issues
+3. Address any remaining errors manually
+4. Commit - the pre-commit hook will verify everything passes
+
+For CI/automated workflows:
+
+```bash
+npm run check  # Fails if typecheck, lint errors, or formatting issues
 ```
 
 ## Key Conventions
