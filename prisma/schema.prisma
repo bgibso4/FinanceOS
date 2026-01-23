@@ -8,15 +8,79 @@ datasource db {
 }
 
 model Account {
-  id           String        @id @default(uuid())
-  name         String
-  type         String
-  institution  String?
-  currency     String        @default("USD")
-  isActive     Boolean       @default(true)
-  notes        String?
-  createdAt    DateTime      @default(now())
-  transactions Transaction[]
+  id               String            @id @default(uuid())
+  name             String
+  type             String
+  institution      String?
+  currency         String            @default("USD")
+  isActive         Boolean           @default(true)
+  notes            String?
+  createdAt        DateTime          @default(now())
+  transactions     Transaction[]
+  plaidConnection  PlaidConnection?
+  tellerConnection TellerConnection?
+}
+
+model PlaidConnection {
+  id                   String    @id @default(uuid())
+  accountId            String    @unique
+  account              Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  plaidItemId          String    @unique
+  plaidAccountId       String
+  accessTokenEncrypted String
+  accessTokenIv        String
+  transactionCursor    String?
+  lastSyncAt           DateTime?
+  lastSyncStatus       String    @default("never")
+  lastSyncError        String?
+  status               String    @default("connected")
+  institutionName      String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([plaidItemId])
+  @@index([status])
+}
+
+// Teller Enrollment: Institution-level connection
+model TellerEnrollment {
+  id                   String              @id @default(uuid())
+  enrollmentId         String              @unique // Teller's enrollment ID
+  institutionId        String              // Teller's institution ID (e.g., "chase")
+  institutionName      String              // Display name (e.g., "Chase")
+  accessTokenEncrypted String              // Encrypted access token
+  accessTokenIv        String              // IV for decryption
+  status               String              @default("connected")
+  lastSyncAt           DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  connections          TellerConnection[]  // Links to FinanceOS accounts
+
+  @@index([status])
+}
+
+// Teller Connection: Links a FinanceOS account to a specific Teller account
+model TellerConnection {
+  id                   String           @id @default(uuid())
+  accountId            String           @unique // One Teller account per FinanceOS account
+  account              Account          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tellerEnrollmentId   String           // FK to TellerEnrollment (NOT unique - many accounts can use same enrollment)
+  tellerEnrollment     TellerEnrollment @relation(fields: [tellerEnrollmentId], references: [id], onDelete: Cascade)
+  tellerAccountId      String           // Specific Teller account ID (e.g., "acc_xyz123")
+  tellerAccountName    String?          // Display name from Teller (e.g., "My Checking")
+  tellerAccountType    String?          // Account type (e.g., "depository")
+  tellerAccountSubtype String?          // Account subtype (e.g., "checking")
+  tellerAccountLastFour String?         // Last 4 digits
+  lastSyncAt           DateTime?
+  lastSyncDate         String?
+  lastSyncStatus       String           @default("never")
+  lastSyncError        String?
+  status               String           @default("connected")
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  @@index([tellerEnrollmentId])
+  @@index([status])
 }
 
 model Category {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,31 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { ds } from "@/lib/design-system";
 import { getCurrencyFlag } from "@/lib/currency";
+import { PlaidLinkButton } from "@/components/plaid/PlaidLinkButton";
+import { SyncStatusBadge } from "@/components/plaid/SyncStatusBadge"; // Used for both Plaid and Teller
+import { ConnectedInstitutions } from "@/components/teller/ConnectedInstitutions";
+import { TellerAccountLinkSelector } from "@/components/teller/TellerAccountLinkSelector";
 
-type Account = { id: string; name: string; type: string; institution?: string | null; isActive?: boolean; currency?: string };
+type PlaidConnection = {
+  id: string;
+  status: string;
+  lastSyncAt: string | null;
+  lastSyncStatus: string;
+  lastSyncError: string | null;
+  institutionName: string | null;
+};
+type TellerConnection = {
+  id: string;
+  status: string;
+  lastSyncAt: string | null;
+  lastSyncStatus: string;
+  lastSyncError: string | null;
+  tellerAccountName: string | null;
+  tellerEnrollment: {
+    institutionName: string;
+  } | null;
+};
+type Account = { id: string; name: string; type: string; institution?: string | null; isActive?: boolean; currency?: string; plaidConnection?: PlaidConnection | null; tellerConnection?: TellerConnection | null };
 type AccountBalance = { id: string; balance: number };
 type Category = { id: string; name: string; type: string; parentId?: string | null };
 type Rule = { id: string; matchType: string; matchValue: string; priority: number; isEnabled: boolean; categoryId: string };
@@ -36,7 +59,7 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tab = searchParams.get('tab') || 'general';
@@ -93,6 +116,9 @@ export default function SettingsPage() {
     status: "",
     summary: null as any
   });
+  const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null);
+  const [syncResult, setSyncResult] = useState<{ added: number; modified: number; removed: number; skippedOld?: number } | null>(null);
+  const [daysToSync, setDaysToSync] = useState(30);
 
   useEffect(() => {
     refresh();
@@ -193,6 +219,290 @@ export default function SettingsPage() {
     setAccountTransactionCount(0);
     setModalAccountBalance(0);
     setReconcileTarget("");
+    setSyncResult(null);
+  };
+
+  const handlePlaidSuccess = async (publicToken: string, metadata: any) => {
+    if (!modalAccount) return;
+
+    const plaidAccountId = metadata.accounts?.[0]?.id;
+    const institutionName = metadata.institution?.name;
+
+    if (!plaidAccountId) {
+      alert('No account selected from Plaid');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/plaid/exchange-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          publicToken,
+          accountId: modalAccount.id,
+          plaidAccountId,
+          institutionName,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+
+      // Refresh to get updated connection status
+      await refresh();
+      // Re-open modal with updated account
+      const updatedAccounts = await fetch('/api/accounts').then(r => r.json());
+      const updatedAccount = updatedAccounts.accounts?.find((a: Account) => a.id === modalAccount.id);
+      if (updatedAccount) {
+        setModalAccount(updatedAccount);
+      }
+    } catch (error) {
+      alert('Failed to connect bank account');
+    }
+  };
+
+  const handlePlaidSync = async () => {
+    if (!modalAccount) return;
+
+    setSyncingAccountId(modalAccount.id);
+    setSyncResult(null);
+
+    try {
+      const res = await fetch('/api/plaid/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: modalAccount.id, daysToSync }),
+      });
+
+      const data = await res.json();
+      if (data.error) {
+        if (data.code === 'NEEDS_REAUTH') {
+          // Refresh to show reconnect button
+          await refresh();
+          const updatedAccounts = await fetch('/api/accounts').then(r => r.json());
+          const updatedAccount = updatedAccounts.accounts?.find((a: Account) => a.id === modalAccount.id);
+          if (updatedAccount) setModalAccount(updatedAccount);
+        }
+        alert(data.error);
+        return;
+      }
+
+      setSyncResult({ added: data.added, modified: data.modified, removed: data.removed, skippedOld: data.skippedOld });
+      await refresh();
+
+      // Re-open modal with updated account
+      const updatedAccounts = await fetch('/api/accounts').then(r => r.json());
+      const updatedAccount = updatedAccounts.accounts?.find((a: Account) => a.id === modalAccount.id);
+      if (updatedAccount) {
+        setModalAccount(updatedAccount);
+        // Update balance
+        const txRes = await fetch(`/api/transactions?account=${modalAccount.id}`);
+        const txData = await txRes.json();
+        const balance = (txData.transactions || []).reduce((sum: number, tx: any) => sum + tx.amount, 0);
+        setModalAccountBalance(balance);
+        setAccountTransactionCount(txData.transactions?.length || 0);
+      }
+    } catch (error) {
+      alert('Failed to sync transactions');
+    } finally {
+      setSyncingAccountId(null);
+    }
+  };
+
+  const handlePlaidDisconnect = async () => {
+    if (!modalAccount) return;
+
+    if (!confirm('Disconnect this bank account? Your existing transactions will be preserved.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/plaid/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: modalAccount.id }),
+      });
+
+      const data = await res.json();
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+
+      await refresh();
+      // Update modal account
+      setModalAccount({ ...modalAccount, plaidConnection: null });
+    } catch (error) {
+      alert('Failed to disconnect');
+    }
+  };
+
+  const handlePlaidResetCursor = async () => {
+    if (!modalAccount) return;
+
+    if (!confirm('Reset sync cursor? The next sync will re-fetch all transactions (duplicates will be skipped, but this lets you re-import with different date settings).')) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/plaid/reset-cursor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: modalAccount.id }),
+      });
+
+      const data = await res.json();
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+
+      alert('Cursor reset! Next sync will start fresh.');
+      await refresh();
+      const updatedAccounts = await fetch('/api/accounts').then(r => r.json());
+      const updatedAccount = updatedAccounts.accounts?.find((a: Account) => a.id === modalAccount.id);
+      if (updatedAccount) setModalAccount(updatedAccount);
+    } catch (error) {
+      alert('Failed to reset cursor');
+    }
+  };
+
+  const handleTellerSuccess = async (payload: {
+    accessToken: string;
+    enrollmentId: string;
+    tellerAccountId: string;
+    institutionName: string;
+  }) => {
+    console.log('[Settings] handleTellerSuccess called with payload:', {
+      hasAccessToken: !!payload.accessToken,
+      enrollmentId: payload.enrollmentId,
+      tellerAccountId: payload.tellerAccountId,
+      institutionName: payload.institutionName,
+      modalAccountId: modalAccount?.id
+    });
+
+    if (!modalAccount) {
+      console.error('[Settings] No modal account set!');
+      return;
+    }
+
+    try {
+      console.log('[Settings] Sending POST to /api/teller/connect...');
+      const res = await fetch('/api/teller/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accessToken: payload.accessToken,
+          accountId: modalAccount.id,
+          tellerAccountId: payload.tellerAccountId,
+          enrollmentId: payload.enrollmentId,
+          institutionName: payload.institutionName,
+        }),
+      });
+
+      console.log('[Settings] Response status:', res.status);
+      const data = await res.json();
+      console.log('[Settings] Response data:', data);
+
+      if (data.error) {
+        console.error('[Settings] API returned error:', data.error);
+        alert(data.error);
+        return;
+      }
+
+      console.log('[Settings] Connection successful! Refreshing data...');
+      // Refresh to get updated connection status
+      await refresh();
+      // Re-open modal with updated account
+      const updatedAccounts = await fetch('/api/accounts').then(r => r.json());
+      const updatedAccount = updatedAccounts.accounts?.find((a: Account) => a.id === modalAccount.id);
+      if (updatedAccount) {
+        setModalAccount(updatedAccount);
+      }
+      console.log('[Settings] Refresh complete');
+    } catch (error) {
+      console.error('[Settings] Exception during connection:', error);
+      alert('Failed to connect bank account');
+    }
+  };
+
+  const handleTellerSync = async () => {
+    if (!modalAccount) return;
+
+    setSyncingAccountId(modalAccount.id);
+    setSyncResult(null);
+
+    try {
+      const res = await fetch('/api/teller/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: modalAccount.id, daysToSync }),
+      });
+
+      const data = await res.json();
+      if (data.error) {
+        if (data.code === 'AUTH_EXPIRED') {
+          // Refresh to show reconnect button
+          await refresh();
+          const updatedAccounts = await fetch('/api/accounts').then(r => r.json());
+          const updatedAccount = updatedAccounts.accounts?.find((a: Account) => a.id === modalAccount.id);
+          if (updatedAccount) setModalAccount(updatedAccount);
+        }
+        alert(data.error);
+        return;
+      }
+
+      setSyncResult({ added: data.added, modified: data.modified, removed: data.removed, skippedOld: data.skippedPending });
+      await refresh();
+
+      // Re-open modal with updated account
+      const updatedAccounts = await fetch('/api/accounts').then(r => r.json());
+      const updatedAccount = updatedAccounts.accounts?.find((a: Account) => a.id === modalAccount.id);
+      if (updatedAccount) {
+        setModalAccount(updatedAccount);
+        // Update balance
+        const txRes = await fetch(`/api/transactions?account=${modalAccount.id}`);
+        const txData = await txRes.json();
+        const balance = (txData.transactions || []).reduce((sum: number, tx: any) => sum + tx.amount, 0);
+        setModalAccountBalance(balance);
+        setAccountTransactionCount(txData.transactions?.length || 0);
+      }
+    } catch (error) {
+      alert('Failed to sync transactions');
+    } finally {
+      setSyncingAccountId(null);
+    }
+  };
+
+  const handleTellerDisconnect = async () => {
+    if (!modalAccount) return;
+
+    if (!confirm('Disconnect this bank account? Your existing transactions will be preserved.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/teller/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: modalAccount.id }),
+      });
+
+      const data = await res.json();
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+
+      await refresh();
+      // Update modal account
+      setModalAccount({ ...modalAccount, tellerConnection: null });
+    } catch (error) {
+      alert('Failed to disconnect');
+    }
   };
 
   const updateModalAccount = async () => {
@@ -1000,7 +1310,13 @@ export default function SettingsPage() {
       )}
 
       {tab === "accounts" && (
-        <Card>
+        <>
+          {/* Connected Institutions Section */}
+          <div className="mb-6">
+            <ConnectedInstitutions onRefresh={refresh} />
+          </div>
+
+          <Card>
           <CardHeader className="flex items-center justify-between">
             <div className={`text-sm font-semibold ${ds.text.primary}`}>Accounts</div>
             <label className={`flex items-center gap-2 text-sm ${ds.text.secondary}`}>
@@ -1036,7 +1352,7 @@ export default function SettingsPage() {
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {accounts
-                .filter(a => showArchived || a.isActive !== false)
+                .filter(a => showArchived || (a.isActive ?? true))
                 .map((a) => {
                 // Helper function to get account type icon and color
                 const getAccountStyle = (type: string) => {
@@ -1193,6 +1509,7 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+        </>
       )}
 
       {tab === "categories" && (
@@ -1476,6 +1793,205 @@ export default function SettingsPage() {
                   Create Adjustment
                 </Button>
               </div>
+            </div>
+
+            {/* Bank Connection */}
+            <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
+              <h4 className={`font-semibold ${ds.status.info.text} mb-3`}>Bank Connection</h4>
+
+              {modalAccount.tellerConnection ? (
+                // Teller Connection UI
+                <div className="space-y-4">
+                  {/* Connection Status */}
+                  <div className="flex items-center justify-between">
+                    <div className={`text-sm ${ds.text.secondary}`}>
+                      <div>Status: <SyncStatusBadge status={modalAccount.tellerConnection.status} lastSyncAt={modalAccount.tellerConnection.lastSyncAt} /></div>
+                      {modalAccount.tellerConnection.tellerEnrollment?.institutionName && (
+                        <div className="mt-1">
+                          Connected to: <span className={ds.text.primary}>{modalAccount.tellerConnection.tellerEnrollment.institutionName}</span>
+                          {modalAccount.tellerConnection.tellerAccountName && ` - ${modalAccount.tellerConnection.tellerAccountName}`} (Teller)
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Last Sync Error */}
+                  {modalAccount.tellerConnection.lastSyncError && (
+                    <div className={`p-2 rounded ${ds.status.error.bg} ${ds.status.error.text} text-sm`}>
+                      {modalAccount.tellerConnection.lastSyncError}
+                    </div>
+                  )}
+
+                  {/* Sync Result */}
+                  {syncResult && (
+                    <div className={`p-2 rounded ${ds.status.success.bg} ${ds.status.success.text} text-sm`}>
+                      <div>Sync complete: {syncResult.added} added, {syncResult.modified} modified, {syncResult.removed} removed</div>
+                      {syncResult.skippedOld && syncResult.skippedOld > 0 && (
+                        <div className={`text-xs ${ds.text.muted} mt-1`}>({syncResult.skippedOld} pending transactions skipped)</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="space-y-3">
+                    {modalAccount.tellerConnection.status === 'disconnected' ? (
+                      <TellerAccountLinkSelector
+                        accountId={modalAccount.id}
+                        accountName={modalAccount.name}
+                        onSuccess={async () => {
+                          await refresh();
+                          const updatedAccounts = await fetch('/api/accounts').then(r => r.json());
+                          const updatedAccount = updatedAccounts.accounts?.find((a: Account) => a.id === modalAccount.id);
+                          if (updatedAccount) {
+                            setModalAccount(updatedAccount);
+                          }
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <label className={`text-sm ${ds.text.secondary}`}>Import last:</label>
+                          <Select
+                            value={daysToSync.toString()}
+                            onChange={(e) => setDaysToSync(parseInt(e.target.value))}
+                            className="flex-1"
+                          >
+                            <option value="30">30 days</option>
+                            <option value="60">60 days</option>
+                            <option value="90">90 days</option>
+                            <option value="180">6 months</option>
+                            <option value="365">1 year</option>
+                            <option value="730">2 years</option>
+                          </Select>
+                        </div>
+                        <Button
+                          onClick={handleTellerSync}
+                          disabled={syncingAccountId === modalAccount.id}
+                          className="w-full bg-blue-600 hover:bg-blue-700 py-3"
+                        >
+                          {syncingAccountId === modalAccount.id ? 'Syncing...' : 'Sync Now'}
+                        </Button>
+                      </>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleTellerDisconnect}
+                        variant="outline"
+                        className="w-full py-3"
+                      >
+                        Disconnect
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : modalAccount.plaidConnection ? (
+                // Plaid Connection UI
+                <div className="space-y-4">
+                  {/* Connection Status */}
+                  <div className="flex items-center justify-between">
+                    <div className={`text-sm ${ds.text.secondary}`}>
+                      <div>Status: <SyncStatusBadge status={modalAccount.plaidConnection.status} lastSyncAt={modalAccount.plaidConnection.lastSyncAt} /></div>
+                      {modalAccount.plaidConnection.institutionName && (
+                        <div className="mt-1">
+                          Connected to: <span className={ds.text.primary}>{modalAccount.plaidConnection.institutionName}</span> (Plaid)
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Last Sync Error */}
+                  {modalAccount.plaidConnection.lastSyncError && (
+                    <div className={`p-2 rounded ${ds.status.error.bg} ${ds.status.error.text} text-sm`}>
+                      {modalAccount.plaidConnection.lastSyncError}
+                    </div>
+                  )}
+
+                  {/* Sync Result */}
+                  {syncResult && (
+                    <div className={`p-2 rounded ${ds.status.success.bg} ${ds.status.success.text} text-sm`}>
+                      <div>Sync complete: {syncResult.added} added, {syncResult.modified} modified, {syncResult.removed} removed</div>
+                      {syncResult.skippedOld && syncResult.skippedOld > 0 && (
+                        <div className={`text-xs ${ds.text.muted} mt-1`}>({syncResult.skippedOld} older transactions skipped)</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="space-y-3">
+                    {modalAccount.plaidConnection.status === 'needs_reauth' ? (
+                      <PlaidLinkButton
+                        accountId={modalAccount.id}
+                        onSuccess={handlePlaidSuccess}
+                        reconnect={true}
+                        className="w-full bg-yellow-600 hover:bg-yellow-700 py-3"
+                      />
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <label className={`text-sm ${ds.text.secondary}`}>Import last:</label>
+                          <Select
+                            value={daysToSync.toString()}
+                            onChange={(e) => setDaysToSync(parseInt(e.target.value))}
+                            className="flex-1"
+                          >
+                            <option value="30">30 days</option>
+                            <option value="60">60 days</option>
+                            <option value="90">90 days</option>
+                            <option value="180">6 months</option>
+                            <option value="365">1 year</option>
+                            <option value="730">2 years</option>
+                          </Select>
+                        </div>
+                        <Button
+                          onClick={handlePlaidSync}
+                          disabled={syncingAccountId === modalAccount.id}
+                          className="w-full bg-blue-600 hover:bg-blue-700 py-3"
+                        >
+                          {syncingAccountId === modalAccount.id ? 'Syncing...' : 'Sync Now'}
+                        </Button>
+                      </>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handlePlaidDisconnect}
+                        variant="outline"
+                        className="w-full py-3"
+                      >
+                        Disconnect
+                      </Button>
+                      <Button
+                        onClick={handlePlaidResetCursor}
+                        variant="outline"
+                        className="w-full py-3"
+                      >
+                        Reset Cursor
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                // No connection - show both Teller and Plaid options
+                <div className="space-y-3">
+                  <TellerAccountLinkSelector
+                    accountId={modalAccount.id}
+                    accountName={modalAccount.name}
+                    onSuccess={async () => {
+                      await refresh();
+                      const updatedAccounts = await fetch('/api/accounts').then(r => r.json());
+                      const updatedAccount = updatedAccounts.accounts?.find((a: Account) => a.id === modalAccount.id);
+                      if (updatedAccount) {
+                        setModalAccount(updatedAccount);
+                      }
+                    }}
+                  />
+                  <div className={`text-center text-sm ${ds.text.muted}`}>or</div>
+                  <PlaidLinkButton
+                    accountId={modalAccount.id}
+                    onSuccess={handlePlaidSuccess}
+                    className="w-full bg-gray-600 hover:bg-gray-700 py-3"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Archive/Restore */}
@@ -2317,7 +2833,7 @@ export default function SettingsPage() {
                     });
 
                   return sortedGroups.map(([groupName, cats]) => {
-                    const groupTotal = cats.reduce((sum, c) => sum + c.amount, 0);
+                    const groupTotal = cats.reduce((sum: number, c: { amount: number }) => sum + c.amount, 0);
                     const isIncome = groupName.toLowerCase().includes('income');
                     
                     return (
@@ -2334,8 +2850,8 @@ export default function SettingsPage() {
                           {cats.length > 0 ? (
                             <div className="space-y-2">
                               {cats
-                                .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
-                                .map((cat) => (
+                                .sort((a: { amount: number }, b: { amount: number }) => Math.abs(b.amount) - Math.abs(a.amount))
+                                .map((cat: { category: string; amount: number }) => (
                                   <div key={cat.category} className="flex items-center justify-between text-sm">
                                     <span className={ds.text.secondary}>{cat.category}</span>
                                     <span className={`font-semibold ${cat.amount < 0 ? 'text-green-600' : cat.amount > 0 ? 'text-red-600' : ds.text.primary}`}>
@@ -2697,5 +3213,13 @@ export default function SettingsPage() {
         </Card>
       )}
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="p-4">Loading settings...</div>}>
+      <SettingsPageContent />
+    </Suspense>
   );
 }

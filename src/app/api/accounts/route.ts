@@ -12,7 +12,26 @@ const accountSchema = z.object({
 });
 
 export async function GET() {
-  const accounts = await prisma.account.findMany({ orderBy: { createdAt: "desc" } });
+  const accounts = await prisma.account.findMany({
+    orderBy: { createdAt: "desc" },
+    include: {
+      plaidConnection: {
+        select: {
+          id: true,
+          status: true,
+          lastSyncAt: true,
+          lastSyncStatus: true,
+          lastSyncError: true,
+          institutionName: true,
+        },
+      },
+      tellerConnection: {
+        include: {
+          tellerEnrollment: true,
+        },
+      },
+    },
+  });
   return NextResponse.json({ accounts });
 }
 
