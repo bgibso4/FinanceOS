@@ -3,45 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { TellerAccountSelector } from './TellerAccountSelector';
-
-// Teller Connect types
-interface TellerConnectEnrollment {
-  id: string;
-  institution: {
-    name: string;
-  };
-}
-
-interface TellerConnectAccount {
-  id: string;
-}
-
-interface TellerConnectSuccessPayload {
-  accessToken: string;
-  enrollment: TellerConnectEnrollment;
-  accounts: TellerConnectAccount[];
-}
-
-interface TellerConnectOptions {
-  applicationId: string;
-  environment?: 'sandbox' | 'development' | 'production';
-  products?: string[];
-  onSuccess: (payload: TellerConnectSuccessPayload) => void;
-  onExit?: () => void;
-  onFailure?: (error: { message: string }) => void;
-}
-
-interface TellerConnect {
-  open: () => void;
-}
-
-declare global {
-  interface Window {
-    TellerConnect?: {
-      setup: (options: TellerConnectOptions) => TellerConnect;
-    };
-  }
-}
+import type { TellerConnect, TellerConnectOptions } from './types';
+import './types'; // Import for side-effect (global Window declaration)
 
 type TellerAccount = {
   id: string;
@@ -139,7 +102,7 @@ export function TellerConnectButton({
         // Load the script
         await loadScript();
         setReady(true);
-      } catch (err) {
+      } catch (_err) {
         setError('Failed to initialize Teller Connect');
       }
 
@@ -199,7 +162,7 @@ export function TellerConnectButton({
             institutionName: payload.enrollment.institution.name,
           });
           setShowAccountSelector(true);
-        } catch (err) {
+        } catch (_err) {
           console.error('[TellerConnect] Exception:', err);
           setError('Failed to fetch accounts');
         }

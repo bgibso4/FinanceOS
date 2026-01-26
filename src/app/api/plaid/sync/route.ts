@@ -6,16 +6,20 @@ import { syncPlaidTransactions } from '@/lib/plaid-sync';
 const schema = z.object({
   accountId: z.string(),
   daysToSync: z.number().optional().default(30),
+  dryRun: z.boolean().optional().default(false),
 });
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { accountId, daysToSync } = schema.parse(body);
+    const { accountId, daysToSync, dryRun } = schema.parse(body);
 
     const connection = await prisma.plaidConnection.findUnique({
       where: { accountId },
-      include: { account: true },
+      include: {
+        account: true,
+        plaidEnrollment: true,
+      },
     });
 
     if (!connection) {
@@ -32,10 +36,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await syncPlaidTransactions(connection, daysToSync);
+    const result = await syncPlaidTransactions(connection, { daysToSync, dryRun });
 
     return NextResponse.json({
       success: true,
+      dryRun,
       ...result,
     });
   } catch (error: unknown) {

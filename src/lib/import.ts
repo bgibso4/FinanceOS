@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
-import { v4 as uuid } from 'uuid';
 import { autoCategorize, normalizeMerchant } from './categorization';
+import { detectTransfers as detectTransfersShared } from './sync-common';
 import crypto from 'crypto';
 
 export type CsvMapping = {
@@ -181,11 +181,18 @@ export async function importCsv(
     }
 
     const categorization = await autoCategorize(prisma, merchant, note);
+
+    // Apply merchant rename if rule specifies one
+    const finalMerchant = categorization.renameTo || merchant;
+    const finalMerchantNormalized = categorization.renameTo
+      ? normalizeMerchant(categorization.renameTo)
+      : merchantNormalized;
+
     toInsert.push({
       date,
       amount: finalAmount,
-      merchant,
-      merchantNormalized,
+      merchant: finalMerchant,
+      merchantNormalized: finalMerchantNormalized,
       note,
       accountId,
       categoryId: categorization.categoryId,
@@ -235,217 +242,11 @@ export async function importCsv(
     })),
   };
 
-  const transferStats = await detectTransfers(prisma, accountId, newTransactionIds);
+  const transferStats = await detectTransfersShared(accountId, newTransactionIds, prisma);
 
   return {
     created: created.count,
     ...stats,
     ...transferStats,
   };
-}
-
-async function detectTransfers(
-  prisma: PrismaClient,
-  accountId: string,
-  newTransactionIds: Set<string>
-) {
-  console.log('🔄 Starting transfer detection for account:', accountId);
-
-  // First: detect same-account transfers (e.g., internal moves)
-  // Look at last 90 days to catch all recent transfers
-  const ninetyDaysAgo = new Date();
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
-  const recent = await prisma.transaction.findMany({
-    where: {
-      accountId,
-      date: { gte: ninetyDaysAgo },
-    },
-    orderBy: { date: 'desc' },
-  });
-
-  console.log(`  Found ${recent.length} transactions in last 90 days for this account`);
-
-  const byDate: Record<string, typeof recent> = {};
-  recent.forEach((tx) => {
-    const key = tx.date.toISOString().split('T')[0];
-    byDate[key] = byDate[key] ?? [];
-    byDate[key].push(tx);
-  });
-
-  let sameAccountMatches = 0;
-  const sameAccountTransfers: any[] = [];
-
-  for (const group of Object.values(byDate)) {
-    for (const tx of group) {
-      if (tx.isTransfer) continue;
-      const match = group.find(
-        (other) =>
-          other.id !== tx.id &&
-          other.isTransfer === false &&
-          Math.abs(Number(other.amount) + Number(tx.amount)) < 0.01
-      );
-      if (match) {
-        const transferGroupId = uuid();
-        await prisma.transaction.updateMany({
-          where: { id: { in: [tx.id, match.id] } },
-          data: { isTransfer: true, transferGroupId },
-        });
-
-        // Only report if one of the transactions is newly imported
-        if (newTransactionIds.has(tx.id) || newTransactionIds.has(match.id)) {
-          sameAccountMatches++;
-          sameAccountTransfers.push({
-            merchant1: tx.merchant,
-            amount1: tx.amount,
-            merchant2: match.merchant,
-            amount2: match.amount,
-            date: tx.date.toISOString().split('T')[0],
-          });
-          console.log(
-            `  ✓ Same-account transfer: ${tx.merchant} $${tx.amount} + ${match.merchant} $${match.amount}`
-          );
-        }
-      }
-    }
-  }
-
-  console.log(
-    `  Found ${sameAccountMatches} same-account transfer pairs involving new transactions`
-  );
-
-  // Second: detect cross-account transfers (e.g., credit card payments)
-  const { crossAccountMatches, crossAccountTransfers } = await detectCrossAccountTransfers(
-    prisma,
-    newTransactionIds
-  );
-
-  return {
-    transfersDetected: sameAccountMatches + crossAccountMatches,
-    sameAccount: sameAccountMatches,
-    crossAccount: crossAccountMatches,
-    sameAccountTransfers,
-    crossAccountTransfers,
-  };
-}
-
-async function detectCrossAccountTransfers(prisma: PrismaClient, newTransactionIds: Set<string>) {
-  console.log('🔄 Starting cross-account transfer detection');
-
-  // Get all recent transactions across all accounts (including already-marked transfers)
-  const ninetyDaysAgo = new Date();
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
-  const allRecent = await prisma.transaction.findMany({
-    where: {
-      date: { gte: ninetyDaysAgo },
-    },
-    include: { account: true },
-    orderBy: { date: 'desc' },
-  });
-
-  console.log(`  Checking ${allRecent.length} transactions across all accounts (last 90 days)`);
-
-  // Log potential transfer candidates
-  const candidates = allRecent.filter((tx) => {
-    const hasOpposite = allRecent.some(
-      (other) =>
-        other.id !== tx.id &&
-        other.accountId !== tx.accountId &&
-        Math.abs(Number(other.amount) + Number(tx.amount)) < 0.01
-    );
-    return hasOpposite;
-  });
-
-  if (candidates.length > 0) {
-    console.log(`  Found ${candidates.length} transactions with matching opposite amounts:`);
-    candidates.forEach((tx) => {
-      console.log(
-        `    - ${tx.account.name}: ${tx.merchant} $${tx.amount} on ${tx.date.toISOString().split('T')[0]} (isTransfer: ${tx.isTransfer})`
-      );
-    });
-  }
-
-  // Group by approximate amount (looking for matching positive/negative pairs)
-  const processed = new Set<string>();
-  let crossAccountMatches = 0;
-  const crossAccountTransfers: any[] = [];
-
-  for (const tx of allRecent) {
-    if (processed.has(tx.id)) continue;
-
-    // Look for a matching transaction in a different account
-    // with opposite sign, within 3 days
-    const txDate = tx.date.getTime();
-    const threeDays = 3 * 24 * 60 * 60 * 1000;
-
-    const match = allRecent.find((other) => {
-      if (other.id === tx.id) return false;
-      if (other.accountId === tx.accountId) return false; // Must be different account
-      if (processed.has(other.id)) return false;
-
-      // Check if amounts are opposite (one positive, one negative)
-      const amountsMatch = Math.abs(Number(other.amount) + Number(tx.amount)) < 0.01;
-      if (!amountsMatch) return false;
-
-      // Check if dates are within 3 days
-      const otherDate = other.date.getTime();
-      const dateDiff = Math.abs(txDate - otherDate);
-      if (dateDiff > threeDays) return false;
-
-      // Additional heuristic: check for transfer-like merchant names
-      const transferKeywords = [
-        'payment',
-        'transfer',
-        'xfer',
-        'autopay',
-        'bill pay',
-        'credit card',
-      ];
-      const txMerchant = tx.merchant.toLowerCase();
-      const otherMerchant = other.merchant.toLowerCase();
-      const hasTransferKeyword = transferKeywords.some(
-        (kw) => txMerchant.includes(kw) || otherMerchant.includes(kw)
-      );
-
-      // If amounts match exactly and dates are close, it's likely a transfer
-      // Boost confidence if merchant names suggest transfer
-      return amountsMatch && (dateDiff <= 24 * 60 * 60 * 1000 || hasTransferKeyword);
-    });
-
-    if (match) {
-      const transferGroupId = uuid();
-      // Mark BOTH transactions as transfers, even if one already is
-      await prisma.transaction.updateMany({
-        where: { id: { in: [tx.id, match.id] } },
-        data: { isTransfer: true, transferGroupId },
-      });
-      processed.add(tx.id);
-      processed.add(match.id);
-
-      // Only report if one of the transactions is newly imported
-      if (newTransactionIds.has(tx.id) || newTransactionIds.has(match.id)) {
-        crossAccountMatches++;
-        crossAccountTransfers.push({
-          account1: tx.account.name,
-          merchant1: tx.merchant,
-          amount1: tx.amount,
-          account2: match.account.name,
-          merchant2: match.merchant,
-          amount2: match.amount,
-          date: tx.date.toISOString().split('T')[0],
-        });
-        console.log(
-          `  ✓ Cross-account transfer: ${tx.account.name} $${tx.amount} ↔ ${match.account.name} $${match.amount}`
-        );
-      }
-    }
-  }
-
-  console.log(
-    `  Found ${crossAccountMatches} cross-account transfer pairs involving new transactions`
-  );
-  console.log('✅ Transfer detection complete');
-
-  return { crossAccountMatches, crossAccountTransfers };
 }

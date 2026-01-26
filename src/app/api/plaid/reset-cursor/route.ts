@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
 
     const connection = await prisma.plaidConnection.findUnique({
       where: { accountId },
+      include: { plaidEnrollment: true },
     });
 
     if (!connection) {
@@ -22,14 +23,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Reset the cursor to null - next sync will start from beginning
-    await prisma.plaidConnection.update({
-      where: { id: connection.id },
-      data: {
-        transactionCursor: null,
-        lastSyncStatus: 'never',
-      },
-    });
+    // Reset the cursor to null on the enrollment - next sync will start from beginning
+    // Also reset the connection's sync status
+    await prisma.$transaction([
+      prisma.plaidEnrollment.update({
+        where: { id: connection.plaidEnrollmentId },
+        data: { transactionCursor: null },
+      }),
+      prisma.plaidConnection.update({
+        where: { id: connection.id },
+        data: { lastSyncStatus: 'never' },
+      }),
+    ]);
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

@@ -8,10 +8,16 @@ const schema = z.object({
   publicToken: z.string(),
   accountId: z.string(),
   plaidAccountId: z.string(),
+  plaidAccountName: z.string().optional(),
+  plaidAccountType: z.string().optional(),
+  plaidAccountSubtype: z.string().optional(),
+  plaidAccountMask: z.string().optional(),
   institutionId: z.string().optional(),
   institutionName: z.string().optional(),
 });
 
+// This route creates both enrollment and connection in one step
+// (for backwards compatibility with direct account linking flow)
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -30,28 +36,69 @@ export async function POST(req: NextRequest) {
     // Encrypt the access token
     const { encrypted, iv } = encryptAccessToken(accessToken);
 
-    // Create or update PlaidConnection
-    const connection = await prisma.plaidConnection.upsert({
-      where: { accountId: parsed.accountId },
-      create: {
-        accountId: parsed.accountId,
-        plaidItemId: itemId,
-        plaidAccountId: parsed.plaidAccountId,
-        accessTokenEncrypted: encrypted,
-        accessTokenIv: iv,
-        institutionName: parsed.institutionName,
-        status: 'connected',
-      },
-      update: {
-        plaidItemId: itemId,
-        plaidAccountId: parsed.plaidAccountId,
-        accessTokenEncrypted: encrypted,
-        accessTokenIv: iv,
-        institutionName: parsed.institutionName,
-        status: 'connected',
-        lastSyncError: null,
-      },
+    // Check if enrollment already exists for this item
+    let enrollment = await prisma.plaidEnrollment.findUnique({
+      where: { plaidItemId: itemId },
     });
+
+    if (enrollment) {
+      // Update existing enrollment with new token
+      enrollment = await prisma.plaidEnrollment.update({
+        where: { id: enrollment.id },
+        data: {
+          accessTokenEncrypted: encrypted,
+          accessTokenIv: iv,
+          status: 'connected',
+        },
+      });
+    } else {
+      // Create new enrollment
+      enrollment = await prisma.plaidEnrollment.create({
+        data: {
+          plaidItemId: itemId,
+          institutionId: parsed.institutionId,
+          institutionName: parsed.institutionName || 'Unknown Bank',
+          accessTokenEncrypted: encrypted,
+          accessTokenIv: iv,
+          status: 'connected',
+        },
+      });
+    }
+
+    // Create or update PlaidConnection
+    const existingConnection = await prisma.plaidConnection.findUnique({
+      where: { accountId: parsed.accountId },
+    });
+
+    let connection;
+    if (existingConnection) {
+      connection = await prisma.plaidConnection.update({
+        where: { id: existingConnection.id },
+        data: {
+          plaidEnrollmentId: enrollment.id,
+          plaidAccountId: parsed.plaidAccountId,
+          plaidAccountName: parsed.plaidAccountName,
+          plaidAccountType: parsed.plaidAccountType,
+          plaidAccountSubtype: parsed.plaidAccountSubtype,
+          plaidAccountMask: parsed.plaidAccountMask,
+          status: 'connected',
+          lastSyncError: null,
+        },
+      });
+    } else {
+      connection = await prisma.plaidConnection.create({
+        data: {
+          accountId: parsed.accountId,
+          plaidEnrollmentId: enrollment.id,
+          plaidAccountId: parsed.plaidAccountId,
+          plaidAccountName: parsed.plaidAccountName,
+          plaidAccountType: parsed.plaidAccountType,
+          plaidAccountSubtype: parsed.plaidAccountSubtype,
+          plaidAccountMask: parsed.plaidAccountMask,
+          status: 'connected',
+        },
+      });
+    }
 
     // Update account institution name if provided
     if (parsed.institutionName) {
@@ -64,6 +111,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       connectionId: connection.id,
+      enrollmentId: enrollment.id,
     });
   } catch (error: unknown) {
     console.error('Error exchanging token:', error);

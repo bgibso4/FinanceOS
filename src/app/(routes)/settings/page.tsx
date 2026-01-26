@@ -10,10 +10,11 @@ import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { ds } from '@/lib/design-system';
 import { getCurrencyFlag } from '@/lib/currency';
-import { PlaidLinkButton } from '@/components/plaid/PlaidLinkButton';
 import { SyncStatusBadge } from '@/components/plaid/SyncStatusBadge'; // Used for both Plaid and Teller
 import { ConnectedInstitutions } from '@/components/teller/ConnectedInstitutions';
 import { TellerAccountLinkSelector } from '@/components/teller/TellerAccountLinkSelector';
+import { PlaidAccountLinkSelector } from '@/components/plaid/PlaidAccountLinkSelector';
+import { PlaidReconnectButton } from '@/components/plaid/PlaidReconnectButton';
 
 type PlaidConnection = {
   id: string;
@@ -21,7 +22,12 @@ type PlaidConnection = {
   lastSyncAt: string | null;
   lastSyncStatus: string;
   lastSyncError: string | null;
-  institutionName: string | null;
+  plaidEnrollmentId: string;
+  plaidEnrollment: {
+    id: string;
+    institutionName: string;
+    status: string;
+  } | null;
 };
 type TellerConnection = {
   id: string;
@@ -41,6 +47,8 @@ type Account = {
   institution?: string | null;
   isActive?: boolean;
   currency?: string;
+  trackingMode?: 'cash_flow' | 'balance_only';
+  invertAmounts?: boolean;
   plaidConnection?: PlaidConnection | null;
   tellerConnection?: TellerConnection | null;
 };
@@ -52,7 +60,8 @@ type Rule = {
   matchValue: string;
   priority: number;
   isEnabled: boolean;
-  categoryId: string;
+  categoryId: string | null;
+  renameTo: string | null;
 };
 type Snapshot = {
   id: string;
@@ -96,7 +105,7 @@ const formatCurrency = (amount: number) => {
 };
 
 function SettingsPageContent() {
-  const router = useRouter();
+  const _router = useRouter();
   const searchParams = useSearchParams();
   const tab = searchParams.get('tab') || 'general';
 
@@ -104,7 +113,7 @@ function SettingsPageContent() {
   const [accountBalances, setAccountBalances] = useState<Map<string, number>>(new Map());
   const [categories, setCategories] = useState<Category[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
-  const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
+  const [_snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [defaultBudgets, setDefaultBudgets] = useState<Budget[]>([]);
   const [budgetViewMonth, setBudgetViewMonth] = useState<string>(''); // empty = "All months" (defaults)
@@ -158,6 +167,7 @@ function SettingsPageContent() {
     matchType: 'merchantContains',
     matchValue: '',
     categoryId: '',
+    renameTo: '',
     priority: 100,
   });
   const [budgetForm, setBudgetForm] = useState({ categoryId: '', limitAmount: '' });
@@ -176,9 +186,32 @@ function SettingsPageContent() {
     added: number;
     modified: number;
     removed: number;
+    merged?: number;
     skippedOld?: number;
   } | null>(null);
   const [daysToSync, setDaysToSync] = useState(30);
+
+  // Dry-run preview state
+  type TransactionPreview = {
+    externalId: string;
+    date: string;
+    amount: number;
+    merchant: string;
+    category: string | null;
+    categoryConfidence: number;
+    wouldCreate: boolean;
+    wouldMerge: boolean;
+    existingTransactionId: string | null;
+    skipReason: string | null;
+  };
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewResult, setPreviewResult] = useState<{
+    stats: { added: number; skippedDuplicates: number; skippedPending: number; merged: number };
+    transactions: TransactionPreview[];
+    dateRange: { from: string; to: string };
+    totalFetched: number;
+  } | null>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   useEffect(() => {
     refresh();
@@ -270,7 +303,7 @@ function SettingsPageContent() {
         0
       );
       setModalAccountBalance(balance);
-    } catch (error) {
+    } catch (_error) {
       setAccountTransactionCount(0);
       setModalAccountBalance(0);
     }
@@ -285,7 +318,7 @@ function SettingsPageContent() {
     setSyncResult(null);
   };
 
-  const handlePlaidSuccess = async (publicToken: string, metadata: any) => {
+  const _handlePlaidSuccess = async (publicToken: string, metadata: any) => {
     if (!modalAccount) return;
 
     const plaidAccountId = metadata.accounts?.[0]?.id;
@@ -324,7 +357,7 @@ function SettingsPageContent() {
       if (updatedAccount) {
         setModalAccount(updatedAccount);
       }
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to connect bank account');
     }
   };
@@ -382,10 +415,56 @@ function SettingsPageContent() {
         setModalAccountBalance(balance);
         setAccountTransactionCount(txData.transactions?.length || 0);
       }
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to sync transactions');
     } finally {
       setSyncingAccountId(null);
+    }
+  };
+
+  const handlePlaidPreview = async () => {
+    if (!modalAccount) return;
+
+    setPreviewLoading(true);
+    setPreviewResult(null);
+
+    try {
+      const res = await fetch('/api/plaid/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: modalAccount.id,
+          daysToSync,
+          dryRun: true,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.error) {
+        if (data.code === 'NEEDS_REAUTH') {
+          // Refresh to show reconnect button
+          await refresh();
+          const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
+          const updatedAccount = updatedAccounts.accounts?.find(
+            (a: Account) => a.id === modalAccount.id
+          );
+          if (updatedAccount) setModalAccount(updatedAccount);
+        }
+        alert(data.error);
+        return;
+      }
+
+      setPreviewResult({
+        stats: data.stats,
+        transactions: data.transactions,
+        dateRange: data.dateRange,
+        totalFetched: data.totalFetched,
+      });
+      setShowPreviewModal(true);
+    } catch (_error) {
+      alert('Failed to preview transactions');
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -412,7 +491,7 @@ function SettingsPageContent() {
       await refresh();
       // Update modal account
       setModalAccount({ ...modalAccount, plaidConnection: null });
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to disconnect');
     }
   };
@@ -448,12 +527,12 @@ function SettingsPageContent() {
         (a: Account) => a.id === modalAccount.id
       );
       if (updatedAccount) setModalAccount(updatedAccount);
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to reset cursor');
     }
   };
 
-  const handleTellerSuccess = async (payload: {
+  const _handleTellerSuccess = async (payload: {
     accessToken: string;
     enrollmentId: string;
     tellerAccountId: string;
@@ -508,7 +587,7 @@ function SettingsPageContent() {
         setModalAccount(updatedAccount);
       }
       console.log('[Settings] Refresh complete');
-    } catch (error) {
+    } catch (_error) {
       console.error('[Settings] Exception during connection:', error);
       alert('Failed to connect bank account');
     }
@@ -546,6 +625,7 @@ function SettingsPageContent() {
         added: data.added,
         modified: data.modified,
         removed: data.removed,
+        merged: data.merged,
         skippedOld: data.skippedPending,
       });
       await refresh();
@@ -567,10 +647,47 @@ function SettingsPageContent() {
         setModalAccountBalance(balance);
         setAccountTransactionCount(txData.transactions?.length || 0);
       }
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to sync transactions');
     } finally {
       setSyncingAccountId(null);
+    }
+  };
+
+  const handleTellerPreview = async () => {
+    if (!modalAccount) return;
+
+    setPreviewLoading(true);
+    setPreviewResult(null);
+
+    try {
+      const res = await fetch('/api/teller/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: modalAccount.id,
+          daysToSync,
+          dryRun: true,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+
+      setPreviewResult({
+        stats: data.stats,
+        transactions: data.transactions,
+        dateRange: data.dateRange,
+        totalFetched: data.totalFetched,
+      });
+      setShowPreviewModal(true);
+    } catch (_error) {
+      alert('Failed to preview transactions');
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -597,7 +714,7 @@ function SettingsPageContent() {
       await refresh();
       // Update modal account
       setModalAccount({ ...modalAccount, tellerConnection: null });
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to disconnect');
     }
   };
@@ -612,6 +729,8 @@ function SettingsPageContent() {
         type: modalAccount.type,
         institution: modalAccount.institution,
         currency: modalAccount.currency,
+        trackingMode: modalAccount.trackingMode,
+        invertAmounts: modalAccount.invertAmounts,
       }),
     });
     closeAccountModal();
@@ -634,7 +753,7 @@ function SettingsPageContent() {
 
       closeAccountModal();
       refresh();
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to delete account');
     }
   };
@@ -655,7 +774,7 @@ function SettingsPageContent() {
 
       closeAccountModal();
       refresh();
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to archive account');
     }
   };
@@ -676,7 +795,7 @@ function SettingsPageContent() {
 
       closeAccountModal();
       refresh();
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to restore account');
     }
   };
@@ -718,7 +837,7 @@ function SettingsPageContent() {
       setReconcileTarget('');
       setAccountTransactionCount(accountTransactionCount + 1);
       refresh();
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to create adjustment');
     }
   };
@@ -806,7 +925,7 @@ function SettingsPageContent() {
       const response = await fetch(`/api/transactions?category=${category.id}`);
       const data = await response.json();
       setCategoryTransactions(data.transactions || []);
-    } catch (error) {
+    } catch (_error) {
       console.error('Failed to load transactions:', error);
       setCategoryTransactions([]);
     } finally {
@@ -841,7 +960,7 @@ function SettingsPageContent() {
       setCategoryTransactions(data.transactions || []);
 
       refresh(); // Refresh the main data
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to unclassify transactions');
     }
   };
@@ -862,7 +981,7 @@ function SettingsPageContent() {
 
       closeModal();
       refresh();
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to delete category');
     }
   };
@@ -882,23 +1001,48 @@ function SettingsPageContent() {
 
       closeModal();
       refresh();
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to update category');
     }
   };
 
   const createRule = async () => {
-    if (!newRule.categoryId) {
-      alert('Please select a category for this rule');
+    if (!newRule.matchValue.trim()) {
+      alert('Please enter a match value');
       return;
     }
-    await fetch('/api/rules', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newRule),
-    });
-    setNewRule({ matchType: 'merchantContains', matchValue: '', categoryId: '', priority: 100 });
-    refresh();
+    if (!newRule.categoryId && !newRule.renameTo.trim()) {
+      alert('Please select a category or enter a rename value (or both)');
+      return;
+    }
+    try {
+      const response = await fetch('/api/rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          matchType: newRule.matchType,
+          matchValue: newRule.matchValue,
+          categoryId: newRule.categoryId || null,
+          renameTo: newRule.renameTo.trim() || null,
+          priority: newRule.priority,
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        alert(`Failed to create rule: ${error.message || 'Unknown error'}`);
+        return;
+      }
+      setNewRule({
+        matchType: 'merchantContains',
+        matchValue: '',
+        categoryId: '',
+        renameTo: '',
+        priority: 100,
+      });
+      refresh();
+    } catch (_error) {
+      alert('Failed to create rule');
+    }
   };
 
   const openRuleModal = (rule: Rule) => {
@@ -914,6 +1058,11 @@ function SettingsPageContent() {
   const updateRule = async () => {
     if (!modalRule) return;
 
+    if (!modalRule.categoryId && !modalRule.renameTo) {
+      alert('Rule must have either a category or rename value (or both)');
+      return;
+    }
+
     try {
       await fetch(`/api/rules/${modalRule.id}`, {
         method: 'PATCH',
@@ -921,7 +1070,8 @@ function SettingsPageContent() {
         body: JSON.stringify({
           matchType: modalRule.matchType,
           matchValue: modalRule.matchValue,
-          categoryId: modalRule.categoryId,
+          categoryId: modalRule.categoryId || null,
+          renameTo: modalRule.renameTo || null,
           priority: modalRule.priority,
           isEnabled: modalRule.isEnabled,
         }),
@@ -929,7 +1079,7 @@ function SettingsPageContent() {
 
       closeRuleModal();
       refresh();
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to update rule');
     }
   };
@@ -949,7 +1099,7 @@ function SettingsPageContent() {
 
       closeRuleModal();
       refresh();
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to delete rule');
     }
   };
@@ -1079,7 +1229,7 @@ function SettingsPageContent() {
         body: JSON.stringify({ baseCurrency: currency }),
       });
       refresh();
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to update base currency');
     }
   };
@@ -1109,7 +1259,7 @@ function SettingsPageContent() {
 
       setNewExchangeRate({ fromCurrency: 'CAD', toCurrency: 'USD', rate: '' });
       refresh();
-    } catch (error) {
+    } catch (_error) {
       console.error('Failed to add exchange rate:', error);
       alert('Failed to add exchange rate');
     }
@@ -1121,7 +1271,7 @@ function SettingsPageContent() {
         method: 'DELETE',
       });
       refresh();
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to delete exchange rate');
     }
   };
@@ -1139,7 +1289,7 @@ function SettingsPageContent() {
       );
       const data = await res.json();
       setReportData(data);
-    } catch (error) {
+    } catch (_error) {
       console.error('Failed to load monthly report:', error);
     }
   };
@@ -1149,7 +1299,7 @@ function SettingsPageContent() {
       const trailingRes = await fetch(`/api/reports/trailing-12-months?month=${endMonth}`);
       const trailingData = await trailingRes.json();
       setTrailing12Months(trailingData.months || []);
-    } catch (error) {
+    } catch (_error) {
       console.error('Failed to load trailing 12 months:', error);
     }
   };
@@ -1202,7 +1352,7 @@ function SettingsPageContent() {
       setBackfillForm({ year: '2024', month: '01', income: '', spending: '' });
       loadTrailing12Months(trailing12EndMonth);
       alert('Historical data saved successfully!');
-    } catch (error) {
+    } catch (_error) {
       console.error('Failed to backfill snapshot:', error);
       alert('Failed to save historical data');
     }
@@ -1651,6 +1801,11 @@ function SettingsPageContent() {
                                 <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-medium backdrop-blur-sm">
                                   {a.type.charAt(0).toUpperCase() + a.type.slice(1)}
                                 </span>
+                                {a.trackingMode === 'balance_only' && (
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/50 text-white font-medium backdrop-blur-sm">
+                                    Net Worth Only
+                                  </span>
+                                )}
                                 {isArchived && (
                                   <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/50 text-white font-medium backdrop-blur-sm">
                                     Archived
@@ -1703,6 +1858,13 @@ function SettingsPageContent() {
                                   >
                                     {a.type.charAt(0).toUpperCase() + a.type.slice(1)}
                                   </Badge>
+                                  {a.trackingMode === 'balance_only' && (
+                                    <Badge
+                                      className={`text-xs px-2 py-1 ${ds.status.purple.text} bg-transparent border-current`}
+                                    >
+                                      Net Worth Only
+                                    </Badge>
+                                  )}
                                   {isArchived && (
                                     <Badge
                                       className={`text-xs px-2 py-1 ${ds.text.muted} bg-transparent border-current`}
@@ -2014,6 +2176,54 @@ function SettingsPageContent() {
                     </div>
                   )}
                 </div>
+                <div>
+                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
+                    Tracking Mode
+                  </label>
+                  <Select
+                    className="w-full"
+                    value={modalAccount.trackingMode || 'cash_flow'}
+                    onChange={(e) =>
+                      setModalAccount({
+                        ...modalAccount,
+                        trackingMode: e.target.value as 'cash_flow' | 'balance_only',
+                      })
+                    }
+                  >
+                    <option value="cash_flow">Cash Flow (budgeting)</option>
+                    <option value="balance_only">Balance Only (net worth)</option>
+                  </Select>
+                  <div className={`text-xs ${ds.text.muted} mt-1`}>
+                    {modalAccount.trackingMode === 'balance_only'
+                      ? '📊 Transactions excluded from budgeting, only balance counts for net worth'
+                      : '💰 Transactions included in budgeting analysis and net worth'}
+                  </div>
+                </div>
+                {/* Show invert amounts option for bank-synced accounts */}
+                {(modalAccount.plaidConnection || modalAccount.tellerConnection) && (
+                  <div>
+                    <label className="flex items-center gap-2">
+                      <input
+                        checked={modalAccount.invertAmounts || false}
+                        className="rounded"
+                        type="checkbox"
+                        onChange={(e) =>
+                          setModalAccount({
+                            ...modalAccount,
+                            invertAmounts: e.target.checked,
+                          })
+                        }
+                      />
+                      <span className={`text-sm font-medium ${ds.text.primary}`}>
+                        Invert transaction amounts
+                      </span>
+                    </label>
+                    <div className={`text-xs ${ds.text.muted} mt-1 pl-6`}>
+                      Enable if this account shows amounts backwards (expenses as positive). This
+                      affects future bank syncs only.
+                    </div>
+                  </div>
+                )}
                 <Button
                   className="w-full bg-blue-600 hover:bg-blue-700 py-3"
                   onClick={updateModalAccount}
@@ -2147,8 +2357,10 @@ function SettingsPageContent() {
                       className={`p-2 rounded ${ds.status.success.bg} ${ds.status.success.text} text-sm`}
                     >
                       <div>
-                        Sync complete: {syncResult.added} added, {syncResult.modified} modified,{' '}
-                        {syncResult.removed} removed
+                        Sync complete: {syncResult.added} added
+                        {syncResult.merged ? `, ${syncResult.merged} merged` : ''}
+                        {syncResult.modified ? `, ${syncResult.modified} modified` : ''}
+                        {syncResult.removed ? `, ${syncResult.removed} removed` : ''}
                       </div>
                       {syncResult.skippedOld && syncResult.skippedOld > 0 && (
                         <div className={`text-xs ${ds.text.muted} mt-1`}>
@@ -2194,13 +2406,23 @@ function SettingsPageContent() {
                             <option value="730">2 years</option>
                           </Select>
                         </div>
-                        <Button
-                          className="w-full bg-blue-600 hover:bg-blue-700 py-3"
-                          disabled={syncingAccountId === modalAccount.id}
-                          onClick={handleTellerSync}
-                        >
-                          {syncingAccountId === modalAccount.id ? 'Syncing...' : 'Sync Now'}
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            className="flex-1 py-3"
+                            disabled={previewLoading}
+                            variant="outline"
+                            onClick={handleTellerPreview}
+                          >
+                            {previewLoading ? 'Loading...' : 'Preview'}
+                          </Button>
+                          <Button
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 py-3"
+                            disabled={syncingAccountId === modalAccount.id}
+                            onClick={handleTellerSync}
+                          >
+                            {syncingAccountId === modalAccount.id ? 'Syncing...' : 'Sync Now'}
+                          </Button>
+                        </div>
                       </>
                     )}
                     <div className="flex gap-2">
@@ -2227,11 +2449,11 @@ function SettingsPageContent() {
                           status={modalAccount.plaidConnection.status}
                         />
                       </div>
-                      {modalAccount.plaidConnection.institutionName && (
+                      {modalAccount.plaidConnection.plaidEnrollment?.institutionName && (
                         <div className="mt-1">
                           Connected to:{' '}
                           <span className={ds.text.primary}>
-                            {modalAccount.plaidConnection.institutionName}
+                            {modalAccount.plaidConnection.plaidEnrollment.institutionName}
                           </span>{' '}
                           (Plaid)
                         </div>
@@ -2268,11 +2490,21 @@ function SettingsPageContent() {
                   {/* Actions */}
                   <div className="space-y-3">
                     {modalAccount.plaidConnection.status === 'needs_reauth' ? (
-                      <PlaidLinkButton
-                        reconnect
-                        accountId={modalAccount.id}
+                      <PlaidReconnectButton
                         className="w-full bg-yellow-600 hover:bg-yellow-700 py-3"
-                        onSuccess={handlePlaidSuccess}
+                        enrollmentId={modalAccount.plaidConnection.plaidEnrollmentId}
+                        onSuccess={async () => {
+                          await refresh();
+                          const updatedAccounts = await fetch('/api/accounts').then((r) =>
+                            r.json()
+                          );
+                          const updatedAccount = updatedAccounts.accounts?.find(
+                            (a: Account) => a.id === modalAccount.id
+                          );
+                          if (updatedAccount) {
+                            setModalAccount(updatedAccount);
+                          }
+                        }}
                       />
                     ) : (
                       <>
@@ -2291,25 +2523,35 @@ function SettingsPageContent() {
                             <option value="730">2 years</option>
                           </Select>
                         </div>
-                        <Button
-                          className="w-full bg-blue-600 hover:bg-blue-700 py-3"
-                          disabled={syncingAccountId === modalAccount.id}
-                          onClick={handlePlaidSync}
-                        >
-                          {syncingAccountId === modalAccount.id ? 'Syncing...' : 'Sync Now'}
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            className="flex-1 py-3"
+                            disabled={previewLoading}
+                            variant="outline"
+                            onClick={handlePlaidPreview}
+                          >
+                            {previewLoading ? 'Loading...' : 'Preview'}
+                          </Button>
+                          <Button
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 py-3"
+                            disabled={syncingAccountId === modalAccount.id}
+                            onClick={handlePlaidSync}
+                          >
+                            {syncingAccountId === modalAccount.id ? 'Syncing...' : 'Sync Now'}
+                          </Button>
+                        </div>
                       </>
                     )}
                     <div className="flex gap-2">
                       <Button
-                        className="w-full py-3"
+                        className="flex-1 py-3"
                         variant="outline"
                         onClick={handlePlaidDisconnect}
                       >
                         Disconnect
                       </Button>
                       <Button
-                        className="w-full py-3"
+                        className="flex-1 py-3"
                         variant="outline"
                         onClick={handlePlaidResetCursor}
                       >
@@ -2319,28 +2561,43 @@ function SettingsPageContent() {
                   </div>
                 </div>
               ) : (
-                // No connection - show both Teller and Plaid options
-                <div className="space-y-3">
-                  <TellerAccountLinkSelector
-                    accountId={modalAccount.id}
-                    accountName={modalAccount.name}
-                    onSuccess={async () => {
-                      await refresh();
-                      const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
-                      const updatedAccount = updatedAccounts.accounts?.find(
-                        (a: Account) => a.id === modalAccount.id
-                      );
-                      if (updatedAccount) {
-                        setModalAccount(updatedAccount);
-                      }
-                    }}
-                  />
+                // No connection - show both Teller and Plaid link selectors
+                <div className="space-y-4">
+                  <div>
+                    <h5 className={`text-sm font-medium ${ds.text.secondary} mb-2`}>Teller</h5>
+                    <TellerAccountLinkSelector
+                      accountId={modalAccount.id}
+                      accountName={modalAccount.name}
+                      onSuccess={async () => {
+                        await refresh();
+                        const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
+                        const updatedAccount = updatedAccounts.accounts?.find(
+                          (a: Account) => a.id === modalAccount.id
+                        );
+                        if (updatedAccount) {
+                          setModalAccount(updatedAccount);
+                        }
+                      }}
+                    />
+                  </div>
                   <div className={`text-center text-sm ${ds.text.muted}`}>or</div>
-                  <PlaidLinkButton
-                    accountId={modalAccount.id}
-                    className="w-full bg-gray-600 hover:bg-gray-700 py-3"
-                    onSuccess={handlePlaidSuccess}
-                  />
+                  <div>
+                    <h5 className={`text-sm font-medium ${ds.text.secondary} mb-2`}>Plaid</h5>
+                    <PlaidAccountLinkSelector
+                      accountId={modalAccount.id}
+                      accountName={modalAccount.name}
+                      onSuccess={async () => {
+                        await refresh();
+                        const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
+                        const updatedAccount = updatedAccounts.accounts?.find(
+                          (a: Account) => a.id === modalAccount.id
+                        );
+                        if (updatedAccount) {
+                          setModalAccount(updatedAccount);
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -2586,14 +2843,16 @@ function SettingsPageContent() {
                 </div>
                 <div>
                   <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                    Category
+                    Category (optional)
                   </label>
                   <Select
                     className="w-full"
-                    value={modalRule.categoryId}
-                    onChange={(e) => setModalRule({ ...modalRule, categoryId: e.target.value })}
+                    value={modalRule.categoryId || ''}
+                    onChange={(e) =>
+                      setModalRule({ ...modalRule, categoryId: e.target.value || null })
+                    }
                   >
-                    <option value="">Select category...</option>
+                    <option value="">No category</option>
                     {categories
                       .filter((c) => !c.parentId) // Get all groups
                       .sort(sortByName)
@@ -2614,6 +2873,19 @@ function SettingsPageContent() {
                         );
                       })}
                   </Select>
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
+                    Rename Merchant To (optional)
+                  </label>
+                  <Input
+                    className="w-full"
+                    placeholder="e.g., 'Internal Transfer'"
+                    value={modalRule.renameTo || ''}
+                    onChange={(e) =>
+                      setModalRule({ ...modalRule, renameTo: e.target.value || null })
+                    }
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -2666,8 +2938,23 @@ function SettingsPageContent() {
                   {modalRule.matchValue}"
                 </div>
                 <div>
-                  <strong>Then:</strong> Automatically categorize it as "
-                  {categories.find((c) => c.id === modalRule.categoryId)?.name || 'Unknown'}"
+                  <strong>Then:</strong>{' '}
+                  {modalRule.categoryId && modalRule.renameTo ? (
+                    <>
+                      Categorize as "
+                      {categories.find((c) => c.id === modalRule.categoryId)?.name || 'Unknown'}"
+                      and rename merchant to "{modalRule.renameTo}"
+                    </>
+                  ) : modalRule.categoryId ? (
+                    <>
+                      Categorize as "
+                      {categories.find((c) => c.id === modalRule.categoryId)?.name || 'Unknown'}"
+                    </>
+                  ) : modalRule.renameTo ? (
+                    <>Rename merchant to "{modalRule.renameTo}"</>
+                  ) : (
+                    <>No action configured</>
+                  )}
                 </div>
                 <div>
                   <strong>Priority:</strong> {modalRule.priority} (lower numbers run first - if
@@ -2699,6 +2986,170 @@ function SettingsPageContent() {
         )}
       </Modal>
 
+      {/* Sync Preview Modal */}
+      <Modal
+        isOpen={showPreviewModal}
+        title="Sync Preview"
+        onClose={() => {
+          setShowPreviewModal(false);
+          setPreviewResult(null);
+        }}
+      >
+        {previewResult && (
+          <div className="space-y-4">
+            {/* Summary Stats */}
+            <div className={`${ds.bg.secondary} p-4 rounded-lg border ${ds.border.default}`}>
+              <div className="grid grid-cols-4 gap-4 text-center">
+                <div>
+                  <div className="text-2xl font-bold text-green-600">
+                    {previewResult.stats.added}
+                  </div>
+                  <div className={`text-xs ${ds.text.muted}`}>New</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {previewResult.stats.merged}
+                  </div>
+                  <div className={`text-xs ${ds.text.muted}`}>Merge</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-yellow-600">
+                    {previewResult.stats.skippedDuplicates}
+                  </div>
+                  <div className={`text-xs ${ds.text.muted}`}>Duplicates</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-gray-500">
+                    {previewResult.stats.skippedPending}
+                  </div>
+                  <div className={`text-xs ${ds.text.muted}`}>Pending</div>
+                </div>
+              </div>
+              <div className={`text-xs ${ds.text.muted} text-center mt-2`}>
+                Date range: {previewResult.dateRange.from} to {previewResult.dateRange.to}
+              </div>
+            </div>
+
+            {/* Transaction List */}
+            <div className="max-h-96 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className={`${ds.bg.tertiary} sticky top-0`}>
+                  <tr>
+                    <th className={`text-left p-2 ${ds.text.secondary}`}>Date</th>
+                    <th className={`text-left p-2 ${ds.text.secondary}`}>Merchant</th>
+                    <th className={`text-right p-2 ${ds.text.secondary}`}>Amount</th>
+                    <th className={`text-left p-2 ${ds.text.secondary}`}>Category</th>
+                    <th className={`text-left p-2 ${ds.text.secondary}`}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewResult.transactions.map((tx) => (
+                    <tr
+                      key={tx.externalId}
+                      className={`border-b ${ds.border.default} ${
+                        !tx.wouldCreate && !tx.wouldMerge ? 'opacity-50' : ''
+                      }`}
+                    >
+                      <td className={`p-2 ${ds.text.primary}`}>
+                        {new Date(tx.date + 'T00:00:00').toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </td>
+                      <td className={`p-2 ${ds.text.primary}`}>
+                        <div className="truncate max-w-[150px]" title={tx.merchant}>
+                          {tx.merchant}
+                        </div>
+                      </td>
+                      <td
+                        className={`p-2 text-right ${
+                          tx.amount < 0 ? 'text-red-600' : 'text-green-600'
+                        }`}
+                      >
+                        {tx.amount < 0 ? '-' : '+'}${Math.abs(tx.amount).toFixed(2)}
+                      </td>
+                      <td className={`p-2 ${ds.text.secondary}`}>
+                        {tx.category ? (
+                          <span className="text-xs">
+                            {tx.category}
+                            <span className={`ml-1 ${ds.text.muted}`}>
+                              ({Math.round(tx.categoryConfidence * 100)}%)
+                            </span>
+                          </span>
+                        ) : (
+                          <span className={`text-xs ${ds.text.muted}`}>Uncategorized</span>
+                        )}
+                      </td>
+                      <td className="p-2">
+                        {tx.wouldCreate ? (
+                          <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                            New
+                          </span>
+                        ) : tx.wouldMerge ? (
+                          <span
+                            className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                            title={tx.skipReason || 'Will merge with existing transaction'}
+                          >
+                            Merge
+                          </span>
+                        ) : (
+                          <span
+                            className="text-xs px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                            title={tx.skipReason || 'Skipped'}
+                          >
+                            Skip
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {previewResult.transactions.length === 0 && (
+                <div className={`text-center py-8 ${ds.text.muted}`}>
+                  No transactions found in this date range.
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-4 border-t">
+              <Button
+                className="flex-1"
+                variant="outline"
+                onClick={() => {
+                  setShowPreviewModal(false);
+                  setPreviewResult(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
+                disabled={
+                  (previewResult.stats.added === 0 && previewResult.stats.merged === 0) ||
+                  syncingAccountId !== null
+                }
+                onClick={() => {
+                  setShowPreviewModal(false);
+                  setPreviewResult(null);
+                  // Call the correct sync handler based on connection type
+                  if (modalAccount?.tellerConnection) {
+                    handleTellerSync();
+                  } else if (modalAccount?.plaidConnection) {
+                    handlePlaidSync();
+                  }
+                }}
+              >
+                {syncingAccountId
+                  ? 'Syncing...'
+                  : `Sync ${previewResult.stats.added + previewResult.stats.merged} Transactions`}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       {tab === 'rules' && (
         <Card>
           <CardHeader className="flex items-center justify-between">
@@ -2712,54 +3163,95 @@ function SettingsPageContent() {
                 <strong>Priority:</strong> Lower numbers run first. If multiple rules match a
                 transaction, only the first matching rule (lowest priority number) is applied.
               </div>
-              <div className="grid gap-3 md:grid-cols-5">
-                <Select
-                  value={newRule.matchType}
-                  onChange={(e) => setNewRule({ ...newRule, matchType: e.target.value })}
-                >
-                  <option value="merchantContains">Merchant contains</option>
-                  <option value="merchantRegex">Merchant regex</option>
-                  <option value="noteContains">Note contains</option>
-                </Select>
-                <Input
-                  placeholder="Match value (e.g., 'Starbucks')"
-                  value={newRule.matchValue}
-                  onChange={(e) => setNewRule({ ...newRule, matchValue: e.target.value })}
-                />
-                <Select
-                  value={newRule.categoryId}
-                  onChange={(e) => setNewRule({ ...newRule, categoryId: e.target.value })}
-                >
-                  <option value="">Select category...</option>
-                  {categories
-                    .filter((c) => !c.parentId) // Get all groups
-                    .sort(sortByName)
-                    .map((group) => {
-                      const groupCategories = categories
-                        .filter((c) => c.parentId === group.id)
-                        .sort(sortByName);
-                      if (groupCategories.length === 0) return null;
 
-                      return (
-                        <optgroup key={group.id} label={group.name}>
-                          {groupCategories.map((cat) => (
-                            <option key={cat.id} value={cat.id}>
-                              {cat.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      );
-                    })}
-                </Select>
-                <Input
-                  placeholder="Priority (1-999)"
-                  type="number"
-                  value={newRule.priority}
-                  onChange={(e) => setNewRule({ ...newRule, priority: Number(e.target.value) })}
-                />
-                <Button className="py-3" onClick={createRule}>
-                  Add Rule
-                </Button>
+              {/* Row 1: Match condition */}
+              <div className="grid gap-3 md:grid-cols-2 mb-3">
+                <div>
+                  <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
+                    When
+                  </label>
+                  <Select
+                    value={newRule.matchType}
+                    onChange={(e) => setNewRule({ ...newRule, matchType: e.target.value })}
+                  >
+                    <option value="merchantContains">Merchant contains</option>
+                    <option value="merchantRegex">Merchant regex</option>
+                    <option value="noteContains">Note contains</option>
+                  </Select>
+                </div>
+                <div>
+                  <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
+                    Match value
+                  </label>
+                  <Input
+                    placeholder="e.g., 'ENDING' or 'Starbucks'"
+                    value={newRule.matchValue}
+                    onChange={(e) => setNewRule({ ...newRule, matchValue: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Actions (at least one required) */}
+              <div className="grid gap-3 md:grid-cols-2 mb-3">
+                <div>
+                  <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
+                    Assign category <span className={ds.text.muted}>(optional)</span>
+                  </label>
+                  <Select
+                    value={newRule.categoryId}
+                    onChange={(e) => setNewRule({ ...newRule, categoryId: e.target.value })}
+                  >
+                    <option value="">— None —</option>
+                    {categories
+                      .filter((c) => !c.parentId)
+                      .sort(sortByName)
+                      .map((group) => {
+                        const groupCategories = categories
+                          .filter((c) => c.parentId === group.id)
+                          .sort(sortByName);
+                        if (groupCategories.length === 0) return null;
+
+                        return (
+                          <optgroup key={group.id} label={group.name}>
+                            {groupCategories.map((cat) => (
+                              <option key={cat.id} value={cat.id}>
+                                {cat.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        );
+                      })}
+                  </Select>
+                </div>
+                <div>
+                  <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
+                    Rename merchant to <span className={ds.text.muted}>(optional)</span>
+                  </label>
+                  <Input
+                    placeholder="e.g., 'Internal Transfer'"
+                    value={newRule.renameTo}
+                    onChange={(e) => setNewRule({ ...newRule, renameTo: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Row 3: Priority and submit */}
+              <div className="grid gap-3 md:grid-cols-4">
+                <div>
+                  <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
+                    Priority
+                  </label>
+                  <Input
+                    type="number"
+                    value={newRule.priority}
+                    onChange={(e) => setNewRule({ ...newRule, priority: Number(e.target.value) })}
+                  />
+                </div>
+                <div className="md:col-span-3 flex items-end">
+                  <Button className="w-full py-3" onClick={createRule}>
+                    Add Rule
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -2809,8 +3301,18 @@ function SettingsPageContent() {
                         <div className={`text-sm font-medium ${ds.text.primary} truncate`}>
                           "{rule.matchValue}"
                         </div>
-                        <div className={`text-xs ${ds.text.secondary} truncate`}>
-                          → {group?.name} → {category?.name || 'Unknown'}
+                        <div className={`text-xs ${ds.text.secondary} space-y-1`}>
+                          {category && (
+                            <div className="truncate">
+                              → {group?.name} → {category.name}
+                            </div>
+                          )}
+                          {rule.renameTo && (
+                            <div className="truncate">✏️ Rename to "{rule.renameTo}"</div>
+                          )}
+                          {!category && !rule.renameTo && (
+                            <div className="truncate text-red-500">⚠️ No action configured</div>
+                          )}
                         </div>
                       </div>
 

@@ -5,7 +5,8 @@ import { prisma } from '@/lib/prisma';
 const patchSchema = z.object({
   matchType: z.enum(['merchantContains', 'merchantRegex', 'noteContains']).optional(),
   matchValue: z.string().optional(),
-  categoryId: z.string().optional(),
+  categoryId: z.string().nullable().optional(),
+  renameTo: z.string().nullable().optional(),
   priority: z.number().int().optional(),
   isEnabled: z.boolean().optional(),
 });

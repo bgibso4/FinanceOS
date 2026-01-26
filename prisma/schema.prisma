@@ -15,30 +15,52 @@ model Account {
   currency         String            @default("USD")
   isActive         Boolean           @default(true)
   notes            String?
+  trackingMode     String            @default("cash_flow")  // "cash_flow" | "balance_only"
+  invertAmounts    Boolean           @default(false) // Flip amount signs during bank sync (for accounts with inverted conventions)
   createdAt        DateTime          @default(now())
   transactions     Transaction[]
   plaidConnection  PlaidConnection?
   tellerConnection TellerConnection?
 }
 
-model PlaidConnection {
-  id                   String    @id @default(uuid())
-  accountId            String    @unique
-  account              Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  plaidItemId          String    @unique
-  plaidAccountId       String
-  accessTokenEncrypted String
-  accessTokenIv        String
-  transactionCursor    String?
+// Plaid Enrollment: Institution-level connection (parallels TellerEnrollment)
+model PlaidEnrollment {
+  id                   String            @id @default(uuid())
+  plaidItemId          String            @unique // Plaid's item ID
+  institutionId        String?           // Plaid's institution ID
+  institutionName      String            // Display name (e.g., "Chase")
+  accessTokenEncrypted String            // Encrypted access token
+  accessTokenIv        String            // IV for decryption
+  transactionCursor    String?           // Sync cursor (shared across all connections)
+  status               String            @default("connected")
   lastSyncAt           DateTime?
-  lastSyncStatus       String    @default("never")
-  lastSyncError        String?
-  status               String    @default("connected")
-  institutionName      String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  connections          PlaidConnection[] // Links to FinanceOS accounts
 
-  @@index([plaidItemId])
+  @@index([status])
+}
+
+// Plaid Connection: Links a FinanceOS account to a specific Plaid account
+model PlaidConnection {
+  id                   String          @id @default(uuid())
+  accountId            String          @unique // One Plaid connection per FinanceOS account
+  account              Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  plaidEnrollmentId    String          // FK to PlaidEnrollment
+  plaidEnrollment      PlaidEnrollment @relation(fields: [plaidEnrollmentId], references: [id], onDelete: Cascade)
+  plaidAccountId       String          // Specific Plaid account ID
+  plaidAccountName     String?         // Display name from Plaid
+  plaidAccountType     String?         // Account type (e.g., "depository")
+  plaidAccountSubtype  String?         // Account subtype (e.g., "checking")
+  plaidAccountMask     String?         // Last 4 digits
+  lastSyncAt           DateTime?
+  lastSyncStatus       String          @default("never")
+  lastSyncError        String?
+  status               String          @default("connected")
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  @@index([plaidEnrollmentId])
   @@index([status])
 }
 
@@ -97,14 +119,15 @@ model Category {
 }
 
 model Rule {
-  id         String       @id @default(uuid())
+  id         String    @id @default(uuid())
   matchType  String
   matchValue String
-  categoryId String
-  category   Category     @relation(fields: [categoryId], references: [id])
-  priority   Int          @default(100)
-  isEnabled  Boolean      @default(true)
-  createdAt  DateTime     @default(now())
+  categoryId String?   // Optional: rule can rename merchant without categorizing
+  category   Category? @relation(fields: [categoryId], references: [id])
+  renameTo   String?   // Optional: rename merchant to this value when rule matches
+  priority   Int       @default(100)
+  isEnabled  Boolean   @default(true)
+  createdAt  DateTime  @default(now())
 }
 
 model Transaction {

@@ -1,7 +1,17 @@
 import https from 'https';
 import fs from 'fs';
+import path from 'path';
 
-const TELLER_API_BASE = 'https://api.teller.io';
+const _TELLER_API_BASE = 'https://api.teller.io';
+
+// Resolve relative paths from project root
+function resolvePath(filePath: string): string {
+  if (filePath.startsWith('/')) {
+    return filePath;
+  }
+  // process.cwd() returns the project root in Next.js
+  return path.resolve(process.cwd(), filePath);
+}
 
 type TellerEnv = 'sandbox' | 'development' | 'production';
 
@@ -21,7 +31,7 @@ function loadCertificate(): string {
 
   // Check if it's a file path
   if (cert.startsWith('/') || cert.startsWith('./')) {
-    return fs.readFileSync(cert, 'utf8');
+    return fs.readFileSync(resolvePath(cert), 'utf8');
   }
 
   // Check if it's base64 encoded
@@ -41,7 +51,7 @@ function loadPrivateKey(): string {
 
   // Check if it's a file path
   if (key.startsWith('/') || key.startsWith('./')) {
-    return fs.readFileSync(key, 'utf8');
+    return fs.readFileSync(resolvePath(key), 'utf8');
   }
 
   // Check if it's base64 encoded
@@ -53,30 +63,6 @@ function loadPrivateKey(): string {
   return key;
 }
 
-let httpsAgent: https.Agent | null = null;
-
-function getHttpsAgent(): https.Agent {
-  if (httpsAgent) return httpsAgent;
-
-  const tellerEnv = getTellerEnv();
-
-  // Sandbox mode doesn't require mTLS
-  if (tellerEnv === 'sandbox') {
-    httpsAgent = new https.Agent();
-    return httpsAgent;
-  }
-
-  const cert = loadCertificate();
-  const key = loadPrivateKey();
-
-  httpsAgent = new https.Agent({
-    cert,
-    key,
-  });
-
-  return httpsAgent;
-}
-
 export function getTellerApplicationId(): string {
   const appId = process.env.TELLER_APPLICATION_ID;
   if (!appId) {
@@ -86,7 +72,7 @@ export function getTellerApplicationId(): string {
 }
 
 export async function tellerFetch<T>(
-  path: string,
+  apiPath: string,
   accessToken: string,
   options: {
     method?: 'GET' | 'POST' | 'DELETE';
@@ -96,39 +82,70 @@ export async function tellerFetch<T>(
 ): Promise<T> {
   const { method = 'GET', body, params } = options;
 
-  let url = `${TELLER_API_BASE}${path}`;
+  let fullPath = apiPath;
   if (params) {
     const searchParams = new URLSearchParams(params);
-    url += `?${searchParams.toString()}`;
+    fullPath += `?${searchParams.toString()}`;
   }
 
   // Basic auth: access token as username, empty password
   const authHeader = 'Basic ' + Buffer.from(`${accessToken}:`).toString('base64');
 
-  const response = await fetch(url, {
-    method,
-    headers: {
-      Authorization: authHeader,
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    // @ts-expect-error - Node.js fetch supports agent option
-    agent: getHttpsAgent(),
-  });
+  return new Promise((resolve, reject) => {
+    const tellerEnv = getTellerEnv();
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    let errorMessage = `Teller API error: ${response.status}`;
-    try {
-      const errorJson = JSON.parse(errorBody);
-      errorMessage = errorJson.error?.message || errorJson.message || errorMessage;
-    } catch {
-      // Use default error message
+    // Build request options with mTLS for non-sandbox environments
+    const requestOptions: https.RequestOptions = {
+      hostname: 'api.teller.io',
+      port: 443,
+      path: fullPath,
+      method,
+      headers: {
+        Authorization: authHeader,
+        'Content-Type': 'application/json',
+      },
+    };
+
+    // Add client certificate for mTLS in development/production
+    if (tellerEnv !== 'sandbox') {
+      requestOptions.cert = loadCertificate();
+      requestOptions.key = loadPrivateKey();
     }
-    throw new Error(errorMessage);
-  }
 
-  return response.json();
+    const req = https.request(requestOptions, (res) => {
+      let data = '';
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      res.on('end', () => {
+        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            resolve(JSON.parse(data));
+          } catch {
+            reject(new Error('Failed to parse response JSON'));
+          }
+        } else {
+          let errorMessage = `Teller API error: ${res.statusCode}`;
+          try {
+            const errorJson = JSON.parse(data);
+            errorMessage = errorJson.error?.message || errorJson.message || errorMessage;
+          } catch {
+            // Use default error message
+          }
+          reject(new Error(errorMessage));
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      reject(new Error(`Teller API request failed: ${err.message}`));
+    });
+
+    if (body) {
+      req.write(JSON.stringify(body));
+    }
+    req.end();
+  });
 }
 
 // Teller API types

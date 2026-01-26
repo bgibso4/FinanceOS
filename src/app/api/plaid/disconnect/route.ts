@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
 
     const connection = await prisma.plaidConnection.findUnique({
       where: { accountId },
+      include: { plaidEnrollment: true },
     });
 
     if (!connection) {
@@ -24,23 +25,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Remove item from Plaid
-    try {
-      const plaid = getPlaidClient();
-      const accessToken = decryptAccessToken(
-        connection.accessTokenEncrypted,
-        connection.accessTokenIv
-      );
-      await plaid.itemRemove({ access_token: accessToken });
-    } catch (plaidError) {
-      // Log but continue - we still want to remove local connection
-      console.error('Error removing Plaid item:', plaidError);
-    }
-
-    // Delete local connection
+    // Delete local connection (keep enrollment for other accounts)
     await prisma.plaidConnection.delete({
       where: { id: connection.id },
     });
+
+    // Check if enrollment has any remaining connections
+    if (connection.plaidEnrollment) {
+      const remainingConnections = await prisma.plaidConnection.count({
+        where: { plaidEnrollmentId: connection.plaidEnrollment.id },
+      });
+
+      // If no remaining connections, remove Plaid item and delete enrollment
+      if (remainingConnections === 0) {
+        try {
+          const plaid = getPlaidClient();
+          const accessToken = decryptAccessToken(
+            connection.plaidEnrollment.accessTokenEncrypted,
+            connection.plaidEnrollment.accessTokenIv
+          );
+          await plaid.itemRemove({ access_token: accessToken });
+        } catch (plaidError) {
+          console.error('Error removing Plaid item:', plaidError);
+        }
+
+        await prisma.plaidEnrollment.delete({
+          where: { id: connection.plaidEnrollment.id },
+        });
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

@@ -46,15 +46,24 @@ describe('accounts API integration', () => {
       const account = createAccountData({ name: 'Plaid Account' });
       const created = await prisma.account.create({ data: account });
 
+      // First create enrollment (institution-level)
+      const enrollment = await prisma.plaidEnrollment.create({
+        data: {
+          plaidItemId: 'item-plaid-123',
+          institutionName: 'Chase',
+          accessTokenEncrypted: 'encrypted-token',
+          accessTokenIv: 'iv-value',
+          status: 'connected',
+        },
+      });
+
+      // Then create connection (account-level)
       await prisma.plaidConnection.create({
         data: {
           accountId: created.id,
-          plaidItemId: 'item-plaid-123', // Required field
+          plaidEnrollmentId: enrollment.id,
           plaidAccountId: 'plaid-123',
-          accessTokenEncrypted: 'encrypted-token',
-          accessTokenIv: 'iv-value',
-          status: 'active',
-          institutionName: 'Chase',
+          status: 'connected',
           lastSyncStatus: 'success',
         },
       });
@@ -63,20 +72,22 @@ describe('accounts API integration', () => {
         where: { id: created.id },
         include: {
           plaidConnection: {
-            select: {
-              id: true,
-              status: true,
-              lastSyncAt: true,
-              lastSyncStatus: true,
-              institutionName: true,
+            include: {
+              plaidEnrollment: {
+                select: {
+                  id: true,
+                  institutionName: true,
+                  status: true,
+                },
+              },
             },
           },
         },
       });
 
       expect(result?.plaidConnection).toBeDefined();
-      expect(result?.plaidConnection?.institutionName).toBe('Chase');
-      expect(result?.plaidConnection?.status).toBe('active');
+      expect(result?.plaidConnection?.plaidEnrollment?.institutionName).toBe('Chase');
+      expect(result?.plaidConnection?.status).toBe('connected');
     });
   });
 

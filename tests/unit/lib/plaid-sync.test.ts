@@ -23,7 +23,7 @@ vi.mock('@/lib/prisma', () => ({
 }));
 
 // Import after mocking
-import { syncPlaidTransactions, type SyncResult } from '@/lib/plaid-sync';
+import { syncPlaidTransactions, type SyncResult, type DryRunResult } from '@/lib/plaid-sync';
 import { getPlaidClient } from '@/lib/plaid';
 
 describe('plaid-sync', () => {
@@ -82,30 +82,43 @@ describe('plaid-sync', () => {
       ],
     });
 
-    // Create plaid connection
+    // Create plaid enrollment (institution-level)
+    await prisma.plaidEnrollment.create({
+      data: {
+        id: 'plaid-enroll-1',
+        plaidItemId: 'plaid-item-123',
+        institutionName: 'Test Bank',
+        accessTokenEncrypted: 'encrypted-token',
+        accessTokenIv: 'iv-value',
+        status: 'connected',
+      },
+    });
+
+    // Create plaid connection (account-level)
     await prisma.plaidConnection.create({
       data: {
         id: 'plaid-conn-1',
         accountId: testAccountId,
-        plaidItemId: 'plaid-item-123',
+        plaidEnrollmentId: 'plaid-enroll-1',
         plaidAccountId: 'plaid-account-123',
-        accessTokenEncrypted: 'encrypted-token',
-        accessTokenIv: 'iv-value',
-        status: 'active',
+        status: 'connected',
       },
     });
   });
 
-  function createMockPlaidConnection(accountId: string) {
+  function createMockPlaidConnection(accountId: string, invertAmounts: boolean = false) {
     return {
       id: 'plaid-conn-1',
       accountId,
-      plaidItemId: 'plaid-item-123',
       plaidAccountId: 'plaid-account-123',
-      accessTokenEncrypted: 'encrypted-token',
-      accessTokenIv: 'iv-value',
-      transactionCursor: null,
-      account: { id: accountId, name: 'Test Account' },
+      account: { id: accountId, name: 'Test Account', invertAmounts },
+      plaidEnrollment: {
+        id: 'plaid-enroll-1',
+        plaidItemId: 'plaid-item-123',
+        accessTokenEncrypted: 'encrypted-token',
+        accessTokenIv: 'iv-value',
+        transactionCursor: null,
+      },
     };
   }
 
@@ -156,7 +169,7 @@ describe('plaid-sync', () => {
       );
 
       const connection = createMockPlaidConnection(testAccountId);
-      const result = await syncPlaidTransactions(connection);
+      const result = (await syncPlaidTransactions(connection)) as SyncResult;
 
       expect(result.added).toBe(2);
       expect(result.modified).toBe(0);
@@ -193,7 +206,7 @@ describe('plaid-sync', () => {
       );
 
       const connection = createMockPlaidConnection(testAccountId);
-      const result = await syncPlaidTransactions(connection);
+      const result = (await syncPlaidTransactions(connection)) as SyncResult;
 
       expect(result.added).toBe(1);
       expect(result.autoCategorized).toBe(1);
@@ -247,7 +260,7 @@ describe('plaid-sync', () => {
       );
 
       const connection = createMockPlaidConnection(testAccountId);
-      const result = await syncPlaidTransactions(connection);
+      const result = (await syncPlaidTransactions(connection)) as SyncResult;
 
       expect(result.added).toBe(1);
       expect(result.skippedDuplicates).toBe(1);
@@ -293,7 +306,7 @@ describe('plaid-sync', () => {
       );
 
       const connection = createMockPlaidConnection(testAccountId);
-      const result = await syncPlaidTransactions(connection, 30); // Only last 30 days
+      const result = (await syncPlaidTransactions(connection, { daysToSync: 30 })) as SyncResult;
 
       expect(result.added).toBe(1);
       expect(result.skippedOld).toBe(1);
@@ -335,7 +348,7 @@ describe('plaid-sync', () => {
       );
 
       const connection = createMockPlaidConnection(testAccountId);
-      const result = await syncPlaidTransactions(connection);
+      const result = (await syncPlaidTransactions(connection)) as SyncResult;
 
       expect(result.modified).toBe(1);
 
@@ -377,7 +390,7 @@ describe('plaid-sync', () => {
       );
 
       const connection = createMockPlaidConnection(testAccountId);
-      const result = await syncPlaidTransactions(connection);
+      const result = (await syncPlaidTransactions(connection)) as SyncResult;
 
       expect(result.removed).toBe(1);
 
@@ -427,7 +440,7 @@ describe('plaid-sync', () => {
       );
 
       const connection = createMockPlaidConnection(testAccountId);
-      const result = await syncPlaidTransactions(connection);
+      const result = (await syncPlaidTransactions(connection)) as SyncResult;
 
       expect(result.added).toBe(2);
       expect(mockPlaidClient.transactionsSync).toHaveBeenCalledTimes(2);
@@ -462,7 +475,7 @@ describe('plaid-sync', () => {
       );
 
       const connection = createMockPlaidConnection(testAccountId);
-      const result = await syncPlaidTransactions(connection);
+      const result = (await syncPlaidTransactions(connection)) as SyncResult;
 
       expect(result.added).toBe(1);
     });
@@ -535,7 +548,7 @@ describe('plaid-sync', () => {
       expect(tx?.isTransfer).toBe(true);
     });
 
-    it('updates connection cursor and sync status on success', async () => {
+    it('updates enrollment cursor and connection sync status on success', async () => {
       const mockPlaidClient = {
         transactionsSync: vi.fn().mockResolvedValue({
           data: {
@@ -555,11 +568,16 @@ describe('plaid-sync', () => {
       const connection = createMockPlaidConnection(testAccountId);
       await syncPlaidTransactions(connection);
 
-      // Verify connection was updated
+      // Verify enrollment cursor was updated
+      const updatedEnrollment = await prisma.plaidEnrollment.findUnique({
+        where: { id: 'plaid-enroll-1' },
+      });
+      expect(updatedEnrollment?.transactionCursor).toBe('new-cursor-456');
+
+      // Verify connection sync status was updated
       const updatedConnection = await prisma.plaidConnection.findUnique({
         where: { id: 'plaid-conn-1' },
       });
-      expect(updatedConnection?.transactionCursor).toBe('new-cursor-456');
       expect(updatedConnection?.lastSyncStatus).toBe('success');
       expect(updatedConnection?.lastSyncAt).toBeDefined();
     });
@@ -595,6 +613,411 @@ describe('plaid-sync', () => {
       expect(tx?.merchant).toBe('SQ *COFFEE SHOP #1234');
       // normalizeMerchant removes common prefixes like "SQ *" and store numbers
       expect(tx?.merchantNormalized).toContain('coffee shop');
+    });
+  });
+
+  describe('dry-run mode', () => {
+    it('previews transactions without creating them', async () => {
+      const mockPlaidClient = {
+        transactionsSync: vi.fn().mockResolvedValue({
+          data: {
+            added: [
+              createMockPlaidTransaction({
+                transaction_id: 'preview-tx-1',
+                merchant_name: 'Coffee Shop',
+                amount: 5.5,
+              }),
+              createMockPlaidTransaction({
+                transaction_id: 'preview-tx-2',
+                merchant_name: 'Gas Station',
+                amount: 45.0,
+              }),
+            ],
+            modified: [],
+            removed: [],
+            next_cursor: 'cursor-123',
+            has_more: false,
+          },
+        }),
+      };
+
+      vi.mocked(getPlaidClient).mockReturnValue(
+        mockPlaidClient as unknown as ReturnType<typeof getPlaidClient>
+      );
+
+      const connection = createMockPlaidConnection(testAccountId);
+      const result = (await syncPlaidTransactions(connection, {
+        dryRun: true,
+      })) as DryRunResult;
+
+      // Check stats
+      expect(result.stats.added).toBe(2);
+      expect(result.stats.modified).toBe(0);
+      expect(result.stats.removed).toBe(0);
+
+      // Check previews
+      expect(result.transactions).toHaveLength(2);
+      expect(result.transactions[0].wouldCreate).toBe(true);
+      expect(result.transactions[0].action).toBe('add');
+      expect(result.transactions[1].wouldCreate).toBe(true);
+
+      // Verify NO transactions were actually created
+      const transactions = await prisma.transaction.findMany({
+        where: { accountId: testAccountId },
+      });
+      expect(transactions).toHaveLength(0);
+    });
+
+    it('marks duplicates correctly in preview', async () => {
+      // Create existing transaction
+      await prisma.transaction.create({
+        data: {
+          accountId: testAccountId,
+          externalId: 'existing-tx-1',
+          date: new Date(),
+          amount: -25,
+          merchant: 'Test Merchant',
+          merchantNormalized: 'test merchant',
+        },
+      });
+
+      const mockPlaidClient = {
+        transactionsSync: vi.fn().mockResolvedValue({
+          data: {
+            added: [
+              createMockPlaidTransaction({
+                transaction_id: 'existing-tx-1', // Duplicate
+                merchant_name: 'Test Merchant',
+                amount: 25.0,
+              }),
+              createMockPlaidTransaction({
+                transaction_id: 'new-tx-1', // New
+                merchant_name: 'New Merchant',
+                amount: 15.0,
+              }),
+            ],
+            modified: [],
+            removed: [],
+            next_cursor: 'cursor-123',
+            has_more: false,
+          },
+        }),
+      };
+
+      vi.mocked(getPlaidClient).mockReturnValue(
+        mockPlaidClient as unknown as ReturnType<typeof getPlaidClient>
+      );
+
+      const connection = createMockPlaidConnection(testAccountId);
+      const result = (await syncPlaidTransactions(connection, {
+        dryRun: true,
+      })) as DryRunResult;
+
+      expect(result.stats.added).toBe(1);
+      expect(result.stats.skippedDuplicates).toBe(1);
+
+      // Find the duplicate preview
+      const duplicatePreview = result.transactions.find((t) => t.externalId === 'existing-tx-1');
+      expect(duplicatePreview?.wouldCreate).toBe(false);
+      expect(duplicatePreview?.skipReason).toContain('duplicate');
+
+      // Find the new transaction preview
+      const newPreview = result.transactions.find((t) => t.externalId === 'new-tx-1');
+      expect(newPreview?.wouldCreate).toBe(true);
+    });
+
+    it('includes auto-categorization info in preview', async () => {
+      const mockPlaidClient = {
+        transactionsSync: vi.fn().mockResolvedValue({
+          data: {
+            added: [
+              createMockPlaidTransaction({
+                transaction_id: 'grocery-tx',
+                merchant_name: "Trader Joe's", // Should match grocery rule
+                amount: 89.42,
+              }),
+            ],
+            modified: [],
+            removed: [],
+            next_cursor: 'cursor-123',
+            has_more: false,
+          },
+        }),
+      };
+
+      vi.mocked(getPlaidClient).mockReturnValue(
+        mockPlaidClient as unknown as ReturnType<typeof getPlaidClient>
+      );
+
+      const connection = createMockPlaidConnection(testAccountId);
+      const result = (await syncPlaidTransactions(connection, {
+        dryRun: true,
+      })) as DryRunResult;
+
+      expect(result.stats.autoCategorized).toBe(1);
+
+      const preview = result.transactions[0];
+      expect(preview.category).toBe('Groceries');
+      expect(preview.categoryConfidence).toBe(0.98);
+    });
+
+    it('does not update enrollment cursor in dry-run mode', async () => {
+      const mockPlaidClient = {
+        transactionsSync: vi.fn().mockResolvedValue({
+          data: {
+            added: [
+              createMockPlaidTransaction({
+                transaction_id: 'tx-1',
+                merchant_name: 'Store',
+                amount: 10.0,
+              }),
+            ],
+            modified: [],
+            removed: [],
+            next_cursor: 'should-not-be-saved',
+            has_more: false,
+          },
+        }),
+      };
+
+      vi.mocked(getPlaidClient).mockReturnValue(
+        mockPlaidClient as unknown as ReturnType<typeof getPlaidClient>
+      );
+
+      const connection = createMockPlaidConnection(testAccountId);
+      await syncPlaidTransactions(connection, { dryRun: true });
+
+      // Verify cursor was NOT updated
+      const enrollment = await prisma.plaidEnrollment.findUnique({
+        where: { id: 'plaid-enroll-1' },
+      });
+      expect(enrollment?.transactionCursor).toBeNull(); // Should remain null
+    });
+
+    it('does not update connection sync status in dry-run mode', async () => {
+      const mockPlaidClient = {
+        transactionsSync: vi.fn().mockResolvedValue({
+          data: {
+            added: [],
+            modified: [],
+            removed: [],
+            next_cursor: 'cursor-123',
+            has_more: false,
+          },
+        }),
+      };
+
+      vi.mocked(getPlaidClient).mockReturnValue(
+        mockPlaidClient as unknown as ReturnType<typeof getPlaidClient>
+      );
+
+      const connection = createMockPlaidConnection(testAccountId);
+      await syncPlaidTransactions(connection, { dryRun: true });
+
+      // Verify connection was NOT updated
+      const plaidConnection = await prisma.plaidConnection.findUnique({
+        where: { id: 'plaid-conn-1' },
+      });
+      expect(plaidConnection?.lastSyncAt).toBeNull();
+      expect(plaidConnection?.lastSyncStatus).toBe('never');
+    });
+
+    it('includes date range in dry-run result', async () => {
+      const mockPlaidClient = {
+        transactionsSync: vi.fn().mockResolvedValue({
+          data: {
+            added: [],
+            modified: [],
+            removed: [],
+            next_cursor: 'cursor-123',
+            has_more: false,
+          },
+        }),
+      };
+
+      vi.mocked(getPlaidClient).mockReturnValue(
+        mockPlaidClient as unknown as ReturnType<typeof getPlaidClient>
+      );
+
+      const connection = createMockPlaidConnection(testAccountId);
+      const result = (await syncPlaidTransactions(connection, {
+        dryRun: true,
+        daysToSync: 30,
+      })) as DryRunResult;
+
+      expect(result.dateRange).toBeDefined();
+      expect(result.dateRange.from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(result.dateRange.to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+
+    it('previews removed transactions correctly', async () => {
+      // Create existing transaction that will be removed
+      await prisma.transaction.create({
+        data: {
+          accountId: testAccountId,
+          externalId: 'remove-tx-1',
+          date: new Date(),
+          amount: -25,
+          merchant: 'To Be Removed',
+          merchantNormalized: 'to be removed',
+        },
+      });
+
+      const mockPlaidClient = {
+        transactionsSync: vi.fn().mockResolvedValue({
+          data: {
+            added: [],
+            modified: [],
+            removed: [{ transaction_id: 'remove-tx-1' }],
+            next_cursor: 'cursor-123',
+            has_more: false,
+          },
+        }),
+      };
+
+      vi.mocked(getPlaidClient).mockReturnValue(
+        mockPlaidClient as unknown as ReturnType<typeof getPlaidClient>
+      );
+
+      const connection = createMockPlaidConnection(testAccountId);
+      const result = (await syncPlaidTransactions(connection, {
+        dryRun: true,
+      })) as DryRunResult;
+
+      expect(result.stats.removed).toBe(1);
+
+      const preview = result.transactions.find((t) => t.action === 'remove');
+      expect(preview).toBeDefined();
+      expect(preview?.wouldCreate).toBe(true); // "wouldCreate" means "would be removed"
+      expect(preview?.merchant).toBe('To Be Removed');
+
+      // Verify transaction was NOT actually removed
+      const tx = await prisma.transaction.findFirst({
+        where: { externalId: 'remove-tx-1' },
+      });
+      expect(tx).not.toBeNull();
+    });
+
+    it('previews modified transactions correctly', async () => {
+      // Create existing transaction
+      await prisma.transaction.create({
+        data: {
+          accountId: testAccountId,
+          externalId: 'modify-tx-1',
+          date: new Date(),
+          amount: -25,
+          merchant: 'Old Merchant Name',
+          merchantNormalized: 'old merchant name',
+        },
+      });
+
+      const mockPlaidClient = {
+        transactionsSync: vi.fn().mockResolvedValue({
+          data: {
+            added: [],
+            modified: [
+              createMockPlaidTransaction({
+                transaction_id: 'modify-tx-1',
+                merchant_name: 'Updated Merchant Name',
+                amount: 30.0,
+              }),
+            ],
+            removed: [],
+            next_cursor: 'cursor-123',
+            has_more: false,
+          },
+        }),
+      };
+
+      vi.mocked(getPlaidClient).mockReturnValue(
+        mockPlaidClient as unknown as ReturnType<typeof getPlaidClient>
+      );
+
+      const connection = createMockPlaidConnection(testAccountId);
+      const result = (await syncPlaidTransactions(connection, {
+        dryRun: true,
+      })) as DryRunResult;
+
+      expect(result.stats.modified).toBe(1);
+
+      const preview = result.transactions.find((t) => t.action === 'modify');
+      expect(preview).toBeDefined();
+      expect(preview?.merchant).toBe('Updated Merchant Name');
+      expect(preview?.wouldCreate).toBe(true); // Found existing to modify
+
+      // Verify transaction was NOT actually modified
+      const tx = await prisma.transaction.findFirst({
+        where: { externalId: 'modify-tx-1' },
+      });
+      expect(tx?.merchant).toBe('Old Merchant Name'); // Should still be old name
+    });
+
+    it('marks old transactions as skipped in preview', async () => {
+      const oldDate = new Date();
+      oldDate.setDate(oldDate.getDate() - 45);
+
+      const mockPlaidClient = {
+        transactionsSync: vi.fn().mockResolvedValue({
+          data: {
+            added: [
+              createMockPlaidTransaction({
+                transaction_id: 'old-tx-1',
+                date: oldDate.toISOString().split('T')[0],
+                merchant_name: 'Old Store',
+                amount: 25.0,
+              }),
+            ],
+            modified: [],
+            removed: [],
+            next_cursor: 'cursor-123',
+            has_more: false,
+          },
+        }),
+      };
+
+      vi.mocked(getPlaidClient).mockReturnValue(
+        mockPlaidClient as unknown as ReturnType<typeof getPlaidClient>
+      );
+
+      const connection = createMockPlaidConnection(testAccountId);
+      const result = (await syncPlaidTransactions(connection, {
+        dryRun: true,
+        daysToSync: 30,
+      })) as DryRunResult;
+
+      expect(result.stats.skippedOld).toBe(1);
+
+      const preview = result.transactions.find((t) => t.externalId === 'old-tx-1');
+      expect(preview?.wouldCreate).toBe(false);
+      expect(preview?.skipReason).toContain('older than sync window');
+    });
+
+    it('includes totalFetched count', async () => {
+      const mockPlaidClient = {
+        transactionsSync: vi.fn().mockResolvedValue({
+          data: {
+            added: [
+              createMockPlaidTransaction({ transaction_id: 'tx-1' }),
+              createMockPlaidTransaction({ transaction_id: 'tx-2' }),
+            ],
+            modified: [createMockPlaidTransaction({ transaction_id: 'tx-3' })],
+            removed: [{ transaction_id: 'tx-4' }],
+            next_cursor: 'cursor-123',
+            has_more: false,
+          },
+        }),
+      };
+
+      vi.mocked(getPlaidClient).mockReturnValue(
+        mockPlaidClient as unknown as ReturnType<typeof getPlaidClient>
+      );
+
+      const connection = createMockPlaidConnection(testAccountId);
+      const result = (await syncPlaidTransactions(connection, {
+        dryRun: true,
+      })) as DryRunResult;
+
+      expect(result.totalFetched).toBe(4); // 2 added + 1 modified + 1 removed
     });
   });
 });

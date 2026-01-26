@@ -40,9 +40,34 @@ export async function GET() {
           return {
             ...enrollment,
             availableAccounts: accounts,
+            totalAccountCount: accounts.length,
           };
         } catch (error) {
           console.error(`Error fetching accounts for enrollment ${enrollment.id}:`, error);
+
+          // Check if this is an auth error and update the enrollment status
+          const errorMessage = error instanceof Error ? error.message : '';
+          const isAuthError =
+            errorMessage.includes('401') ||
+            errorMessage.toLowerCase().includes('unauthorized') ||
+            errorMessage.toLowerCase().includes('authentication');
+
+          if (isAuthError && enrollment.status !== 'disconnected') {
+            // Update status in background (don't await to keep response fast)
+            prisma.tellerEnrollment
+              .update({
+                where: { id: enrollment.id },
+                data: { status: 'disconnected' },
+              })
+              .catch((e) => console.error('Failed to update enrollment status:', e));
+
+            return {
+              ...enrollment,
+              status: 'disconnected', // Return updated status immediately
+              availableAccounts: [],
+            };
+          }
+
           return {
             ...enrollment,
             availableAccounts: [],
@@ -135,6 +160,17 @@ export async function DELETE(req: NextRequest) {
     }
 
     console.log('[Teller Enrollment API] Deleting enrollment:', enrollmentId);
+
+    // Check if enrollment exists first for idempotency
+    const existing = await prisma.tellerEnrollment.findUnique({
+      where: { id: enrollmentId },
+    });
+
+    if (!existing) {
+      // Already deleted - return success for idempotency
+      console.log('[Teller Enrollment API] Enrollment already deleted');
+      return NextResponse.json({ success: true, alreadyDeleted: true });
+    }
 
     await prisma.tellerEnrollment.delete({
       where: { id: enrollmentId },

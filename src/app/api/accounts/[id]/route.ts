@@ -9,6 +9,8 @@ const updateSchema = z.object({
   currency: z.string().optional(),
   isActive: z.boolean().optional(),
   notes: z.string().optional().nullable(),
+  trackingMode: z.enum(['cash_flow', 'balance_only']).optional(),
+  invertAmounts: z.boolean().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

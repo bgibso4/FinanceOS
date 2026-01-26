@@ -1,13 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import {
-  addMonths,
-  endOfMonth,
-  format,
-  isAfter,
-  isBefore,
-  startOfMonth,
-  subMonths,
-} from 'date-fns';
+import { endOfMonth, isAfter, isBefore, startOfMonth, subMonths } from 'date-fns';
 import { FilterParams } from './types';
 import { convertAmount, parseExchangeRates } from './currency';
 
@@ -55,11 +47,31 @@ export async function dashboardAnalytics(
   // Get currency settings
   const { rateMap, baseCurrency } = await getCurrencySettings(prisma);
 
+  // Get cash_flow accounts for budgeting (excludes balance_only accounts like investments)
+  const cashFlowAccounts = await prisma.account.findMany({
+    where: { trackingMode: 'cash_flow' },
+    select: { id: true },
+  });
+  const cashFlowAccountIds = cashFlowAccounts.map((a) => a.id);
+
+  // Build where clause, filtering to cash_flow accounts only
+  const baseWhere = buildWhere(filters, startDate, endDate);
+  const whereWithCashFlow = {
+    ...baseWhere,
+    isTransfer: false,
+    // Only include transactions from cash_flow accounts
+    // If user already filtered accounts, intersect with cash_flow accounts
+    accountId: baseWhere.accountId
+      ? {
+          in: (baseWhere.accountId.in as string[]).filter((id: string) =>
+            cashFlowAccountIds.includes(id)
+          ),
+        }
+      : { in: cashFlowAccountIds },
+  };
+
   let allTransactions = await prisma.transaction.findMany({
-    where: {
-      ...buildWhere(filters, startDate, endDate),
-      isTransfer: false,
-    },
+    where: whereWithCashFlow,
     include: {
       category: true,
       account: true,
@@ -137,11 +149,22 @@ export async function dashboardAnalytics(
   const prevStart = new Date(startDate.getTime() - periodLength);
   const prevEnd = new Date(startDate.getTime() - 1);
 
+  // Build where clause for previous period, also filtering to cash_flow accounts
+  const prevBaseWhere = buildWhere(filters, prevStart, prevEnd);
+  const prevWhereWithCashFlow = {
+    ...prevBaseWhere,
+    isTransfer: false,
+    accountId: prevBaseWhere.accountId
+      ? {
+          in: (prevBaseWhere.accountId.in as string[]).filter((id: string) =>
+            cashFlowAccountIds.includes(id)
+          ),
+        }
+      : { in: cashFlowAccountIds },
+  };
+
   let allPrevTransactions = await prisma.transaction.findMany({
-    where: {
-      ...buildWhere(filters, prevStart, prevEnd),
-      isTransfer: false,
-    },
+    where: prevWhereWithCashFlow,
     include: {
       category: true,
       account: true,
@@ -472,8 +495,19 @@ export async function monthlySnapshot(prisma: PrismaClient, month: string) {
   const start = new Date(year, m - 1, 1);
   const end = endOfMonth(start);
 
+  // Get cash_flow accounts for budgeting (excludes balance_only accounts like investments)
+  const cashFlowAccounts = await prisma.account.findMany({
+    where: { trackingMode: 'cash_flow' },
+    select: { id: true },
+  });
+  const cashFlowAccountIds = cashFlowAccounts.map((a) => a.id);
+
   const transactions = await prisma.transaction.findMany({
-    where: { date: { gte: start, lte: end }, isTransfer: false },
+    where: {
+      date: { gte: start, lte: end },
+      isTransfer: false,
+      accountId: { in: cashFlowAccountIds },
+    },
     include: { category: true },
   });
 

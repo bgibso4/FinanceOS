@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { tellerFetch, TellerAccountsResponse } from '@/lib/teller';
 import { decryptAccessToken } from '@/lib/encryption';
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const enrollmentId = params.id;
+    const { id: enrollmentId } = await params;
     console.log('[Teller Enrollment Accounts API] Fetching accounts for enrollment:', enrollmentId);
 
     // Get enrollment with access token

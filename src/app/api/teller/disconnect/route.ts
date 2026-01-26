@@ -15,6 +15,9 @@ export async function POST(req: NextRequest) {
 
     const connection = await prisma.tellerConnection.findUnique({
       where: { accountId },
+      include: {
+        tellerEnrollment: true,
+      },
     });
 
     if (!connection) {
@@ -26,13 +29,15 @@ export async function POST(req: NextRequest) {
 
     // Try to delete enrollment from Teller
     try {
-      const accessToken = decryptAccessToken(
-        connection.accessTokenEncrypted,
-        connection.accessTokenIv
-      );
-      await tellerFetch(`/accounts/${connection.tellerAccountId}`, accessToken, {
-        method: 'DELETE',
-      });
+      if (connection.tellerEnrollment) {
+        const accessToken = decryptAccessToken(
+          connection.tellerEnrollment.accessTokenEncrypted,
+          connection.tellerEnrollment.accessTokenIv
+        );
+        await tellerFetch(`/accounts/${connection.tellerAccountId}`, accessToken, {
+          method: 'DELETE',
+        });
+      }
     } catch (tellerError) {
       // Log but continue - we still want to remove local connection
       console.error('Error removing Teller enrollment:', tellerError);

@@ -2,24 +2,29 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import type { TellerConnect } from './types';
+import type { TellerConnect, TellerConnectOptions, TellerConnectSuccessPayload } from './types';
 import './types'; // Import for side-effect (global Window declaration)
 
-interface TellerInstitutionConnectProps {
+interface TellerReconnectButtonProps {
+  enrollmentId: string;
+  institutionName: string;
   onSuccess: () => void;
   onExit?: () => void;
   className?: string;
-  buttonText?: string;
+  variant?: 'primary' | 'ghost' | 'outline' | 'destructive';
 }
 
-export function TellerInstitutionConnect({
+export function TellerReconnectButton({
+  enrollmentId,
+  institutionName: _institutionName,
   onSuccess,
   onExit,
   className,
-  buttonText,
-}: TellerInstitutionConnectProps) {
+  variant = 'primary',
+}: TellerReconnectButtonProps) {
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [reconnecting, setReconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tellerConnect, setTellerConnect] = useState<TellerConnect | null>(null);
   const [config, setConfig] = useState<{ applicationId: string; environment: string } | null>(null);
@@ -27,17 +32,14 @@ export function TellerInstitutionConnect({
   // Load Teller Connect script
   useEffect(() => {
     const loadScript = () => {
-      // Check if script is already loaded
       if (window.TellerConnect) {
         return Promise.resolve();
       }
 
-      // Check if script tag already exists
       const existingScript = document.querySelector('script[src*="teller.io/connect"]');
       if (existingScript) {
         return new Promise<void>((resolve) => {
           existingScript.addEventListener('load', () => resolve());
-          // If already loaded
           if (window.TellerConnect) resolve();
         });
       }
@@ -57,7 +59,6 @@ export function TellerInstitutionConnect({
       setError(null);
 
       try {
-        // Fetch config from our API
         const res = await fetch('/api/teller/config');
         const configData = await res.json();
 
@@ -68,8 +69,6 @@ export function TellerInstitutionConnect({
         }
 
         setConfig(configData);
-
-        // Load the script
         await loadScript();
         setReady(true);
       } catch (_err) {
@@ -82,56 +81,62 @@ export function TellerInstitutionConnect({
     init();
   }, []);
 
-  // Setup Teller Connect when ready
+  // Setup Teller Connect for re-authentication
   useEffect(() => {
     if (!ready || !config || !window.TellerConnect) return;
 
-    const tc = window.TellerConnect.setup({
+    const setupOptions: TellerConnectOptions = {
       applicationId: config.applicationId,
       environment: config.environment as 'sandbox' | 'development' | 'production',
+      enrollmentId: enrollmentId, // Pass enrollmentId for re-auth
       products: ['transactions'],
-      onSuccess: async (payload) => {
-        console.log('[TellerInstitutionConnect] onSuccess called with payload:', payload);
+      onSuccess: async (payload: TellerConnectSuccessPayload) => {
+        console.log('[TellerReconnect] onSuccess - re-authentication complete');
+        setReconnecting(true);
 
         try {
-          // Create enrollment in our database
-          console.log('[TellerInstitutionConnect] Creating enrollment...');
-          const response = await fetch('/api/teller/enrollment', {
+          // Update the enrollment with the new access token
+          const response = await fetch('/api/teller/enrollment/reconnect', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              accessToken: payload.accessToken,
               enrollmentId: payload.enrollment.id,
-              institutionId: payload.enrollment.institution.id,
-              institutionName: payload.enrollment.institution.name,
+              accessToken: payload.accessToken,
             }),
           });
 
           const data = await response.json();
-          console.log('[TellerInstitutionConnect] Enrollment response:', data);
 
           if (data.error) {
-            console.error('[TellerInstitutionConnect] Error creating enrollment:', data.error);
+            console.error('[TellerReconnect] Error updating enrollment:', data.error);
             setError(data.error);
+            setReconnecting(false);
             return;
           }
 
-          console.log('[TellerInstitutionConnect] Enrollment created successfully');
+          console.log('[TellerReconnect] Enrollment reconnected successfully');
           onSuccess();
         } catch (_err) {
-          console.error('[TellerInstitutionConnect] Exception:', err);
-          setError('Failed to create enrollment');
+          console.error('[TellerReconnect] Exception:', err);
+          setError('Failed to reconnect');
         }
+
+        setReconnecting(false);
       },
-      ...(onExit && { onExit }),
-      onFailure: (err) => {
-        console.error('[TellerInstitutionConnect] onFailure called:', err);
-        setError(err.message || 'Connection failed');
+      onExit: () => {
+        console.log('[TellerReconnect] User exited');
+        onExit?.();
       },
-    });
+      onFailure: (err: { message: string }) => {
+        console.error('[TellerReconnect] onFailure:', err);
+        setError(err.message || 'Reconnection failed');
+      },
+    };
+
+    const tc = window.TellerConnect.setup(setupOptions);
 
     setTellerConnect(tc);
-  }, [ready, config, onSuccess, onExit]);
+  }, [ready, config, enrollmentId, onSuccess, onExit]);
 
   const handleClick = useCallback(() => {
     if (tellerConnect) {
@@ -141,8 +146,8 @@ export function TellerInstitutionConnect({
 
   if (error) {
     return (
-      <Button disabled className={className}>
-        Connection Error
+      <Button disabled className={className} variant={variant}>
+        Error
       </Button>
     );
   }
@@ -150,10 +155,11 @@ export function TellerInstitutionConnect({
   return (
     <Button
       className={className}
-      disabled={!ready || loading || !tellerConnect}
+      disabled={!ready || loading || !tellerConnect || reconnecting}
+      variant={variant}
       onClick={handleClick}
     >
-      {loading ? 'Loading...' : buttonText || 'Connect New Institution'}
+      {loading ? 'Loading...' : reconnecting ? 'Reconnecting...' : 'Reconnect'}
     </Button>
   );
 }
