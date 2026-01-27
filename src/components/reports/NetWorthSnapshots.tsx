@@ -1,11 +1,78 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { ds } from '@/lib/design-system';
+
+// Account type groupings for breakdown display
+const ASSET_GROUPS: Record<string, { label: string; types: string[]; color: string }> = {
+  cash_banking: {
+    label: 'Cash & Banking',
+    types: ['checking', 'savings', 'cash'],
+    color: '#3b82f6',
+  },
+  investments: { label: 'Investments', types: ['brokerage', 'retirement'], color: '#8b5cf6' },
+  crypto: { label: 'Crypto', types: ['crypto'], color: '#f59e0b' },
+  other: { label: 'Other', types: ['other'], color: '#6b7280' },
+};
+
+const LIABILITY_GROUPS: Record<string, { label: string; types: string[]; color: string }> = {
+  credit: { label: 'Credit Cards', types: ['credit'], color: '#ef4444' },
+  loans: { label: 'Loans', types: ['loan'], color: '#f97316' },
+};
+
+// Helper to group accounts by type category
+function groupAccountsByType(
+  accounts: Record<string, AccountBalance>,
+  groups: Record<string, { label: string; types: string[]; color: string }>,
+  isAsset: boolean
+): {
+  groupKey: string;
+  label: string;
+  color: string;
+  total: number;
+  accounts: Array<{ id: string; acc: AccountBalance }>;
+}[] {
+  const result: {
+    groupKey: string;
+    label: string;
+    color: string;
+    total: number;
+    accounts: Array<{ id: string; acc: AccountBalance }>;
+  }[] = [];
+
+  for (const [groupKey, group] of Object.entries(groups)) {
+    const groupAccounts: Array<{ id: string; acc: AccountBalance }> = [];
+    let total = 0;
+
+    for (const [accountId, acc] of Object.entries(accounts)) {
+      const accountIsAsset = !['credit', 'loan'].includes(acc.type);
+      if (accountIsAsset === isAsset && group.types.includes(acc.type)) {
+        groupAccounts.push({ id: accountId, acc });
+        total += Math.abs(acc.balance);
+      }
+    }
+
+    if (groupAccounts.length > 0) {
+      // Sort accounts by balance descending
+      groupAccounts.sort((a, b) => Math.abs(b.acc.balance) - Math.abs(a.acc.balance));
+      result.push({
+        groupKey,
+        label: group.label,
+        color: group.color,
+        total,
+        accounts: groupAccounts,
+      });
+    }
+  }
+
+  // Sort groups by total descending
+  result.sort((a, b) => b.total - a.total);
+  return result;
+}
 
 type AccountBalance = {
   balance: number;
@@ -84,6 +151,142 @@ const formatPercent = (value: number) => {
   const sign = value >= 0 ? '+' : '';
   return `${sign}${value.toFixed(1)}%`;
 };
+
+const formatShortDate = (dateStr: string) => {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+// Simple SVG line chart component for net worth trend
+function NetWorthTrendChart({ snapshots }: { snapshots: NetWorthSnapshot[] }) {
+  if (snapshots.length < 2) return null;
+
+  // Reverse to show chronological order (oldest first)
+  const data = [...snapshots].reverse().slice(-12); // Last 12 snapshots
+  const values = data.map((s) => s.netWorth);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  const width = 100;
+  const height = 60;
+  const padding = 4;
+  const chartWidth = width - padding * 2;
+  const chartHeight = height - padding * 2;
+
+  // Create points for the line
+  const points = data.map((s, i) => {
+    const x = padding + (i / (data.length - 1)) * chartWidth;
+    const y = padding + chartHeight - ((s.netWorth - min) / range) * chartHeight;
+    return { x, y, snapshot: s };
+  });
+
+  const pathD = points.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ');
+
+  // Create gradient area
+  const areaD = `${pathD} L ${points[points.length - 1].x} ${height - padding} L ${padding} ${height - padding} Z`;
+
+  const latestValue = values[values.length - 1];
+  const startValue = values[0];
+  const change = latestValue - startValue;
+  const changePercent = startValue !== 0 ? (change / Math.abs(startValue)) * 100 : 0;
+  const isPositive = change >= 0;
+
+  return (
+    <div className="flex items-center gap-4">
+      <svg
+        className="w-full max-w-[200px] h-[60px]"
+        preserveAspectRatio="none"
+        viewBox={`0 0 ${width} ${height}`}
+      >
+        <defs>
+          <linearGradient id="netWorthGradient" x1="0%" x2="0%" y1="0%" y2="100%">
+            <stop offset="0%" stopColor={isPositive ? '#22c55e' : '#ef4444'} stopOpacity="0.3" />
+            <stop offset="100%" stopColor={isPositive ? '#22c55e' : '#ef4444'} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={areaD} fill="url(#netWorthGradient)" />
+        <path
+          d={pathD}
+          fill="none"
+          stroke={isPositive ? '#22c55e' : '#ef4444'}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+        />
+        {/* End point dot */}
+        <circle
+          cx={points[points.length - 1].x}
+          cy={points[points.length - 1].y}
+          fill={isPositive ? '#22c55e' : '#ef4444'}
+          r="3"
+        />
+      </svg>
+      <div className="text-right shrink-0">
+        <div className={`text-sm font-semibold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+          {isPositive ? '+' : ''}
+          {formatCurrency(change)}
+        </div>
+        <div className={`text-xs ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+          {formatPercent(changePercent)}
+        </div>
+        <div className={`text-xs ${ds.text.muted}`}>
+          {formatShortDate(data[0].date)} - {formatShortDate(data[data.length - 1].date)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Horizontal bar chart component for breakdown visualization
+function BreakdownBarChart({
+  groups,
+  total,
+}: {
+  groups: { label: string; color: string; total: number }[];
+  total: number;
+}) {
+  if (total === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      {/* Stacked bar */}
+      <div className="h-3 rounded-full overflow-hidden flex bg-slate-200 dark:bg-slate-700">
+        {groups.map((group, i) => {
+          const percentage = (group.total / total) * 100;
+          if (percentage < 1) return null;
+          return (
+            <div
+              key={i}
+              className="h-full transition-all duration-300"
+              style={{ width: `${percentage}%`, backgroundColor: group.color }}
+              title={`${group.label}: ${formatCurrency(group.total)} (${percentage.toFixed(1)}%)`}
+            />
+          );
+        })}
+      </div>
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3">
+        {groups.map((group, i) => {
+          const percentage = (group.total / total) * 100;
+          return (
+            <div key={i} className="flex items-center gap-1.5 text-xs">
+              <div
+                className="w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: group.color }}
+              />
+              <span className={ds.text.secondary}>
+                {group.label}: {percentage.toFixed(0)}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function NetWorthSnapshots() {
   const [snapshots, setSnapshots] = useState<NetWorthSnapshot[]>([]);
@@ -190,10 +393,21 @@ export function NetWorthSnapshots() {
   };
 
   const latestSnapshot = snapshots[0];
+  const previousSnapshot = snapshots[1];
+
+  // Calculate change from previous snapshot
+  const netWorthChange =
+    latestSnapshot && previousSnapshot ? latestSnapshot.netWorth - previousSnapshot.netWorth : null;
+  const netWorthChangePercent =
+    latestSnapshot && previousSnapshot && previousSnapshot.netWorth !== 0
+      ? ((latestSnapshot.netWorth - previousSnapshot.netWorth) /
+          Math.abs(previousSnapshot.netWorth)) *
+        100
+      : null;
 
   return (
     <div className="space-y-4">
-      {/* Current Net Worth Card */}
+      {/* Current Net Worth Card - Improved Design */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-4">
@@ -222,43 +436,99 @@ export function NetWorthSnapshots() {
         </CardHeader>
         <CardContent>
           {latestSnapshot ? (
-            <div className="grid grid-cols-4 gap-6">
-              <div>
-                <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
-                  Net Worth
+            <div className="space-y-6">
+              {/* Main Net Worth Display */}
+              <div className="flex items-start justify-between gap-8">
+                <div className="flex-1">
+                  <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
+                    Current Net Worth
+                  </div>
+                  <div className="flex items-baseline gap-3">
+                    <div
+                      className={`text-4xl font-bold ${latestSnapshot.netWorth >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                    >
+                      {formatCurrency(latestSnapshot.netWorth)}
+                    </div>
+                    {netWorthChange !== null && (
+                      <div className="flex items-center gap-1">
+                        <span
+                          className={`text-sm font-medium ${netWorthChange >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                        >
+                          {netWorthChange >= 0 ? '↑' : '↓'}{' '}
+                          {formatCurrency(Math.abs(netWorthChange))}
+                        </span>
+                        {netWorthChangePercent !== null && (
+                          <span className={`text-xs ${ds.text.muted}`}>
+                            ({formatPercent(netWorthChangePercent)})
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className={`text-sm ${ds.text.secondary} mt-1`}>
+                    as of {formatDate(latestSnapshot.date)}
+                    {latestSnapshot.period && ` (${latestSnapshot.period})`}
+                  </div>
                 </div>
-                <div
-                  className={`text-2xl font-bold ${latestSnapshot.netWorth >= 0 ? 'text-green-600' : 'text-red-600'}`}
-                >
-                  {formatCurrency(latestSnapshot.netWorth)}
-                </div>
-              </div>
-              <div>
-                <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
-                  Total Assets
-                </div>
-                <div className="text-2xl font-bold text-green-600">
-                  {formatCurrency(latestSnapshot.totalAssets)}
-                </div>
-              </div>
-              <div>
-                <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
-                  Total Liabilities
-                </div>
-                <div className="text-2xl font-bold text-red-600">
-                  {formatCurrency(latestSnapshot.totalLiabilities)}
-                </div>
-              </div>
-              <div>
-                <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
-                  Last Captured
-                </div>
-                <div className={`text-lg font-semibold ${ds.text.primary}`}>
-                  {formatDate(latestSnapshot.date)}
-                </div>
-                {latestSnapshot.period && (
-                  <div className={`text-sm ${ds.text.secondary}`}>{latestSnapshot.period}</div>
+
+                {/* Trend Chart */}
+                {snapshots.length >= 2 && (
+                  <div className="shrink-0">
+                    <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-2`}>
+                      Trend
+                    </div>
+                    <NetWorthTrendChart snapshots={snapshots} />
+                  </div>
                 )}
+              </div>
+
+              {/* Assets & Liabilities Summary */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className={`p-4 rounded-lg border ${ds.border.default} ${ds.bg.secondary}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={`text-xs ${ds.text.muted} uppercase tracking-wide`}>
+                      Total Assets
+                    </div>
+                    <div className="text-xl font-bold text-green-600">
+                      {formatCurrency(latestSnapshot.totalAssets)}
+                    </div>
+                  </div>
+                  {/* Mini breakdown bar for assets */}
+                  {(() => {
+                    const assetGroups = groupAccountsByType(
+                      latestSnapshot.accountBalances,
+                      ASSET_GROUPS,
+                      true
+                    );
+                    return (
+                      <BreakdownBarChart groups={assetGroups} total={latestSnapshot.totalAssets} />
+                    );
+                  })()}
+                </div>
+                <div className={`p-4 rounded-lg border ${ds.border.default} ${ds.bg.secondary}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={`text-xs ${ds.text.muted} uppercase tracking-wide`}>
+                      Total Liabilities
+                    </div>
+                    <div className="text-xl font-bold text-red-600">
+                      {formatCurrency(latestSnapshot.totalLiabilities)}
+                    </div>
+                  </div>
+                  {/* Mini breakdown bar for liabilities */}
+                  {(() => {
+                    const liabilityGroups = groupAccountsByType(
+                      latestSnapshot.accountBalances,
+                      LIABILITY_GROUPS,
+                      false
+                    );
+                    return (
+                      <BreakdownBarChart
+                        groups={liabilityGroups}
+                        total={latestSnapshot.totalLiabilities}
+                      />
+                    );
+                  })()}
+                </div>
               </div>
             </div>
           ) : (
@@ -439,14 +709,14 @@ export function NetWorthSnapshots() {
         </div>
       </Modal>
 
-      {/* Detail Modal */}
+      {/* Detail Modal - Enhanced with grouped breakdowns */}
       {selectedSnapshot && (
         <Modal
           isOpen={detailModalOpen}
           title={`Snapshot: ${formatDate(selectedSnapshot.date)}${selectedSnapshot.period ? ` (${selectedSnapshot.period})` : ''}`}
           onClose={() => setDetailModalOpen(false)}
         >
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div className="flex justify-end">
               <button
                 className="text-red-600 hover:text-red-700 text-sm"
@@ -456,24 +726,25 @@ export function NetWorthSnapshots() {
               </button>
             </div>
 
+            {/* Summary Cards */}
             <div className="grid grid-cols-3 gap-4">
-              <div className={`p-3 rounded-lg ${ds.bg.secondary}`}>
+              <div className={`p-4 rounded-lg ${ds.bg.secondary} border-l-4 border-l-blue-500`}>
                 <div className={`text-xs ${ds.text.muted} uppercase`}>Net Worth</div>
                 <div
-                  className={`text-xl font-bold ${selectedSnapshot.netWorth >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                  className={`text-2xl font-bold ${selectedSnapshot.netWorth >= 0 ? 'text-green-600' : 'text-red-600'}`}
                 >
                   {formatCurrency(selectedSnapshot.netWorth)}
                 </div>
               </div>
-              <div className={`p-3 rounded-lg ${ds.bg.secondary}`}>
-                <div className={`text-xs ${ds.text.muted} uppercase`}>Assets</div>
-                <div className="text-xl font-bold text-green-600">
+              <div className={`p-4 rounded-lg ${ds.bg.secondary} border-l-4 border-l-green-500`}>
+                <div className={`text-xs ${ds.text.muted} uppercase`}>Total Assets</div>
+                <div className="text-2xl font-bold text-green-600">
                   {formatCurrency(selectedSnapshot.totalAssets)}
                 </div>
               </div>
-              <div className={`p-3 rounded-lg ${ds.bg.secondary}`}>
-                <div className={`text-xs ${ds.text.muted} uppercase`}>Liabilities</div>
-                <div className="text-xl font-bold text-red-600">
+              <div className={`p-4 rounded-lg ${ds.bg.secondary} border-l-4 border-l-red-500`}>
+                <div className={`text-xs ${ds.text.muted} uppercase`}>Total Liabilities</div>
+                <div className="text-2xl font-bold text-red-600">
                   {formatCurrency(selectedSnapshot.totalLiabilities)}
                 </div>
               </div>
@@ -486,31 +757,111 @@ export function NetWorthSnapshots() {
               </div>
             )}
 
+            {/* Assets Breakdown by Type */}
             <div>
-              <div className={`text-sm font-semibold ${ds.text.primary} mb-2`}>
-                Account Breakdown
+              <div
+                className={`text-sm font-semibold ${ds.text.primary} mb-3 flex items-center gap-2`}
+              >
+                <span className="w-2 h-2 rounded-full bg-green-500" />
+                Assets Breakdown
               </div>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {Object.entries(selectedSnapshot.accountBalances)
-                  .sort(([, a], [, b]) => Math.abs(b.balance) - Math.abs(a.balance))
-                  .map(([accountId, acc]) => (
-                    <div
-                      key={accountId}
-                      className={`flex items-center justify-between p-2 rounded ${ds.bg.secondary}`}
-                    >
-                      <div>
-                        <div className={`text-sm ${ds.text.primary}`}>{acc.name}</div>
-                        <div className={`text-xs ${ds.text.muted}`}>
-                          {acc.type} {acc.currency !== 'USD' && `• ${acc.currency}`}
+              <div className="space-y-4 max-h-[250px] overflow-y-auto pr-1">
+                {groupAccountsByType(selectedSnapshot.accountBalances, ASSET_GROUPS, true).map(
+                  (group) => (
+                    <div key={group.groupKey} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-sm"
+                            style={{ backgroundColor: group.color }}
+                          />
+                          <span className={`text-sm font-medium ${ds.text.primary}`}>
+                            {group.label}
+                          </span>
                         </div>
+                        <span className="text-sm font-semibold text-green-600">
+                          {formatCurrency(group.total)}
+                        </span>
                       </div>
-                      <div
-                        className={`font-semibold ${acc.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}
-                      >
-                        {formatCurrency(acc.balance)}
+                      <div className={`ml-5 space-y-1 border-l-2 pl-3 ${ds.border.default}`}>
+                        {group.accounts.map(({ id, acc }) => (
+                          <div
+                            key={id}
+                            className={`flex items-center justify-between py-1 px-2 rounded ${ds.bg.tertiary}`}
+                          >
+                            <div>
+                              <div className={`text-sm ${ds.text.primary}`}>{acc.name}</div>
+                              {acc.currency !== 'USD' && (
+                                <div className={`text-xs ${ds.text.muted}`}>{acc.currency}</div>
+                              )}
+                            </div>
+                            <div className="text-sm font-medium text-green-600">
+                              {formatCurrency(acc.balance)}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ))}
+                  )
+                )}
+                {groupAccountsByType(selectedSnapshot.accountBalances, ASSET_GROUPS, true)
+                  .length === 0 && (
+                  <div className={`text-sm ${ds.text.muted} text-center py-4`}>No assets</div>
+                )}
+              </div>
+            </div>
+
+            {/* Liabilities Breakdown by Type */}
+            <div>
+              <div
+                className={`text-sm font-semibold ${ds.text.primary} mb-3 flex items-center gap-2`}
+              >
+                <span className="w-2 h-2 rounded-full bg-red-500" />
+                Liabilities Breakdown
+              </div>
+              <div className="space-y-4 max-h-[200px] overflow-y-auto pr-1">
+                {groupAccountsByType(selectedSnapshot.accountBalances, LIABILITY_GROUPS, false).map(
+                  (group) => (
+                    <div key={group.groupKey} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-sm"
+                            style={{ backgroundColor: group.color }}
+                          />
+                          <span className={`text-sm font-medium ${ds.text.primary}`}>
+                            {group.label}
+                          </span>
+                        </div>
+                        <span className="text-sm font-semibold text-red-600">
+                          {formatCurrency(group.total)}
+                        </span>
+                      </div>
+                      <div className={`ml-5 space-y-1 border-l-2 pl-3 ${ds.border.default}`}>
+                        {group.accounts.map(({ id, acc }) => (
+                          <div
+                            key={id}
+                            className={`flex items-center justify-between py-1 px-2 rounded ${ds.bg.tertiary}`}
+                          >
+                            <div>
+                              <div className={`text-sm ${ds.text.primary}`}>{acc.name}</div>
+                              {acc.currency !== 'USD' && (
+                                <div className={`text-xs ${ds.text.muted}`}>{acc.currency}</div>
+                              )}
+                            </div>
+                            <div className="text-sm font-medium text-red-600">
+                              {formatCurrency(Math.abs(acc.balance))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                )}
+                {groupAccountsByType(selectedSnapshot.accountBalances, LIABILITY_GROUPS, false)
+                  .length === 0 && (
+                  <div className={`text-sm ${ds.text.muted} text-center py-4`}>No liabilities</div>
+                )}
               </div>
             </div>
 
