@@ -21,6 +21,7 @@ export default tseslint.config(
       'tailwind.config.js',
       'postcss.config.js',
       'prisma/seed.js',
+      'next-env.d.ts',
     ],
   },
   // Base JS config
