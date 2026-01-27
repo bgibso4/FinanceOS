@@ -8,7 +8,34 @@ const createSnapshotSchema = z.object({
   period: z.string().optional(), // e.g., "2024-Q1", "2024-01"
   notes: z.string().optional(),
   isAutomatic: z.boolean().optional(),
+  // Manual/backfill mode - when provided, uses these values instead of calculating from transactions
+  manual: z
+    .object({
+      netWorth: z.number(),
+      totalAssets: z.number().optional(),
+      totalLiabilities: z.number().optional(),
+      accountBalances: z
+        .record(
+          z.string(),
+          z.object({
+            balance: z.number(),
+            name: z.string(),
+            type: z.string(),
+            currency: z.string().optional(),
+          })
+        )
+        .optional(),
+    })
+    .optional(),
 });
+
+// Type for manual account balance entry
+type ManualAccountBalance = {
+  balance: number;
+  name: string;
+  type: string;
+  currency?: string;
+};
 
 // Asset types (positive balances contribute to net worth)
 const ASSET_TYPES = ['checking', 'savings', 'brokerage', 'retirement', 'crypto', 'cash', 'other'];
@@ -60,8 +87,68 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const parsed = createSnapshotSchema.parse(body);
 
-  // Get currency settings for conversion
-  const { rateMap, baseCurrency } = await getCurrencySettings();
+  const snapshotDate = parsed.date ? new Date(parsed.date) : new Date();
+  const { baseCurrency } = await getCurrencySettings();
+
+  // Manual/backfill mode - use provided values directly
+  if (parsed.manual) {
+    const { netWorth, totalAssets, totalLiabilities, accountBalances } = parsed.manual;
+
+    // Build account balances with base currency values
+    const formattedBalances: Record<
+      string,
+      {
+        balance: number;
+        balanceInBaseCurrency: number;
+        name: string;
+        type: string;
+        currency: string;
+      }
+    > = {};
+
+    if (accountBalances) {
+      for (const [id, acct] of Object.entries(accountBalances) as [
+        string,
+        ManualAccountBalance,
+      ][]) {
+        formattedBalances[id] = {
+          balance: acct.balance,
+          balanceInBaseCurrency: acct.balance, // For manual entry, assume same currency
+          name: acct.name,
+          type: acct.type,
+          currency: acct.currency || baseCurrency,
+        };
+      }
+    }
+
+    // If totals not provided, calculate from net worth (assume no breakdown)
+    const finalAssets = totalAssets ?? (netWorth > 0 ? netWorth : 0);
+    const finalLiabilities = totalLiabilities ?? (netWorth < 0 ? Math.abs(netWorth) : 0);
+
+    const snapshot = await prisma.netWorthSnapshot.create({
+      data: {
+        date: snapshotDate,
+        netWorth,
+        totalAssets: finalAssets,
+        totalLiabilities: finalLiabilities,
+        accountBalances: JSON.stringify(formattedBalances),
+        period: parsed.period ?? null,
+        notes: parsed.notes ?? null,
+        isAutomatic: false, // Manual entries are never automatic
+      },
+    });
+
+    return NextResponse.json({
+      snapshot: {
+        ...snapshot,
+        accountBalances: formattedBalances,
+      },
+      baseCurrency,
+    });
+  }
+
+  // Standard mode - calculate from transaction data
+  const { rateMap } = await getCurrencySettings();
 
   // Get all active accounts with their transactions
   const accounts = await prisma.account.findMany({
@@ -108,7 +195,6 @@ export async function POST(req: NextRequest) {
   }
 
   const netWorth = totalAssets - totalLiabilities;
-  const snapshotDate = parsed.date ? new Date(parsed.date) : new Date();
 
   const snapshot = await prisma.netWorthSnapshot.create({
     data: {
