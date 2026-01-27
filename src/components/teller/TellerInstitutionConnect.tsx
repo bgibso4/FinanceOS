@@ -118,7 +118,7 @@ export function TellerInstitutionConnect({
 
           console.log('[TellerInstitutionConnect] Enrollment created successfully');
           onSuccess();
-        } catch (_err) {
+        } catch (err) {
           console.error('[TellerInstitutionConnect] Exception:', err);
           setError('Failed to create enrollment');
         }

@@ -162,7 +162,7 @@ export function TellerConnectButton({
             institutionName: payload.enrollment.institution.name,
           });
           setShowAccountSelector(true);
-        } catch (_err) {
+        } catch (err) {
           console.error('[TellerConnect] Exception:', err);
           setError('Failed to fetch accounts');
         }

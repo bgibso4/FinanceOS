@@ -80,7 +80,7 @@ export function PlaidReconnectButton({
         console.log('[PlaidReconnectButton] Reconnected successfully');
         setReconnecting(false);
         onSuccess();
-      } catch (_err) {
+      } catch (err) {
         console.error('[PlaidReconnectButton] Exception:', err);
         setError('Failed to reconnect');
         setReconnecting(false);

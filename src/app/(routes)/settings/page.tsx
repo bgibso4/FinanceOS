@@ -2,6 +2,23 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -587,7 +604,7 @@ function SettingsPageContent() {
         setModalAccount(updatedAccount);
       }
       console.log('[Settings] Refresh complete');
-    } catch (_error) {
+    } catch (error) {
       console.error('[Settings] Exception during connection:', error);
       alert('Failed to connect bank account');
     }
@@ -925,7 +942,7 @@ function SettingsPageContent() {
       const response = await fetch(`/api/transactions?category=${category.id}`);
       const data = await response.json();
       setCategoryTransactions(data.transactions || []);
-    } catch (_error) {
+    } catch (error) {
       console.error('Failed to load transactions:', error);
       setCategoryTransactions([]);
     } finally {
@@ -1259,7 +1276,7 @@ function SettingsPageContent() {
 
       setNewExchangeRate({ fromCurrency: 'CAD', toCurrency: 'USD', rate: '' });
       refresh();
-    } catch (_error) {
+    } catch (error) {
       console.error('Failed to add exchange rate:', error);
       alert('Failed to add exchange rate');
     }
@@ -1289,7 +1306,7 @@ function SettingsPageContent() {
       );
       const data = await res.json();
       setReportData(data);
-    } catch (_error) {
+    } catch (error) {
       console.error('Failed to load monthly report:', error);
     }
   };
@@ -1299,7 +1316,7 @@ function SettingsPageContent() {
       const trailingRes = await fetch(`/api/reports/trailing-12-months?month=${endMonth}`);
       const trailingData = await trailingRes.json();
       setTrailing12Months(trailingData.months || []);
-    } catch (_error) {
+    } catch (error) {
       console.error('Failed to load trailing 12 months:', error);
     }
   };
@@ -1352,7 +1369,7 @@ function SettingsPageContent() {
       setBackfillForm({ year: '2024', month: '01', income: '', spending: '' });
       loadTrailing12Months(trailing12EndMonth);
       alert('Historical data saved successfully!');
-    } catch (_error) {
+    } catch (error) {
       console.error('Failed to backfill snapshot:', error);
       alert('Failed to save historical data');
     }
@@ -1676,7 +1693,7 @@ function SettingsPageContent() {
                   Add account
                 </Button>
               </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {accounts
                   .filter((a) => showArchived || (a.isActive ?? true))
                   .map((a) => {
@@ -1791,10 +1808,10 @@ function SettingsPageContent() {
                           {/* Lighter gradient overlay */}
                           <div className="absolute inset-0 bg-gradient-to-br from-black/30 via-transparent to-transparent" />
 
-                          <div className="relative h-full p-4 flex flex-col justify-between">
+                          <div className="relative h-full p-3 flex flex-col justify-between">
                             {/* Top section - Account name and type */}
                             <div>
-                              <h3 className="font-bold text-xl text-white drop-shadow-lg">
+                              <h3 className="font-bold text-base text-white drop-shadow-lg">
                                 {a.name}
                               </h3>
                               <div className="flex items-center gap-2 mt-1">
@@ -1817,7 +1834,7 @@ function SettingsPageContent() {
                             {/* Bottom section - Balance prominent, Institution smaller */}
                             <div>
                               <div
-                                className={`text-2xl font-bold drop-shadow-lg ${balance >= 0 ? 'text-white' : 'text-red-300'}`}
+                                className={`text-xl font-bold drop-shadow-lg ${balance >= 0 ? 'text-white' : 'text-red-300'}`}
                               >
                                 {formatCurrency(balance)}
                               </div>
@@ -1834,20 +1851,20 @@ function SettingsPageContent() {
                     return (
                       <div
                         key={a.id}
-                        className={`rounded-xl border-2 ${style.color} ${isArchived ? `opacity-60 ${ds.bg.secondary}` : ds.bg.primary} p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer`}
+                        className={`rounded-xl border-2 ${style.color} ${isArchived ? `opacity-60 ${ds.bg.secondary}` : ds.bg.primary} p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer`}
                         onClick={() => openAccountModal(a)}
                       >
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                           <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="text-2xl">{style.icon}</div>
+                            <div className="flex items-center gap-2">
+                              <div className="text-xl">{style.icon}</div>
                               <div>
                                 <h3
-                                  className={`font-semibold text-lg ${ds.text.primary} leading-tight`}
+                                  className={`font-semibold text-base ${ds.text.primary} leading-tight`}
                                 >
                                   {a.name}
                                   {isArchived && (
-                                    <span className={`text-sm ${ds.text.muted} ml-2`}>
+                                    <span className={`text-xs ${ds.text.muted} ml-2`}>
                                       (Archived)
                                     </span>
                                   )}
@@ -1876,16 +1893,16 @@ function SettingsPageContent() {
                               </div>
                             </div>
                             <div
-                              className={`text-xl font-bold ${balance >= 0 ? ds.text.primary : 'text-red-600'}`}
+                              className={`text-lg font-bold ${balance >= 0 ? ds.text.primary : 'text-red-600'}`}
                             >
                               {formatCurrency(balance)}
                             </div>
                           </div>
                           {a.institution && (
                             <div
-                              className={`flex items-center gap-2 text-base ${ds.text.secondary} font-medium`}
+                              className={`flex items-center gap-2 text-sm ${ds.text.secondary} font-medium`}
                             >
-                              <span className="text-lg">{getBankLogo(a.institution)}</span>
+                              <span className="text-base">{getBankLogo(a.institution)}</span>
                               {a.institution}
                             </div>
                           )}

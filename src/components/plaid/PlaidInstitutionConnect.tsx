@@ -78,7 +78,7 @@ export function PlaidInstitutionConnect({
         console.log('[PlaidInstitutionConnect] Enrollment created successfully');
         setConnecting(false);
         onSuccess();
-      } catch (_err) {
+      } catch (err) {
         console.error('[PlaidInstitutionConnect] Exception:', err);
         setError('Failed to create enrollment');
         setConnecting(false);

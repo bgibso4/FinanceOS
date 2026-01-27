@@ -116,7 +116,7 @@ export function TellerReconnectButton({
 
           console.log('[TellerReconnect] Enrollment reconnected successfully');
           onSuccess();
-        } catch (_err) {
+        } catch (err) {
           console.error('[TellerReconnect] Exception:', err);
           setError('Failed to reconnect');
         }
