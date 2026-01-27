@@ -206,6 +206,8 @@ const getBankBackground = (institution: string | null | undefined) => {
   if (bank.includes('bilt')) return '/images/banks/bilt_card_bg.png';
   if (bank.includes('scotia')) return '/images/banks/scotiabank_card_bg.png';
   if (bank.includes('splitwise')) return '/images/banks/splitwise_card_bg.png';
+  if (bank.includes('fidelity')) return '/images/banks/fidelity_card_bg.png';
+  if (bank.includes('schwab')) return '/images/banks/schwab_card_bg.png';
 
   return null;
 };
