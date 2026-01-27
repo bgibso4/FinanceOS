@@ -412,8 +412,8 @@ function SettingsPageContent() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [reportData, setReportData] = useState<any>(null);
-  const [trailing12Months, setTrailing12Months] = useState<any[]>([]);
+  const [reportData, setReportData] = useState<Record<string, unknown> | null>(null);
+  const [trailing12Months, setTrailing12Months] = useState<Record<string, unknown>[]>([]);
   const [trailing12EndMonth, setTrailing12EndMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -441,7 +441,7 @@ function SettingsPageContent() {
   const [newGroup, setNewGroup] = useState({ name: '', type: 'expense' });
   const [modalOpen, setModalOpen] = useState(false);
   const [modalCategory, setModalCategory] = useState<Category | null>(null);
-  const [categoryTransactions, setCategoryTransactions] = useState<any[]>([]);
+  const [categoryTransactions, setCategoryTransactions] = useState<Transaction[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
   const [ruleModalOpen, setRuleModalOpen] = useState(false);
   const [modalRule, setModalRule] = useState<Rule | null>(null);
@@ -461,7 +461,7 @@ function SettingsPageContent() {
     mapping: { date: '', amount: '', merchant: '', note: '' },
     invertAmounts: false,
     status: '',
-    summary: null as any,
+    summary: null as { added: number; skipped: number; errors: string[] } | null,
   });
   const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null);
   const [syncResult, setSyncResult] = useState<{
@@ -547,6 +547,7 @@ function SettingsPageContent() {
 
   useEffect(() => {
     refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch budgets based on view mode
@@ -631,7 +632,7 @@ function SettingsPageContent() {
 
       // Calculate balance from transactions
       const balance = (data.transactions || []).reduce(
-        (sum: number, tx: any) => sum + tx.amount,
+        (sum: number, tx: Transaction) => sum + tx.amount,
         0
       );
       setModalAccountBalance(balance);
@@ -650,7 +651,10 @@ function SettingsPageContent() {
     setSyncResult(null);
   };
 
-  const _handlePlaidSuccess = async (publicToken: string, metadata: any) => {
+  const _handlePlaidSuccess = async (
+    publicToken: string,
+    metadata: { accounts?: { id: string }[]; institution?: { name: string } }
+  ) => {
     if (!modalAccount) return;
 
     const plaidAccountId = metadata.accounts?.[0]?.id;
@@ -741,7 +745,7 @@ function SettingsPageContent() {
         const txRes = await fetch(`/api/transactions?account=${modalAccount.id}`);
         const txData = await txRes.json();
         const balance = (txData.transactions || []).reduce(
-          (sum: number, tx: any) => sum + tx.amount,
+          (sum: number, tx: Transaction) => sum + tx.amount,
           0
         );
         setModalAccountBalance(balance);
@@ -973,7 +977,7 @@ function SettingsPageContent() {
         const txRes = await fetch(`/api/transactions?account=${modalAccount.id}`);
         const txData = await txRes.json();
         const balance = (txData.transactions || []).reduce(
-          (sum: number, tx: any) => sum + tx.amount,
+          (sum: number, tx: Transaction) => sum + tx.amount,
           0
         );
         setModalAccountBalance(balance);
@@ -1436,7 +1440,7 @@ function SettingsPageContent() {
     }
   };
 
-  const closeMonth = async () => {
+  const _closeMonth = async () => {
     await fetch('/api/reports/close-month', { method: 'POST' });
     refresh();
   };

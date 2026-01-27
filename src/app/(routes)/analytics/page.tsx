@@ -679,7 +679,7 @@ export default function AnalyticsPage() {
                     {/* Categories in Group */}
                     <div className="divide-y divide-slate-200/50 dark:divide-slate-700/50">
                       {cats.map((cat) => {
-                        const percentage =
+                        const _percentage =
                           totalSpending > 0 ? (cat.amount / totalSpending) * 100 : 0;
                         const isExpanded = expandedCategory === cat.category;
                         const budget = getBudget(cat.categoryId);
@@ -1260,7 +1260,7 @@ export default function AnalyticsPage() {
                       This transaction has {editingTransaction.offsetTransactions.length} linked
                       transaction{editingTransaction.offsetTransactions.length > 1 ? 's' : ''}
                     </div>
-                    {editingTransaction.offsetTransactions.map((ret: any) => (
+                    {editingTransaction.offsetTransactions.map((ret: Tx) => (
                       <div
                         key={ret.id}
                         className={`flex items-center justify-between p-2 ${ds.bg.primary} rounded border`}
