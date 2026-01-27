@@ -17,6 +17,15 @@ const links = [
     ],
   },
   {
+    href: '/reports',
+    label: 'Reports',
+    submenu: [
+      { href: '/reports?tab=net-worth', label: 'Net Worth' },
+      { href: '/reports?tab=cash-flow', label: 'Cash Flow' },
+      { href: '/reports?tab=monthly', label: 'Monthly Detail' },
+    ],
+  },
+  {
     href: '/settings',
     label: 'Settings',
     submenu: [
@@ -25,7 +34,6 @@ const links = [
       { href: '/settings?tab=categories', label: 'Categories' },
       { href: '/settings?tab=general', label: 'General' },
       { href: '/settings?tab=import', label: 'Import' },
-      { href: '/settings?tab=reports', label: 'Reports' },
       { href: '/settings?tab=rules', label: 'Rules' },
     ],
   },
@@ -40,6 +48,7 @@ export function SideNav() {
     new Set([
       ...(pathname.startsWith('/settings') ? ['/settings'] : []),
       ...(pathname.startsWith('/transactions') ? ['/transactions'] : []),
+      ...(pathname.startsWith('/reports') ? ['/reports'] : []),
     ])
   );
 

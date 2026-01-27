@@ -176,6 +176,22 @@ model MonthlySnapshot {
   createdAt       DateTime @default(now())
 }
 
+model NetWorthSnapshot {
+  id               String   @id @default(uuid())
+  date             DateTime // Snapshot date (typically end of period)
+  netWorth         Float    // Total net worth (assets - liabilities)
+  totalAssets      Float    // Sum of positive balance accounts
+  totalLiabilities Float    // Sum of negative balance accounts (stored as positive)
+  accountBalances  String   // JSON: { accountId: { balance, name, type, currency } }
+  period           String?  // Optional label: "2024-Q1", "2024-01", etc.
+  notes            String?
+  isAutomatic      Boolean  @default(false) // Manual vs scheduled capture
+
+  createdAt        DateTime @default(now())
+
+  @@index([date])
+}
+
 model CategoryBudget {
   id          String   @id @default(uuid())
   month       String
