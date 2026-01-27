@@ -56,7 +56,7 @@ type Budget = {
 };
 
 // Helper to format currency (uses base currency from state)
-const formatCurrency = (amount: number, baseCurrency: string = 'USD') => {
+const formatCurrency = (amount: number, _baseCurrency: string = 'USD') => {
   return new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
@@ -105,13 +105,14 @@ export default function AnalyticsPage() {
   const [editingTransaction, setEditingTransaction] = useState<Tx | null>(null);
 
   // Return tracking state
-  const [returnModalOpen, setReturnModalOpen] = useState(false);
+  const [_returnModalOpen, setReturnModalOpen] = useState(false);
   const [returnTransaction, setReturnTransaction] = useState<Tx | null>(null);
-  const [potentialMatches, setPotentialMatches] = useState<any[]>([]);
-  const [loadingMatches, setLoadingMatches] = useState(false);
+  const [_potentialMatches, setPotentialMatches] = useState<Tx[]>([]);
+  const [_loadingMatches, setLoadingMatches] = useState(false);
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth]);
 
   const loadData = async () => {
@@ -141,13 +142,6 @@ export default function AnalyticsPage() {
     // Get last day of the selected month - month is 1-indexed in the string, 0-indexed in Date
     const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
     const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
-
-    console.log('Analytics loading for:', {
-      selectedMonth,
-      startDate,
-      endDate,
-      lastDayCalc: `new Date(${year}, ${month}, 0) = ${new Date(parseInt(year), parseInt(month), 0).toISOString()}`,
-    });
 
     const analyticsRes = await fetch(
       `/api/analytics/dashboard?preset=custom&startDate=${startDate}&endDate=${endDate}`
@@ -195,8 +189,8 @@ export default function AnalyticsPage() {
       // Filter out offset transactions - they'll be shown as notes on original transactions
       const filtered = (data.transactions || []).filter((t: Tx) => !t.isOffset);
       setCategoryTransactions(filtered);
-    } catch (error) {
-      console.error('Failed to load transactions:', error);
+    } catch (err) {
+      console.error('Failed to load transactions:', err);
       setCategoryTransactions([]);
     } finally {
       setLoadingTransactions(false);
@@ -246,7 +240,7 @@ export default function AnalyticsPage() {
         await loadCategoryTransactions(expandedCategory, cat?.categoryId);
       }
       loadData();
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to update transaction');
     }
   };
@@ -266,7 +260,7 @@ export default function AnalyticsPage() {
         await loadCategoryTransactions(expandedCategory, cat?.categoryId);
       }
       loadData();
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to delete transaction');
     }
   };
@@ -294,7 +288,7 @@ export default function AnalyticsPage() {
         const cat = categoryAnalytics.find((c) => c.category === expandedCategory);
         await loadCategoryTransactions(expandedCategory, cat?.categoryId);
       }
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to update transfer status');
     }
   };
@@ -309,14 +303,14 @@ export default function AnalyticsPage() {
       const res = await fetch(`/api/transactions/${transaction.id}/returns`);
       const data = await res.json();
       setPotentialMatches(data.matches || []);
-    } catch (error) {
-      console.error('Failed to load potential matches:', error);
+    } catch (err) {
+      console.error('Failed to load potential matches:', err);
     } finally {
       setLoadingMatches(false);
     }
   };
 
-  const linkReturn = async (originalTransactionId: string) => {
+  const _linkReturn = async (originalTransactionId: string) => {
     if (!returnTransaction) return;
 
     try {
@@ -331,7 +325,7 @@ export default function AnalyticsPage() {
         const cat = categoryAnalytics.find((c) => c.category === expandedCategory);
         await loadCategoryTransactions(expandedCategory, cat?.categoryId);
       }
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to link return');
     }
   };
@@ -346,7 +340,7 @@ export default function AnalyticsPage() {
         const cat = categoryAnalytics.find((c) => c.category === expandedCategory);
         await loadCategoryTransactions(expandedCategory, cat?.categoryId);
       }
-    } catch (error) {
+    } catch (_error) {
       alert('Failed to unlink return');
     }
   };
