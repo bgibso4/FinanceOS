@@ -20,7 +20,7 @@ const accountSchema = z.object({
 
 export async function GET() {
   const accounts = await prisma.account.findMany({
-    orderBy: { createdAt: 'desc' },
+    orderBy: { sortOrder: 'asc' },
     include: {
       plaidConnection: {
         include: {
@@ -50,10 +50,17 @@ export async function POST(req: NextRequest) {
   // Set default trackingMode based on account type if not provided
   const trackingMode = parsed.trackingMode ?? getDefaultTrackingMode(parsed.type);
 
+  // Get the maximum sortOrder to place new account at the end
+  const maxSortOrder = await prisma.account.aggregate({
+    _max: { sortOrder: true },
+  });
+  const nextSortOrder = (maxSortOrder._max.sortOrder ?? -1) + 1;
+
   const account = await prisma.account.create({
     data: {
       ...parsed,
       trackingMode,
+      sortOrder: nextSortOrder,
     },
   });
   return NextResponse.json(account);

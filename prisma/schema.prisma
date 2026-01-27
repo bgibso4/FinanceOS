@@ -17,6 +17,7 @@ model Account {
   notes            String?
   trackingMode     String            @default("cash_flow")  // "cash_flow" | "balance_only"
   invertAmounts    Boolean           @default(false) // Flip amount signs during bank sync (for accounts with inverted conventions)
+  sortOrder        Int               @default(0)
   createdAt        DateTime          @default(now())
   transactions     Transaction[]
   plaidConnection  PlaidConnection?

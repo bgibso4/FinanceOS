@@ -66,6 +66,7 @@ type Account = {
   currency?: string;
   trackingMode?: 'cash_flow' | 'balance_only';
   invertAmounts?: boolean;
+  sortOrder?: number;
   plaidConnection?: PlaidConnection | null;
   tellerConnection?: TellerConnection | null;
 };
@@ -120,6 +121,268 @@ const formatCurrency = (amount: number) => {
     maximumFractionDigits: 0,
   }).format(amount);
 };
+
+// Helper function to get account type icon and color
+const getAccountStyle = (type: string) => {
+  switch (type) {
+    case 'checking':
+      return {
+        icon: '🏦',
+        color: `${ds.status.info.bg} ${ds.status.info.border}`,
+        textColor: ds.status.info.text,
+      };
+    case 'credit':
+      return {
+        icon: '💳',
+        color: `${ds.status.error.bg} ${ds.status.error.border}`,
+        textColor: ds.status.error.text,
+      };
+    case 'brokerage':
+      return {
+        icon: '📈',
+        color: `${ds.status.success.bg} ${ds.status.success.border}`,
+        textColor: ds.status.success.text,
+      };
+    case 'retirement':
+      return {
+        icon: '🏖️',
+        color: `${ds.status.purple.bg} ${ds.status.purple.border}`,
+        textColor: ds.status.purple.text,
+      };
+    case 'crypto':
+      return {
+        icon: '₿',
+        color: 'bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800',
+        textColor: 'text-orange-700 dark:text-orange-400',
+      };
+    case 'cash':
+      return {
+        icon: '💵',
+        color: `${ds.status.success.bg} ${ds.status.success.border}`,
+        textColor: ds.status.success.text,
+      };
+    case 'loan':
+      return {
+        icon: '🏠',
+        color: `${ds.status.warning.bg} ${ds.status.warning.border}`,
+        textColor: ds.status.warning.text,
+      };
+    default:
+      return {
+        icon: '🏛️',
+        color: `${ds.bg.secondary} ${ds.border.default}`,
+        textColor: ds.text.primary,
+      };
+  }
+};
+
+// Helper function to get bank logo/icon
+const getBankLogo = (institution: string | null | undefined) => {
+  if (!institution) return null;
+  const bank = institution.toLowerCase();
+
+  if (bank.includes('chase')) return '🔷';
+  if (bank.includes('bank of america') || bank.includes('boa')) return '🔴';
+  if (bank.includes('wells fargo')) return '🟡';
+  if (bank.includes('citi')) return '🔵';
+  if (bank.includes('capital one')) return '🟠';
+  if (bank.includes('american express') || bank.includes('amex')) return '💙';
+  if (bank.includes('discover')) return '🟤';
+  if (bank.includes('goldman sachs')) return '⚫';
+  if (bank.includes('morgan')) return '🔷';
+  if (bank.includes('schwab')) return '🟦';
+  if (bank.includes('fidelity')) return '🟢';
+  if (bank.includes('vanguard')) return '🔶';
+
+  return '🏛️';
+};
+
+// Helper function to get bank background image
+const getBankBackground = (institution: string | null | undefined) => {
+  if (!institution) return null;
+  const bank = institution.toLowerCase();
+
+  if (bank.includes('chase')) return '/images/banks/chase_card_background.png';
+  if (bank.includes('bilt')) return '/images/banks/bilt_card_bg.png';
+  if (bank.includes('scotia')) return '/images/banks/scotiabank_card_bg.png';
+  if (bank.includes('splitwise')) return '/images/banks/splitwise_card_bg.png';
+
+  return null;
+};
+
+// Sortable Account Card Component
+function SortableAccountCard({
+  account,
+  balance,
+  onOpenModal,
+}: {
+  account: Account;
+  balance: number;
+  onOpenModal: (account: Account) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: account.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1000 : 'auto',
+  };
+
+  const accountStyle = getAccountStyle(account.type);
+  const bankBg = getBankBackground(account.institution);
+  const isArchived = account.isActive === false;
+
+  // Render card with bank background
+  if (bankBg) {
+    return (
+      <div
+        ref={setNodeRef}
+        className={`relative rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all ${isArchived ? 'opacity-60' : ''} ${isDragging ? 'shadow-2xl' : ''}`}
+        style={style}
+      >
+        {/* Drag handle */}
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute top-2 right-2 z-10 cursor-grab active:cursor-grabbing p-1 rounded bg-black/20 backdrop-blur-sm hover:bg-black/40 transition-colors"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              d="M4 8h16M4 16h16"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+            />
+          </svg>
+        </div>
+
+        <div
+          className="cursor-pointer"
+          style={{
+            backgroundImage: `url(${bankBg})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            aspectRatio: '1.8 / 1',
+          }}
+          onClick={() => onOpenModal(account)}
+        >
+          {/* Lighter gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-br from-black/30 via-transparent to-transparent" />
+
+          <div className="relative h-full p-3 flex flex-col justify-between">
+            {/* Top section - Account name and type */}
+            <div>
+              <h3 className="font-bold text-base text-white drop-shadow-lg">{account.name}</h3>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-medium backdrop-blur-sm">
+                  {account.type.charAt(0).toUpperCase() + account.type.slice(1)}
+                </span>
+                {account.trackingMode === 'balance_only' && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/50 text-white font-medium backdrop-blur-sm">
+                    Net Worth Only
+                  </span>
+                )}
+                {isArchived && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/50 text-white font-medium backdrop-blur-sm">
+                    Archived
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Bottom section - Balance prominent, Institution smaller */}
+            <div>
+              <div
+                className={`text-xl font-bold drop-shadow-lg ${balance >= 0 ? 'text-white' : 'text-red-300'}`}
+              >
+                {formatCurrency(balance)}
+              </div>
+              <div className="text-white/70 text-xs font-medium mt-0.5">{account.institution}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Default card without background image
+  return (
+    <div
+      ref={setNodeRef}
+      className={`rounded-xl border-2 ${accountStyle.color} ${isArchived ? `opacity-60 ${ds.bg.secondary}` : ds.bg.primary} p-4 shadow-sm hover:shadow-md transition-shadow ${isDragging ? 'shadow-2xl' : ''}`}
+      style={style}
+    >
+      {/* Drag handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        className={`absolute top-2 right-2 cursor-grab active:cursor-grabbing p-1 rounded ${ds.bg.tertiary} hover:${ds.bg.secondary} transition-colors`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <svg
+          className={`w-4 h-4 ${ds.text.muted}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path d="M4 8h16M4 16h16" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
+        </svg>
+      </div>
+
+      <div className="cursor-pointer" onClick={() => onOpenModal(account)}>
+        <div className="space-y-2">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-2">
+              <div className="text-xl">{accountStyle.icon}</div>
+              <div>
+                <h3 className={`font-semibold text-base ${ds.text.primary} leading-tight`}>
+                  {account.name}
+                  {isArchived && (
+                    <span className={`text-xs ${ds.text.muted} ml-2`}>(Archived)</span>
+                  )}
+                </h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge
+                    className={`text-xs px-2 py-1 ${accountStyle.textColor} bg-transparent border-current`}
+                  >
+                    {account.type.charAt(0).toUpperCase() + account.type.slice(1)}
+                  </Badge>
+                  {account.trackingMode === 'balance_only' && (
+                    <Badge
+                      className={`text-xs px-2 py-1 ${ds.status.purple.text} bg-transparent border-current`}
+                    >
+                      Net Worth Only
+                    </Badge>
+                  )}
+                  {isArchived && (
+                    <Badge
+                      className={`text-xs px-2 py-1 ${ds.text.muted} bg-transparent border-current`}
+                    >
+                      Archived
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className={`text-lg font-bold ${balance >= 0 ? ds.text.primary : 'text-red-600'}`}>
+              {formatCurrency(balance)}
+            </div>
+          </div>
+          {account.institution && (
+            <div className={`flex items-center gap-2 text-sm ${ds.text.secondary} font-medium`}>
+              <span className="text-base">{getBankLogo(account.institution)}</span>
+              {account.institution}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function SettingsPageContent() {
   const _router = useRouter();
@@ -229,6 +492,56 @@ function SettingsPageContent() {
     totalFetched: number;
   } | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+
+  // Drag-and-drop sensors for account reordering
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handle drag end for account reordering
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const filteredAccounts = accounts.filter((a) => showArchived || (a.isActive ?? true));
+      const oldIndex = filteredAccounts.findIndex((a) => a.id === active.id);
+      const newIndex = filteredAccounts.findIndex((a) => a.id === over.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        // Reorder the filtered accounts
+        const reorderedFiltered = arrayMove(filteredAccounts, oldIndex, newIndex);
+
+        // Build the full new order: reordered visible accounts + hidden accounts in their original order
+        const hiddenAccounts = accounts.filter((a) => !(showArchived || (a.isActive ?? true)));
+        const newOrder = [...reorderedFiltered, ...hiddenAccounts];
+
+        // Update local state immediately for responsiveness
+        setAccounts(newOrder);
+
+        // Persist to backend
+        try {
+          await fetch('/api/accounts/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountIds: newOrder.map((a) => a.id) }),
+          });
+        } catch (error) {
+          console.error('Failed to save account order:', error);
+          // Revert on error by refreshing from server
+          const res = await fetch('/api/accounts');
+          const data = await res.json();
+          setAccounts(data.accounts ?? []);
+        }
+      }
+    }
+  };
 
   useEffect(() => {
     refresh();
@@ -1693,224 +2006,31 @@ function SettingsPageContent() {
                   Add account
                 </Button>
               </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {accounts
-                  .filter((a) => showArchived || (a.isActive ?? true))
-                  .map((a) => {
-                    // Helper function to get account type icon and color
-                    const getAccountStyle = (type: string) => {
-                      switch (type) {
-                        case 'checking':
-                          return {
-                            icon: '🏦',
-                            color: `${ds.status.info.bg} ${ds.status.info.border}`,
-                            textColor: ds.status.info.text,
-                          };
-                        case 'credit':
-                          return {
-                            icon: '💳',
-                            color: `${ds.status.error.bg} ${ds.status.error.border}`,
-                            textColor: ds.status.error.text,
-                          };
-                        case 'brokerage':
-                          return {
-                            icon: '📈',
-                            color: `${ds.status.success.bg} ${ds.status.success.border}`,
-                            textColor: ds.status.success.text,
-                          };
-                        case 'retirement':
-                          return {
-                            icon: '🏖️',
-                            color: `${ds.status.purple.bg} ${ds.status.purple.border}`,
-                            textColor: ds.status.purple.text,
-                          };
-                        case 'crypto':
-                          return {
-                            icon: '₿',
-                            color:
-                              'bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800',
-                            textColor: 'text-orange-700 dark:text-orange-400',
-                          };
-                        case 'cash':
-                          return {
-                            icon: '💵',
-                            color: `${ds.status.success.bg} ${ds.status.success.border}`,
-                            textColor: ds.status.success.text,
-                          };
-                        case 'loan':
-                          return {
-                            icon: '🏠',
-                            color: `${ds.status.warning.bg} ${ds.status.warning.border}`,
-                            textColor: ds.status.warning.text,
-                          };
-                        default:
-                          return {
-                            icon: '🏛️',
-                            color: `${ds.bg.secondary} ${ds.border.default}`,
-                            textColor: ds.text.primary,
-                          };
-                      }
-                    };
-
-                    // Helper function to get bank logo/icon
-                    const getBankLogo = (institution: string | null | undefined) => {
-                      if (!institution) return null;
-                      const bank = institution.toLowerCase();
-
-                      if (bank.includes('chase')) return '🔷';
-                      if (bank.includes('bank of america') || bank.includes('boa')) return '🔴';
-                      if (bank.includes('wells fargo')) return '🟡';
-                      if (bank.includes('citi')) return '🔵';
-                      if (bank.includes('capital one')) return '🟠';
-                      if (bank.includes('american express') || bank.includes('amex')) return '💙';
-                      if (bank.includes('discover')) return '🟤';
-                      if (bank.includes('goldman sachs')) return '⚫';
-                      if (bank.includes('morgan')) return '🔷';
-                      if (bank.includes('schwab')) return '🟦';
-                      if (bank.includes('fidelity')) return '🟢';
-                      if (bank.includes('vanguard')) return '🔶';
-
-                      return '🏛️';
-                    };
-
-                    // Helper function to get bank background image
-                    const getBankBackground = (institution: string | null | undefined) => {
-                      if (!institution) return null;
-                      const bank = institution.toLowerCase();
-
-                      if (bank.includes('chase')) return '/images/banks/chase_card_background.png';
-                      if (bank.includes('bilt')) return '/images/banks/bilt_card_bg.png';
-                      if (bank.includes('scotia')) return '/images/banks/scotiabank_card_bg.png';
-                      if (bank.includes('splitwise')) return '/images/banks/splitwise_card_bg.png';
-
-                      return null;
-                    };
-
-                    const style = getAccountStyle(a.type);
-                    const bankBg = getBankBackground(a.institution);
-                    const isArchived = a.isActive === false;
-                    const balance = accountBalances.get(a.id) ?? 0;
-
-                    // Render card with or without bank background
-                    if (bankBg) {
-                      return (
-                        <div
+              <DndContext
+                collisionDetection={closestCenter}
+                sensors={sensors}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={accounts
+                    .filter((a) => showArchived || (a.isActive ?? true))
+                    .map((a) => a.id)}
+                  strategy={rectSortingStrategy}
+                >
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {accounts
+                      .filter((a) => showArchived || (a.isActive ?? true))
+                      .map((a) => (
+                        <SortableAccountCard
                           key={a.id}
-                          className={`relative rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all cursor-pointer ${isArchived ? 'opacity-60' : ''}`}
-                          style={{
-                            backgroundImage: `url(${bankBg})`,
-                            backgroundSize: 'cover',
-                            backgroundPosition: 'center',
-                            aspectRatio: '1.8 / 1',
-                          }}
-                          onClick={() => openAccountModal(a)}
-                        >
-                          {/* Lighter gradient overlay */}
-                          <div className="absolute inset-0 bg-gradient-to-br from-black/30 via-transparent to-transparent" />
-
-                          <div className="relative h-full p-3 flex flex-col justify-between">
-                            {/* Top section - Account name and type */}
-                            <div>
-                              <h3 className="font-bold text-base text-white drop-shadow-lg">
-                                {a.name}
-                              </h3>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-medium backdrop-blur-sm">
-                                  {a.type.charAt(0).toUpperCase() + a.type.slice(1)}
-                                </span>
-                                {a.trackingMode === 'balance_only' && (
-                                  <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/50 text-white font-medium backdrop-blur-sm">
-                                    Net Worth Only
-                                  </span>
-                                )}
-                                {isArchived && (
-                                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/50 text-white font-medium backdrop-blur-sm">
-                                    Archived
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Bottom section - Balance prominent, Institution smaller */}
-                            <div>
-                              <div
-                                className={`text-xl font-bold drop-shadow-lg ${balance >= 0 ? 'text-white' : 'text-red-300'}`}
-                              >
-                                {formatCurrency(balance)}
-                              </div>
-                              <div className="text-white/70 text-xs font-medium mt-0.5">
-                                {a.institution}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // Default card without background image
-                    return (
-                      <div
-                        key={a.id}
-                        className={`rounded-xl border-2 ${style.color} ${isArchived ? `opacity-60 ${ds.bg.secondary}` : ds.bg.primary} p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer`}
-                        onClick={() => openAccountModal(a)}
-                      >
-                        <div className="space-y-2">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="text-xl">{style.icon}</div>
-                              <div>
-                                <h3
-                                  className={`font-semibold text-base ${ds.text.primary} leading-tight`}
-                                >
-                                  {a.name}
-                                  {isArchived && (
-                                    <span className={`text-xs ${ds.text.muted} ml-2`}>
-                                      (Archived)
-                                    </span>
-                                  )}
-                                </h3>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <Badge
-                                    className={`text-xs px-2 py-1 ${style.textColor} bg-transparent border-current`}
-                                  >
-                                    {a.type.charAt(0).toUpperCase() + a.type.slice(1)}
-                                  </Badge>
-                                  {a.trackingMode === 'balance_only' && (
-                                    <Badge
-                                      className={`text-xs px-2 py-1 ${ds.status.purple.text} bg-transparent border-current`}
-                                    >
-                                      Net Worth Only
-                                    </Badge>
-                                  )}
-                                  {isArchived && (
-                                    <Badge
-                                      className={`text-xs px-2 py-1 ${ds.text.muted} bg-transparent border-current`}
-                                    >
-                                      Archived
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <div
-                              className={`text-lg font-bold ${balance >= 0 ? ds.text.primary : 'text-red-600'}`}
-                            >
-                              {formatCurrency(balance)}
-                            </div>
-                          </div>
-                          {a.institution && (
-                            <div
-                              className={`flex items-center gap-2 text-sm ${ds.text.secondary} font-medium`}
-                            >
-                              <span className="text-base">{getBankLogo(a.institution)}</span>
-                              {a.institution}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
+                          account={a}
+                          balance={accountBalances.get(a.id) ?? 0}
+                          onOpenModal={openAccountModal}
+                        />
+                      ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             </CardContent>
           </Card>
         </>
