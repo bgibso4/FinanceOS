@@ -202,7 +202,8 @@ const getBankBackground = (institution: string | null | undefined) => {
   if (!institution) return null;
   const bank = institution.toLowerCase();
 
-  if (bank.includes('chase')) return '/images/banks/chase_card_background.png';
+  if (bank.includes('chase')) return '/images/banks/chase_card_bg.png';
+  if (bank.includes('rbc') || bank.includes('royal bank')) return '/images/banks/rbc_card_bg.png';
   if (bank.includes('bilt')) return '/images/banks/bilt_card_bg.png';
   if (bank.includes('scotia')) return '/images/banks/scotiabank_card_bg.png';
   if (bank.includes('splitwise')) return '/images/banks/splitwise_card_bg.png';
