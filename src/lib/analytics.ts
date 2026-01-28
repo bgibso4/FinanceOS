@@ -72,11 +72,14 @@ export async function dashboardAnalytics(
 
   let allTransactions = await prisma.transaction.findMany({
     where: whereWithCashFlow,
-    include: {
-      category: true,
-      account: true,
-      linkedTransaction: true,
-      offsetTransactions: true,
+    select: {
+      id: true,
+      date: true,
+      amount: true,
+      merchant: true,
+      isOffset: true,
+      category: { select: { name: true, type: true } },
+      account: { select: { currency: true } },
     },
   });
 
@@ -100,6 +103,7 @@ export async function dashboardAnalytics(
       isOffset: true,
       linkedTransactionId: { in: purchaseIds },
     },
+    select: { linkedTransactionId: true, amount: true },
   });
 
   // Build a map of purchase -> total return amount
@@ -165,11 +169,14 @@ export async function dashboardAnalytics(
 
   let allPrevTransactions = await prisma.transaction.findMany({
     where: prevWhereWithCashFlow,
-    include: {
-      category: true,
-      account: true,
-      linkedTransaction: true,
-      offsetTransactions: true,
+    select: {
+      id: true,
+      date: true,
+      amount: true,
+      merchant: true,
+      isOffset: true,
+      category: { select: { name: true, type: true } },
+      account: { select: { currency: true } },
     },
   });
 
@@ -194,6 +201,7 @@ export async function dashboardAnalytics(
       isOffset: true,
       linkedTransactionId: { in: prevPurchaseIds },
     },
+    select: { linkedTransactionId: true, amount: true },
   });
 
   const prevReturnAmounts = new Map<string, number>();
@@ -508,7 +516,11 @@ export async function monthlySnapshot(prisma: PrismaClient, month: string) {
       isTransfer: false,
       accountId: { in: cashFlowAccountIds },
     },
-    include: { category: true },
+    select: {
+      amount: true,
+      merchant: true,
+      category: { select: { name: true } },
+    },
   });
 
   const income = transactions

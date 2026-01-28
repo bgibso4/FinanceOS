@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { Modal } from '@/components/ui/modal';
 import { ds } from '@/lib/design-system';
 import { NetWorthSnapshots } from '@/components/reports/NetWorthSnapshots';
 
@@ -45,6 +46,8 @@ function ReportsContent() {
     income: '',
     spending: '',
   });
+  const [backfillModalOpen, setBackfillModalOpen] = useState(false);
+  const [backfillSaving, setBackfillSaving] = useState(false);
 
   useEffect(() => {
     loadCategories();
@@ -95,29 +98,24 @@ function ReportsContent() {
     }
   };
 
-  const goToPrev12Months = () => {
+  const goToPrevMonth = () => {
     const [year, month] = trailing12EndMonth.split('-').map(Number);
-    const prev = new Date(year, month - 13);
+    const prev = new Date(year, month - 2); // month is 1-indexed, Date expects 0-indexed
     setTrailing12EndMonth(`${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`);
   };
 
-  const goToNext12Months = () => {
+  const goToNextMonth = () => {
     const [year, month] = trailing12EndMonth.split('-').map(Number);
-    const next = new Date(year, month + 11);
+    const next = new Date(year, month); // month is 1-indexed, Date expects 0-indexed, so this is +1 month
     setTrailing12EndMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`);
   };
 
   const backfillSnapshot = async () => {
-    if (
-      !backfillForm.year ||
-      !backfillForm.month ||
-      !backfillForm.income ||
-      !backfillForm.spending
-    ) {
-      alert('Please fill in all fields');
+    if (!backfillForm.income || !backfillForm.spending) {
       return;
     }
 
+    setBackfillSaving(true);
     const month = `${backfillForm.year}-${backfillForm.month}`;
     try {
       await fetch('/api/reports/snapshot', {
@@ -130,11 +128,12 @@ function ReportsContent() {
         }),
       });
       setBackfillForm({ year: '2024', month: '01', income: '', spending: '' });
+      setBackfillModalOpen(false);
       loadTrailing12Months(trailing12EndMonth);
-      alert('Historical data saved successfully!');
     } catch (error) {
       console.error('Failed to backfill snapshot:', error);
-      alert('Failed to save historical data');
+    } finally {
+      setBackfillSaving(false);
     }
   };
 
@@ -147,142 +146,214 @@ function ReportsContent() {
       {tab === 'cash-flow' && (
         <div className="space-y-6">
           {trailing12Months.length > 0 ? (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className={`text-sm font-semibold ${ds.text.primary}`}>
-                    12 Month Savings Rate
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      className={`p-1.5 rounded-lg transition-colors ${ds.interactive.default}`}
-                      onClick={goToPrev12Months}
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          d="M15 19l-7-7 7-7"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                        />
-                      </svg>
-                    </button>
-                    <span className={`text-sm ${ds.text.secondary} min-w-[120px] text-center`}>
-                      {trailing12Months[0]?.label} -{' '}
-                      {trailing12Months[trailing12Months.length - 1]?.label}
-                    </span>
-                    <button
-                      className={`p-1.5 rounded-lg transition-colors ${ds.interactive.default}`}
-                      onClick={goToNext12Months}
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          d="M9 5l7 7-7 7"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className={ds.bg.tertiary}>
-                      <tr>
-                        <th
-                          className={`px-3 py-2 text-left ${ds.text.secondary} font-semibold sticky left-0 ${ds.bg.tertiary}`}
+            <>
+              {/* Summary Cards */}
+              {(() => {
+                const count = trailing12Months.length;
+                const avgIncome =
+                  count > 0 ? trailing12Months.reduce((sum, m) => sum + m.income, 0) / count : 0;
+                const avgSpending =
+                  count > 0 ? trailing12Months.reduce((sum, m) => sum + m.spending, 0) / count : 0;
+                const avgSavings =
+                  count > 0 ? trailing12Months.reduce((sum, m) => sum + m.savings, 0) / count : 0;
+                const avgSavingsRate =
+                  count > 0
+                    ? trailing12Months.reduce((sum, m) => sum + m.savingsRate, 0) / count
+                    : 0;
+
+                return (
+                  <div className="grid grid-cols-4 gap-4">
+                    <Card>
+                      <CardContent className="pt-4">
+                        <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
+                          Avg Monthly Income
+                        </div>
+                        <div className="text-2xl font-bold text-green-600">
+                          {formatCurrency(avgIncome)}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-4">
+                        <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
+                          Avg Monthly Spending
+                        </div>
+                        <div className="text-2xl font-bold text-red-600">
+                          {formatCurrency(avgSpending)}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-4">
+                        <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
+                          Avg Monthly Savings
+                        </div>
+                        <div
+                          className={`text-2xl font-bold ${avgSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}
                         >
-                          Metric
-                        </th>
-                        {trailing12Months.map((m) => (
+                          {formatCurrency(avgSavings)}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-4">
+                        <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
+                          Avg Savings Rate
+                        </div>
+                        <div
+                          className={`text-2xl font-bold ${avgSavingsRate >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                        >
+                          {(avgSavingsRate * 100).toFixed(1)}%
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+              })()}
+
+              {/* Monthly Table */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className={`text-sm font-semibold ${ds.text.primary}`}>Monthly Detail</div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className={`p-1.5 rounded-lg transition-colors ${ds.interactive.default}`}
+                        onClick={goToPrevMonth}
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            d="M15 19l-7-7 7-7"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                          />
+                        </svg>
+                      </button>
+                      <span className={`text-sm ${ds.text.secondary} min-w-[140px] text-center`}>
+                        {trailing12Months[0]?.label} -{' '}
+                        {trailing12Months[trailing12Months.length - 1]?.label}
+                      </span>
+                      <button
+                        className={`p-1.5 rounded-lg transition-colors ${ds.interactive.default}`}
+                        onClick={goToNextMonth}
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            d="M9 5l7 7-7 7"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                          />
+                        </svg>
+                      </button>
+                      <Button
+                        className="ml-4"
+                        variant="outline"
+                        onClick={() => setBackfillModalOpen(true)}
+                      >
+                        Backfill Historical
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className={ds.bg.tertiary}>
+                        <tr>
                           <th
-                            key={m.month}
-                            className={`px-3 py-2 text-right ${ds.text.secondary} font-semibold whitespace-nowrap`}
+                            className={`px-3 py-2 text-left ${ds.text.secondary} font-semibold sticky left-0 ${ds.bg.tertiary}`}
                           >
-                            {m.label}
+                            Metric
                           </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className={`divide-y ${ds.border.default}`}>
-                      <tr className={`hover:${ds.bg.secondary}`}>
-                        <td
-                          className={`px-3 py-2 ${ds.text.primary} font-medium sticky left-0 ${ds.bg.primary}`}
-                        >
-                          Income
-                        </td>
-                        {trailing12Months.map((m) => (
+                          {trailing12Months.map((m) => (
+                            <th
+                              key={m.month}
+                              className={`px-3 py-2 text-right ${ds.text.secondary} font-semibold whitespace-nowrap`}
+                            >
+                              {m.label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className={`divide-y ${ds.border.default}`}>
+                        <tr className={`hover:${ds.bg.secondary}`}>
                           <td
-                            key={m.month}
-                            className="px-3 py-2 text-right text-green-600 font-semibold"
+                            className={`px-3 py-2 ${ds.text.primary} font-medium sticky left-0 ${ds.bg.primary}`}
                           >
-                            {formatCurrency(m.income)}
+                            Income
                           </td>
-                        ))}
-                      </tr>
-                      <tr className={`hover:${ds.bg.secondary}`}>
-                        <td
-                          className={`px-3 py-2 ${ds.text.primary} font-medium sticky left-0 ${ds.bg.primary}`}
-                        >
-                          Spending
-                        </td>
-                        {trailing12Months.map((m) => (
+                          {trailing12Months.map((m) => (
+                            <td
+                              key={m.month}
+                              className="px-3 py-2 text-right text-green-600 font-semibold"
+                            >
+                              {formatCurrency(m.income)}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr className={`hover:${ds.bg.secondary}`}>
                           <td
-                            key={m.month}
-                            className="px-3 py-2 text-right text-red-600 font-semibold"
+                            className={`px-3 py-2 ${ds.text.primary} font-medium sticky left-0 ${ds.bg.primary}`}
                           >
-                            {formatCurrency(m.spending)}
+                            Spending
                           </td>
-                        ))}
-                      </tr>
-                      <tr className={`hover:${ds.bg.secondary}`}>
-                        <td
-                          className={`px-3 py-2 ${ds.text.primary} font-medium sticky left-0 ${ds.bg.primary}`}
-                        >
-                          Savings
-                        </td>
-                        {trailing12Months.map((m) => (
+                          {trailing12Months.map((m) => (
+                            <td
+                              key={m.month}
+                              className="px-3 py-2 text-right text-red-600 font-semibold"
+                            >
+                              {formatCurrency(m.spending)}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr className={`hover:${ds.bg.secondary}`}>
                           <td
-                            key={m.month}
-                            className={`px-3 py-2 text-right font-semibold ${m.savings >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                            className={`px-3 py-2 ${ds.text.primary} font-medium sticky left-0 ${ds.bg.primary}`}
                           >
-                            {formatCurrency(m.savings)}
+                            Savings
                           </td>
-                        ))}
-                      </tr>
-                      <tr className={`hover:${ds.bg.secondary}`}>
-                        <td
-                          className={`px-3 py-2 ${ds.text.primary} font-medium sticky left-0 ${ds.bg.primary}`}
-                        >
-                          Savings Rate
-                        </td>
-                        {trailing12Months.map((m) => (
+                          {trailing12Months.map((m) => (
+                            <td
+                              key={m.month}
+                              className={`px-3 py-2 text-right font-semibold ${m.savings >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                            >
+                              {formatCurrency(m.savings)}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr className={`hover:${ds.bg.secondary}`}>
                           <td
-                            key={m.month}
-                            className={`px-3 py-2 text-right font-bold ${m.savingsRate >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                            className={`px-3 py-2 ${ds.text.primary} font-medium sticky left-0 ${ds.bg.primary}`}
                           >
-                            {(m.savingsRate * 100).toFixed(1)}%
+                            Savings Rate
                           </td>
-                        ))}
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
+                          {trailing12Months.map((m) => (
+                            <td
+                              key={m.month}
+                              className={`px-3 py-2 text-right font-bold ${m.savingsRate >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                            >
+                              {(m.savingsRate * 100).toFixed(1)}%
+                            </td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
           ) : (
             <Card>
               <CardContent className="py-8 text-center">
@@ -291,75 +362,106 @@ function ReportsContent() {
             </Card>
           )}
 
-          {/* Backfill Historical Data */}
-          <details className={`${ds.bg.secondary} rounded-lg border ${ds.border.default}`}>
-            <summary
-              className={`cursor-pointer p-4 font-medium text-sm ${ds.text.primary} hover:${ds.bg.tertiary}`}
-            >
-              Backfill Historical Data (for months without transactions)
-            </summary>
-            <div className="px-4 pb-4">
-              <div className={`text-sm ${ds.text.secondary} mb-4`}>
-                Add summary data for months where you don&apos;t have individual transactions
+          {/* Backfill Historical Modal */}
+          <Modal
+            isOpen={backfillModalOpen}
+            title="Backfill Historical Cash Flow"
+            onClose={() => setBackfillModalOpen(false)}
+          >
+            <div className="space-y-4">
+              <p className={`text-sm ${ds.text.secondary}`}>
+                Manually enter historical cash flow data for months where you don&apos;t have
+                individual transactions. Savings and savings rate are calculated automatically.
+              </p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
+                    Year
+                  </label>
+                  <Select
+                    value={backfillForm.year}
+                    onChange={(e) => setBackfillForm({ ...backfillForm, year: e.target.value })}
+                  >
+                    {Array.from({ length: 5 }, (_, i) => {
+                      const year = new Date().getFullYear() - i;
+                      return (
+                        <option key={year} value={year}>
+                          {year}
+                        </option>
+                      );
+                    })}
+                  </Select>
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
+                    Month
+                  </label>
+                  <Select
+                    value={backfillForm.month}
+                    onChange={(e) => setBackfillForm({ ...backfillForm, month: e.target.value })}
+                  >
+                    <option value="01">January</option>
+                    <option value="02">February</option>
+                    <option value="03">March</option>
+                    <option value="04">April</option>
+                    <option value="05">May</option>
+                    <option value="06">June</option>
+                    <option value="07">July</option>
+                    <option value="08">August</option>
+                    <option value="09">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                  </Select>
+                </div>
               </div>
-              <div className="grid grid-cols-5 gap-3">
-                <Select
-                  value={backfillForm.year}
-                  onChange={(e) => setBackfillForm({ ...backfillForm, year: e.target.value })}
-                >
-                  {Array.from({ length: 5 }, (_, i) => {
-                    const year = new Date().getFullYear() - i;
-                    return (
-                      <option key={year} value={year}>
-                        {year}
-                      </option>
-                    );
-                  })}
-                </Select>
-                <Select
-                  value={backfillForm.month}
-                  onChange={(e) => setBackfillForm({ ...backfillForm, month: e.target.value })}
-                >
-                  <option value="01">January</option>
-                  <option value="02">February</option>
-                  <option value="03">March</option>
-                  <option value="04">April</option>
-                  <option value="05">May</option>
-                  <option value="06">June</option>
-                  <option value="07">July</option>
-                  <option value="08">August</option>
-                  <option value="09">September</option>
-                  <option value="10">October</option>
-                  <option value="11">November</option>
-                  <option value="12">December</option>
-                </Select>
+
+              <div>
+                <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
+                  Income <span className="text-red-500">*</span>
+                </label>
                 <Input
-                  placeholder="Income"
+                  placeholder="e.g., 5000"
                   step="0.01"
                   type="number"
                   value={backfillForm.income}
                   onChange={(e) => setBackfillForm({ ...backfillForm, income: e.target.value })}
                 />
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
+                  Spending <span className="text-red-500">*</span>
+                </label>
                 <Input
-                  placeholder="Spending"
+                  placeholder="e.g., 3500"
                   step="0.01"
                   type="number"
                   value={backfillForm.spending}
                   onChange={(e) => setBackfillForm({ ...backfillForm, spending: e.target.value })}
                 />
+              </div>
+
+              <div className={`text-xs ${ds.text.muted}`}>
+                If transactions exist for this month, they will take priority over this manual
+                entry.
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setBackfillModalOpen(false)}>
+                  Cancel
+                </Button>
                 <Button
                   className="bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={backfillSaving || !backfillForm.income || !backfillForm.spending}
                   onClick={backfillSnapshot}
                 >
-                  Add Snapshot
+                  {backfillSaving ? 'Saving...' : 'Save Historical Data'}
                 </Button>
               </div>
-              <div className={`text-xs ${ds.text.muted} mt-2`}>
-                Savings and savings rate are calculated automatically. If transactions exist for a
-                month, they take priority.
-              </div>
             </div>
-          </details>
+          </Modal>
         </div>
       )}
 

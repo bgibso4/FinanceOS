@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:profile": "NODE_OPTIONS='--inspect --max-old-space-size=512' next dev",
+    "dev:memory": "NODE_OPTIONS='--expose-gc --max-old-space-size=512' next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

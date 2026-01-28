@@ -300,6 +300,16 @@ export function NetWorthSnapshots() {
   const [compareSelection, setCompareSelection] = useState<string[]>([]);
   const [comparison, setComparison] = useState<ComparisonResult | null>(null);
   const [compareModalOpen, setCompareModalOpen] = useState(false);
+  const [backfillModalOpen, setBackfillModalOpen] = useState(false);
+  const [backfillForm, setBackfillForm] = useState({
+    date: '',
+    netWorth: '',
+    totalAssets: '',
+    totalLiabilities: '',
+    period: '',
+    notes: '',
+  });
+  const [backfillSaving, setBackfillSaving] = useState(false);
 
   useEffect(() => {
     loadSnapshots();
@@ -349,6 +359,53 @@ export function NetWorthSnapshots() {
       setDetailModalOpen(false);
     } catch (error) {
       console.error('Failed to delete snapshot:', error);
+    }
+  };
+
+  const saveBackfillSnapshot = async () => {
+    if (!backfillForm.date || !backfillForm.netWorth) return;
+
+    setBackfillSaving(true);
+    try {
+      const netWorth = parseFloat(backfillForm.netWorth.replace(/,/g, ''));
+      const totalAssets = backfillForm.totalAssets
+        ? parseFloat(backfillForm.totalAssets.replace(/,/g, ''))
+        : undefined;
+      const totalLiabilities = backfillForm.totalLiabilities
+        ? parseFloat(backfillForm.totalLiabilities.replace(/,/g, ''))
+        : undefined;
+
+      const res = await fetch('/api/snapshots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: backfillForm.date,
+          period: backfillForm.period || undefined,
+          notes: backfillForm.notes || undefined,
+          manual: {
+            netWorth,
+            totalAssets,
+            totalLiabilities,
+          },
+        }),
+      });
+
+      if (res.ok) {
+        setBackfillModalOpen(false);
+        setBackfillForm({
+          date: '',
+          netWorth: '',
+          totalAssets: '',
+          totalLiabilities: '',
+          period: '',
+          notes: '',
+        });
+        loadSnapshots();
+      }
+    } catch (error) {
+      console.error('Failed to save backfill snapshot:', error);
+    } finally {
+      setBackfillSaving(false);
     }
   };
 
@@ -425,6 +482,9 @@ export function NetWorthSnapshots() {
                   {compareMode ? 'Exit Compare' : 'Compare'}
                 </Button>
               )}
+              <Button variant="outline" onClick={() => setBackfillModalOpen(true)}>
+                Backfill Historical
+              </Button>
               <Button
                 className="bg-blue-600 hover:bg-blue-700 text-white"
                 onClick={() => setCaptureModalOpen(true)}
@@ -982,6 +1042,113 @@ export function NetWorthSnapshots() {
           </div>
         </Modal>
       )}
+
+      {/* Backfill Historical Modal */}
+      <Modal
+        isOpen={backfillModalOpen}
+        title="Backfill Historical Net Worth"
+        onClose={() => setBackfillModalOpen(false)}
+      >
+        <div className="space-y-4">
+          <p className={`text-sm ${ds.text.secondary}`}>
+            Manually enter historical net worth data from your past records. This is useful for
+            tracking trends from before you started using this app.
+          </p>
+
+          <div>
+            <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
+              Date <span className="text-red-500">*</span>
+            </label>
+            <Input
+              type="date"
+              value={backfillForm.date}
+              onChange={(e) => setBackfillForm({ ...backfillForm, date: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
+              Net Worth <span className="text-red-500">*</span>
+            </label>
+            <Input
+              placeholder="e.g., 50000 or -5000"
+              type="text"
+              value={backfillForm.netWorth}
+              onChange={(e) => setBackfillForm({ ...backfillForm, netWorth: e.target.value })}
+            />
+            <div className={`text-xs ${ds.text.muted} mt-1`}>
+              Use negative values if liabilities exceeded assets
+            </div>
+          </div>
+
+          <div className={`p-3 rounded-lg ${ds.bg.secondary}`}>
+            <div className={`text-xs font-medium ${ds.text.primary} mb-2`}>
+              Optional Breakdown (for more detailed tracking)
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={`block text-xs ${ds.text.secondary} mb-1`}>Total Assets</label>
+                <Input
+                  placeholder="e.g., 100000"
+                  type="text"
+                  value={backfillForm.totalAssets}
+                  onChange={(e) =>
+                    setBackfillForm({ ...backfillForm, totalAssets: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <label className={`block text-xs ${ds.text.secondary} mb-1`}>
+                  Total Liabilities
+                </label>
+                <Input
+                  placeholder="e.g., 50000"
+                  type="text"
+                  value={backfillForm.totalLiabilities}
+                  onChange={(e) =>
+                    setBackfillForm({ ...backfillForm, totalLiabilities: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
+              Period Label (optional)
+            </label>
+            <Input
+              placeholder="e.g., 2023-Q4 or 2023-12"
+              value={backfillForm.period}
+              onChange={(e) => setBackfillForm({ ...backfillForm, period: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
+              Notes (optional)
+            </label>
+            <Input
+              placeholder="e.g., From spreadsheet tracking"
+              value={backfillForm.notes}
+              onChange={(e) => setBackfillForm({ ...backfillForm, notes: e.target.value })}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setBackfillModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={backfillSaving || !backfillForm.date || !backfillForm.netWorth}
+              onClick={saveBackfillSnapshot}
+            >
+              {backfillSaving ? 'Saving...' : 'Save Historical Snapshot'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

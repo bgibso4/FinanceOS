@@ -19,19 +19,34 @@ export async function GET() {
   // Get currency settings for conversion
   const { rateMap, baseCurrency } = await getCurrencySettings();
 
-  // Get all active accounts with their transactions
+  // Get all active accounts (without loading transactions)
   const accounts = await prisma.account.findMany({
     where: { isActive: true },
-    include: {
-      transactions: {
-        select: { amount: true, isTransfer: true },
-      },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      institution: true,
+      currency: true,
     },
   });
 
+  // Use database aggregation to sum transaction amounts per account
+  // This avoids loading all transactions into memory
+  const balances = await prisma.transaction.groupBy({
+    by: ['accountId'],
+    _sum: { amount: true },
+    where: {
+      accountId: { in: accounts.map((a) => a.id) },
+    },
+  });
+
+  // Create a map for quick balance lookup
+  const balanceMap = new Map(balances.map((b) => [b.accountId, b._sum.amount ?? 0]));
+
   // Calculate balance for each account (with currency conversion)
   const accountBalances = accounts.map((account) => {
-    const balance = account.transactions.reduce((sum, tx) => sum + tx.amount, 0);
+    const balance = balanceMap.get(account.id) ?? 0;
 
     // Convert to base currency for display
     const balanceInBaseCurrency =
