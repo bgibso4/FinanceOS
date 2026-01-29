@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
@@ -35,6 +36,7 @@ const links = [
       { href: '/settings?tab=general', label: 'General' },
       { href: '/settings?tab=import', label: 'Import' },
       { href: '/settings?tab=rules', label: 'Rules' },
+      { href: '/settings?tab=sync', label: 'Cloud Sync' },
     ],
   },
 ];
@@ -66,7 +68,16 @@ export function SideNav() {
 
   return (
     <aside className="hidden w-52 shrink-0 border-r border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 px-4 py-6 md:flex md:flex-col md:gap-4">
-      <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">FinanceOS</div>
+      <div className="mb-2">
+        <Image
+          priority
+          alt="FinanceOS"
+          className="dark:brightness-110"
+          height={44}
+          src="/images/logo-full.png"
+          width={176}
+        />
+      </div>
       <div className="flex flex-col gap-1">
         {links.map((link) => {
           const isActive = link.submenu ? pathname.startsWith(link.href) : pathname === link.href;

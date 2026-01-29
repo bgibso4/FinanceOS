@@ -186,8 +186,15 @@ export default function AnalyticsPage() {
       const res = await fetch(`/api/transactions?${queryParams.toString()}`);
       const data = await res.json();
 
-      // Filter out offset transactions - they'll be shown as notes on original transactions
-      const filtered = (data.transactions || []).filter((t: Tx) => !t.isOffset);
+      // Filter out offset transactions and transfers to match analytics aggregation
+      let filtered = (data.transactions || []).filter((t: Tx) => !t.isOffset && !t.isTransfer);
+
+      // When no categoryId is provided (e.g. "Uncategorized"), the API returns all
+      // transactions for the date range. Filter to only uncategorized ones.
+      if (!categoryId) {
+        filtered = filtered.filter((t: Tx) => !t.category);
+      }
+
       setCategoryTransactions(filtered);
     } catch (err) {
       console.error('Failed to load transactions:', err);
@@ -646,7 +653,10 @@ export default function AnalyticsPage() {
                   ? categories.find((c) => c.id === category.parentId)
                   : null;
 
-                const groupName = parentGroup?.name || 'Uncategorized';
+                // Use parent group name if it exists, otherwise:
+                // - truly uncategorized transactions (no matching category) go to 'Uncategorized'
+                // - categories that exist but have no parent use their own name as the group
+                const groupName = parentGroup?.name || (category ? category.name : 'Uncategorized');
                 grouped[groupName] = grouped[groupName] || [];
                 grouped[groupName].push(cat);
               });

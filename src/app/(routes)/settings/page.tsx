@@ -28,10 +28,12 @@ import { Modal } from '@/components/ui/modal';
 import { ds } from '@/lib/design-system';
 import { getCurrencyFlag } from '@/lib/currency';
 import { SyncStatusBadge } from '@/components/plaid/SyncStatusBadge'; // Used for both Plaid and Teller
+import { triggerSync } from '@/lib/cloud-sync';
 import { ConnectedInstitutions } from '@/components/teller/ConnectedInstitutions';
 import { TellerAccountLinkSelector } from '@/components/teller/TellerAccountLinkSelector';
 import { PlaidAccountLinkSelector } from '@/components/plaid/PlaidAccountLinkSelector';
 import { PlaidReconnectButton } from '@/components/plaid/PlaidReconnectButton';
+import { SyncSettings } from '@/components/sync-settings';
 
 type PlaidConnection = {
   id: string;
@@ -104,6 +106,28 @@ type ExchangeRate = {
   updatedAt: string;
 };
 type UserSettings = { id: string; baseCurrency: string };
+
+type SyncAllAccountStatus = 'idle' | 'previewing' | 'preview_done' | 'syncing' | 'synced' | 'error';
+
+type SyncAllAccountResult = {
+  accountId: string;
+  accountName: string;
+  connectionType: 'plaid' | 'teller';
+  status: SyncAllAccountStatus;
+  error?: string;
+  preview?: {
+    stats: { added: number; skippedDuplicates: number; skippedPending: number; merged: number };
+    dateRange: { from: string; to: string };
+    totalFetched: number;
+  };
+  syncResult?: {
+    added: number;
+    modified: number;
+    removed: number;
+    merged?: number;
+    skippedOld?: number;
+  };
+};
 
 // Strip emojis for sorting purposes
 const stripEmojis = (str: string) =>
@@ -485,6 +509,25 @@ function SettingsPageContent() {
   } | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
 
+  // Sync All state
+  const [showSyncAllModal, setShowSyncAllModal] = useState(false);
+  const [syncAllDays, setSyncAllDays] = useState(30);
+  const [syncAllPhase, setSyncAllPhase] = useState<
+    'select' | 'previewing' | 'preview' | 'syncing' | 'done'
+  >('select');
+  const [syncAllResults, setSyncAllResults] = useState<Map<string, SyncAllAccountResult>>(
+    new Map()
+  );
+
+  const syncableAccounts = accounts.filter((a) => {
+    if (!a.isActive) return false;
+    const tc = a.tellerConnection;
+    const pc = a.plaidConnection;
+    if (tc && tc.status !== 'disconnected') return true;
+    if (pc && pc.status !== 'needs_reauth') return true;
+    return false;
+  });
+
   // Drag-and-drop sensors for account reordering
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -607,6 +650,7 @@ function SettingsPageContent() {
     });
     setNewAccount({ name: '', type: 'checking', institution: '', currency: 'USD' });
     refresh();
+    triggerSync();
   };
 
   const openAccountModal = async (account: Account) => {
@@ -1020,6 +1064,176 @@ function SettingsPageContent() {
     }
   };
 
+  // ── Sync All handlers ──
+
+  const handleSyncAllPreview = async () => {
+    setSyncAllPhase('previewing');
+
+    const initialResults = new Map<string, SyncAllAccountResult>();
+    for (const account of syncableAccounts) {
+      const connectionType = account.tellerConnection ? 'teller' : 'plaid';
+      initialResults.set(account.id, {
+        accountId: account.id,
+        accountName: account.name,
+        connectionType,
+        status: 'previewing',
+      });
+    }
+    setSyncAllResults(new Map(initialResults));
+
+    const promises = syncableAccounts.map(async (account) => {
+      const connectionType = account.tellerConnection ? 'teller' : 'plaid';
+      const endpoint = connectionType === 'teller' ? '/api/teller/sync' : '/api/plaid/sync';
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accountId: account.id,
+            daysToSync: syncAllDays,
+            dryRun: true,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (data.error) {
+          setSyncAllResults((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(account.id);
+            if (existing) next.set(account.id, { ...existing, status: 'error', error: data.error });
+            return next;
+          });
+          return;
+        }
+
+        setSyncAllResults((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(account.id);
+          if (existing) {
+            next.set(account.id, {
+              ...existing,
+              status: 'preview_done',
+              preview: {
+                stats: data.stats,
+                dateRange: data.dateRange,
+                totalFetched: data.totalFetched,
+              },
+            });
+          }
+          return next;
+        });
+      } catch (_error) {
+        setSyncAllResults((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(account.id);
+          if (existing)
+            next.set(account.id, { ...existing, status: 'error', error: 'Network error' });
+          return next;
+        });
+      }
+    });
+
+    await Promise.allSettled(promises);
+    setSyncAllPhase('preview');
+  };
+
+  const handleSyncAllConfirm = async () => {
+    setSyncAllPhase('syncing');
+
+    const accountsToSync = Array.from(syncAllResults.values()).filter(
+      (r) =>
+        r.status === 'preview_done' &&
+        r.preview &&
+        (r.preview.stats.added > 0 || r.preview.stats.merged > 0)
+    );
+
+    setSyncAllResults((prev) => {
+      const next = new Map(prev);
+      for (const a of accountsToSync) {
+        const existing = next.get(a.accountId);
+        if (existing) next.set(a.accountId, { ...existing, status: 'syncing' });
+      }
+      return next;
+    });
+
+    const promises = accountsToSync.map(async (accountResult) => {
+      const endpoint =
+        accountResult.connectionType === 'teller' ? '/api/teller/sync' : '/api/plaid/sync';
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accountId: accountResult.accountId,
+            daysToSync: syncAllDays,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (data.error) {
+          setSyncAllResults((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(accountResult.accountId);
+            if (existing)
+              next.set(accountResult.accountId, {
+                ...existing,
+                status: 'error',
+                error: data.error,
+              });
+            return next;
+          });
+          return;
+        }
+
+        setSyncAllResults((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(accountResult.accountId);
+          if (existing) {
+            next.set(accountResult.accountId, {
+              ...existing,
+              status: 'synced',
+              syncResult: {
+                added: data.added,
+                modified: data.modified,
+                removed: data.removed,
+                merged: data.merged,
+                skippedOld: data.skippedOld ?? data.skippedPending,
+              },
+            });
+          }
+          return next;
+        });
+      } catch (_error) {
+        setSyncAllResults((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(accountResult.accountId);
+          if (existing)
+            next.set(accountResult.accountId, {
+              ...existing,
+              status: 'error',
+              error: 'Network error',
+            });
+          return next;
+        });
+      }
+    });
+
+    await Promise.allSettled(promises);
+    setSyncAllPhase('done');
+    await refresh();
+  };
+
+  const handleSyncAllClose = () => {
+    setShowSyncAllModal(false);
+    setSyncAllPhase('select');
+    setSyncAllResults(new Map());
+    setSyncAllDays(30);
+  };
+
   const handleTellerDisconnect = async () => {
     if (!modalAccount) return;
 
@@ -1082,6 +1296,7 @@ function SettingsPageContent() {
 
       closeAccountModal();
       refresh();
+      triggerSync();
     } catch (_error) {
       alert('Failed to delete account');
     }
@@ -1228,6 +1443,7 @@ function SettingsPageContent() {
     });
     setNewCategory({ name: '', type: 'expense', parentId: '' });
     refresh();
+    triggerSync();
   };
 
   const updateCategory = async () => {
@@ -1242,6 +1458,7 @@ function SettingsPageContent() {
     });
     setEditingCategory(null);
     refresh();
+    triggerSync();
   };
 
   const openCategoryModal = async (category: Category) => {
@@ -1289,6 +1506,7 @@ function SettingsPageContent() {
       setCategoryTransactions(data.transactions || []);
 
       refresh(); // Refresh the main data
+      triggerSync();
     } catch (_error) {
       alert('Failed to unclassify transactions');
     }
@@ -1310,6 +1528,7 @@ function SettingsPageContent() {
 
       closeModal();
       refresh();
+      triggerSync();
     } catch (_error) {
       alert('Failed to delete category');
     }
@@ -1369,6 +1588,7 @@ function SettingsPageContent() {
         priority: 100,
       });
       refresh();
+      triggerSync();
     } catch (_error) {
       alert('Failed to create rule');
     }
@@ -1408,6 +1628,7 @@ function SettingsPageContent() {
 
       closeRuleModal();
       refresh();
+      triggerSync();
     } catch (_error) {
       alert('Failed to update rule');
     }
@@ -1428,6 +1649,7 @@ function SettingsPageContent() {
 
       closeRuleModal();
       refresh();
+      triggerSync();
     } catch (_error) {
       alert('Failed to delete rule');
     }
@@ -1542,6 +1764,7 @@ function SettingsPageContent() {
 
       setImportState((s) => ({ ...s, status: summary, summary: data }));
       refresh();
+      triggerSync();
     } catch (err: any) {
       setImportState((s) => ({
         ...s,
@@ -1868,15 +2091,39 @@ function SettingsPageContent() {
           <Card>
             <CardHeader className="flex items-center justify-between">
               <div className={`text-sm font-semibold ${ds.text.primary}`}>Accounts</div>
-              <label className={`flex items-center gap-2 text-sm ${ds.text.secondary}`}>
-                <input
-                  checked={showArchived}
-                  className="rounded"
-                  type="checkbox"
-                  onChange={(e) => setShowArchived(e.target.checked)}
-                />
-                Show archived
-              </label>
+              <div className="flex items-center gap-4">
+                {syncableAccounts.length > 0 && (
+                  <Button
+                    className="text-sm"
+                    variant="outline"
+                    onClick={() => setShowSyncAllModal(true)}
+                  >
+                    <svg
+                      className="mr-1 inline h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                      />
+                    </svg>
+                    Sync All ({syncableAccounts.length})
+                  </Button>
+                )}
+                <label className={`flex items-center gap-2 text-sm ${ds.text.secondary}`}>
+                  <input
+                    checked={showArchived}
+                    className="rounded"
+                    type="checkbox"
+                    onChange={(e) => setShowArchived(e.target.checked)}
+                  />
+                  Show archived
+                </label>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 md:grid-cols-4">
@@ -3192,6 +3439,271 @@ function SettingsPageContent() {
         )}
       </Modal>
 
+      {/* Sync All Modal */}
+      <Modal
+        isOpen={showSyncAllModal}
+        size="xl"
+        title="Sync All Accounts"
+        onClose={handleSyncAllClose}
+      >
+        <div className="space-y-4">
+          {/* Phase: Select lookback window */}
+          {syncAllPhase === 'select' && (
+            <>
+              <p className={`text-sm ${ds.text.secondary}`}>
+                Sync {syncableAccounts.length} connected account
+                {syncableAccounts.length !== 1 ? 's' : ''} simultaneously.
+              </p>
+
+              <div className="flex items-center gap-2">
+                <label className={`text-sm ${ds.text.secondary}`}>Import last:</label>
+                <Select
+                  className="flex-1"
+                  value={syncAllDays.toString()}
+                  onChange={(e) => setSyncAllDays(parseInt(e.target.value))}
+                >
+                  <option value="30">30 days</option>
+                  <option value="60">60 days</option>
+                  <option value="90">90 days</option>
+                  <option value="180">6 months</option>
+                  <option value="365">1 year</option>
+                  <option value="730">2 years</option>
+                </Select>
+              </div>
+
+              <div
+                className={`rounded-lg border ${ds.border.default} ${ds.bg.secondary} p-3 text-sm`}
+              >
+                <div className={`mb-2 font-medium ${ds.text.primary}`}>Accounts to sync:</div>
+                <div className="space-y-1">
+                  {syncableAccounts.map((a) => (
+                    <div
+                      key={a.id}
+                      className={`flex items-center justify-between ${ds.text.secondary}`}
+                    >
+                      <span>{a.name}</span>
+                      <Badge>{a.tellerConnection ? 'Teller' : 'Plaid'}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-2 border-t pt-4">
+                <Button className="flex-1" variant="outline" onClick={handleSyncAllClose}>
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  onClick={handleSyncAllPreview}
+                >
+                  Preview All
+                </Button>
+              </div>
+            </>
+          )}
+
+          {/* Phase: Previewing / Preview / Syncing / Done */}
+          {syncAllPhase !== 'select' && (
+            <>
+              {/* Aggregated stats (only when preview is done or later) */}
+              {syncAllPhase !== 'previewing' &&
+                (() => {
+                  const allResults = Array.from(syncAllResults.values());
+                  const totalNew = allResults.reduce(
+                    (sum, r) => sum + (r.preview?.stats.added ?? 0),
+                    0
+                  );
+                  const totalMerge = allResults.reduce(
+                    (sum, r) => sum + (r.preview?.stats.merged ?? 0),
+                    0
+                  );
+                  const totalDupes = allResults.reduce(
+                    (sum, r) => sum + (r.preview?.stats.skippedDuplicates ?? 0),
+                    0
+                  );
+                  const totalPending = allResults.reduce(
+                    (sum, r) => sum + (r.preview?.stats.skippedPending ?? 0),
+                    0
+                  );
+
+                  return (
+                    <div className={`${ds.bg.secondary} rounded-lg border p-4`}>
+                      <div className="grid grid-cols-4 gap-4 text-center">
+                        <div>
+                          <div className="text-2xl font-bold text-green-600">{totalNew}</div>
+                          <div className={`text-xs ${ds.text.muted}`}>New</div>
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-blue-600">{totalMerge}</div>
+                          <div className={`text-xs ${ds.text.muted}`}>Merge</div>
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-yellow-600">{totalDupes}</div>
+                          <div className={`text-xs ${ds.text.muted}`}>Duplicates</div>
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-gray-500">{totalPending}</div>
+                          <div className={`text-xs ${ds.text.muted}`}>Pending</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+              {/* Per-account breakdown table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className={`${ds.bg.tertiary}`}>
+                    <tr>
+                      <th className={`p-2 text-left ${ds.text.secondary}`}>Account</th>
+                      <th className={`p-2 text-left ${ds.text.secondary}`}>Provider</th>
+                      <th className={`p-2 text-right ${ds.text.secondary}`}>New</th>
+                      <th className={`p-2 text-right ${ds.text.secondary}`}>Merge</th>
+                      <th className={`p-2 text-right ${ds.text.secondary}`}>Skip</th>
+                      <th className={`p-2 text-left ${ds.text.secondary}`}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from(syncAllResults.values()).map((r) => (
+                      <tr key={r.accountId} className={`border-t ${ds.border.default}`}>
+                        <td className={`p-2 ${ds.text.primary}`}>{r.accountName}</td>
+                        <td className="p-2">
+                          <Badge>{r.connectionType === 'teller' ? 'Teller' : 'Plaid'}</Badge>
+                        </td>
+                        <td className="p-2 text-right text-green-600">
+                          {r.preview?.stats.added ?? '—'}
+                        </td>
+                        <td className="p-2 text-right text-blue-600">
+                          {r.preview?.stats.merged ?? '—'}
+                        </td>
+                        <td className="p-2 text-right text-yellow-600">
+                          {r.preview
+                            ? (r.preview.stats.skippedDuplicates ?? 0) +
+                              (r.preview.stats.skippedPending ?? 0)
+                            : '—'}
+                        </td>
+                        <td className="p-2">
+                          {r.status === 'previewing' && (
+                            <span className={`text-xs ${ds.text.muted}`}>Previewing...</span>
+                          )}
+                          {r.status === 'preview_done' && (
+                            <span className="text-xs rounded bg-green-100 px-2 py-0.5 text-green-800 dark:bg-green-900 dark:text-green-300">
+                              Ready
+                            </span>
+                          )}
+                          {r.status === 'syncing' && (
+                            <span className="text-xs rounded bg-blue-100 px-2 py-0.5 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                              Syncing...
+                            </span>
+                          )}
+                          {r.status === 'synced' && (
+                            <span className="text-xs rounded bg-green-100 px-2 py-0.5 text-green-800 dark:bg-green-900 dark:text-green-300">
+                              {r.syncResult
+                                ? `${r.syncResult.added} added${r.syncResult.merged ? `, ${r.syncResult.merged} merged` : ''}`
+                                : 'Done'}
+                            </span>
+                          )}
+                          {r.status === 'error' && (
+                            <span
+                              className="text-xs rounded bg-red-100 px-2 py-0.5 text-red-800 dark:bg-red-900 dark:text-red-300"
+                              title={r.error}
+                            >
+                              Error: {r.error}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Done summary */}
+              {syncAllPhase === 'done' &&
+                (() => {
+                  const allResults = Array.from(syncAllResults.values());
+                  const synced = allResults.filter((r) => r.status === 'synced');
+                  const errors = allResults.filter((r) => r.status === 'error');
+                  const totalAdded = synced.reduce((sum, r) => sum + (r.syncResult?.added ?? 0), 0);
+                  const totalMerged = synced.reduce(
+                    (sum, r) => sum + (r.syncResult?.merged ?? 0),
+                    0
+                  );
+
+                  return (
+                    <div className="space-y-2">
+                      {synced.length > 0 && (
+                        <div
+                          className={`rounded p-2 text-sm ${ds.status.success.bg} ${ds.status.success.text}`}
+                        >
+                          {synced.length} account{synced.length !== 1 ? 's' : ''} synced:{' '}
+                          {totalAdded} added{totalMerged > 0 ? `, ${totalMerged} merged` : ''}
+                        </div>
+                      )}
+                      {errors.length > 0 && (
+                        <div
+                          className={`rounded p-2 text-sm ${ds.status.error.bg} ${ds.status.error.text}`}
+                        >
+                          {errors.length} account{errors.length !== 1 ? 's' : ''} failed
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+              {/* Action buttons */}
+              <div className="flex gap-2 border-t pt-4">
+                {syncAllPhase === 'previewing' && (
+                  <div className={`flex-1 text-center text-sm ${ds.text.muted}`}>
+                    Previewing accounts...
+                  </div>
+                )}
+
+                {syncAllPhase === 'preview' && (
+                  <>
+                    <Button className="flex-1" variant="outline" onClick={handleSyncAllClose}>
+                      Cancel
+                    </Button>
+                    <Button
+                      className="flex-1 bg-blue-600 hover:bg-blue-700"
+                      disabled={
+                        !Array.from(syncAllResults.values()).some(
+                          (r) =>
+                            r.status === 'preview_done' &&
+                            r.preview &&
+                            (r.preview.stats.added > 0 || r.preview.stats.merged > 0)
+                        )
+                      }
+                      onClick={handleSyncAllConfirm}
+                    >
+                      Sync{' '}
+                      {Array.from(syncAllResults.values()).reduce(
+                        (sum, r) =>
+                          sum + (r.preview?.stats.added ?? 0) + (r.preview?.stats.merged ?? 0),
+                        0
+                      )}{' '}
+                      Transactions
+                    </Button>
+                  </>
+                )}
+
+                {syncAllPhase === 'syncing' && (
+                  <div className={`flex-1 text-center text-sm ${ds.text.muted}`}>
+                    Syncing accounts...
+                  </div>
+                )}
+
+                {syncAllPhase === 'done' && (
+                  <Button className="flex-1" onClick={handleSyncAllClose}>
+                    Close
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
+
       {tab === 'rules' && (
         <Card>
           <CardHeader className="flex items-center justify-between">
@@ -4062,6 +4574,8 @@ function SettingsPageContent() {
           </CardContent>
         </Card>
       )}
+
+      {tab === 'sync' && <SyncSettings />}
     </div>
   );
 }
