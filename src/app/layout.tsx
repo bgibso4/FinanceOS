@@ -8,6 +8,10 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'FinanceOS',
   description: 'Personal finance cockpit with auto-categorization and analytics.',
+  icons: {
+    icon: '/images/logo-icon.png',
+    apple: '/images/logo-icon.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
