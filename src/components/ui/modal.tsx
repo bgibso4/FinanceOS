@@ -5,9 +5,16 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  size?: 'default' | 'lg' | 'xl';
 }
 
-export function Modal({ isOpen, onClose, title, children }: ModalProps) {
+const sizeClasses = {
+  default: 'max-w-lg',
+  lg: 'max-w-2xl',
+  xl: 'max-w-4xl',
+};
+
+export function Modal({ isOpen, onClose, title, children, size = 'default' }: ModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -19,7 +26,9 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
       />
 
       {/* Modal */}
-      <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-hidden border border-slate-200 dark:border-slate-700">
+      <div
+        className={`relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl ${sizeClasses[size]} w-full max-h-[85vh] overflow-hidden border border-slate-200 dark:border-slate-700`}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
           <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">{title}</h3>

@@ -132,7 +132,103 @@ ds.status.success; // Status colors (bg, text, border)
 
 ## Environment
 
-Uses `.env` with `DATABASE_URL` for Prisma. No external services required.
+Uses `.env` with `DATABASE_URL` for Prisma.
+
+Required for cloud sync:
+
+```
+NEXT_PUBLIC_SYNC_WORKER_URL=https://financeos-sync.financeos.workers.dev
+```
+
+## Cloud Sync
+
+End-to-end encrypted sync using Cloudflare R2. Data is encrypted client-side with AES-256-GCM before upload.
+
+### Architecture
+
+```
+src/lib/cloud-sync/
+├── encryption.ts    # AES-256-GCM + PBKDF2 key derivation
+├── sync.ts          # Database export/import
+├── r2-client.ts     # Cloudflare Worker API client
+├── auto-sync.ts     # Debounced auto-sync (2s after writes)
+├── use-sync.ts      # React hook
+├── types.ts         # Zod schemas for sync payload
+└── index.ts         # Module exports
+
+workers/sync-api/    # Cloudflare Worker (separate tsconfig)
+└── src/index.ts     # R2 upload/download endpoints
+```
+
+### Security Model
+
+- **Client-side encryption**: Data encrypted before leaving the browser
+- **PBKDF2 key derivation**: 100,000 iterations from user passphrase
+- **Unguessable paths**: UUID v4 sync IDs (128-bit entropy)
+- **Zero-knowledge**: Cloudflare cannot read your data
+- **Bank tokens NOT synced**: Plaid/Teller credentials stay device-local
+
+### User Flow
+
+1. **Setup**: User creates passphrase → generates Sync ID → initial push
+2. **Auto-sync**: Every database write triggers sync after 2s debounce
+3. **Connect new device**: Enter Sync ID + passphrase → pull from cloud
+
+### Key APIs
+
+```typescript
+// Manual sync trigger
+import { triggerSync } from '@/lib/cloud-sync';
+await triggerSync('push'); // or 'pull'
+
+// Check sync status
+import { useSync } from '@/lib/cloud-sync';
+const { status, lastSync, error } = useSync();
+```
+
+### Cloudflare Worker Deployment
+
+```bash
+cd workers/sync-api
+npm install
+npx wrangler login
+npx wrangler r2 bucket create financeos-sync
+npx wrangler deploy
+```
+
+Worker URL will be: `https://financeos-sync.<subdomain>.workers.dev`
+
+### Testing
+
+```bash
+npm run test:unit -- encryption    # Encryption tests
+npm run test:integration           # Full sync round-trip tests
+```
+
+For testing, use `setPrismaClient()` to inject test database:
+
+```typescript
+import { setPrismaClient, resetPrismaClient } from '@/lib/cloud-sync';
+setPrismaClient(testPrisma);
+// ... run tests
+resetPrismaClient();
+```
+
+### Troubleshooting
+
+**Check if sync is working:**
+
+```bash
+curl "https://financeos-sync.financeos.workers.dev/metadata?syncId=YOUR_SYNC_ID"
+```
+
+**Find Sync ID in browser:**
+
+```javascript
+localStorage.getItem('financeos-sync-id');
+```
+
+**Forgot passphrase:** Data is unrecoverable. Disable sync and set up again with new passphrase (local data preserved).
 
 ## Code Quality & Linting
 

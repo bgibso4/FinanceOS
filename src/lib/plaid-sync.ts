@@ -8,8 +8,48 @@ import {
   shouldUpdateMerchant,
   detectTransfers,
   convertBankAmount,
+  retryWithBackoff,
+  RateLimitError,
   type MappedTransaction,
+  type RetryOptions,
 } from '@/lib/sync-common';
+
+/**
+ * Wrap a Plaid SDK call with retry/backoff/timeout.
+ * Converts Plaid's AxiosError 429 responses into RateLimitError for proper backoff.
+ */
+async function plaidCallWithRetry<T>(fn: () => Promise<T>, retryOpts?: RetryOptions): Promise<T> {
+  return retryWithBackoff(
+    async () => {
+      try {
+        return await fn();
+      } catch (error: unknown) {
+        // Plaid SDK wraps axios — extract status code from response
+        const axiosError = error as {
+          response?: { status?: number; headers?: Record<string, string> };
+        };
+        if (axiosError.response?.status === 429) {
+          const retryAfter = axiosError.response.headers?.['retry-after'];
+          let retryAfterMs = 5000;
+          if (retryAfter) {
+            const seconds = parseInt(retryAfter, 10);
+            retryAfterMs = isNaN(seconds) ? 5000 : seconds * 1000;
+          }
+          throw new RateLimitError('Plaid API rate limited (429)', retryAfterMs);
+        }
+        throw error;
+      }
+    },
+    {
+      onRetry: (attempt, error, delayMs) => {
+        console.warn(
+          `[Plaid] Retry attempt ${attempt} after ${Math.round(delayMs)}ms: ${error.message}`
+        );
+      },
+      ...retryOpts,
+    }
+  );
+}
 
 type PlaidConnectionWithEnrollment = {
   id: string;
@@ -114,14 +154,16 @@ export async function syncPlaidTransactions(
   const invertAmounts = connection.account.invertAmounts;
 
   while (hasMore) {
-    const response = await plaid.transactionsSync({
-      access_token: accessToken,
-      cursor,
-      count: 500,
-      options: {
-        include_personal_finance_category: true,
-      },
-    });
+    const response = await plaidCallWithRetry(() =>
+      plaid.transactionsSync({
+        access_token: accessToken,
+        cursor,
+        count: 500,
+        options: {
+          include_personal_finance_category: true,
+        },
+      })
+    );
 
     const { added, modified, removed, next_cursor, has_more } = response.data;
     totalFetched += added.length + modified.length + removed.length;

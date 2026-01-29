@@ -1,6 +1,7 @@
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
+import { RateLimitError, TimeoutError } from '@/lib/sync-common';
 
 const _TELLER_API_BASE = 'https://api.teller.io';
 
@@ -78,9 +79,10 @@ export async function tellerFetch<T>(
     method?: 'GET' | 'POST' | 'DELETE';
     body?: Record<string, unknown>;
     params?: Record<string, string>;
+    signal?: AbortSignal;
   } = {}
 ): Promise<T> {
-  const { method = 'GET', body, params } = options;
+  const { method = 'GET', body, params, signal } = options;
 
   let fullPath = apiPath;
   if (params) {
@@ -92,6 +94,12 @@ export async function tellerFetch<T>(
   const authHeader = 'Basic ' + Buffer.from(`${accessToken}:`).toString('base64');
 
   return new Promise((resolve, reject) => {
+    // If already aborted, reject immediately
+    if (signal?.aborted) {
+      reject(new TimeoutError('Request aborted'));
+      return;
+    }
+
     const tellerEnv = getTellerEnv();
 
     // Build request options with mTLS for non-sandbox environments
@@ -124,6 +132,15 @@ export async function tellerFetch<T>(
           } catch {
             reject(new Error('Failed to parse response JSON'));
           }
+        } else if (res.statusCode === 429) {
+          // Rate limited — parse Retry-After header
+          const retryAfter = res.headers['retry-after'];
+          let retryAfterMs = 5000; // Default 5s if no header
+          if (retryAfter) {
+            const seconds = parseInt(retryAfter, 10);
+            retryAfterMs = isNaN(seconds) ? 5000 : seconds * 1000;
+          }
+          reject(new RateLimitError(`Teller API rate limited (429)`, retryAfterMs));
         } else {
           let errorMessage = `Teller API error: ${res.statusCode}`;
           try {
@@ -137,8 +154,22 @@ export async function tellerFetch<T>(
       });
     });
 
+    // Handle abort signal
+    const onAbort = () => {
+      req.destroy();
+      reject(new TimeoutError('Request timed out'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+
     req.on('error', (err) => {
+      signal?.removeEventListener('abort', onAbort);
+      // Don't double-reject if we already rejected from abort
+      if (signal?.aborted) return;
       reject(new Error(`Teller API request failed: ${err.message}`));
+    });
+
+    req.on('close', () => {
+      signal?.removeEventListener('abort', onAbort);
     });
 
     if (body) {

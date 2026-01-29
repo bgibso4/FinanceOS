@@ -10,6 +10,7 @@ import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
 import { ds } from '@/lib/design-system';
 import { formatAmountCompact, getCurrencyFlag } from '@/lib/currency';
+import { triggerSync } from '@/lib/cloud-sync';
 
 type Tx = {
   id: string;
@@ -126,6 +127,7 @@ function TransactionsPageContent() {
     clearSelection();
     setBulkCategory('');
     loadData();
+    triggerSync();
   };
 
   const bulkDelete = async () => {
@@ -149,6 +151,7 @@ function TransactionsPageContent() {
 
     clearSelection();
     loadData();
+    triggerSync();
   };
 
   const bulkMarkAsTransfer = async () => {
@@ -166,6 +169,7 @@ function TransactionsPageContent() {
 
     clearSelection();
     loadData();
+    triggerSync();
   };
 
   useEffect(() => {
@@ -251,6 +255,7 @@ function TransactionsPageContent() {
 
       closeEditModal();
       loadData(); // Refresh data
+      triggerSync();
     } catch (error) {
       alert('Failed to update transaction');
     }
@@ -279,6 +284,7 @@ function TransactionsPageContent() {
 
       closeEditModal();
       loadData(); // Refresh data
+      triggerSync();
     } catch (error) {
       alert('Failed to delete transaction');
     }
@@ -303,6 +309,7 @@ function TransactionsPageContent() {
       });
 
       loadData();
+      triggerSync();
     } catch (error) {
       alert('Failed to update transfer status');
     }
@@ -341,6 +348,7 @@ function TransactionsPageContent() {
     setPendingCategories({});
     setPendingNotes({});
     loadData(); // Refresh data to update the review queue
+    triggerSync();
   };
 
   const createTransaction = async () => {
@@ -380,6 +388,7 @@ function TransactionsPageContent() {
         accountId: '',
       });
       loadData();
+      triggerSync();
     } catch (error) {
       console.error('Failed to create transaction:', error);
       alert('Failed to create transaction');
@@ -394,6 +403,7 @@ function TransactionsPageContent() {
         body: JSON.stringify({ confidenceScore: 1.0 }),
       });
       loadData();
+      triggerSync();
     } catch (error) {
       alert('Failed to confirm category');
     }
@@ -428,6 +438,7 @@ function TransactionsPageContent() {
       });
       setReturnModalOpen(false);
       loadData();
+      triggerSync();
     } catch (error) {
       alert('Failed to link return');
     }
@@ -439,6 +450,7 @@ function TransactionsPageContent() {
         method: 'DELETE',
       });
       loadData();
+      triggerSync();
     } catch (error) {
       alert('Failed to unlink return');
     }
@@ -459,6 +471,7 @@ function TransactionsPageContent() {
 
     await Promise.all(updates);
     loadData(); // Refresh to remove from high confidence queue
+    triggerSync();
   };
 
   const reviewSection = (title: string, txs: Tx[]) => {

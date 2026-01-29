@@ -3,6 +3,142 @@ import { normalizeMerchant } from '@/lib/categorization';
 import { v4 as uuid } from 'uuid';
 import type { PrismaClient } from '@prisma/client';
 
+// ─── Retry with Exponential Backoff ─────────────────────────────────────────
+
+export class RateLimitError extends Error {
+  retryAfterMs: number;
+  constructor(message: string, retryAfterMs: number) {
+    super(message);
+    this.name = 'RateLimitError';
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+export class TimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TimeoutError';
+  }
+}
+
+export type RetryOptions = {
+  /** Max number of retry attempts (default: 3) */
+  maxRetries?: number;
+  /** Initial backoff delay in ms (default: 1000) */
+  initialDelayMs?: number;
+  /** Max backoff delay in ms (default: 30000) */
+  maxDelayMs?: number;
+  /** Timeout per attempt in ms (default: 30000) */
+  timeoutMs?: number;
+  /** Called before each retry with attempt info */
+  onRetry?: (attempt: number, error: Error, delayMs: number) => void;
+  /** Determine if an error is retryable (default: transient errors only) */
+  isRetryable?: (error: Error) => boolean;
+};
+
+const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, 'onRetry' | 'isRetryable'>> = {
+  maxRetries: 3,
+  initialDelayMs: 1000,
+  maxDelayMs: 30000,
+  timeoutMs: 30000,
+};
+
+/**
+ * Default check for whether an error is retryable.
+ * Retries on: rate limits, timeouts, network errors, 5xx server errors.
+ * Does NOT retry on: auth errors (401/403), not found (404), validation (400).
+ */
+function defaultIsRetryable(error: Error): boolean {
+  if (error instanceof RateLimitError) return true;
+  if (error instanceof TimeoutError) return true;
+
+  const msg = error.message.toLowerCase();
+
+  // Network-level failures
+  if (msg.includes('econnreset') || msg.includes('econnrefused')) return true;
+  if (msg.includes('etimedout') || msg.includes('esockettimedout')) return true;
+  if (msg.includes('enotfound')) return true;
+  if (msg.includes('network') || msg.includes('socket hang up')) return true;
+
+  // Server errors (5xx)
+  if (msg.includes('500') || msg.includes('502') || msg.includes('503') || msg.includes('504'))
+    return true;
+  if (msg.includes('internal server error') || msg.includes('bad gateway')) return true;
+  if (msg.includes('service unavailable') || msg.includes('gateway timeout')) return true;
+
+  return false;
+}
+
+/**
+ * Execute a function with retry logic, exponential backoff, and timeout.
+ * Handles 429 rate-limit responses by respecting Retry-After headers.
+ */
+export async function retryWithBackoff<T>(
+  fn: (signal: AbortSignal) => Promise<T>,
+  options: RetryOptions = {}
+): Promise<T> {
+  const {
+    maxRetries = DEFAULT_RETRY_OPTIONS.maxRetries,
+    initialDelayMs = DEFAULT_RETRY_OPTIONS.initialDelayMs,
+    maxDelayMs = DEFAULT_RETRY_OPTIONS.maxDelayMs,
+    timeoutMs = DEFAULT_RETRY_OPTIONS.timeoutMs,
+  } = options;
+  const isRetryable = options.isRetryable ?? defaultIsRetryable;
+  const onRetry = options.onRetry;
+
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const result = await fn(controller.signal);
+      clearTimeout(timer);
+      return result;
+    } catch (error: unknown) {
+      clearTimeout(timer);
+
+      const err =
+        error instanceof Error
+          ? error
+          : new Error(typeof error === 'string' ? error : 'Unknown error');
+
+      // Convert AbortError to TimeoutError
+      if (err.name === 'AbortError' || controller.signal.aborted) {
+        lastError = new TimeoutError(`Request timed out after ${timeoutMs}ms`);
+      } else {
+        lastError = err;
+      }
+
+      // Don't retry if we've exhausted attempts or the error isn't retryable
+      if (attempt >= maxRetries || !isRetryable(lastError)) {
+        throw lastError;
+      }
+
+      // Calculate delay: use Retry-After for rate limits, exponential backoff otherwise
+      let delayMs: number;
+      if (lastError instanceof RateLimitError) {
+        delayMs = lastError.retryAfterMs;
+      } else {
+        // Exponential backoff with jitter: base * 2^attempt + random jitter
+        const exponentialDelay = initialDelayMs * Math.pow(2, attempt);
+        const jitter = Math.random() * initialDelayMs * 0.5;
+        delayMs = Math.min(exponentialDelay + jitter, maxDelayMs);
+      }
+
+      onRetry?.(attempt + 1, lastError, delayMs);
+      await sleep(delayMs);
+    }
+  }
+
+  throw lastError ?? new Error('Retry failed');
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Convert a bank API amount to FinanceOS convention.
  *
