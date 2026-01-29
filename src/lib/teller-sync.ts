@@ -7,6 +7,7 @@ import {
   shouldUpdateMerchant,
   detectTransfers,
   convertBankAmount,
+  retryWithBackoff,
   type MappedTransaction,
 } from '@/lib/sync-common';
 
@@ -123,10 +124,20 @@ export async function syncTellerTransactions(
       params.from_id = fromId;
     }
 
-    const transactions = await tellerFetch<TellerTransactionsResponse>(
-      `/accounts/${connection.tellerAccountId}/transactions`,
-      accessToken,
-      { params }
+    const transactions = await retryWithBackoff(
+      (signal) =>
+        tellerFetch<TellerTransactionsResponse>(
+          `/accounts/${connection.tellerAccountId}/transactions`,
+          accessToken,
+          { params, signal }
+        ),
+      {
+        onRetry: (attempt, error, delayMs) => {
+          console.warn(
+            `[Teller] Retry attempt ${attempt} after ${Math.round(delayMs)}ms: ${error.message}`
+          );
+        },
+      }
     );
 
     if (transactions.length === 0) {
