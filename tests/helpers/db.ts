@@ -75,6 +75,7 @@ export async function resetTestDb(): Promise<void> {
 
   // Delete in order respecting foreign keys
   await prisma.transaction.deleteMany();
+  await prisma.recurringTransaction.deleteMany();
   await prisma.categoryBudget.deleteMany();
   await prisma.rule.deleteMany();
   await prisma.tellerConnection.deleteMany();

@@ -8,20 +8,7 @@ All feature planning and task tracking for FinanceOS development.
 
 ---
 
-## 1. Net Worth Report Enhancements
-**Impact:** Medium | **Effort:** Low-Medium | **Status:** Core features complete, export deferred
-
-Net worth snapshots, trend charts, comparison, backfill, inflation adjustment, and forecasting are all built. Export deferred until needed.
-
-- [x] Inflation-adjusted calculations (manual annual rates in Settings, toggle in Reports)
-- [x] Forecasting / projections based on savings rate (strategy pattern, linear projection)
-- [ ] Scheduled automatic snapshots (isAutomatic flag exists, needs trigger)
-- [ ] Quarter-over-quarter rollup summaries
-- [ ] Export options (PDF, CSV)
-
----
-
-## 2. Recurring Transactions & Subscription Management
+## 1. Recurring Transactions & Subscription Management
 **Impact:** High | **Effort:** Medium | **Status:** Not started
 
 High user value — everyone wants to see their subscriptions. Bounded scope with a clear algorithm.
@@ -43,32 +30,7 @@ High user value — everyone wants to see their subscriptions. Bounded scope wit
 
 ---
 
-## 3. Enhanced Reports & Month-End Closing
-**Impact:** Medium-High | **Effort:** Medium | **Status:** Basic monthly/cash flow reports exist, needs closing workflow
-
-Monthly detail, cash flow trailing-12, and net worth reports are built. Missing the structured closing workflow and additional report types.
-
-**Month-end closing workflow:**
-- [ ] Review all uncategorized transactions
-- [ ] Reconcile account balances
-- [ ] Confirm all linked transactions
-- [ ] Generate comprehensive report
-
-**Report types:**
-- [x] Monthly summary (income, spending by category)
-- [x] Cash flow trailing 12 months with averages
-- [ ] Year-over-year comparison
-- [ ] Tax preparation report (categorized by tax category)
-- [ ] Custom date range reports
-
-**Export options:**
-- [ ] PDF reports
-- [ ] CSV exports
-- [ ] Charts as images
-
----
-
-## 4. AI Chat Analyst (Full Redesign)
+## 2. AI Chat Analyst (Full Redesign)
 **Impact:** Huge | **Effort:** High | **Status:** Needs full rebuild with LLM
 
 A basic heuristic agent exists (drawer UI, canned query patterns, pin-to-dashboard) but it's too limited to be useful. Needs a ground-up redesign with real LLM integration.
@@ -89,7 +51,29 @@ A basic heuristic agent exists (drawer UI, canned query patterns, pin-to-dashboa
 
 ---
 
-## 5. Mobile App / PWA
+## 3. Transaction Splitting (Blocked - Needs Design)
+**Impact:** Medium | **Effort:** Medium-High | **Status:** Blocked on design
+
+A basic split API exists but the approach needs rethinking. The current implementation deletes the parent transaction, which breaks sync deduplication. This is more complex than expected and needs a proper design before building further.
+
+**Problem:** Current split API deletes the parent transaction, losing its `externalId`. On next Plaid/Teller sync, the original transaction would be re-imported as a duplicate.
+
+**Possible solutions:**
+1. Keep parent as hidden "shell" with `isSplit: true` - preserves `externalId` for dedup, children reference parent
+2. Preserve `externalId` on first child only - dedup works but loses parent-child relationship
+3. Track consumed `externalId`s in separate table - skip during sync even if no transaction has them
+
+**Tasks (once design is decided):**
+- [ ] Choose and document the design approach
+- [ ] Update schema to support split relationships
+- [ ] Rewrite split API to preserve `externalId` for dedup
+- [ ] Build split UI in transaction modal
+- [ ] Show split indicator in transaction list
+- [ ] Allow editing/undoing splits
+
+---
+
+## 4. Mobile App / PWA
 **Impact:** High | **Effort:** High | **Status:** Not started
 
 Huge daily usability win — makes the app useful throughout the week instead of just at a desk. PWA approach builds on the existing Next.js app rather than starting from scratch.
@@ -102,7 +86,7 @@ Huge daily usability win — makes the app useful throughout the week instead of
 
 ---
 
-## 6. Bill Reminders & Due Dates
+## 5. Bill Reminders & Due Dates
 **Impact:** Medium | **Effort:** Medium | **Status:** Not started
 
 - [ ] Mark transactions as bills with due dates
@@ -113,7 +97,7 @@ Huge daily usability win — makes the app useful throughout the week instead of
 
 ---
 
-## 7. Data Backup & Export
+## 6. Data Backup & Export
 **Impact:** Medium | **Effort:** Medium | **Status:** Not started
 
 Cloud sync handles device-to-device transfer. This is about user-facing export and portability.
@@ -125,7 +109,7 @@ Cloud sync handles device-to-device transfer. This is about user-facing export a
 
 ---
 
-## 8. Goals & Spending/Savings Tracking
+## 7. Goals & Spending/Savings Tracking
 **Impact:** Medium | **Effort:** Medium | **Status:** Not started
 
 Flexible goal tracking that goes beyond monthly category budgets. Goals can track spending OR saving, tied to tags or categories, over custom timeframes. This is distinct from category budgets (recurring monthly caps) — goals are for projects, events, and longer-term targets.
@@ -154,29 +138,32 @@ Flexible goal tracking that goes beyond monthly category budgets. Goals can trac
 
 ---
 
-## 9. Transaction Splitting (Blocked - Needs Design)
-**Impact:** Medium | **Effort:** Medium-High | **Status:** Blocked on design
+## 8. Enhanced Reports & Month-End Closing
+**Impact:** Medium-High | **Effort:** Medium | **Status:** Basic monthly/cash flow reports exist, needs closing workflow
 
-A basic split API exists but the approach needs rethinking. The current implementation deletes the parent transaction, which breaks sync deduplication. This is more complex than expected and needs a proper design before building further.
+Monthly detail, cash flow trailing-12, and net worth reports are built. Missing the structured closing workflow and additional report types.
 
-**Problem:** Current split API deletes the parent transaction, losing its `externalId`. On next Plaid/Teller sync, the original transaction would be re-imported as a duplicate.
+**Month-end closing workflow:**
+- [ ] Review all uncategorized transactions
+- [ ] Reconcile account balances
+- [ ] Confirm all linked transactions
+- [ ] Generate comprehensive report
 
-**Possible solutions:**
-1. Keep parent as hidden "shell" with `isSplit: true` - preserves `externalId` for dedup, children reference parent
-2. Preserve `externalId` on first child only - dedup works but loses parent-child relationship
-3. Track consumed `externalId`s in separate table - skip during sync even if no transaction has them
+**Report types:**
+- [x] Monthly summary (income, spending by category)
+- [x] Cash flow trailing 12 months with averages
+- [ ] Year-over-year comparison
+- [ ] Tax preparation report (categorized by tax category)
+- [ ] Custom date range reports
 
-**Tasks (once design is decided):**
-- [ ] Choose and document the design approach
-- [ ] Update schema to support split relationships
-- [ ] Rewrite split API to preserve `externalId` for dedup
-- [ ] Build split UI in transaction modal
-- [ ] Show split indicator in transaction list
-- [ ] Allow editing/undoing splits
+**Export options:**
+- [ ] PDF reports
+- [ ] CSV exports
+- [ ] Charts as images
 
 ---
 
-## 10. Tax Preparation Helper
+## 9. Tax Preparation Helper
 **Impact:** Medium | **Effort:** Medium | **Status:** Not started
 
 Seasonal value. Overlaps with tags and reports — best built after those.
@@ -189,7 +176,7 @@ Seasonal value. Overlaps with tags and reports — best built after those.
 
 ---
 
-## 11. Multi-Currency Enhancements
+## 10. Multi-Currency Enhancements
 **Impact:** Low-Medium | **Effort:** Medium | **Status:** Core features complete
 
 Niche — only matters for users with foreign accounts. Core currency support (5 currencies, manual rates, conversion, per-account config) is done.
@@ -202,7 +189,7 @@ Niche — only matters for users with foreign accounts. Core currency support (5
 
 ---
 
-## 12. Advanced Analytics
+## 11. Advanced Analytics
 **Impact:** Medium | **Effort:** High | **Status:** Not started
 
 - [ ] Spending trends over time
@@ -214,7 +201,7 @@ Niche — only matters for users with foreign accounts. Core currency support (5
 
 ---
 
-## 13. Investment Tracking (Net Worth Phase 3+)
+## 12. Investment Tracking (Net Worth Phase 3+)
 **Impact:** Medium | **Effort:** High | **Status:** Planned
 **Design Doc:** `docs/feature/NET_WORTH_EVOLUTION.md`
 
@@ -226,7 +213,7 @@ Niche — only matters for users with foreign accounts. Core currency support (5
 
 ---
 
-## 14. Shared Finances / Multi-User
+## 13. Shared Finances / Multi-User
 
 **Impact:** Medium | **Effort:** Very High | **Status:** Not started
 
@@ -289,7 +276,7 @@ Foundational architecture change — auth, permissions, data isolation.
 ### Reports & Analytics
 - [x] **Dashboard** - Account balances, net worth, sparklines, pinned charts, filters
 - [x] **Analytics page** - Monthly breakdown, budget tracking, category drill-down, outlier flagging
-- [x] **Net Worth Reports** - Snapshots, trend visualization, grouped breakdowns, comparison mode, backfill historical data
+- [x] **Net Worth Reports** - Snapshots, trend visualization, grouped breakdowns, comparison mode, backfill historical data, inflation-adjusted calculations (manual annual rates), forecasting/projections (strategy pattern, linear projection)
 - [x] **Cash Flow Reports** - Trailing 12-month summary with averages, monthly detail, backfill
 - [x] **Account Classification & Net Worth Tracking** - trackingMode (cash_flow/balance_only), net worth snapshots, trend charts, comparison, backfill
 

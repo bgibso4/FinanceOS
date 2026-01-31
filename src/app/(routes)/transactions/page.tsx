@@ -13,6 +13,7 @@ import { formatAmountCompact, getCurrencyFlag } from '@/lib/currency';
 import { triggerSync } from '@/lib/cloud-sync';
 import { TagInput, getTagColors } from '@/components/tag-input';
 import type { TagDef } from '@/components/tag-input';
+import { SubscriptionsTab } from '@/components/subscriptions-tab';
 
 type Tx = {
   id: string;
@@ -63,7 +64,7 @@ const sortByName = (a: { name: string }, b: { name: string }) =>
 
 function TransactionsPageContent() {
   const searchParams = useSearchParams();
-  const tab = (searchParams.get('tab') || 'review') as 'review' | 'all';
+  const tab = (searchParams.get('tab') || 'review') as 'review' | 'all' | 'subscriptions';
 
   const [queue, setQueue] = useState<Queue | null>(null);
   const [transactions, setTransactions] = useState<Tx[]>([]);
@@ -1677,6 +1678,10 @@ function TransactionsPageContent() {
           </div>
         )}
       </Modal>
+
+      {tab === 'subscriptions' && (
+        <SubscriptionsTab accounts={accounts} categories={categories} userSettings={userSettings} />
+      )}
     </div>
   );
 }

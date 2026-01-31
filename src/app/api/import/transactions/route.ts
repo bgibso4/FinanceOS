@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { importCsv } from '@/lib/import';
+import { detectRecurringTransactions, syncDetectedRecurring } from '@/lib/recurring';
 
 const schema = z.object({
   csv: z.string(),
@@ -25,5 +26,17 @@ export async function POST(req: NextRequest) {
     parsed.accountId,
     parsed.invertAmounts
   );
-  return NextResponse.json(result);
+
+  // Run recurring transaction detection for this account after import
+  try {
+    const detected = await detectRecurringTransactions(prisma, parsed.accountId);
+    const recurringResult = await syncDetectedRecurring(prisma, detected);
+    return NextResponse.json({
+      ...result,
+      recurringUpdated: recurringResult,
+    });
+  } catch (_err) {
+    // Non-critical — return import result even if detection fails
+    return NextResponse.json(result);
+  }
 }

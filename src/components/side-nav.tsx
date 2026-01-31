@@ -15,6 +15,7 @@ const links = [
     submenu: [
       { href: '/transactions?tab=all', label: 'All Transactions' },
       { href: '/transactions?tab=review', label: 'Review Queue' },
+      { href: '/transactions?tab=subscriptions', label: 'Subscriptions' },
     ],
   },
   {
