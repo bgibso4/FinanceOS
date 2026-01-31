@@ -231,12 +231,7 @@ function TransactionsPageContent() {
     loadData();
   }, [searchParams]);
 
-  const loadData = () => {
-    fetch('/api/review-queue')
-      .then((r) => r.json())
-      .then((d) => setQueue(d));
-
-    // Build query string from search params for filtered transactions
+  const loadData = async () => {
     const queryParams = new URLSearchParams();
     const preset = searchParams.get('preset');
     const account = searchParams.get('account');
@@ -255,22 +250,22 @@ function TransactionsPageContent() {
     if (tag) queryParams.set('tag', tag);
 
     const queryString = queryParams.toString();
-    fetch(`/api/transactions${queryString ? `?${queryString}` : ''}`)
-      .then((r) => r.json())
-      .then((d) => setTransactions(d.transactions ?? []));
 
-    fetch('/api/categories')
-      .then((r) => r.json())
-      .then((d) => setCategories(d.categories ?? []));
-    fetch('/api/accounts')
-      .then((r) => r.json())
-      .then((d) => setAccounts(d.accounts ?? []));
-    fetch('/api/settings')
-      .then((r) => r.json())
-      .then((d) => setUserSettings(d.settings ?? null));
-    fetch('/api/tags')
-      .then((r) => r.json())
-      .then((d) => setAvailableTags(d.tags ?? []));
+    const [queueData, txData, catData, accData, settingsData, tagsData] = await Promise.all([
+      fetch('/api/review-queue').then((r) => r.json()),
+      fetch(`/api/transactions${queryString ? `?${queryString}` : ''}`).then((r) => r.json()),
+      fetch('/api/categories').then((r) => r.json()),
+      fetch('/api/accounts').then((r) => r.json()),
+      fetch('/api/settings').then((r) => r.json()),
+      fetch('/api/tags').then((r) => r.json()),
+    ]);
+
+    setQueue(queueData);
+    setTransactions(txData.transactions ?? []);
+    setCategories(catData.categories ?? []);
+    setAccounts(accData.accounts ?? []);
+    setUserSettings(settingsData.settings ?? null);
+    setAvailableTags(tagsData.tags ?? []);
   };
 
   const setPendingCategory = (transactionId: string, categoryId: string) => {
