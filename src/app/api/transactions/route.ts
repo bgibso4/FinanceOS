@@ -40,7 +40,9 @@ export async function GET(req: NextRequest) {
   if (filters.accounts) where.accountId = { in: filters.accounts };
   if (filters.categories) where.categoryId = { in: filters.categories };
   if (filters.merchant) where.merchant = { contains: filters.merchant };
-  if (filters.tags) where.tags = { array_contains: filters.tags };
+  // Note: tags are stored as JSON strings in SQLite (not native arrays),
+  // so we filter them in JS after the query instead of using Prisma filters.
+  if (filters.tags) where.tags = { not: null };
 
   const transactions = await prisma.transaction.findMany({
     where,
@@ -63,13 +65,26 @@ export async function GET(req: NextRequest) {
   // Filter by date string to handle timezone issues
   let filtered = transactions;
   if (preset === 'custom' && (filters.startDate || filters.endDate)) {
-    filtered = transactions.filter((tx) => {
+    filtered = filtered.filter((tx) => {
       const txDateStr = tx.date.toISOString().split('T')[0]; // Get YYYY-MM-DD
       if (filters.startDate && txDateStr < filters.startDate) return false;
       if (filters.endDate && txDateStr > filters.endDate) return false;
       return true;
     });
     console.log('After date string filtering:', filtered.length);
+  }
+
+  // Filter by tags (JSON string field, filtered in JS)
+  if (filters.tags) {
+    filtered = filtered.filter((tx) => {
+      if (!tx.tags) return false;
+      try {
+        const txTags: string[] = JSON.parse(tx.tags);
+        return filters.tags!.every((t) => txTags.includes(t));
+      } catch {
+        return false;
+      }
+    });
   }
 
   const shaped = filtered.map((tx) => ({
