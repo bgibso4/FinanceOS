@@ -20,6 +20,7 @@ export function FilterRibbon() {
   const router = useRouter();
   const pathname = usePathname();
   const [accounts, setAccounts] = useState<Option[]>([]);
+  const [tags, setTags] = useState<{ id: string; name: string; color: string }[]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
@@ -27,10 +28,15 @@ export function FilterRibbon() {
       .then((r) => r.json())
       .then((data) => setAccounts(data.accounts?.filter((a: any) => a.isActive !== false) ?? []))
       .catch(() => {});
+    fetch('/api/tags')
+      .then((r) => r.json())
+      .then((data) => setTags(data.tags ?? []))
+      .catch(() => {});
   }, []);
 
   const preset = (params.get('preset') as DateRangePreset) ?? 'last-3-months';
   const selectedAccount = params.get('account') ?? '';
+  const selectedTag = params.get('tag') ?? '';
   const startDate = params.get('startDate') ?? '';
   const endDate = params.get('endDate') ?? '';
 
@@ -43,7 +49,7 @@ export function FilterRibbon() {
     router.push(`${pathname}?${next.toString()}`);
   };
 
-  const activeFiltersCount = [selectedAccount].filter(Boolean).length;
+  const activeFiltersCount = [selectedAccount, selectedTag].filter(Boolean).length;
   const currentPreset = presets.find((p) => p.id === preset);
 
   return (
@@ -90,13 +96,30 @@ export function FilterRibbon() {
               ))}
             </select>
 
+            {/* Tag Quick Filter */}
+            {tags.length > 0 && (
+              <select
+                className="text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={selectedTag}
+                onChange={(e) => updateParams({ tag: e.target.value || null })}
+              >
+                <option value="">All Tags</option>
+                {tags.map((t) => (
+                  <option key={t.id} value={t.name}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            )}
+
             {/* Clear Filters */}
-            {(selectedAccount || preset !== 'last-3-months') && (
+            {(selectedAccount || selectedTag || preset !== 'last-3-months') && (
               <button
                 className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 px-2 py-1"
                 onClick={() =>
                   updateParams({
                     account: null,
+                    tag: null,
                     preset: 'last-3-months',
                     startDate: null,
                     endDate: null,

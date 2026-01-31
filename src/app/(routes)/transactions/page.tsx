@@ -11,6 +11,8 @@ import { Modal } from '@/components/ui/modal';
 import { ds } from '@/lib/design-system';
 import { formatAmountCompact, getCurrencyFlag } from '@/lib/currency';
 import { triggerSync } from '@/lib/cloud-sync';
+import { TagInput, getTagColors } from '@/components/tag-input';
+import type { TagDef } from '@/components/tag-input';
 
 type Tx = {
   id: string;
@@ -22,6 +24,7 @@ type Tx = {
   confidenceScore: number;
   isTransfer: boolean;
   note?: string | null;
+  tags?: string[];
   isOffset?: boolean;
   linkedTransactionId?: string | null;
   linkedTransaction?: Tx | null;
@@ -78,6 +81,7 @@ function TransactionsPageContent() {
     categoryId: '',
     note: '',
     accountId: '',
+    tags: [] as string[],
   });
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
 
@@ -87,9 +91,14 @@ function TransactionsPageContent() {
   const [potentialMatches, setPotentialMatches] = useState<any[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(false);
 
+  // Tag state
+  const [availableTags, setAvailableTags] = useState<TagDef[]>([]);
+
   // Bulk selection state
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [bulkCategory, setBulkCategory] = useState<string>('');
+  const [bulkTagAction, setBulkTagAction] = useState<'add' | 'remove'>('add');
+  const [bulkTagName, setBulkTagName] = useState<string>('');
 
   const toggleSelection = (txId: string) => {
     setSelectedTransactions((prev) => {
@@ -172,6 +181,51 @@ function TransactionsPageContent() {
     triggerSync();
   };
 
+  const bulkUpdateTags = async () => {
+    if (!bulkTagName || selectedTransactions.size === 0) return;
+
+    await Promise.all(
+      Array.from(selectedTransactions).map(async (txId) => {
+        const tx = transactions.find((t) => t.id === txId);
+        const currentTags = tx?.tags || [];
+        let newTags: string[];
+
+        if (bulkTagAction === 'add') {
+          newTags = currentTags.includes(bulkTagName) ? currentTags : [...currentTags, bulkTagName];
+        } else {
+          newTags = currentTags.filter((t) => t !== bulkTagName);
+        }
+
+        return fetch(`/api/transactions/${txId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tags: newTags }),
+        });
+      })
+    );
+
+    clearSelection();
+    setBulkTagName('');
+    loadData();
+    triggerSync();
+  };
+
+  const createTag = async (name: string): Promise<TagDef | null> => {
+    try {
+      const res = await fetch('/api/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, color: 'blue' }),
+      });
+      if (!res.ok) return null;
+      const tag = await res.json();
+      setAvailableTags((prev) => [...prev, tag].sort((a, b) => a.name.localeCompare(b.name)));
+      return tag;
+    } catch {
+      return null;
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, [searchParams]);
@@ -189,6 +243,7 @@ function TransactionsPageContent() {
     const merchant = searchParams.get('merchant');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const tag = searchParams.get('tag');
 
     if (preset) queryParams.set('preset', preset);
     if (account) queryParams.set('account', account);
@@ -196,6 +251,7 @@ function TransactionsPageContent() {
     if (merchant) queryParams.set('merchant', merchant);
     if (startDate) queryParams.set('startDate', startDate);
     if (endDate) queryParams.set('endDate', endDate);
+    if (tag) queryParams.set('tag', tag);
 
     const queryString = queryParams.toString();
     fetch(`/api/transactions${queryString ? `?${queryString}` : ''}`)
@@ -211,6 +267,9 @@ function TransactionsPageContent() {
     fetch('/api/settings')
       .then((r) => r.json())
       .then((d) => setUserSettings(d.settings ?? null));
+    fetch('/api/tags')
+      .then((r) => r.json())
+      .then((d) => setAvailableTags(d.tags ?? []));
   };
 
   const setPendingCategory = (transactionId: string, categoryId: string) => {
@@ -250,6 +309,7 @@ function TransactionsPageContent() {
           merchant: editingTransaction.merchant,
           categoryId: editingTransaction.category?.id || null,
           note: editingTransaction.note,
+          tags: editingTransaction.tags || [],
         }),
       });
 
@@ -368,6 +428,7 @@ function TransactionsPageContent() {
           accountId: newTransaction.accountId,
           categoryId: newTransaction.categoryId || null,
           note: newTransaction.note || null,
+          tags: newTransaction.tags.length > 0 ? newTransaction.tags : undefined,
         }),
       });
 
@@ -386,6 +447,7 @@ function TransactionsPageContent() {
         categoryId: '',
         note: '',
         accountId: '',
+        tags: [],
       });
       loadData();
       triggerSync();
@@ -791,6 +853,35 @@ function TransactionsPageContent() {
                     Apply
                   </Button>
                 </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    className="text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                    value={bulkTagAction}
+                    onChange={(e) => setBulkTagAction(e.target.value as 'add' | 'remove')}
+                  >
+                    <option value="add">Add Tag</option>
+                    <option value="remove">Remove Tag</option>
+                  </select>
+                  <select
+                    className="w-40 text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                    value={bulkTagName}
+                    onChange={(e) => setBulkTagName(e.target.value)}
+                  >
+                    <option value="">Select tag...</option>
+                    {availableTags.map((tag) => (
+                      <option key={tag.id} value={tag.name}>
+                        {tag.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    className="!bg-indigo-600 hover:!bg-indigo-700 text-white py-2 px-3 text-xs"
+                    disabled={!bulkTagName}
+                    onClick={bulkUpdateTags}
+                  >
+                    Apply Tag
+                  </Button>
+                </div>
                 <Button
                   className="!bg-red-600 hover:!bg-red-700 text-white py-2 px-3 text-xs"
                   onClick={bulkDelete}
@@ -884,6 +975,22 @@ function TransactionsPageContent() {
                           {tx.note && (
                             <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 italic">
                               {tx.note}
+                            </div>
+                          )}
+                          {tx.tags && tx.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {tx.tags.map((tagName: string) => {
+                                const tagDef = availableTags.find((t) => t.name === tagName);
+                                const colors = getTagColors(tagDef?.color || 'gray');
+                                return (
+                                  <span
+                                    key={tagName}
+                                    className={`text-xs px-1.5 py-0.5 rounded-full ${colors.bg} ${colors.text}`}
+                                  >
+                                    {tagName}
+                                  </span>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -1084,6 +1191,17 @@ function TransactionsPageContent() {
                         note: e.target.value,
                       })
                     }
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
+                    Tags
+                  </label>
+                  <TagInput
+                    availableTags={availableTags}
+                    value={editingTransaction.tags || []}
+                    onChange={(tags) => setEditingTransaction({ ...editingTransaction, tags })}
+                    onCreateTag={createTag}
                   />
                 </div>
                 <Button
@@ -1370,6 +1488,18 @@ function TransactionsPageContent() {
               placeholder="Add a note..."
               value={newTransaction.note}
               onChange={(e) => setNewTransaction({ ...newTransaction, note: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
+              Tags (optional)
+            </label>
+            <TagInput
+              availableTags={availableTags}
+              value={newTransaction.tags}
+              onChange={(tags) => setNewTransaction({ ...newTransaction, tags })}
+              onCreateTag={createTag}
             />
           </div>
 

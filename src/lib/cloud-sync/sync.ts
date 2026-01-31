@@ -19,6 +19,7 @@ import type {
   MonthlySnapshotExport,
   NetWorthSnapshotExport,
   ExchangeRateExport,
+  TagExport,
   UserSettingsExport,
 } from './types';
 import { validateSyncPayload } from './types';
@@ -88,6 +89,7 @@ export async function exportDatabase(): Promise<SyncPayload> {
     monthlySnapshots,
     netWorthSnapshots,
     exchangeRates,
+    tags,
     settings,
   ] = await Promise.all([
     getPrisma().account.findMany(),
@@ -98,6 +100,7 @@ export async function exportDatabase(): Promise<SyncPayload> {
     getPrisma().monthlySnapshot.findMany(),
     getPrisma().netWorthSnapshot.findMany(),
     getPrisma().exchangeRate.findMany(),
+    getPrisma().tag.findMany(),
     getPrisma().userSettings.findFirst(),
   ]);
 
@@ -206,6 +209,14 @@ export async function exportDatabase(): Promise<SyncPayload> {
         createdAt: e.createdAt.toISOString(),
       })
     ),
+    tags: tags.map(
+      (t): TagExport => ({
+        id: t.id,
+        name: t.name,
+        color: t.color,
+        createdAt: t.createdAt.toISOString(),
+      })
+    ),
     settings: settings
       ? ({
           id: settings.id,
@@ -228,6 +239,7 @@ export async function exportDatabase(): Promise<SyncPayload> {
       monthlySnapshots: data.monthlySnapshots.length,
       netWorthSnapshots: data.netWorthSnapshots.length,
       exchangeRates: data.exchangeRates.length,
+      tags: (data.tags || []).length,
     },
     checksum,
   };
@@ -267,6 +279,7 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
     await tx.categoryBudget.deleteMany();
     await tx.rule.deleteMany();
     await tx.category.deleteMany();
+    await tx.tag.deleteMany();
     await tx.monthlySnapshot.deleteMany();
     await tx.netWorthSnapshot.deleteMany();
     await tx.exchangeRate.deleteMany();
@@ -454,6 +467,20 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
           createdAt: new Date(rate.createdAt),
         },
       });
+    }
+
+    // Import tags
+    if (data.tags) {
+      for (const tag of data.tags) {
+        await tx.tag.create({
+          data: {
+            id: tag.id,
+            name: tag.name,
+            color: tag.color,
+            createdAt: new Date(tag.createdAt),
+          },
+        });
+      }
     }
 
     // Import settings

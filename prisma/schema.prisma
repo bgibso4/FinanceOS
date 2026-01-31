@@ -131,6 +131,13 @@ model Rule {
   createdAt   DateTime  @default(now())
 }
 
+model Tag {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  color     String   @default("blue")
+  createdAt DateTime @default(now())
+}
+
 model Transaction {
   id                 String      @id @default(uuid())
   date               DateTime
