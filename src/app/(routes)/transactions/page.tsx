@@ -136,7 +136,7 @@ function TransactionsPageContent() {
 
     clearSelection();
     setBulkCategory('');
-    loadData();
+    refreshTransactionsAndQueue();
     triggerSync();
   };
 
@@ -160,7 +160,7 @@ function TransactionsPageContent() {
     );
 
     clearSelection();
-    loadData();
+    refreshTransactionsAndQueue();
     triggerSync();
   };
 
@@ -178,7 +178,7 @@ function TransactionsPageContent() {
     );
 
     clearSelection();
-    loadData();
+    refreshTransactionsAndQueue();
     triggerSync();
   };
 
@@ -207,7 +207,7 @@ function TransactionsPageContent() {
 
     clearSelection();
     setBulkTagName('');
-    loadData();
+    refreshTransactionsAndQueue();
     triggerSync();
   };
 
@@ -268,6 +268,35 @@ function TransactionsPageContent() {
     setAvailableTags(tagsData.tags ?? []);
   };
 
+  const refreshTransactionsAndQueue = async () => {
+    const queryParams = new URLSearchParams();
+    const preset = searchParams.get('preset');
+    const account = searchParams.get('account');
+    const category = searchParams.get('category');
+    const merchant = searchParams.get('merchant');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    const tag = searchParams.get('tag');
+
+    if (preset) queryParams.set('preset', preset);
+    if (account) queryParams.set('account', account);
+    if (category) queryParams.set('category', category);
+    if (merchant) queryParams.set('merchant', merchant);
+    if (startDate) queryParams.set('startDate', startDate);
+    if (endDate) queryParams.set('endDate', endDate);
+    if (tag) queryParams.set('tag', tag);
+
+    const queryString = queryParams.toString();
+
+    const [queueData, txData] = await Promise.all([
+      fetch('/api/review-queue').then((r) => r.json()),
+      fetch(`/api/transactions${queryString ? `?${queryString}` : ''}`).then((r) => r.json()),
+    ]);
+
+    setQueue(queueData);
+    setTransactions(txData.transactions ?? []);
+  };
+
   const setPendingCategory = (transactionId: string, categoryId: string) => {
     setPendingCategories((prev) => ({
       ...prev,
@@ -310,7 +339,7 @@ function TransactionsPageContent() {
       });
 
       closeEditModal();
-      loadData(); // Refresh data
+      refreshTransactionsAndQueue(); // Refresh data
       triggerSync();
     } catch (error) {
       alert('Failed to update transaction');
@@ -339,7 +368,7 @@ function TransactionsPageContent() {
       }
 
       closeEditModal();
-      loadData(); // Refresh data
+      refreshTransactionsAndQueue(); // Refresh data
       triggerSync();
     } catch (error) {
       alert('Failed to delete transaction');
@@ -364,7 +393,7 @@ function TransactionsPageContent() {
         isTransfer: !editingTransaction.isTransfer,
       });
 
-      loadData();
+      refreshTransactionsAndQueue();
       triggerSync();
     } catch (error) {
       alert('Failed to update transfer status');
@@ -403,7 +432,7 @@ function TransactionsPageContent() {
 
     setPendingCategories({});
     setPendingNotes({});
-    loadData(); // Refresh data to update the review queue
+    refreshTransactionsAndQueue(); // Refresh data to update the review queue
     triggerSync();
   };
 
@@ -445,7 +474,7 @@ function TransactionsPageContent() {
         accountId: '',
         tags: [],
       });
-      loadData();
+      refreshTransactionsAndQueue();
       triggerSync();
     } catch (error) {
       console.error('Failed to create transaction:', error);
@@ -460,7 +489,7 @@ function TransactionsPageContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ confidenceScore: 1.0 }),
       });
-      loadData();
+      refreshTransactionsAndQueue();
       triggerSync();
     } catch (error) {
       alert('Failed to confirm category');
@@ -495,7 +524,7 @@ function TransactionsPageContent() {
         body: JSON.stringify({ originalTransactionId }),
       });
       setReturnModalOpen(false);
-      loadData();
+      refreshTransactionsAndQueue();
       triggerSync();
     } catch (error) {
       alert('Failed to link return');
@@ -507,7 +536,7 @@ function TransactionsPageContent() {
       await fetch(`/api/transactions/${transactionId}/returns`, {
         method: 'DELETE',
       });
-      loadData();
+      refreshTransactionsAndQueue();
       triggerSync();
     } catch (error) {
       alert('Failed to unlink return');
@@ -528,7 +557,7 @@ function TransactionsPageContent() {
     );
 
     await Promise.all(updates);
-    loadData(); // Refresh to remove from high confidence queue
+    refreshTransactionsAndQueue(); // Refresh to remove from high confidence queue
     triggerSync();
   };
 
