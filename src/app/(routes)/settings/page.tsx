@@ -1569,15 +1569,15 @@ function SettingsPageContent() {
 
     try {
       // Update all transactions in this category to have no category
-      await Promise.all(
-        categoryTransactions.map((tx) =>
-          fetch(`/api/transactions/${tx.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ categoryId: null }),
-          })
-        )
-      );
+      await fetch('/api/transactions/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update',
+          transactionIds: categoryTransactions.map((tx) => tx.id),
+          data: { categoryId: null },
+        }),
+      });
 
       // Refresh the transaction list
       const response = await fetch(`/api/transactions?category=${modalCategory.id}`);
