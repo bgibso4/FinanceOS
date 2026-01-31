@@ -133,20 +133,16 @@ function DashboardPageContent() {
     if (endDate) queryParams.set('endDate', endDate);
 
     const queryString = queryParams.toString();
-    console.log('Dashboard fetching with params:', queryString);
 
-    fetch(`/api/analytics/dashboard${queryString ? `?${queryString}` : ''}`)
-      .then((r) => r.json())
-      .then((d) => {
-        console.log('Dashboard data received:', d);
-        setData(d);
-      })
-      .catch(() => {});
-
-    fetch('/api/accounts/balances')
-      .then((r) => r.json())
-      .then((d) => setBalanceData(d))
-      .catch(() => {});
+    Promise.all([
+      fetch(`/api/analytics/dashboard${queryString ? `?${queryString}` : ''}`).then((r) =>
+        r.json()
+      ),
+      fetch('/api/accounts/balances').then((r) => r.json()),
+    ]).then(([dashboardData, balData]) => {
+      setData(dashboardData);
+      setBalanceData(balData);
+    });
 
     const pinnedItems = loadPinned();
     setPinned(pinnedItems.map((p) => p.chartSpec));
