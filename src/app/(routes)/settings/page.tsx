@@ -654,6 +654,60 @@ function SettingsPageContent() {
     }
   };
 
+  // ── Targeted refresh helpers (avoid refetching all 9-11 endpoints) ──
+
+  const refreshAccounts = async () => {
+    const [acc, bal] = await Promise.all([
+      fetch('/api/accounts').then((r) => r.json()),
+      fetch('/api/accounts/balances').then((r) => r.json()),
+    ]);
+    setAccounts(acc.accounts ?? []);
+    const balanceMap = new Map<string, number>();
+    (bal.accounts ?? []).forEach((a: AccountBalance) => {
+      balanceMap.set(a.id, a.balance);
+    });
+    setAccountBalances(balanceMap);
+  };
+
+  const refreshCategories = async () => {
+    const catData = await fetch('/api/categories').then((r) => r.json());
+    setCategories(catData.categories ?? []);
+  };
+
+  const refreshRules = async () => {
+    const rData = await fetch('/api/rules').then((r) => r.json());
+    setRules(rData.rules ?? []);
+  };
+
+  const refreshTags = async () => {
+    const tagsData = await fetch('/api/tags?withCounts=true').then((r) => r.json());
+    setSettingsTags(tagsData.tags ?? []);
+  };
+
+  const refreshBudgets = async () => {
+    const defaultsRes = await fetch('/api/budgets/defaults');
+    const defaultsData = await defaultsRes.json();
+    setDefaultBudgets(defaultsData.budgets ?? []);
+
+    if (budgetViewMonth) {
+      const monthRes = await fetch(`/api/budgets/${budgetViewMonth}`);
+      const monthData = await monthRes.json();
+      setBudgets(monthData.budgets ?? []);
+    } else {
+      setBudgets(defaultsData.budgets ?? []);
+    }
+  };
+
+  const refreshExchangeRates = async () => {
+    const ratesData = await fetch('/api/exchange-rates').then((r) => r.json());
+    setExchangeRates(ratesData.rates ?? []);
+  };
+
+  const refreshInflationRates = async () => {
+    const inflationData = await fetch('/api/inflation-rates').then((r) => r.json());
+    setInflationRates(inflationData.rates ?? []);
+  };
+
   const createAccount = async () => {
     await fetch('/api/accounts', {
       method: 'POST',
@@ -661,7 +715,7 @@ function SettingsPageContent() {
       body: JSON.stringify(newAccount),
     });
     setNewAccount({ name: '', type: 'checking', institution: '', currency: 'USD' });
-    refresh();
+    refreshAccounts();
     triggerSync();
   };
 
@@ -731,7 +785,7 @@ function SettingsPageContent() {
       }
 
       // Refresh to get updated connection status
-      await refresh();
+      await refreshAccounts();
       // Re-open modal with updated account
       const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
       const updatedAccount = updatedAccounts.accounts?.find(
@@ -762,7 +816,7 @@ function SettingsPageContent() {
       if (data.error) {
         if (data.code === 'NEEDS_REAUTH') {
           // Refresh to show reconnect button
-          await refresh();
+          await refreshAccounts();
           const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
           const updatedAccount = updatedAccounts.accounts?.find(
             (a: Account) => a.id === modalAccount.id
@@ -779,7 +833,7 @@ function SettingsPageContent() {
         removed: data.removed,
         skippedOld: data.skippedOld,
       });
-      await refresh();
+      await refreshAccounts();
 
       // Re-open modal with updated account
       const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
@@ -827,7 +881,7 @@ function SettingsPageContent() {
       if (data.error) {
         if (data.code === 'NEEDS_REAUTH') {
           // Refresh to show reconnect button
-          await refresh();
+          await refreshAccounts();
           const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
           const updatedAccount = updatedAccounts.accounts?.find(
             (a: Account) => a.id === modalAccount.id
@@ -872,7 +926,7 @@ function SettingsPageContent() {
         return;
       }
 
-      await refresh();
+      await refreshAccounts();
       // Update modal account
       setModalAccount({ ...modalAccount, plaidConnection: null });
     } catch (_error) {
@@ -905,7 +959,7 @@ function SettingsPageContent() {
       }
 
       alert('Cursor reset! Next sync will start fresh.');
-      await refresh();
+      await refreshAccounts();
       const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
       const updatedAccount = updatedAccounts.accounts?.find(
         (a: Account) => a.id === modalAccount.id
@@ -961,7 +1015,7 @@ function SettingsPageContent() {
 
       console.log('[Settings] Connection successful! Refreshing data...');
       // Refresh to get updated connection status
-      await refresh();
+      await refreshAccounts();
       // Re-open modal with updated account
       const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
       const updatedAccount = updatedAccounts.accounts?.find(
@@ -994,7 +1048,7 @@ function SettingsPageContent() {
       if (data.error) {
         if (data.code === 'AUTH_EXPIRED') {
           // Refresh to show reconnect button
-          await refresh();
+          await refreshAccounts();
           const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
           const updatedAccount = updatedAccounts.accounts?.find(
             (a: Account) => a.id === modalAccount.id
@@ -1012,7 +1066,7 @@ function SettingsPageContent() {
         merged: data.merged,
         skippedOld: data.skippedPending,
       });
-      await refresh();
+      await refreshAccounts();
 
       // Re-open modal with updated account
       const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
@@ -1249,7 +1303,7 @@ function SettingsPageContent() {
     }
 
     setSyncAllPhase('done');
-    await refresh();
+    await refreshAccounts();
   };
 
   const handleSyncAllClose = () => {
@@ -1279,7 +1333,7 @@ function SettingsPageContent() {
         return;
       }
 
-      await refresh();
+      await refreshAccounts();
       // Update modal account
       setModalAccount({ ...modalAccount, tellerConnection: null });
     } catch (_error) {
@@ -1302,7 +1356,7 @@ function SettingsPageContent() {
       }),
     });
     closeAccountModal();
-    refresh();
+    refreshAccounts();
   };
 
   const deleteAccount = async () => {
@@ -1320,7 +1374,7 @@ function SettingsPageContent() {
       }
 
       closeAccountModal();
-      refresh();
+      refreshAccounts();
       triggerSync();
     } catch (_error) {
       alert('Failed to delete account');
@@ -1342,7 +1396,7 @@ function SettingsPageContent() {
       }
 
       closeAccountModal();
-      refresh();
+      refreshAccounts();
     } catch (_error) {
       alert('Failed to archive account');
     }
@@ -1363,7 +1417,7 @@ function SettingsPageContent() {
       }
 
       closeAccountModal();
-      refresh();
+      refreshAccounts();
     } catch (_error) {
       alert('Failed to restore account');
     }
@@ -1405,7 +1459,7 @@ function SettingsPageContent() {
       setModalAccountBalance(targetBalance);
       setReconcileTarget('');
       setAccountTransactionCount(accountTransactionCount + 1);
-      refresh();
+      refreshAccounts();
     } catch (_error) {
       alert('Failed to create adjustment');
     }
@@ -1441,7 +1495,7 @@ function SettingsPageContent() {
       }),
     });
     setNewGroup({ name: '', type: 'expense' });
-    refresh();
+    refreshCategories();
   };
 
   const createCategory = async () => {
@@ -1467,7 +1521,7 @@ function SettingsPageContent() {
       }),
     });
     setNewCategory({ name: '', type: 'expense', parentId: '' });
-    refresh();
+    refreshCategories();
     triggerSync();
   };
 
@@ -1482,7 +1536,7 @@ function SettingsPageContent() {
       }),
     });
     setEditingCategory(null);
-    refresh();
+    refreshCategories();
     triggerSync();
   };
 
@@ -1530,7 +1584,7 @@ function SettingsPageContent() {
       const data = await response.json();
       setCategoryTransactions(data.transactions || []);
 
-      refresh(); // Refresh the main data
+      refreshCategories(); // Refresh the main data
       triggerSync();
     } catch (_error) {
       alert('Failed to unclassify transactions');
@@ -1552,7 +1606,7 @@ function SettingsPageContent() {
       }
 
       closeModal();
-      refresh();
+      refreshCategories();
       triggerSync();
     } catch (_error) {
       alert('Failed to delete category');
@@ -1573,7 +1627,7 @@ function SettingsPageContent() {
       });
 
       closeModal();
-      refresh();
+      refreshCategories();
     } catch (_error) {
       alert('Failed to update category');
     }
@@ -1606,7 +1660,7 @@ function SettingsPageContent() {
       });
     }
     setBudgetForm({ categoryId: '', limitAmount: '' });
-    refresh();
+    refreshBudgets();
   };
 
   const deleteBudget = async (categoryId: string) => {
@@ -1621,7 +1675,7 @@ function SettingsPageContent() {
         method: 'DELETE',
       });
     }
-    refresh();
+    refreshBudgets();
   };
 
   const removeOverride = async (categoryId: string) => {
@@ -1629,7 +1683,7 @@ function SettingsPageContent() {
     await fetch(`/api/budgets/${budgetViewMonth}/${categoryId}`, {
       method: 'DELETE',
     });
-    refresh();
+    refreshBudgets();
   };
 
   const onFileSelect = async (file: File | null) => {
@@ -1687,7 +1741,7 @@ function SettingsPageContent() {
         .join(' • ');
 
       setImportState((s) => ({ ...s, status: summary, summary: data }));
-      refresh();
+      refreshAccounts();
       triggerSync();
     } catch (err: any) {
       setImportState((s) => ({
@@ -1734,7 +1788,7 @@ function SettingsPageContent() {
       }
 
       setNewExchangeRate({ fromCurrency: 'CAD', toCurrency: 'USD', rate: '' });
-      refresh();
+      refreshExchangeRates();
     } catch (error) {
       console.error('Failed to add exchange rate:', error);
       alert('Failed to add exchange rate');
@@ -1746,7 +1800,7 @@ function SettingsPageContent() {
       await fetch(`/api/exchange-rates/${id}`, {
         method: 'DELETE',
       });
-      refresh();
+      refreshExchangeRates();
     } catch (_error) {
       alert('Failed to delete exchange rate');
     }
@@ -1779,7 +1833,7 @@ function SettingsPageContent() {
       }
 
       setNewInflationRate({ year: new Date().getFullYear().toString(), rate: '' });
-      refresh();
+      refreshInflationRates();
     } catch (error) {
       console.error('Failed to add inflation rate:', error);
       alert('Failed to add inflation rate');
@@ -1791,7 +1845,7 @@ function SettingsPageContent() {
       await fetch(`/api/inflation-rates/${id}`, {
         method: 'DELETE',
       });
-      refresh();
+      refreshInflationRates();
     } catch (_error) {
       alert('Failed to delete inflation rate');
     }
@@ -2179,7 +2233,7 @@ function SettingsPageContent() {
         <>
           {/* Connected Institutions Section */}
           <div className="mb-6">
-            <ConnectedInstitutions onRefresh={refresh} />
+            <ConnectedInstitutions onRefresh={refreshAccounts} />
           </div>
 
           <Card>
@@ -2760,7 +2814,7 @@ function SettingsPageContent() {
                         accountId={modalAccount.id}
                         accountName={modalAccount.name}
                         onSuccess={async () => {
-                          await refresh();
+                          await refreshAccounts();
                           const updatedAccounts = await fetch('/api/accounts').then((r) =>
                             r.json()
                           );
@@ -2877,7 +2931,7 @@ function SettingsPageContent() {
                         className="w-full bg-yellow-600 hover:bg-yellow-700 py-3"
                         enrollmentId={modalAccount.plaidConnection.plaidEnrollmentId}
                         onSuccess={async () => {
-                          await refresh();
+                          await refreshAccounts();
                           const updatedAccounts = await fetch('/api/accounts').then((r) =>
                             r.json()
                           );
@@ -2952,7 +3006,7 @@ function SettingsPageContent() {
                       accountId={modalAccount.id}
                       accountName={modalAccount.name}
                       onSuccess={async () => {
-                        await refresh();
+                        await refreshAccounts();
                         const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
                         const updatedAccount = updatedAccounts.accounts?.find(
                           (a: Account) => a.id === modalAccount.id
@@ -2970,7 +3024,7 @@ function SettingsPageContent() {
                       accountId={modalAccount.id}
                       accountName={modalAccount.name}
                       onSuccess={async () => {
-                        await refresh();
+                        await refreshAccounts();
                         const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
                         const updatedAccount = updatedAccounts.accounts?.find(
                           (a: Account) => a.id === modalAccount.id
@@ -3621,7 +3675,7 @@ function SettingsPageContent() {
           accounts={accounts}
           categories={categories}
           rules={rules}
-          onRefresh={refresh}
+          onRefresh={refreshRules}
           onSync={triggerSync}
         />
       )}
@@ -4357,7 +4411,7 @@ function SettingsPageContent() {
                       }
                       setNewTagName('');
                       setNewTagColor('blue');
-                      refresh();
+                      refreshTags();
                       triggerSync();
                     });
                   }
@@ -4380,7 +4434,7 @@ function SettingsPageContent() {
                   }
                   setNewTagName('');
                   setNewTagColor('blue');
-                  refresh();
+                  refreshTags();
                   triggerSync();
                 }}
               >
@@ -4440,7 +4494,7 @@ function SettingsPageContent() {
                           )
                             return;
                           await fetch(`/api/tags/${tag.id}`, { method: 'DELETE' });
-                          refresh();
+                          refreshTags();
                           triggerSync();
                         }}
                       >
@@ -4534,7 +4588,7 @@ function SettingsPageContent() {
                 }
                 setEditTagModalOpen(false);
                 setEditingTag(null);
-                refresh();
+                refreshTags();
                 triggerSync();
               }}
             >
