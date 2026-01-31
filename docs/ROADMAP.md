@@ -8,29 +8,7 @@ All feature planning and task tracking for FinanceOS development.
 
 ---
 
-## 1. Recurring Transactions & Subscription Management
-**Impact:** High | **Effort:** Medium | **Status:** Not started
-
-High user value — everyone wants to see their subscriptions. Bounded scope with a clear algorithm.
-
-**Features:**
-- Auto-detect recurring transactions (same merchant, similar amount, regular interval)
-- Subscription dashboard showing all recurring charges
-- Alerts for price changes
-- Cancellation reminders for unused subscriptions
-- Annual cost projections
-- Categorize by type (streaming, utilities, memberships, etc.)
-
-**Tasks:**
-- [ ] Detection algorithm: find transactions with same merchant
-- [ ] Check for regular intervals (weekly, monthly, annual)
-- [ ] Allow amount variance (±10%)
-- [ ] Manual override to mark/unmark as recurring
-- [ ] Build subscription dashboard UI
-
----
-
-## 2. AI Chat Analyst (Full Redesign)
+## 1. AI Chat Analyst (Full Redesign)
 **Impact:** Huge | **Effort:** High | **Status:** Needs full rebuild with LLM
 
 A basic heuristic agent exists (drawer UI, canned query patterns, pin-to-dashboard) but it's too limited to be useful. Needs a ground-up redesign with real LLM integration.
@@ -51,7 +29,7 @@ A basic heuristic agent exists (drawer UI, canned query patterns, pin-to-dashboa
 
 ---
 
-## 3. Transaction Splitting (Blocked - Needs Design)
+## 2. Transaction Splitting (Blocked - Needs Design)
 **Impact:** Medium | **Effort:** Medium-High | **Status:** Blocked on design
 
 A basic split API exists but the approach needs rethinking. The current implementation deletes the parent transaction, which breaks sync deduplication. This is more complex than expected and needs a proper design before building further.
@@ -73,7 +51,7 @@ A basic split API exists but the approach needs rethinking. The current implemen
 
 ---
 
-## 4. Mobile App / PWA
+## 3. Mobile App / PWA
 **Impact:** High | **Effort:** High | **Status:** Not started
 
 Huge daily usability win — makes the app useful throughout the week instead of just at a desk. PWA approach builds on the existing Next.js app rather than starting from scratch.
@@ -86,7 +64,7 @@ Huge daily usability win — makes the app useful throughout the week instead of
 
 ---
 
-## 5. Bill Reminders & Due Dates
+## 4. Bill Reminders & Due Dates
 **Impact:** Medium | **Effort:** Medium | **Status:** Not started
 
 - [ ] Mark transactions as bills with due dates
@@ -97,7 +75,7 @@ Huge daily usability win — makes the app useful throughout the week instead of
 
 ---
 
-## 6. Data Backup & Export
+## 5. Data Backup & Export
 **Impact:** Medium | **Effort:** Medium | **Status:** Not started
 
 Cloud sync handles device-to-device transfer. This is about user-facing export and portability.
@@ -109,7 +87,7 @@ Cloud sync handles device-to-device transfer. This is about user-facing export a
 
 ---
 
-## 7. Goals & Spending/Savings Tracking
+## 6. Goals & Spending/Savings Tracking
 **Impact:** Medium | **Effort:** Medium | **Status:** Not started
 
 Flexible goal tracking that goes beyond monthly category budgets. Goals can track spending OR saving, tied to tags or categories, over custom timeframes. This is distinct from category budgets (recurring monthly caps) — goals are for projects, events, and longer-term targets.
@@ -138,7 +116,7 @@ Flexible goal tracking that goes beyond monthly category budgets. Goals can trac
 
 ---
 
-## 8. Enhanced Reports & Month-End Closing
+## 7. Enhanced Reports & Month-End Closing
 **Impact:** Medium-High | **Effort:** Medium | **Status:** Basic monthly/cash flow reports exist, needs closing workflow
 
 Monthly detail, cash flow trailing-12, and net worth reports are built. Missing the structured closing workflow and additional report types.
@@ -163,7 +141,7 @@ Monthly detail, cash flow trailing-12, and net worth reports are built. Missing 
 
 ---
 
-## 9. Tax Preparation Helper
+## 8. Tax Preparation Helper
 **Impact:** Medium | **Effort:** Medium | **Status:** Not started
 
 Seasonal value. Overlaps with tags and reports — best built after those.
@@ -176,7 +154,7 @@ Seasonal value. Overlaps with tags and reports — best built after those.
 
 ---
 
-## 10. Multi-Currency Enhancements
+## 9. Multi-Currency Enhancements
 **Impact:** Low-Medium | **Effort:** Medium | **Status:** Core features complete
 
 Niche — only matters for users with foreign accounts. Core currency support (5 currencies, manual rates, conversion, per-account config) is done.
@@ -189,7 +167,7 @@ Niche — only matters for users with foreign accounts. Core currency support (5
 
 ---
 
-## 11. Advanced Analytics
+## 10. Advanced Analytics
 **Impact:** Medium | **Effort:** High | **Status:** Not started
 
 - [ ] Spending trends over time
@@ -201,7 +179,7 @@ Niche — only matters for users with foreign accounts. Core currency support (5
 
 ---
 
-## 12. Investment Tracking (Net Worth Phase 3+)
+## 11. Investment Tracking (Net Worth Phase 3+)
 **Impact:** Medium | **Effort:** High | **Status:** Planned
 **Design Doc:** `docs/feature/NET_WORTH_EVOLUTION.md`
 
@@ -213,7 +191,7 @@ Niche — only matters for users with foreign accounts. Core currency support (5
 
 ---
 
-## 13. Shared Finances / Multi-User
+## 12. Shared Finances / Multi-User
 
 **Impact:** Medium | **Effort:** Very High | **Status:** Not started
 
@@ -236,8 +214,8 @@ Foundational architecture change — auth, permissions, data isolation.
 - [ ] Cache analytics calculations
 
 ### Testing
-- [x] Unit tests for core logic (categorization, import, analytics, currency, filters, returns, sync)
-- [x] Integration tests for all API routes (accounts, transactions, categories, rules, budgets, analytics, reports, review queue, settings, exchange rates, splits, cloud sync)
+- [x] Unit tests for core logic (categorization, import, analytics, currency, filters, returns, sync, recurring detection)
+- [x] Integration tests for all API routes (accounts, transactions, categories, rules, budgets, analytics, reports, review queue, settings, exchange rates, splits, cloud sync, recurring)
 - [x] E2E tests (dashboard, CSV import)
 - [ ] Expand E2E coverage for more flows
 - [ ] Test coverage reporting and thresholds
@@ -267,6 +245,13 @@ Foundational architecture change — auth, permissions, data isolation.
 ### Tags & Custom Fields
 - [x] **Custom Tagging** - Tag model with color support, TagInput component with autocomplete/inline creation, tag management settings (create/rename/recolor/delete with cascade), bulk add/remove tags, filter ribbon tag filter, colored pill display in transaction list, cloud sync
 
+### Recurring Transactions & Subscriptions
+- [x] **Recurring Detection Algorithm** - Strategy-pattern-based median interval matching with amount sub-clustering (±10%), billing day consistency (±3 days), two-signal confirmation (interval regularity + amount consistency), active/lapsed detection, price history tracking
+- [x] **Subscriptions Tab** - Tab under Transactions with summary cards (monthly/annual cost, active count), filter tabs (All/Active/Lapsed/Cancelled), grouped list by frequency, edit/add modals, price change alerts
+- [x] **Soft-delete for dismissed items** - Prevents false-positive subscriptions from reappearing after re-detection via `isManualOverride` flag
+- [x] **Detection triggers** - Auto-runs after Sync All and CSV import; manual "Run Detection" button
+- [x] **Cloud sync integration** - RecurringTransaction data included in export/import payloads
+
 ### Transactions & Categorization
 - [x] **Rules Engine v2** - Compound conditions (merchant, note, amount, account) with AND logic, regex support, negation. AI-powered rule suggestions via OpenAI. Bulk management UI with drag-and-drop reorder, search/filter, rule tester, live preview. 65+ keyword catalog with dynamic DB category resolution
 - [x] **Auto-categorization** - Three-tier pipeline: custom rules (0.98), keyword catalog (0.72), uncategorized fallback (0.3). Manual override to 1.0
@@ -294,7 +279,7 @@ Foundational architecture change — auth, permissions, data isolation.
 - [x] Manual categorization confidence boost
 
 ### Technical
-- [x] **Comprehensive test suite** - 472 tests (unit, integration, E2E) across 24 test files
+- [x] **Comprehensive test suite** - 552 tests (unit, integration, E2E) across 26 test files
 - [x] **CI/CD pipeline** - GitHub Actions (lint, typecheck, unit, integration, E2E, build)
 - [x] **Linting & formatting** - ESLint 9, Prettier, Husky pre-commit hooks
 - [x] **Memory optimization** - Connection pooling, query optimization, selective field loading
