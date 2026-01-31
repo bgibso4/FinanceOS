@@ -21,6 +21,7 @@ import type {
   ExchangeRateExport,
   TagExport,
   UserSettingsExport,
+  RecurringTransactionExport,
 } from './types';
 import { validateSyncPayload } from './types';
 
@@ -90,6 +91,7 @@ export async function exportDatabase(): Promise<SyncPayload> {
     netWorthSnapshots,
     exchangeRates,
     tags,
+    recurringTransactions,
     settings,
   ] = await Promise.all([
     getPrisma().account.findMany(),
@@ -101,6 +103,7 @@ export async function exportDatabase(): Promise<SyncPayload> {
     getPrisma().netWorthSnapshot.findMany(),
     getPrisma().exchangeRate.findMany(),
     getPrisma().tag.findMany(),
+    getPrisma().recurringTransaction.findMany(),
     getPrisma().userSettings.findFirst(),
   ]);
 
@@ -217,6 +220,33 @@ export async function exportDatabase(): Promise<SyncPayload> {
         createdAt: t.createdAt.toISOString(),
       })
     ),
+    recurringTransactions: recurringTransactions.map(
+      (r): RecurringTransactionExport => ({
+        id: r.id,
+        merchantPattern: r.merchantPattern,
+        merchantDisplay: r.merchantDisplay,
+        accountId: r.accountId,
+        categoryId: r.categoryId,
+        frequency: r.frequency,
+        expectedAmount: r.expectedAmount,
+        amountVariance: r.amountVariance,
+        expectedDayOfMonth: r.expectedDayOfMonth,
+        medianIntervalDays: r.medianIntervalDays,
+        confidence: r.confidence,
+        intervalRegularity: r.intervalRegularity,
+        amountConsistency: r.amountConsistency,
+        transactionCount: r.transactionCount,
+        firstSeenDate: r.firstSeenDate.toISOString(),
+        lastSeenDate: r.lastSeenDate.toISOString(),
+        status: r.status,
+        nextExpectedDate: r.nextExpectedDate ? r.nextExpectedDate.toISOString() : null,
+        isManualOverride: r.isManualOverride,
+        manuallyCreated: r.manuallyCreated,
+        priceHistory: r.priceHistory,
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
+      })
+    ),
     settings: settings
       ? ({
           id: settings.id,
@@ -240,6 +270,7 @@ export async function exportDatabase(): Promise<SyncPayload> {
       netWorthSnapshots: data.netWorthSnapshots.length,
       exchangeRates: data.exchangeRates.length,
       tags: (data.tags || []).length,
+      recurringTransactions: (data.recurringTransactions || []).length,
     },
     checksum,
   };
@@ -275,6 +306,7 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
   await getPrisma().$transaction(async (tx) => {
     // Delete existing data (order matters due to foreign keys)
     // Keep Plaid/Teller tables untouched!
+    await tx.recurringTransaction.deleteMany();
     await tx.transaction.deleteMany();
     await tx.categoryBudget.deleteMany();
     await tx.rule.deleteMany();
@@ -478,6 +510,39 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
             name: tag.name,
             color: tag.color,
             createdAt: new Date(tag.createdAt),
+          },
+        });
+      }
+    }
+
+    // Import recurring transactions
+    if (data.recurringTransactions) {
+      for (const rt of data.recurringTransactions) {
+        await tx.recurringTransaction.create({
+          data: {
+            id: rt.id,
+            merchantPattern: rt.merchantPattern,
+            merchantDisplay: rt.merchantDisplay,
+            accountId: rt.accountId,
+            categoryId: rt.categoryId,
+            frequency: rt.frequency,
+            expectedAmount: rt.expectedAmount,
+            amountVariance: rt.amountVariance,
+            expectedDayOfMonth: rt.expectedDayOfMonth,
+            medianIntervalDays: rt.medianIntervalDays,
+            confidence: rt.confidence,
+            intervalRegularity: rt.intervalRegularity,
+            amountConsistency: rt.amountConsistency,
+            transactionCount: rt.transactionCount,
+            firstSeenDate: new Date(rt.firstSeenDate),
+            lastSeenDate: new Date(rt.lastSeenDate),
+            status: rt.status,
+            nextExpectedDate: rt.nextExpectedDate ? new Date(rt.nextExpectedDate) : null,
+            isManualOverride: rt.isManualOverride,
+            manuallyCreated: rt.manuallyCreated,
+            priceHistory: rt.priceHistory,
+            createdAt: new Date(rt.createdAt),
+            updatedAt: new Date(rt.updatedAt),
           },
         });
       }

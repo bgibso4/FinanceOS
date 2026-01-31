@@ -130,6 +130,33 @@ export const UserSettingsExportSchema = z.object({
 });
 export type UserSettingsExport = z.infer<typeof UserSettingsExportSchema>;
 
+export const RecurringTransactionExportSchema = z.object({
+  id: z.string(),
+  merchantPattern: z.string(),
+  merchantDisplay: z.string(),
+  accountId: z.string(),
+  categoryId: z.string().nullable(),
+  frequency: z.string(),
+  expectedAmount: z.number(),
+  amountVariance: z.number(),
+  expectedDayOfMonth: z.number().nullable(),
+  medianIntervalDays: z.number(),
+  confidence: z.number(),
+  intervalRegularity: z.number(),
+  amountConsistency: z.number(),
+  transactionCount: z.number(),
+  firstSeenDate: z.string(), // ISO 8601
+  lastSeenDate: z.string(), // ISO 8601
+  status: z.string(),
+  nextExpectedDate: z.string().nullable(),
+  isManualOverride: z.boolean(),
+  manuallyCreated: z.boolean(),
+  priceHistory: z.string(),
+  createdAt: z.string(), // ISO 8601
+  updatedAt: z.string(), // ISO 8601
+});
+export type RecurringTransactionExport = z.infer<typeof RecurringTransactionExportSchema>;
+
 // ============================================================================
 // Sync Payload
 // ============================================================================
@@ -144,6 +171,7 @@ export const SyncDataSchema = z.object({
   netWorthSnapshots: z.array(NetWorthSnapshotExportSchema),
   exchangeRates: z.array(ExchangeRateExportSchema),
   tags: z.array(TagExportSchema).optional(),
+  recurringTransactions: z.array(RecurringTransactionExportSchema).optional(),
   settings: UserSettingsExportSchema.nullable(),
 });
 export type SyncData = z.infer<typeof SyncDataSchema>;
@@ -159,6 +187,7 @@ export const SyncMetadataSchema = z.object({
     netWorthSnapshots: z.number(),
     exchangeRates: z.number(),
     tags: z.number().optional(),
+    recurringTransactions: z.number().optional(),
   }),
   checksum: z.string(), // SHA-256 of JSON data
 });

@@ -1235,6 +1235,19 @@ function SettingsPageContent() {
     });
 
     await Promise.allSettled(promises);
+
+    // Run recurring transaction detection after sync completes
+    try {
+      await fetch('/api/recurring/detect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+    } catch (_err) {
+      // Non-critical — don't block sync completion
+      console.warn('Recurring detection after sync failed');
+    }
+
     setSyncAllPhase('done');
     await refresh();
   };

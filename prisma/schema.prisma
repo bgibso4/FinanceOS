@@ -19,9 +19,10 @@ model Account {
   invertAmounts    Boolean           @default(false) // Flip amount signs during bank sync (for accounts with inverted conventions)
   sortOrder        Int               @default(0)
   createdAt        DateTime          @default(now())
-  transactions     Transaction[]
-  plaidConnection  PlaidConnection?
-  tellerConnection TellerConnection?
+  transactions              Transaction[]
+  recurringTransactions     RecurringTransaction[]
+  plaidConnection           PlaidConnection?
+  tellerConnection          TellerConnection?
 }
 
 // Plaid Enrollment: Institution-level connection (parallels TellerEnrollment)
@@ -113,10 +114,11 @@ model Category {
   parent      Category?    @relation("CategoryToCategory", fields: [parentId], references: [id])
   children    Category[]   @relation("CategoryToCategory")
   type        String
-  createdAt   DateTime     @default(now())
-  transactions Transaction[]
-  budgets     CategoryBudget[]
-  rules       Rule[]
+  createdAt              DateTime               @default(now())
+  transactions           Transaction[]
+  recurringTransactions  RecurringTransaction[]
+  budgets                CategoryBudget[]
+  rules                  Rule[]
 }
 
 model Rule {
@@ -234,4 +236,46 @@ model UserSettings {
   baseCurrency String   @default("USD")
   updatedAt    DateTime @updatedAt
   createdAt    DateTime @default(now())
+}
+
+model RecurringTransaction {
+  id                  String    @id @default(uuid())
+  merchantPattern     String    // merchantNormalized value used for matching
+  merchantDisplay     String    // Human-readable merchant name (e.g., "Netflix")
+  accountId           String
+  account             Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  categoryId          String?
+  category            Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  // Recurrence pattern
+  frequency           String    // "weekly" | "biweekly" | "monthly" | "quarterly" | "annual"
+  expectedAmount      Float     // Median amount from detected cluster
+  amountVariance      Float     @default(0) // Stddev of amounts
+  expectedDayOfMonth  Int?      // For monthly+, the typical billing day (1-31)
+  medianIntervalDays  Float     // Raw median interval in days
+
+  // Detection metadata
+  confidence          Float     // Combined score: (intervalRegularity * 0.6) + (amountConsistency * 0.4)
+  intervalRegularity  Float     // 1 - (stddev/median) of intervals
+  amountConsistency   Float     // 1 - (stddev/median) of amounts
+  transactionCount    Int       // Number of transactions in detected cluster
+  firstSeenDate       DateTime  // Earliest transaction in the cluster
+  lastSeenDate        DateTime  // Most recent transaction in the cluster
+
+  // Status & tracking
+  status              String    @default("active") // "active" | "paused" | "cancelled" | "lapsed"
+  nextExpectedDate    DateTime?
+  isManualOverride    Boolean   @default(false) // User manually marked/unmarked
+  manuallyCreated     Boolean   @default(false) // User created this entry, not auto-detected
+
+  // Price change tracking
+  priceHistory        String    @default("[]") // JSON: [{ date: ISO, amount: number }]
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([accountId, merchantPattern])
+  @@index([merchantPattern])
+  @@index([accountId])
+  @@index([status])
 }
