@@ -8,10 +8,10 @@ All feature planning and task tracking for FinanceOS development.
 
 ---
 
-## 1. Tags & Custom Fields
-**Impact:** Medium | **Effort:** Low | **Status:** Core tagging complete, remaining items planned
+## 1. Tags & Custom Fields ✅
+**Impact:** Medium | **Effort:** Low | **Status:** Complete
 
-Tag model, management UI, bulk tagging, filtering, and cloud sync are all built. Remaining work is tag-based budgets and smart suggestions.
+Tag model, management UI, bulk tagging, filtering, and cloud sync are all built.
 
 - [x] Custom tags for transactions (travel, business, reimbursable, etc.)
 - [x] Tag management in Settings (create, rename, recolor, delete with cascade)
@@ -20,8 +20,6 @@ Tag model, management UI, bulk tagging, filtering, and cloud sync are all built.
 - [x] Bulk tagging (select transactions, add/remove tags in bulk)
 - [x] Tag display in transaction list (colored pills)
 - [x] Cloud sync support for tags
-- [ ] Tag-based budgets
-- [ ] Tag suggestions based on patterns
 
 ---
 
@@ -142,14 +140,32 @@ Cloud sync handles device-to-device transfer. This is about user-facing export a
 
 ---
 
-## 9. Goals & Savings Tracking
+## 9. Goals & Spending/Savings Tracking
 **Impact:** Medium | **Effort:** Medium | **Status:** Not started
 
-- [ ] Set savings goals (emergency fund, vacation, down payment)
-- [ ] Track progress toward goals
-- [ ] Allocate income to specific goals
-- [ ] Visual progress indicators
-- [ ] Projected completion dates
+Flexible goal tracking that goes beyond monthly category budgets. Goals can track spending OR saving, tied to tags or categories, over custom timeframes. This is distinct from category budgets (recurring monthly caps) — goals are for projects, events, and longer-term targets.
+
+**Use cases:**
+- "2026 Travel Budget" — spending goal of $5,000/year, tracked by the "Travel" category
+- "Ontario Camping Trip" — spending goal of $2,000, tracked by the "Ontario Camping Trip" tag, open-ended
+- "Emergency Fund" — savings goal of $10,000, tracked by account balance or manual progress
+- "Wedding" — spending goal of $15,000, tracked by "Wedding" tag, spans multiple categories (venue, catering, attire)
+- "Business Expenses Q1" — spending goal of $3,000, tracked by "Business" tag, Jan–Mar timeframe
+
+**Goal model:**
+- Name, type (spending/saving), target amount
+- Track by: tag, category, or manual
+- Timeframe: yearly, custom date range, or open-ended
+- Progress: sum of matching transactions vs target
+
+**Tasks:**
+- [ ] Goal model (name, type, target, trackBy, timeframe)
+- [ ] Goals API (CRUD)
+- [ ] Goals dashboard page with progress bars
+- [ ] Goal creation/edit UI
+- [ ] Progress calculation (sum transactions by tag or category within timeframe)
+- [ ] Goal progress display on tag cards in Settings
+- [ ] Cloud sync support for goals
 
 ---
 
