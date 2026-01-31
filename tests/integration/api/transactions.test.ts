@@ -345,4 +345,148 @@ describe('transactions API integration', () => {
       expect(transfers[0].transferGroupId).toBe(transfers[1].transferGroupId);
     });
   });
+
+  describe('bulk transaction operations', () => {
+    it('bulk updates category and sets confidenceScore to 1.0', async () => {
+      const secondCategory = await prisma.category.create({
+        data: createCategoryData({ name: 'Second Category', type: 'expense' }),
+      });
+
+      const tx1 = await prisma.transaction.create({
+        data: createTransactionData(testAccountId, { merchant: 'Store A' }),
+      });
+      const tx2 = await prisma.transaction.create({
+        data: createTransactionData(testAccountId, { merchant: 'Store B' }),
+      });
+      const tx3 = await prisma.transaction.create({
+        data: createTransactionData(testAccountId, { merchant: 'Store C' }),
+      });
+
+      await prisma.transaction.updateMany({
+        where: { id: { in: [tx1.id, tx2.id, tx3.id] } },
+        data: { categoryId: secondCategory.id, confidenceScore: 1.0 },
+      });
+
+      const updated = await prisma.transaction.findMany({
+        where: { id: { in: [tx1.id, tx2.id, tx3.id] } },
+      });
+
+      expect(updated).toHaveLength(3);
+      updated.forEach((tx) => {
+        expect(tx.categoryId).toBe(secondCategory.id);
+        expect(Number(tx.confidenceScore)).toBe(1.0);
+      });
+    });
+
+    it('bulk deletes transactions', async () => {
+      const tx1 = await prisma.transaction.create({
+        data: createTransactionData(testAccountId, { merchant: 'Delete A' }),
+      });
+      const tx2 = await prisma.transaction.create({
+        data: createTransactionData(testAccountId, { merchant: 'Delete B' }),
+      });
+      const tx3 = await prisma.transaction.create({
+        data: createTransactionData(testAccountId, { merchant: 'Keep C' }),
+      });
+
+      const result = await prisma.transaction.deleteMany({
+        where: { id: { in: [tx1.id, tx2.id] } },
+      });
+
+      expect(result.count).toBe(2);
+
+      const remaining = await prisma.transaction.findMany({
+        where: { accountId: testAccountId },
+      });
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0].merchant).toBe('Keep C');
+    });
+
+    it('bulk marks as transfer', async () => {
+      const tx1 = await prisma.transaction.create({
+        data: createTransactionData(testAccountId, { merchant: 'Transfer A' }),
+      });
+      const tx2 = await prisma.transaction.create({
+        data: createTransactionData(testAccountId, { merchant: 'Transfer B' }),
+      });
+
+      await prisma.transaction.updateMany({
+        where: { id: { in: [tx1.id, tx2.id] } },
+        data: { isTransfer: true },
+      });
+
+      const updated = await prisma.transaction.findMany({
+        where: { id: { in: [tx1.id, tx2.id] } },
+      });
+
+      updated.forEach((tx) => {
+        expect(tx.isTransfer).toBe(true);
+      });
+    });
+
+    it('bulk updates tags via per-row transaction', async () => {
+      const tx1 = await prisma.transaction.create({
+        data: createTransactionData(testAccountId, { merchant: 'Tag A' }),
+      });
+      const tx2 = await prisma.transaction.create({
+        data: createTransactionData(testAccountId, { merchant: 'Tag B' }),
+      });
+
+      const newTags = ['groceries', 'essential'];
+
+      await prisma.$transaction(
+        [tx1.id, tx2.id].map((id) =>
+          prisma.transaction.update({
+            where: { id },
+            data: { tags: JSON.stringify(newTags) },
+          })
+        )
+      );
+
+      const updated = await prisma.transaction.findMany({
+        where: { id: { in: [tx1.id, tx2.id] } },
+      });
+
+      updated.forEach((tx) => {
+        expect(JSON.parse(tx.tags!)).toEqual(newTags);
+      });
+    });
+
+    it('bulk update with empty array affects zero rows', async () => {
+      const result = await prisma.transaction.updateMany({
+        where: { id: { in: [] } },
+        data: { isTransfer: true },
+      });
+      expect(result.count).toBe(0);
+    });
+
+    it('bulk unclassify sets categoryId to null', async () => {
+      const tx1 = await prisma.transaction.create({
+        data: createTransactionData(testAccountId, {
+          merchant: 'Unclass A',
+          categoryId: testCategoryId,
+        }),
+      });
+      const tx2 = await prisma.transaction.create({
+        data: createTransactionData(testAccountId, {
+          merchant: 'Unclass B',
+          categoryId: testCategoryId,
+        }),
+      });
+
+      await prisma.transaction.updateMany({
+        where: { id: { in: [tx1.id, tx2.id] } },
+        data: { categoryId: null, confidenceScore: 0.3 },
+      });
+
+      const updated = await prisma.transaction.findMany({
+        where: { id: { in: [tx1.id, tx2.id] } },
+      });
+
+      updated.forEach((tx) => {
+        expect(tx.categoryId).toBeNull();
+        expect(Number(tx.confidenceScore)).toBe(0.3);
+      });
+    });
+  });
 });
