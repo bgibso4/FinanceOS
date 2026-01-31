@@ -84,9 +84,9 @@ export function createTransactionData(
 
 export interface RuleData {
   id?: string;
-  matchType: string;
-  matchValue: string;
+  conditions: string;
   categoryId: string;
+  description?: string;
   priority?: number;
   isEnabled?: boolean;
 }
@@ -94,8 +94,7 @@ export interface RuleData {
 export function createRuleData(categoryId: string, overrides: Partial<RuleData> = {}): RuleData {
   return {
     id: uuid(),
-    matchType: 'merchantContains',
-    matchValue: 'test',
+    conditions: JSON.stringify([{ field: 'merchant', operator: 'contains', value: 'test' }]),
     categoryId,
     priority: 100,
     isEnabled: true,

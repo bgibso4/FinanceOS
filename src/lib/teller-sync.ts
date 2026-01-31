@@ -297,7 +297,13 @@ async function previewTellerTransaction(
 
   // Fall back to auto-categorization if no Teller category match
   // Also check for merchant rename rules
-  const categorization = await autoCategorize(prisma, mapped.merchant, null);
+  const categorization = await autoCategorize(
+    prisma,
+    mapped.merchant,
+    null,
+    mapped.amount,
+    accountId
+  );
   if (!categoryName && categorization.categoryId) {
     // Look up category name
     const category = await prisma.category.findUnique({
@@ -436,7 +442,13 @@ async function processTellerTransaction(
 
   // Fall back to auto-categorization if no Teller category match
   // Also check for merchant rename rules
-  const categorization = await autoCategorize(prisma, mapped.merchant, null);
+  const categorization = await autoCategorize(
+    prisma,
+    mapped.merchant,
+    null,
+    mapped.amount,
+    accountId
+  );
   if (!categoryId) {
     categoryId = categorization.categoryId;
     confidence = categorization.confidence;

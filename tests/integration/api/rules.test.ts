@@ -41,18 +41,21 @@ describe('rules API integration', () => {
       await prisma.rule.createMany({
         data: [
           createRuleData(transportCategoryId, {
-            matchType: 'merchantContains',
-            matchValue: 'uber',
+            conditions: JSON.stringify([
+              { field: 'merchant', operator: 'contains', value: 'uber' },
+            ]),
             priority: 50,
           }),
           createRuleData(transportCategoryId, {
-            matchType: 'merchantContains',
-            matchValue: 'lyft',
+            conditions: JSON.stringify([
+              { field: 'merchant', operator: 'contains', value: 'lyft' },
+            ]),
             priority: 10,
           }),
           createRuleData(groceryCategoryId, {
-            matchType: 'merchantContains',
-            matchValue: 'trader',
+            conditions: JSON.stringify([
+              { field: 'merchant', operator: 'contains', value: 'trader' },
+            ]),
             priority: 30,
           }),
         ],
@@ -63,18 +66,19 @@ describe('rules API integration', () => {
       });
 
       expect(rules).toHaveLength(3);
-      expect(rules[0].matchValue).toBe('lyft'); // priority 10
-      expect(rules[1].matchValue).toBe('trader'); // priority 30
-      expect(rules[2].matchValue).toBe('uber'); // priority 50
+      expect(JSON.parse(rules[0].conditions)[0].value).toBe('lyft'); // priority 10
+      expect(JSON.parse(rules[1].conditions)[0].value).toBe('trader'); // priority 30
+      expect(JSON.parse(rules[2].conditions)[0].value).toBe('uber'); // priority 50
     });
   });
 
   describe('POST rule', () => {
-    it('creates merchantContains rule', async () => {
+    it('creates merchant contains rule', async () => {
       const created = await prisma.rule.create({
         data: {
-          matchType: 'merchantContains',
-          matchValue: 'amazon',
+          conditions: JSON.stringify([
+            { field: 'merchant', operator: 'contains', value: 'amazon' },
+          ]),
           categoryId: groceryCategoryId,
           priority: 100,
           isEnabled: true,
@@ -82,43 +86,49 @@ describe('rules API integration', () => {
       });
 
       expect(created.id).toBeDefined();
-      expect(created.matchType).toBe('merchantContains');
-      expect(created.matchValue).toBe('amazon');
+      const conditions = JSON.parse(created.conditions);
+      expect(conditions[0].field).toBe('merchant');
+      expect(conditions[0].operator).toBe('contains');
+      expect(conditions[0].value).toBe('amazon');
       expect(created.categoryId).toBe(groceryCategoryId);
     });
 
-    it('creates merchantRegex rule', async () => {
+    it('creates merchant regex rule', async () => {
       const created = await prisma.rule.create({
         data: {
-          matchType: 'merchantRegex',
-          matchValue: '^UBER.*TRIP',
+          conditions: JSON.stringify([
+            { field: 'merchant', operator: 'regex', value: '^UBER.*TRIP' },
+          ]),
           categoryId: transportCategoryId,
           priority: 50,
         },
       });
 
-      expect(created.matchType).toBe('merchantRegex');
-      expect(created.matchValue).toBe('^UBER.*TRIP');
+      const conditions = JSON.parse(created.conditions);
+      expect(conditions[0].operator).toBe('regex');
+      expect(conditions[0].value).toBe('^UBER.*TRIP');
     });
 
-    it('creates noteContains rule', async () => {
+    it('creates note contains rule', async () => {
       const created = await prisma.rule.create({
         data: {
-          matchType: 'noteContains',
-          matchValue: 'business lunch',
+          conditions: JSON.stringify([
+            { field: 'note', operator: 'contains', value: 'business lunch' },
+          ]),
           categoryId: groceryCategoryId,
           priority: 75,
         },
       });
 
-      expect(created.matchType).toBe('noteContains');
+      const conditions = JSON.parse(created.conditions);
+      expect(conditions[0].field).toBe('note');
+      expect(conditions[0].operator).toBe('contains');
     });
 
     it('creates rule with custom priority', async () => {
       const created = await prisma.rule.create({
         data: {
-          matchType: 'merchantContains',
-          matchValue: 'test',
+          conditions: JSON.stringify([{ field: 'merchant', operator: 'contains', value: 'test' }]),
           categoryId: groceryCategoryId,
           priority: 1,
         },
@@ -130,8 +140,7 @@ describe('rules API integration', () => {
     it('creates disabled rule', async () => {
       const created = await prisma.rule.create({
         data: {
-          matchType: 'merchantContains',
-          matchValue: 'test',
+          conditions: JSON.stringify([{ field: 'merchant', operator: 'contains', value: 'test' }]),
           categoryId: groceryCategoryId,
           isEnabled: false,
         },
@@ -142,19 +151,24 @@ describe('rules API integration', () => {
   });
 
   describe('PATCH rule', () => {
-    it('updates rule matchValue', async () => {
+    it('updates rule conditions', async () => {
       const created = await prisma.rule.create({
         data: createRuleData(groceryCategoryId, {
-          matchValue: 'old value',
+          conditions: JSON.stringify([
+            { field: 'merchant', operator: 'contains', value: 'old value' },
+          ]),
         }),
       });
 
+      const newConditions = JSON.stringify([
+        { field: 'merchant', operator: 'contains', value: 'new value' },
+      ]);
       const updated = await prisma.rule.update({
         where: { id: created.id },
-        data: { matchValue: 'new value' },
+        data: { conditions: newConditions },
       });
 
-      expect(updated.matchValue).toBe('new value');
+      expect(JSON.parse(updated.conditions)[0].value).toBe('new value');
     });
 
     it('updates rule category', async () => {
@@ -234,53 +248,63 @@ describe('rules API integration', () => {
       await prisma.rule.createMany({
         data: [
           createRuleData(groceryCategoryId, {
-            matchType: 'merchantContains',
-            matchValue: 'amazon',
+            conditions: JSON.stringify([
+              { field: 'merchant', operator: 'contains', value: 'amazon' },
+            ]),
             priority: 10,
           }),
           createRuleData(groceryCategoryId, {
-            matchType: 'merchantContains',
-            matchValue: 'whole foods',
+            conditions: JSON.stringify([
+              { field: 'merchant', operator: 'contains', value: 'whole foods' },
+            ]),
             priority: 20,
           }),
           createRuleData(transportCategoryId, {
-            matchType: 'merchantContains',
-            matchValue: 'uber',
+            conditions: JSON.stringify([
+              { field: 'merchant', operator: 'contains', value: 'uber' },
+            ]),
             priority: 30,
           }),
         ],
       });
 
-      // Find rules that match 'AMAZON MARKETPLACE'
+      // Find all enabled rules
       const matchingRules = await prisma.rule.findMany({
         where: {
           isEnabled: true,
-          matchType: 'merchantContains',
         },
         orderBy: { priority: 'asc' },
       });
 
       // Filter in application code (simulating the matching logic)
       const merchant = 'AMAZON MARKETPLACE';
-      const matched = matchingRules.filter((rule) =>
-        merchant.toLowerCase().includes(rule.matchValue.toLowerCase())
-      );
+      const matched = matchingRules.filter((rule) => {
+        const conditions = JSON.parse(rule.conditions);
+        return conditions.some(
+          (c: { field: string; operator: string; value: string }) =>
+            c.field === 'merchant' &&
+            c.operator === 'contains' &&
+            merchant.toLowerCase().includes(c.value.toLowerCase())
+        );
+      });
 
       expect(matched).toHaveLength(1);
-      expect(matched[0].matchValue).toBe('amazon');
+      expect(JSON.parse(matched[0].conditions)[0].value).toBe('amazon');
     });
 
     it('applies priority correctly when multiple rules match', async () => {
       await prisma.rule.createMany({
         data: [
           createRuleData(groceryCategoryId, {
-            matchType: 'merchantContains',
-            matchValue: 'amazon',
+            conditions: JSON.stringify([
+              { field: 'merchant', operator: 'contains', value: 'amazon' },
+            ]),
             priority: 100, // Lower priority
           }),
           createRuleData(transportCategoryId, {
-            matchType: 'merchantContains',
-            matchValue: 'amazon fresh',
+            conditions: JSON.stringify([
+              { field: 'merchant', operator: 'contains', value: 'amazon fresh' },
+            ]),
             priority: 10, // Higher priority
           }),
         ],
@@ -292,13 +316,19 @@ describe('rules API integration', () => {
       });
 
       const merchant = 'AMAZON FRESH DELIVERY';
-      const matched = matchingRules.filter((rule) =>
-        merchant.toLowerCase().includes(rule.matchValue.toLowerCase())
-      );
+      const matched = matchingRules.filter((rule) => {
+        const conditions = JSON.parse(rule.conditions);
+        return conditions.some(
+          (c: { field: string; operator: string; value: string }) =>
+            c.field === 'merchant' &&
+            c.operator === 'contains' &&
+            merchant.toLowerCase().includes(c.value.toLowerCase())
+        );
+      });
 
       // Both rules match, but 'amazon fresh' has higher priority (lower number)
       expect(matched).toHaveLength(2);
-      expect(matched[0].matchValue).toBe('amazon fresh');
+      expect(JSON.parse(matched[0].conditions)[0].value).toBe('amazon fresh');
       expect(matched[0].priority).toBe(10);
     });
 
@@ -306,13 +336,15 @@ describe('rules API integration', () => {
       await prisma.rule.createMany({
         data: [
           createRuleData(groceryCategoryId, {
-            matchType: 'merchantContains',
-            matchValue: 'starbucks',
+            conditions: JSON.stringify([
+              { field: 'merchant', operator: 'contains', value: 'starbucks' },
+            ]),
             isEnabled: false, // Disabled
           }),
           createRuleData(groceryCategoryId, {
-            matchType: 'merchantContains',
-            matchValue: 'coffee',
+            conditions: JSON.stringify([
+              { field: 'merchant', operator: 'contains', value: 'coffee' },
+            ]),
             isEnabled: true,
           }),
         ],
@@ -323,7 +355,7 @@ describe('rules API integration', () => {
       });
 
       expect(enabledRules).toHaveLength(1);
-      expect(enabledRules[0].matchValue).toBe('coffee');
+      expect(JSON.parse(enabledRules[0].conditions)[0].value).toBe('coffee');
     });
   });
 });

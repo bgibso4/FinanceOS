@@ -143,8 +143,9 @@ describe('cloud-sync integration', () => {
 
       await prisma.rule.create({
         data: {
-          matchType: 'contains',
-          matchValue: 'starbucks',
+          conditions: JSON.stringify([
+            { field: 'merchant', operator: 'contains', value: 'starbucks' },
+          ]),
           categoryId: category.id,
           renameTo: 'Starbucks',
           priority: 10,
@@ -155,7 +156,8 @@ describe('cloud-sync integration', () => {
       const payload = await exportDatabase();
 
       expect(payload.data.rules).toHaveLength(1);
-      expect(payload.data.rules[0].matchValue).toBe('starbucks');
+      const conditions = JSON.parse(payload.data.rules[0].conditions);
+      expect(conditions[0].value).toBe('starbucks');
       expect(payload.data.rules[0].categoryId).toBe(category.id);
       expect(payload.data.rules[0].renameTo).toBe('Starbucks');
     });
@@ -554,8 +556,7 @@ describe('cloud-sync integration', () => {
 
       await prisma.rule.create({
         data: {
-          matchType: 'contains',
-          matchValue: 'test',
+          conditions: JSON.stringify([{ field: 'merchant', operator: 'contains', value: 'test' }]),
           categoryId: category.id,
           priority: 1,
           isEnabled: true,
@@ -593,7 +594,8 @@ describe('cloud-sync integration', () => {
 
       const rules = await prisma.rule.findMany();
       expect(rules).toHaveLength(1);
-      expect(rules[0].matchValue).toBe('test');
+      const conditions = JSON.parse(rules[0].conditions);
+      expect(conditions[0].value).toBe('test');
     });
 
     it('handles unicode data through full cycle', async () => {

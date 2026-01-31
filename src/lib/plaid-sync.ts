@@ -344,7 +344,13 @@ async function previewPlaidTransaction(
     }
 
     // Try to categorize and check for merchant rename
-    const categorization = await autoCategorize(prisma, mapped.merchant, null);
+    const categorization = await autoCategorize(
+      prisma,
+      mapped.merchant,
+      null,
+      mapped.amount,
+      accountId
+    );
     let categoryName: string | null = null;
 
     if (categorization.categoryId) {
@@ -531,7 +537,13 @@ async function processPlaidTransaction(
     }
 
     // Auto-categorize and check for merchant rename
-    const categorization = await autoCategorize(prisma, mapped.merchant, null);
+    const categorization = await autoCategorize(
+      prisma,
+      mapped.merchant,
+      null,
+      mapped.amount,
+      accountId
+    );
 
     // Apply merchant rename if rule specifies one
     const finalMerchant = categorization.renameTo || mapped.merchant;

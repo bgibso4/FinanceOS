@@ -1,19 +1,85 @@
 import { PrismaClient } from '@prisma/client';
+import { evaluateRule, parseConditions, type MatchInput } from './rule-matcher';
 
-const keywordCatalog: Record<string, string> = {
-  uber: 'Transport',
-  lyft: 'Transport',
-  safeway: 'Groceries',
-  trader: 'Groceries',
-  amazon: 'Shopping',
-  whole: 'Groceries',
-  starbucks: 'Coffee',
-  netflix: 'Entertainment',
-  spotify: 'Entertainment',
-  payroll: 'Income',
-  stripe: 'Income',
-  venmo: 'Transfer',
-  paypal: 'Transfer',
+// Maps merchant keywords to category search terms.
+// These search terms are matched against actual category names from the database
+// using case-insensitive substring matching, so they stay valid even if
+// categories are renamed or reorganized.
+const keywordCatalog: Record<string, string[]> = {
+  // Groceries
+  safeway: ['grocer'],
+  trader: ['grocer'],
+  whole: ['grocer'],
+  kroger: ['grocer'],
+  costco: ['grocer'],
+  aldi: ['grocer'],
+  publix: ['grocer'],
+  wegmans: ['grocer'],
+  heb: ['grocer'],
+  sprouts: ['grocer'],
+  walmart: ['grocer'],
+  target: ['shopping'],
+  // Restaurants / Food & Dining
+  doordash: ['restaurant', 'food', 'dining'],
+  grubhub: ['restaurant', 'food', 'dining'],
+  ubereats: ['restaurant', 'food', 'dining'],
+  chipotle: ['restaurant', 'food', 'dining'],
+  mcdonald: ['restaurant', 'food', 'dining', 'fast food'],
+  chick: ['restaurant', 'food', 'dining', 'fast food'],
+  subway: ['restaurant', 'food', 'dining', 'fast food'],
+  domino: ['restaurant', 'food', 'dining', 'fast food'],
+  // Coffee
+  starbucks: ['coffee'],
+  dunkin: ['coffee'],
+  peet: ['coffee'],
+  // Transport / Rideshare
+  uber: ['transport', 'rideshare'],
+  lyft: ['transport', 'rideshare'],
+  // Gas & Fuel
+  shell: ['gas', 'fuel', 'transport'],
+  chevron: ['gas', 'fuel', 'transport'],
+  exxon: ['gas', 'fuel', 'transport'],
+  bp: ['gas', 'fuel', 'transport'],
+  // Subscriptions
+  netflix: ['subscription', 'entertainment'],
+  spotify: ['subscription', 'entertainment'],
+  hulu: ['subscription', 'entertainment'],
+  disney: ['subscription', 'entertainment'],
+  hbo: ['subscription', 'entertainment'],
+  apple: ['subscription'],
+  youtube: ['subscription', 'entertainment'],
+  // Entertainment
+  amc: ['entertainment'],
+  cinemark: ['entertainment'],
+  ticketmaster: ['entertainment'],
+  // Shopping
+  amazon: ['shopping'],
+  bestbuy: ['shopping', 'electronics'],
+  ikea: ['shopping', 'home'],
+  'home depot': ['shopping', 'home'],
+  lowes: ['shopping', 'home'],
+  etsy: ['shopping'],
+  // Utilities
+  electric: ['utilit'],
+  water: ['utilit'],
+  comcast: ['utilit', 'internet'],
+  xfinity: ['utilit', 'internet'],
+  // Health
+  cvs: ['health', 'pharmacy'],
+  walgreens: ['health', 'pharmacy'],
+  pharmacy: ['health', 'pharmacy'],
+  // Income
+  payroll: ['income', 'salary'],
+  stripe: ['income'],
+  'direct dep': ['income', 'salary'],
+  // Transfer
+  venmo: ['transfer'],
+  paypal: ['transfer'],
+  zelle: ['transfer'],
+  // Insurance
+  geico: ['insurance'],
+  allstate: ['insurance'],
+  progressive: ['insurance'],
 };
 
 export const LOW_CONFIDENCE_THRESHOLD = 0.6;
@@ -99,6 +165,25 @@ export async function resolveCategoryId(
   return category?.id ?? null;
 }
 
+// Find the best matching category for a list of search terms by matching
+// against actual category names from the database.
+// Prefers leaf categories (those with a parentId) over parent groups.
+function findCategoryBySearchTerms(
+  searchTerms: string[],
+  categories: { id: string; name: string; parentId: string | null }[]
+): string | null {
+  for (const term of searchTerms) {
+    const lower = term.toLowerCase();
+    // Prefer leaf categories (subcategories) over parent groups
+    const leaf = categories.find((c) => c.parentId && c.name.toLowerCase().includes(lower));
+    if (leaf) return leaf.id;
+
+    const any = categories.find((c) => c.name.toLowerCase().includes(lower));
+    if (any) return any.id;
+  }
+  return null;
+}
+
 export type RuleResult = {
   categoryId: string | null;
   renameTo: string | null;
@@ -107,40 +192,32 @@ export type RuleResult = {
 export async function applyRules(
   prisma: PrismaClient,
   merchant: string,
-  note: string | null
+  note: string | null,
+  amount?: number,
+  accountId?: string
 ): Promise<RuleResult> {
   const rules = await prisma.rule.findMany({
     where: { isEnabled: true },
     orderBy: { priority: 'asc' },
   });
 
+  const input: MatchInput = {
+    merchant,
+    merchantNormalized: normalizeMerchant(merchant),
+    note,
+    amount: amount ?? 0,
+    accountId: accountId ?? '',
+  };
+
   // Collect all matching rules - we may need to combine category from one and rename from another
   let categoryId: string | null = null;
   let renameTo: string | null = null;
 
   for (const rule of rules) {
-    let matches = false;
+    const conditions = parseConditions(rule.conditions);
+    if (conditions.length === 0) continue;
 
-    if (
-      rule.matchType === 'merchantContains' &&
-      merchant.toLowerCase().includes(rule.matchValue.toLowerCase())
-    ) {
-      matches = true;
-    } else if (
-      rule.matchType === 'noteContains' &&
-      note?.toLowerCase().includes(rule.matchValue.toLowerCase())
-    ) {
-      matches = true;
-    } else if (rule.matchType === 'merchantRegex') {
-      try {
-        const regex = new RegExp(rule.matchValue, 'i');
-        if (regex.test(merchant)) matches = true;
-      } catch {
-        // ignore invalid regex
-      }
-    }
-
-    if (matches) {
+    if (evaluateRule(conditions, input)) {
       // Take first matching category
       if (!categoryId && rule.categoryId) {
         categoryId = rule.categoryId;
@@ -166,9 +243,11 @@ export type CategorizationResult = {
 export async function autoCategorize(
   prisma: PrismaClient,
   merchant: string,
-  note: string | null
+  note: string | null,
+  amount?: number,
+  accountId?: string
 ): Promise<CategorizationResult> {
-  const ruleResult = await applyRules(prisma, merchant, note);
+  const ruleResult = await applyRules(prisma, merchant, note, amount, accountId);
 
   // If rule matched with a category, use it
   if (ruleResult.categoryId) {
@@ -182,16 +261,20 @@ export async function autoCategorize(
   // If rule matched with only a rename (no category), still apply the rename
   // but continue looking for a category via keyword catalog
   const normalized = normalizeMerchant(merchant);
-  let bestMatch: string | null = null;
+  let matchedSearchTerms: string[] | null = null;
   for (const keyword of Object.keys(keywordCatalog)) {
     if (normalized.includes(keyword)) {
-      bestMatch = keywordCatalog[keyword];
+      matchedSearchTerms = keywordCatalog[keyword];
       break;
     }
   }
 
-  if (bestMatch) {
-    const categoryId = await resolveCategoryId(prisma, bestMatch);
+  if (matchedSearchTerms) {
+    // Load actual categories from DB and match against search terms
+    const allCategories = await prisma.category.findMany({
+      select: { id: true, name: true, parentId: true },
+    });
+    const categoryId = findCategoryBySearchTerms(matchedSearchTerms, allCategories);
     if (categoryId) {
       return {
         categoryId,

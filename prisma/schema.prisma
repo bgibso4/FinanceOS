@@ -120,15 +120,15 @@ model Category {
 }
 
 model Rule {
-  id         String    @id @default(uuid())
-  matchType  String
-  matchValue String
-  categoryId String?   // Optional: rule can rename merchant without categorizing
-  category   Category? @relation(fields: [categoryId], references: [id])
-  renameTo   String?   // Optional: rename merchant to this value when rule matches
-  priority   Int       @default(100)
-  isEnabled  Boolean   @default(true)
-  createdAt  DateTime  @default(now())
+  id          String    @id @default(uuid())
+  conditions  String    @default("[]") // JSON: array of condition objects with AND logic
+  categoryId  String?   // Optional: rule can rename merchant without categorizing
+  category    Category? @relation(fields: [categoryId], references: [id])
+  renameTo    String?   // Optional: rename merchant to this value when rule matches
+  description String?   // Optional: user note describing the rule's purpose
+  priority    Int       @default(100)
+  isEnabled   Boolean   @default(true)
+  createdAt   DateTime  @default(now())
 }
 
 model Transaction {

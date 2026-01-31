@@ -180,7 +180,7 @@ export async function importCsv(
       continue;
     }
 
-    const categorization = await autoCategorize(prisma, merchant, note);
+    const categorization = await autoCategorize(prisma, merchant, note, finalAmount, accountId);
 
     // Apply merchant rename if rule specifies one
     const finalMerchant = categorization.renameTo || merchant;
