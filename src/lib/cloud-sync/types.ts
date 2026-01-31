@@ -104,6 +104,14 @@ export const NetWorthSnapshotExportSchema = z.object({
 });
 export type NetWorthSnapshotExport = z.infer<typeof NetWorthSnapshotExportSchema>;
 
+export const TagExportSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  color: z.string(),
+  createdAt: z.string(), // ISO 8601
+});
+export type TagExport = z.infer<typeof TagExportSchema>;
+
 export const ExchangeRateExportSchema = z.object({
   id: z.string(),
   fromCurrency: z.string(),
@@ -135,6 +143,7 @@ export const SyncDataSchema = z.object({
   monthlySnapshots: z.array(MonthlySnapshotExportSchema),
   netWorthSnapshots: z.array(NetWorthSnapshotExportSchema),
   exchangeRates: z.array(ExchangeRateExportSchema),
+  tags: z.array(TagExportSchema).optional(),
   settings: UserSettingsExportSchema.nullable(),
 });
 export type SyncData = z.infer<typeof SyncDataSchema>;
@@ -149,6 +158,7 @@ export const SyncMetadataSchema = z.object({
     monthlySnapshots: z.number(),
     netWorthSnapshots: z.number(),
     exchangeRates: z.number(),
+    tags: z.number().optional(),
   }),
   checksum: z.string(), // SHA-256 of JSON data
 });

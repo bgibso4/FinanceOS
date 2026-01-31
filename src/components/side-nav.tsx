@@ -36,6 +36,7 @@ const links = [
       { href: '/settings?tab=general', label: 'General' },
       { href: '/settings?tab=import', label: 'Import' },
       { href: '/settings?tab=rules', label: 'Rules' },
+      { href: '/settings?tab=tags', label: 'Tags' },
       { href: '/settings?tab=sync', label: 'Cloud Sync' },
     ],
   },

@@ -35,6 +35,7 @@ import { PlaidAccountLinkSelector } from '@/components/plaid/PlaidAccountLinkSel
 import { PlaidReconnectButton } from '@/components/plaid/PlaidReconnectButton';
 import { SyncSettings } from '@/components/sync-settings';
 import { RulesTab } from '@/components/rules/RulesTab';
+import { getTagColors } from '@/components/tag-input';
 
 type PlaidConnection = {
   id: string;
@@ -432,6 +433,14 @@ function SettingsPageContent() {
   const [budgetViewMonth, setBudgetViewMonth] = useState<string>(''); // empty = "All months" (defaults)
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
+
+  // Tags state
+  type TagWithCount = { id: string; name: string; color: string; transactionCount?: number };
+  const [settingsTags, setSettingsTags] = useState<TagWithCount[]>([]);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState('blue');
+  const [editingTag, setEditingTag] = useState<TagWithCount | null>(null);
+  const [editTagModalOpen, setEditTagModalOpen] = useState(false);
   const [newExchangeRate, setNewExchangeRate] = useState({
     fromCurrency: 'CAD',
     toCurrency: 'USD',
@@ -597,7 +606,7 @@ function SettingsPageContent() {
   }, [budgetViewMonth]);
 
   const refresh = async () => {
-    const [acc, cat, r, rep, bal, rates, settings] = await Promise.all([
+    const [acc, cat, r, rep, bal, rates, settings, tagsData] = await Promise.all([
       fetch('/api/accounts').then((r) => r.json()),
       fetch('/api/categories').then((r) => r.json()),
       fetch('/api/rules').then((r) => r.json()),
@@ -605,6 +614,7 @@ function SettingsPageContent() {
       fetch('/api/accounts/balances').then((r) => r.json()),
       fetch('/api/exchange-rates').then((r) => r.json()),
       fetch('/api/settings').then((r) => r.json()),
+      fetch('/api/tags?withCounts=true').then((r) => r.json()),
     ]);
     setAccounts(acc.accounts ?? []);
     setCategories(cat.categories ?? []);
@@ -612,6 +622,7 @@ function SettingsPageContent() {
     setSnapshots(rep.snapshots ?? []);
     setExchangeRates(rates.rates ?? []);
     setUserSettings(settings.settings ?? null);
+    setSettingsTags(tagsData.tags ?? []);
 
     // Build balance map
     const balanceMap = new Map<string, number>();
@@ -4095,6 +4106,251 @@ function SettingsPageContent() {
           </CardContent>
         </Card>
       )}
+
+      {tab === 'tags' && (
+        <Card>
+          <CardHeader className="flex items-center justify-between">
+            <div className={`text-sm font-semibold ${ds.text.primary}`}>Tags</div>
+            <Badge>{settingsTags.length} tags</Badge>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {/* Inline Create Tag */}
+            <div className="flex items-center gap-2">
+              {/* Color picker with preview dot + label */}
+              <div className="relative flex items-center gap-1.5">
+                <span
+                  className={`w-4 h-4 rounded-full shrink-0 ${getTagColors(newTagColor).text}`}
+                  style={{ backgroundColor: 'currentColor' }}
+                />
+                <Select
+                  className="w-28 text-sm"
+                  value={newTagColor}
+                  onChange={(e) => setNewTagColor(e.target.value)}
+                >
+                  {[
+                    'blue',
+                    'green',
+                    'red',
+                    'yellow',
+                    'purple',
+                    'pink',
+                    'indigo',
+                    'orange',
+                    'teal',
+                    'gray',
+                  ].map((c) => (
+                    <option key={c} value={c}>
+                      {c.charAt(0).toUpperCase() + c.slice(1)}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <Input
+                className="flex-1 max-w-sm"
+                placeholder="New tag name... (Enter to create)"
+                value={newTagName}
+                onChange={(e) => setNewTagName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!newTagName.trim()) return;
+                    fetch('/api/tags', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ name: newTagName.trim(), color: newTagColor }),
+                    }).then((res) => {
+                      if (!res.ok) {
+                        res.json().then((d) => alert(d.error || 'Failed to create tag'));
+                        return;
+                      }
+                      setNewTagName('');
+                      setNewTagColor('blue');
+                      refresh();
+                      triggerSync();
+                    });
+                  }
+                }}
+              />
+              <Button
+                className="bg-blue-600 text-white hover:bg-blue-700 py-2 px-3 text-sm"
+                disabled={!newTagName.trim()}
+                onClick={async () => {
+                  if (!newTagName.trim()) return;
+                  const res = await fetch('/api/tags', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newTagName.trim(), color: newTagColor }),
+                  });
+                  if (!res.ok) {
+                    const d = await res.json();
+                    alert(d.error || 'Failed to create tag');
+                    return;
+                  }
+                  setNewTagName('');
+                  setNewTagColor('blue');
+                  refresh();
+                  triggerSync();
+                }}
+              >
+                + Create
+              </Button>
+            </div>
+
+            {/* Tag Cards Grid */}
+            {settingsTags.length === 0 ? (
+              <div className={`py-8 text-center text-sm ${ds.text.muted}`}>
+                No tags yet. Type a name above and press Enter.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                {settingsTags.map((tag) => {
+                  const colors = getTagColors(tag.color);
+                  return (
+                    <div
+                      key={tag.id}
+                      className={`group relative px-3 py-2.5 rounded-lg border ${colors.border} ${colors.bg} cursor-pointer hover:shadow-md transition-all`}
+                      onClick={() => {
+                        setEditingTag(tag);
+                        setEditTagModalOpen(true);
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full shrink-0 ${colors.text}`}
+                          style={{ backgroundColor: 'currentColor' }}
+                        />
+                        <span
+                          className={`font-medium text-sm ${colors.text} truncate`}
+                          title={tag.name}
+                        >
+                          {tag.name}
+                        </span>
+                      </div>
+                      {tag.transactionCount !== undefined && tag.transactionCount > 0 && (
+                        <div className={`text-xs ${colors.text} opacity-70 mt-0.5 ml-[18px]`}>
+                          {tag.transactionCount} txn{tag.transactionCount !== 1 ? 's' : ''}
+                        </div>
+                      )}
+                      {/* Hover delete button */}
+                      <button
+                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-500/20 text-red-500 dark:text-red-400 transition-all"
+                        title="Delete tag"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (
+                            !confirm(
+                              `Delete "${tag.name}"?${
+                                tag.transactionCount
+                                  ? ` Removes from ${tag.transactionCount} transaction(s).`
+                                  : ''
+                              }`
+                            )
+                          )
+                            return;
+                          await fetch(`/api/tags/${tag.id}`, { method: 'DELETE' });
+                          refresh();
+                          triggerSync();
+                        }}
+                      >
+                        <svg
+                          className="w-3.5 h-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            d="M6 18L18 6M6 6l12 12"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Edit Tag Modal */}
+      <Modal
+        isOpen={editTagModalOpen}
+        title={editingTag ? `Edit Tag: ${editingTag.name}` : 'Edit Tag'}
+        onClose={() => {
+          setEditTagModalOpen(false);
+          setEditingTag(null);
+        }}
+      >
+        {editingTag && (
+          <div className="space-y-4">
+            <div>
+              <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>Name</label>
+              <Input
+                className="w-full"
+                value={editingTag.name}
+                onChange={(e) => setEditingTag({ ...editingTag, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>Color</label>
+              <div className="grid grid-cols-5 gap-2">
+                {[
+                  'blue',
+                  'green',
+                  'red',
+                  'yellow',
+                  'purple',
+                  'pink',
+                  'indigo',
+                  'orange',
+                  'teal',
+                  'gray',
+                ].map((c) => {
+                  const colors = getTagColors(c);
+                  return (
+                    <button
+                      key={c}
+                      className={`px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
+                        editingTag.color === c
+                          ? `${colors.bg} ${colors.text} ${colors.border} ring-2 ring-offset-1 ring-blue-500`
+                          : `${colors.bg} ${colors.text} ${colors.border} opacity-60 hover:opacity-100`
+                      }`}
+                      onClick={() => setEditingTag({ ...editingTag, color: c })}
+                    >
+                      {c.charAt(0).toUpperCase() + c.slice(1)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <Button
+              className="w-full bg-blue-600 text-white hover:bg-blue-700 py-3"
+              onClick={async () => {
+                if (!editingTag.name.trim()) return;
+                const res = await fetch(`/api/tags/${editingTag.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ name: editingTag.name.trim(), color: editingTag.color }),
+                });
+                if (!res.ok) {
+                  const d = await res.json();
+                  alert(d.error || 'Failed to update tag');
+                  return;
+                }
+                setEditTagModalOpen(false);
+                setEditingTag(null);
+                refresh();
+                triggerSync();
+              }}
+            >
+              Save Changes
+            </Button>
+          </div>
+        )}
+      </Modal>
 
       {tab === 'sync' && <SyncSettings />}
     </div>
