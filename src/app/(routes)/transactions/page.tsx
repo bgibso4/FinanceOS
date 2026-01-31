@@ -124,15 +124,15 @@ function TransactionsPageContent() {
   const bulkUpdateCategory = async () => {
     if (!bulkCategory || selectedTransactions.size === 0) return;
 
-    await Promise.all(
-      Array.from(selectedTransactions).map((txId) =>
-        fetch(`/api/transactions/${txId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ categoryId: bulkCategory }),
-        })
-      )
-    );
+    await fetch('/api/transactions/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'update',
+        transactionIds: Array.from(selectedTransactions),
+        data: { categoryId: bulkCategory },
+      }),
+    });
 
     clearSelection();
     setBulkCategory('');
@@ -142,7 +142,6 @@ function TransactionsPageContent() {
 
   const bulkDelete = async () => {
     if (selectedTransactions.size === 0) return;
-
     if (
       !confirm(
         `Delete ${selectedTransactions.size} transaction${selectedTransactions.size > 1 ? 's' : ''}? This cannot be undone.`
@@ -151,13 +150,14 @@ function TransactionsPageContent() {
       return;
     }
 
-    await Promise.all(
-      Array.from(selectedTransactions).map((txId) =>
-        fetch(`/api/transactions/${txId}`, {
-          method: 'DELETE',
-        })
-      )
-    );
+    await fetch('/api/transactions/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'delete',
+        transactionIds: Array.from(selectedTransactions),
+      }),
+    });
 
     clearSelection();
     refreshTransactionsAndQueue();
@@ -167,15 +167,15 @@ function TransactionsPageContent() {
   const bulkMarkAsTransfer = async () => {
     if (selectedTransactions.size === 0) return;
 
-    await Promise.all(
-      Array.from(selectedTransactions).map((txId) =>
-        fetch(`/api/transactions/${txId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ isTransfer: true }),
-        })
-      )
-    );
+    await fetch('/api/transactions/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'update',
+        transactionIds: Array.from(selectedTransactions),
+        data: { isTransfer: true },
+      }),
+    });
 
     clearSelection();
     refreshTransactionsAndQueue();
@@ -185,24 +185,38 @@ function TransactionsPageContent() {
   const bulkUpdateTags = async () => {
     if (!bulkTagName || selectedTransactions.size === 0) return;
 
+    const updates = Array.from(selectedTransactions).map((txId) => {
+      const tx = transactions.find((t) => t.id === txId);
+      const currentTags = tx?.tags || [];
+      const newTags =
+        bulkTagAction === 'add'
+          ? currentTags.includes(bulkTagName)
+            ? currentTags
+            : [...currentTags, bulkTagName]
+          : currentTags.filter((t) => t !== bulkTagName);
+      return { id: txId, tags: newTags };
+    });
+
+    const tagGroups = new Map<string, string[]>();
+    for (const u of updates) {
+      const key = JSON.stringify(u.tags);
+      const group = tagGroups.get(key) ?? [];
+      group.push(u.id);
+      tagGroups.set(key, group);
+    }
+
     await Promise.all(
-      Array.from(selectedTransactions).map(async (txId) => {
-        const tx = transactions.find((t) => t.id === txId);
-        const currentTags = tx?.tags || [];
-        let newTags: string[];
-
-        if (bulkTagAction === 'add') {
-          newTags = currentTags.includes(bulkTagName) ? currentTags : [...currentTags, bulkTagName];
-        } else {
-          newTags = currentTags.filter((t) => t !== bulkTagName);
-        }
-
-        return fetch(`/api/transactions/${txId}`, {
-          method: 'PATCH',
+      Array.from(tagGroups.entries()).map(([tagsJson, ids]) =>
+        fetch('/api/transactions/bulk', {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tags: newTags }),
-        });
-      })
+          body: JSON.stringify({
+            action: 'update',
+            transactionIds: ids,
+            data: { tags: JSON.parse(tagsJson) },
+          }),
+        })
+      )
     );
 
     clearSelection();
@@ -544,20 +558,19 @@ function TransactionsPageContent() {
   };
 
   const approveAllHighConfidence = async () => {
-    if (!queue?.highConfidence.length) return;
+    if (!queue?.highConfidence?.length) return;
 
-    // For now, we'll just remove them from the review queue by updating their createdAt
-    // In a real implementation, you might add an "approved" flag to the schema
-    const updates = queue.highConfidence.map((tx) =>
-      fetch(`/api/transactions/${tx.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note: tx.note ? `${tx.note} [Approved]` : '[Approved]' }),
-      })
-    );
+    await fetch('/api/transactions/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'update',
+        transactionIds: queue.highConfidence.map((tx) => tx.id),
+        data: { confidenceScore: 1.0 },
+      }),
+    });
 
-    await Promise.all(updates);
-    refreshTransactionsAndQueue(); // Refresh to remove from high confidence queue
+    refreshTransactionsAndQueue();
     triggerSync();
   };
 
