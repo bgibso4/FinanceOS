@@ -9,15 +9,15 @@ All feature planning and task tracking for FinanceOS development.
 ---
 
 ## 1. Net Worth Report Enhancements
-**Impact:** Medium | **Effort:** Low-Medium | **Status:** Core reports built, needs export & scheduling
+**Impact:** Medium | **Effort:** Low-Medium | **Status:** Core features complete, export deferred
 
-Net worth snapshots, trend charts, comparison, and backfill are all built. Remaining work is export formats and automation.
+Net worth snapshots, trend charts, comparison, backfill, inflation adjustment, and forecasting are all built. Export deferred until needed.
 
+- [x] Inflation-adjusted calculations (manual annual rates in Settings, toggle in Reports)
+- [x] Forecasting / projections based on savings rate (strategy pattern, linear projection)
 - [ ] Scheduled automatic snapshots (isAutomatic flag exists, needs trigger)
 - [ ] Quarter-over-quarter rollup summaries
-- [ ] Inflation-adjusted calculations
 - [ ] Export options (PDF, CSV)
-- [ ] Forecasting / projections based on savings rate
 
 ---
 

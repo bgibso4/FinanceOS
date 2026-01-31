@@ -5,7 +5,12 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
+import { Select } from '@/components/ui/select';
 import { ds } from '@/lib/design-system';
+import { parseInflationRates, adjustSnapshotsForInflation } from '@/lib/inflation';
+import { FORECAST_STRATEGIES, getStrategy } from '@/lib/forecasting';
+import type { InflationRateEntry } from '@/lib/inflation';
+import type { ForecastDataPoint } from '@/lib/forecasting';
 
 // Account type groupings for breakdown display
 const ASSET_GROUPS: Record<string, { label: string; types: string[]; color: string }> = {
@@ -152,12 +157,239 @@ const formatPercent = (value: number) => {
   return `${sign}${value.toFixed(1)}%`;
 };
 
+const formatCompactCurrency = (amount: number) => {
+  const abs = Math.abs(amount);
+  const sign = amount < 0 ? '-' : '';
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(0)}K`;
+  return `${sign}$${abs.toFixed(0)}`;
+};
+
 const formatShortDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
   });
 };
+
+// Projection chart: historical solid line + projected dashed line
+function ForecastChart({
+  snapshots,
+  projections,
+}: {
+  snapshots: NetWorthSnapshot[];
+  projections: Array<{ monthsOut: number; date: string; projectedNetWorth: number }>;
+}) {
+  if (snapshots.length < 2 || projections.length === 0) return null;
+
+  // Build data: historical (chronological) + projected
+  const historical = [...snapshots].reverse().slice(-12);
+  const allValues = [
+    ...historical.map((s) => s.netWorth),
+    ...projections.map((p) => p.projectedNetWorth),
+  ];
+  const min = Math.min(...allValues);
+  const max = Math.max(...allValues);
+  const range = max - min || 1;
+
+  const width = 600;
+  const height = 100;
+  const paddingLeft = 35;
+  const paddingRight = 10;
+  const paddingTop = 14;
+  const paddingBottom = 14;
+  const chartWidth = width - paddingLeft - paddingRight;
+  const chartHeight = height - paddingTop - paddingBottom;
+
+  const totalPoints = historical.length + projections.length;
+
+  const toX = (i: number) => paddingLeft + (i / (totalPoints - 1)) * chartWidth;
+  const toY = (v: number) => paddingTop + chartHeight - ((v - min) / range) * chartHeight;
+
+  // Y-axis gridlines (4 lines)
+  const gridLineCount = 4;
+  const gridLines = Array.from({ length: gridLineCount }, (_, i) => {
+    const value = min + (range * (i + 1)) / (gridLineCount + 1);
+    return { y: toY(value), value };
+  });
+
+  // Historical points
+  const histPoints = historical.map((s, i) => ({
+    x: toX(i),
+    y: toY(s.netWorth),
+    value: s.netWorth,
+    label: formatShortDate(s.date),
+  }));
+
+  // Projected points (continue after historical)
+  const projPoints = projections.map((p, i) => ({
+    x: toX(historical.length + i),
+    y: toY(p.projectedNetWorth),
+    value: p.projectedNetWorth,
+    label: `+${p.monthsOut}mo`,
+  }));
+
+  const histPath = histPoints
+    .map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`))
+    .join(' ');
+
+  // Dashed line from last historical point through projections
+  const lastHist = histPoints[histPoints.length - 1];
+  const projPath = [lastHist, ...projPoints]
+    .map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`))
+    .join(' ');
+
+  // Gradient area for historical
+  const histArea = `${histPath} L ${lastHist.x} ${height - paddingBottom} L ${histPoints[0].x} ${height - paddingBottom} Z`;
+
+  return (
+    <div className="w-full overflow-hidden">
+      <svg className="w-full block" viewBox={`0 0 ${width} ${height}`}>
+        <defs>
+          <linearGradient id="forecastHistGradient" x1="0%" x2="0%" y1="0%" y2="100%">
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {/* Horizontal gridlines */}
+        {gridLines.map((gl, i) => (
+          <g key={`grid-${i}`}>
+            <line
+              stroke="#374151"
+              strokeDasharray="2 2"
+              strokeWidth="0.3"
+              x1={paddingLeft}
+              x2={width - paddingRight}
+              y1={gl.y}
+              y2={gl.y}
+            />
+            <text
+              className="text-[3px]"
+              dominantBaseline="middle"
+              fill="#6b7280"
+              textAnchor="end"
+              x={paddingLeft - 2}
+              y={gl.y}
+            >
+              {formatCompactCurrency(gl.value)}
+            </text>
+          </g>
+        ))}
+
+        {/* Historical gradient area */}
+        <path d={histArea} fill="url(#forecastHistGradient)" />
+
+        {/* Historical solid line */}
+        <path
+          d={histPath}
+          fill="none"
+          stroke="#3b82f6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="0.75"
+        />
+
+        {/* Projected dashed line */}
+        <path
+          d={projPath}
+          fill="none"
+          stroke="#8b5cf6"
+          strokeDasharray="3 2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="0.75"
+        />
+
+        {/* Divider line at "now" */}
+        <line
+          stroke="#9ca3af"
+          strokeDasharray="2 2"
+          strokeWidth="0.5"
+          x1={lastHist.x}
+          x2={lastHist.x}
+          y1={paddingTop}
+          y2={height - paddingBottom}
+        />
+        <text
+          className="text-[3.5px] font-medium"
+          fill="#9ca3af"
+          textAnchor="middle"
+          x={lastHist.x}
+          y={paddingTop - 2}
+        >
+          Now
+        </text>
+
+        {/* Historical dots */}
+        {histPoints.map((p, i) => (
+          <circle key={`h-${i}`} cx={p.x} cy={p.y} fill="#3b82f6" r="1" />
+        ))}
+
+        {/* Projected dots with labels */}
+        {projPoints.map((p, i) => (
+          <g key={`p-${i}`}>
+            <circle cx={p.x} cy={p.y} fill="#8b5cf6" r="1.5" />
+            <text
+              className="text-[3.5px] font-medium"
+              fill="#8b5cf6"
+              textAnchor="middle"
+              x={p.x}
+              y={p.y - 3}
+            >
+              {formatCurrency(p.value)}
+            </text>
+            <text
+              className="text-[3px]"
+              fill="#9ca3af"
+              textAnchor="middle"
+              x={p.x}
+              y={height - paddingBottom + 5}
+            >
+              {p.label}
+            </text>
+          </g>
+        ))}
+
+        {/* X-axis labels for first and last historical */}
+        <text
+          className="text-[3px]"
+          fill="#9ca3af"
+          textAnchor="start"
+          x={histPoints[0].x}
+          y={height - paddingBottom + 5}
+        >
+          {histPoints[0].label}
+        </text>
+        <text
+          className="text-[3px]"
+          fill="#9ca3af"
+          textAnchor="middle"
+          x={lastHist.x}
+          y={height - paddingBottom + 5}
+        >
+          {lastHist.label}
+        </text>
+      </svg>
+      <div className="flex items-center justify-center gap-4 mt-1">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-0.5 bg-blue-500 rounded" />
+          <span className={`text-[10px] ${ds.text.muted}`}>Historical</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div
+            className="w-3 h-0.5 rounded"
+            style={{
+              backgroundImage:
+                'repeating-linear-gradient(to right, #8b5cf6 0, #8b5cf6 3px, transparent 3px, transparent 5px)',
+            }}
+          />
+          <span className={`text-[10px] ${ds.text.muted}`}>Projected</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Simple SVG line chart component for net worth trend
 function NetWorthTrendChart({ snapshots }: { snapshots: NetWorthSnapshot[] }) {
@@ -311,6 +543,11 @@ export function NetWorthSnapshots() {
   });
   const [backfillSaving, setBackfillSaving] = useState(false);
 
+  // Inflation & forecasting state
+  const [inflationRates, setInflationRates] = useState<InflationRateEntry[]>([]);
+  const [showInflationAdjusted, setShowInflationAdjusted] = useState(false);
+  const [selectedStrategy, setSelectedStrategy] = useState<string>(FORECAST_STRATEGIES[0].name);
+
   useEffect(() => {
     loadSnapshots();
   }, []);
@@ -318,15 +555,41 @@ export function NetWorthSnapshots() {
   const loadSnapshots = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/snapshots?limit=20');
-      const data = await res.json();
-      setSnapshots(data.snapshots || []);
+      const [snapshotsRes, inflationRes] = await Promise.all([
+        fetch('/api/snapshots?limit=20'),
+        fetch('/api/inflation-rates'),
+      ]);
+      const snapshotsData = await snapshotsRes.json();
+      const inflationData = await inflationRes.json();
+      setSnapshots(snapshotsData.snapshots || []);
+      setInflationRates(inflationData.rates || []);
     } catch (error) {
       console.error('Failed to load snapshots:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  // Compute inflation-adjusted snapshots
+  const inflationRateMap = useMemo(() => parseInflationRates(inflationRates), [inflationRates]);
+  const hasInflationRates = inflationRates.length > 0;
+
+  const adjustedSnapshots = useMemo(() => {
+    if (!showInflationAdjusted || !hasInflationRates || snapshots.length === 0) return null;
+    const toYear = new Date().getFullYear();
+    return adjustSnapshotsForInflation(snapshots, toYear, inflationRateMap);
+  }, [snapshots, showInflationAdjusted, hasInflationRates, inflationRateMap]);
+
+  // Compute forecast projections
+  const forecastResult = useMemo(() => {
+    if (snapshots.length < 2) return null;
+    const strategy = getStrategy(selectedStrategy);
+    const dataPoints: ForecastDataPoint[] = snapshots.map((s) => ({
+      date: s.date,
+      netWorth: s.netWorth,
+    }));
+    return strategy.forecast(dataPoints, [6, 12, 24]);
+  }, [snapshots, selectedStrategy]);
 
   const captureSnapshot = async () => {
     setCapturing(true);
@@ -470,6 +733,17 @@ export function NetWorthSnapshots() {
           <div className="flex items-center justify-between gap-4">
             <div className={`text-sm font-semibold ${ds.text.primary}`}>Net Worth Tracking</div>
             <div className="flex items-center gap-2 shrink-0">
+              {hasInflationRates && (
+                <Button
+                  className={
+                    showInflationAdjusted ? 'bg-amber-600 hover:bg-amber-700 text-white' : ''
+                  }
+                  variant={showInflationAdjusted ? 'primary' : 'outline'}
+                  onClick={() => setShowInflationAdjusted(!showInflationAdjusted)}
+                >
+                  {showInflationAdjusted ? 'Nominal' : 'Inflation-Adjusted'}
+                </Button>
+              )}
               {snapshots.length >= 2 && (
                 <Button
                   className={compareMode ? 'bg-purple-600 hover:bg-purple-700 text-white' : ''}
@@ -502,12 +776,21 @@ export function NetWorthSnapshots() {
                 <div className="flex-1">
                   <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
                     Current Net Worth
+                    {showInflationAdjusted && (
+                      <span className="ml-1 text-amber-600">
+                        (in {new Date().getFullYear()} dollars)
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-baseline gap-3">
                     <div
                       className={`text-4xl font-bold ${latestSnapshot.netWorth >= 0 ? 'text-green-600' : 'text-red-600'}`}
                     >
-                      {formatCurrency(latestSnapshot.netWorth)}
+                      {formatCurrency(
+                        showInflationAdjusted && adjustedSnapshots
+                          ? adjustedSnapshots[0].adjustedNetWorth
+                          : latestSnapshot.netWorth
+                      )}
                     </div>
                     {netWorthChange !== null && (
                       <div className="flex items-center gap-1">
@@ -601,6 +884,81 @@ export function NetWorthSnapshots() {
         </CardContent>
       </Card>
 
+      {/* Net Worth Projections */}
+      {forecastResult && snapshots.length >= 2 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4">
+              <div className={`text-sm font-semibold ${ds.text.primary}`}>
+                Net Worth Projections
+              </div>
+              {FORECAST_STRATEGIES.length > 1 && (
+                <Select
+                  className="text-xs"
+                  value={selectedStrategy}
+                  onChange={(e) => setSelectedStrategy(e.target.value)}
+                >
+                  {FORECAST_STRATEGIES.map((s) => (
+                    <option key={s.name} value={s.name}>
+                      {s.name}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4">
+              {/* Left: projection cards stacked vertically */}
+              <div className="flex flex-col gap-2.5 w-44 shrink-0">
+                {forecastResult.projections.map((p) => {
+                  const currentNetWorth = snapshots[0].netWorth;
+                  const projectedChange = p.projectedNetWorth - currentNetWorth;
+                  const isPositive = projectedChange >= 0;
+
+                  return (
+                    <div
+                      key={p.monthsOut}
+                      className={`p-3 rounded-lg border ${ds.border.default} ${ds.bg.secondary}`}
+                    >
+                      <div className={`text-[11px] ${ds.text.muted} uppercase tracking-wide`}>
+                        {p.monthsOut} months
+                      </div>
+                      <div className={`text-base font-bold ${ds.text.primary}`}>
+                        {formatCurrency(p.projectedNetWorth)}
+                      </div>
+                      <div
+                        className={`text-xs font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}
+                      >
+                        {isPositive ? '+' : ''}
+                        {formatCurrency(projectedChange)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Right: projection chart */}
+              <div
+                className={`flex-1 min-w-0 p-2 rounded-lg border ${ds.border.default} ${ds.bg.primary}`}
+              >
+                <ForecastChart projections={forecastResult.projections} snapshots={snapshots} />
+              </div>
+            </div>
+
+            {forecastResult.metadata.avgMonthlyChange !== undefined && (
+              <div className={`text-xs ${ds.text.muted} mt-3`}>
+                Based on avg. monthly change of{' '}
+                <span className="font-mono font-medium">
+                  {formatCurrency(forecastResult.metadata.avgMonthlyChange)}
+                </span>{' '}
+                across {forecastResult.metadata.inputDataPoints} snapshots.{' '}
+                {forecastResult.metadata.description}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Snapshot History */}
       {snapshots.length > 0 && (
         <Card>
@@ -641,6 +999,11 @@ export function NetWorthSnapshots() {
                       <th className={`px-3 py-2 text-right ${ds.text.secondary} font-semibold`}>
                         Net Worth
                       </th>
+                      {showInflationAdjusted && adjustedSnapshots && (
+                        <th className={`px-3 py-2 text-right ${ds.text.secondary} font-semibold`}>
+                          Adjusted
+                        </th>
+                      )}
                       <th className={`px-3 py-2 text-right ${ds.text.secondary} font-semibold`}>
                         Assets
                       </th>
@@ -696,6 +1059,13 @@ export function NetWorthSnapshots() {
                               </span>
                             )}
                           </td>
+                          {showInflationAdjusted && adjustedSnapshots && (
+                            <td className="px-3 py-2 text-right">
+                              <span className="font-medium text-amber-600">
+                                {formatCurrency(adjustedSnapshots[idx].adjustedNetWorth)}
+                              </span>
+                            </td>
+                          )}
                           <td className="px-3 py-2 text-right text-green-600">
                             {formatCurrency(snapshot.totalAssets)}
                           </td>
