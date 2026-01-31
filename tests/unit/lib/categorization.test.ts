@@ -177,14 +177,15 @@ describe('categorization', () => {
   });
 
   describe('applyRules', () => {
-    it('matches merchantContains rule', async () => {
+    it('matches merchant contains rule', async () => {
       // Create category and rule
       const category = createCategoryData({ id: 'cat-1', name: 'Coffee', type: 'expense' });
       await prisma.category.create({ data: category });
 
       const rule = createRuleData('cat-1', {
-        matchType: 'merchantContains',
-        matchValue: 'starbucks',
+        conditions: JSON.stringify([
+          { field: 'merchant', operator: 'contains', value: 'starbucks' },
+        ]),
         priority: 1,
       });
       await prisma.rule.create({ data: rule });
@@ -194,13 +195,14 @@ describe('categorization', () => {
       expect(result.renameTo).toBeNull();
     });
 
-    it('matches merchantContains case-insensitively', async () => {
+    it('matches merchant contains case-insensitively', async () => {
       const category = createCategoryData({ id: 'cat-2', name: 'Food', type: 'expense' });
       await prisma.category.create({ data: category });
 
       const rule = createRuleData('cat-2', {
-        matchType: 'merchantContains',
-        matchValue: 'McDonalds',
+        conditions: JSON.stringify([
+          { field: 'merchant', operator: 'contains', value: 'McDonalds' },
+        ]),
         priority: 1,
       });
       await prisma.rule.create({ data: rule });
@@ -209,13 +211,14 @@ describe('categorization', () => {
       expect(result.categoryId).toBe('cat-2');
     });
 
-    it('matches noteContains rule', async () => {
+    it('matches note contains rule', async () => {
       const category = createCategoryData({ id: 'cat-3', name: 'Business', type: 'expense' });
       await prisma.category.create({ data: category });
 
       const rule = createRuleData('cat-3', {
-        matchType: 'noteContains',
-        matchValue: 'client meeting',
+        conditions: JSON.stringify([
+          { field: 'note', operator: 'contains', value: 'client meeting' },
+        ]),
         priority: 1,
       });
       await prisma.rule.create({ data: rule });
@@ -224,13 +227,14 @@ describe('categorization', () => {
       expect(result.categoryId).toBe('cat-3');
     });
 
-    it('matches merchantRegex rule', async () => {
+    it('matches merchant regex rule', async () => {
       const category = createCategoryData({ id: 'cat-4', name: 'Subscriptions', type: 'expense' });
       await prisma.category.create({ data: category });
 
       const rule = createRuleData('cat-4', {
-        matchType: 'merchantRegex',
-        matchValue: '^(netflix|spotify|hulu)',
+        conditions: JSON.stringify([
+          { field: 'merchant', operator: 'regex', value: '^(netflix|spotify|hulu)' },
+        ]),
         priority: 1,
       });
       await prisma.rule.create({ data: rule });
@@ -247,13 +251,11 @@ describe('categorization', () => {
 
       // Create rules - lower priority number wins
       const rule1 = createRuleData('cat-high', {
-        matchType: 'merchantContains',
-        matchValue: 'amazon',
+        conditions: JSON.stringify([{ field: 'merchant', operator: 'contains', value: 'amazon' }]),
         priority: 1, // Higher priority
       });
       const rule2 = createRuleData('cat-low', {
-        matchType: 'merchantContains',
-        matchValue: 'amazon',
+        conditions: JSON.stringify([{ field: 'merchant', operator: 'contains', value: 'amazon' }]),
         priority: 100, // Lower priority
       });
       await prisma.rule.createMany({ data: [rule1, rule2] });
@@ -267,8 +269,9 @@ describe('categorization', () => {
       await prisma.category.create({ data: category });
 
       const rule = createRuleData('cat-5', {
-        matchType: 'merchantContains',
-        matchValue: 'specific-merchant',
+        conditions: JSON.stringify([
+          { field: 'merchant', operator: 'contains', value: 'specific-merchant' },
+        ]),
         priority: 1,
       });
       await prisma.rule.create({ data: rule });
@@ -283,8 +286,7 @@ describe('categorization', () => {
       await prisma.category.create({ data: category });
 
       const rule = createRuleData('cat-6', {
-        matchType: 'merchantContains',
-        matchValue: 'target',
+        conditions: JSON.stringify([{ field: 'merchant', operator: 'contains', value: 'target' }]),
         priority: 1,
         isEnabled: false,
       });
@@ -299,8 +301,9 @@ describe('categorization', () => {
       await prisma.category.create({ data: category });
 
       const rule = createRuleData('cat-7', {
-        matchType: 'merchantRegex',
-        matchValue: '[invalid(regex', // Invalid regex
+        conditions: JSON.stringify([
+          { field: 'merchant', operator: 'regex', value: '[invalid(regex' },
+        ]),
         priority: 1,
       });
       await prisma.rule.create({ data: rule });
@@ -316,8 +319,9 @@ describe('categorization', () => {
 
       await prisma.rule.create({
         data: {
-          matchType: 'merchantContains',
-          matchValue: 'ENDING',
+          conditions: JSON.stringify([
+            { field: 'merchant', operator: 'contains', value: 'ENDING' },
+          ]),
           categoryId: 'cat-8',
           renameTo: 'Internal Transfer',
           priority: 1,
@@ -333,8 +337,9 @@ describe('categorization', () => {
     it('returns renameTo without categoryId for rename-only rules', async () => {
       await prisma.rule.create({
         data: {
-          matchType: 'merchantContains',
-          matchValue: 'CRYPTIC_CODE',
+          conditions: JSON.stringify([
+            { field: 'merchant', operator: 'contains', value: 'CRYPTIC_CODE' },
+          ]),
           categoryId: null,
           renameTo: 'Friendly Name',
           priority: 1,
@@ -358,6 +363,7 @@ describe('categorization', () => {
           createCategoryData({ id: 'cat-shopping', name: 'Shopping', type: 'expense' }),
           createCategoryData({ id: 'cat-coffee', name: 'Coffee', type: 'expense' }),
           createCategoryData({ id: 'cat-entertainment', name: 'Entertainment', type: 'expense' }),
+          createCategoryData({ id: 'cat-subscriptions', name: 'Subscriptions', type: 'expense' }),
           createCategoryData({ id: 'cat-income', name: 'Income', type: 'income' }),
           createCategoryData({ id: 'cat-transfer', name: 'Transfer', type: 'transfer' }),
         ],
@@ -366,8 +372,7 @@ describe('categorization', () => {
 
     it('applies rules with confidence 0.98', async () => {
       const rule = createRuleData('cat-coffee', {
-        matchType: 'merchantContains',
-        matchValue: 'philz',
+        conditions: JSON.stringify([{ field: 'merchant', operator: 'contains', value: 'philz' }]),
         priority: 1,
       });
       await prisma.rule.create({ data: rule });
@@ -399,8 +404,9 @@ describe('categorization', () => {
     it('prioritizes rules over keyword catalog', async () => {
       // Create a rule that overrides the keyword catalog
       const rule = createRuleData('cat-coffee', {
-        matchType: 'merchantContains',
-        matchValue: 'starbucks',
+        conditions: JSON.stringify([
+          { field: 'merchant', operator: 'contains', value: 'starbucks' },
+        ]),
         priority: 1,
       });
       await prisma.rule.create({ data: rule });
@@ -418,8 +424,8 @@ describe('categorization', () => {
         { merchant: 'WHOLE FOODS', expected: 'cat-groceries' },
         { merchant: 'SAFEWAY GROCERY', expected: 'cat-groceries' },
         { merchant: 'AMAZON.COM', expected: 'cat-shopping' },
-        { merchant: 'NETFLIX.COM', expected: 'cat-entertainment' },
-        { merchant: 'SPOTIFY USA', expected: 'cat-entertainment' },
+        { merchant: 'NETFLIX.COM', expected: 'cat-subscriptions' },
+        { merchant: 'SPOTIFY USA', expected: 'cat-subscriptions' },
       ];
 
       for (const test of tests) {
@@ -432,8 +438,9 @@ describe('categorization', () => {
     it('returns renameTo from matching rule', async () => {
       await prisma.rule.create({
         data: {
-          matchType: 'merchantContains',
-          matchValue: 'ENDING',
+          conditions: JSON.stringify([
+            { field: 'merchant', operator: 'contains', value: 'ENDING' },
+          ]),
           categoryId: 'cat-transfer',
           renameTo: 'Internal Transfer',
           priority: 1,
@@ -451,8 +458,7 @@ describe('categorization', () => {
       // Rule with only renameTo (no category)
       await prisma.rule.create({
         data: {
-          matchType: 'merchantContains',
-          matchValue: 'uber',
+          conditions: JSON.stringify([{ field: 'merchant', operator: 'contains', value: 'uber' }]),
           categoryId: null,
           renameTo: 'Uber Ride',
           priority: 1,

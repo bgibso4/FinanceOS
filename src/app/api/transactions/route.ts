@@ -87,7 +87,13 @@ export async function POST(req: NextRequest) {
   const categorization =
     parsed.categoryId !== undefined
       ? { categoryId: parsed.categoryId, confidence: 0.99 }
-      : await autoCategorize(prisma, parsed.merchant, parsed.note ?? null);
+      : await autoCategorize(
+          prisma,
+          parsed.merchant,
+          parsed.note ?? null,
+          parsed.amount,
+          parsed.accountId
+        );
 
   // Parse date as UTC to avoid timezone issues
   const dateStr = parsed.date.split('T')[0]; // Get YYYY-MM-DD

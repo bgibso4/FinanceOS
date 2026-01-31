@@ -2,12 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 
+const conditionSchema = z.object({
+  field: z.enum(['merchant', 'merchantNormalized', 'note', 'amount', 'account']),
+  operator: z.enum(['contains', 'exact', 'regex', 'gt', 'lt', 'between', 'equals']),
+  value: z.string(),
+  negate: z.boolean().optional(),
+});
+
 const ruleSchema = z
   .object({
-    matchType: z.enum(['merchantContains', 'merchantRegex', 'noteContains']),
-    matchValue: z.string(),
+    conditions: z.array(conditionSchema).min(1),
     categoryId: z.string().nullable().optional(),
     renameTo: z.string().nullable().optional(),
+    description: z.string().nullable().optional(),
     priority: z.number().int().min(1).default(100),
     isEnabled: z.boolean().default(true),
   })
@@ -27,15 +34,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const parsed = ruleSchema.parse(body);
 
-    // Use relation syntax for category to avoid Prisma type issues
     const rule = await prisma.rule.create({
       data: {
-        matchType: parsed.matchType,
-        matchValue: parsed.matchValue,
+        conditions: JSON.stringify(parsed.conditions),
         renameTo: parsed.renameTo || undefined,
+        description: parsed.description || undefined,
         priority: parsed.priority,
         isEnabled: parsed.isEnabled,
-        // Only include category relation if categoryId is provided
         ...(parsed.categoryId && {
           category: {
             connect: { id: parsed.categoryId },

@@ -75,15 +75,15 @@ describe('teller-sync', () => {
     await prisma.rule.createMany({
       data: [
         {
-          matchType: 'merchantContains',
-          matchValue: 'trader joe',
+          conditions: JSON.stringify([
+            { field: 'merchant', operator: 'contains', value: 'trader joe' },
+          ]),
           categoryId: groceryCategoryId,
           priority: 10,
           isEnabled: true,
         },
         {
-          matchType: 'merchantContains',
-          matchValue: 'uber',
+          conditions: JSON.stringify([{ field: 'merchant', operator: 'contains', value: 'uber' }]),
           categoryId: transportCategoryId,
           priority: 10,
           isEnabled: true,

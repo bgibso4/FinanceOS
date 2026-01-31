@@ -151,10 +151,10 @@ export async function exportDatabase(): Promise<SyncPayload> {
     rules: rules.map(
       (r): RuleExport => ({
         id: r.id,
-        matchType: r.matchType,
-        matchValue: r.matchValue,
+        conditions: r.conditions,
         categoryId: r.categoryId,
         renameTo: r.renameTo,
+        description: r.description,
         priority: r.priority,
         isEnabled: r.isEnabled,
         createdAt: r.createdAt.toISOString(),
@@ -358,10 +358,10 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
       await tx.rule.create({
         data: {
           id: rule.id,
-          matchType: rule.matchType,
-          matchValue: rule.matchValue,
+          conditions: rule.conditions,
           categoryId: rule.categoryId,
           renameTo: rule.renameTo,
+          description: rule.description ?? null,
           priority: rule.priority,
           isEnabled: rule.isEnabled,
           createdAt: new Date(rule.createdAt),

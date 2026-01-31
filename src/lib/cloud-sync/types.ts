@@ -58,10 +58,10 @@ export type CategoryExport = z.infer<typeof CategoryExportSchema>;
 
 export const RuleExportSchema = z.object({
   id: z.string(),
-  matchType: z.string(),
-  matchValue: z.string(),
+  conditions: z.string(),
   categoryId: z.string().nullable(),
   renameTo: z.string().nullable(),
+  description: z.string().nullable().optional(),
   priority: z.number(),
   isEnabled: z.boolean(),
   createdAt: z.string(), // ISO 8601

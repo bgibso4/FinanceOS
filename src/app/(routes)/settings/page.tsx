@@ -34,6 +34,7 @@ import { TellerAccountLinkSelector } from '@/components/teller/TellerAccountLink
 import { PlaidAccountLinkSelector } from '@/components/plaid/PlaidAccountLinkSelector';
 import { PlaidReconnectButton } from '@/components/plaid/PlaidReconnectButton';
 import { SyncSettings } from '@/components/sync-settings';
+import { RulesTab } from '@/components/rules/RulesTab';
 
 type PlaidConnection = {
   id: string;
@@ -76,12 +77,12 @@ type AccountBalance = { id: string; balance: number };
 type Category = { id: string; name: string; type: string; parentId?: string | null };
 type Rule = {
   id: string;
-  matchType: string;
-  matchValue: string;
+  conditions: string;
   priority: number;
   isEnabled: boolean;
   categoryId: string | null;
   renameTo: string | null;
+  description: string | null;
 };
 type Snapshot = {
   id: string;
@@ -456,15 +457,6 @@ function SettingsPageContent() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [categoryTransactions, setCategoryTransactions] = useState<any[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
-  const [ruleModalOpen, setRuleModalOpen] = useState(false);
-  const [modalRule, setModalRule] = useState<Rule | null>(null);
-  const [newRule, setNewRule] = useState({
-    matchType: 'merchantContains',
-    matchValue: '',
-    categoryId: '',
-    renameTo: '',
-    priority: 100,
-  });
   const [budgetForm, setBudgetForm] = useState({ categoryId: '', limitAmount: '' });
   const [showArchived, setShowArchived] = useState(false);
   const [importState, setImportState] = useState({
@@ -1551,107 +1543,6 @@ function SettingsPageContent() {
       refresh();
     } catch (_error) {
       alert('Failed to update category');
-    }
-  };
-
-  const createRule = async () => {
-    if (!newRule.matchValue.trim()) {
-      alert('Please enter a match value');
-      return;
-    }
-    if (!newRule.categoryId && !newRule.renameTo.trim()) {
-      alert('Please select a category or enter a rename value (or both)');
-      return;
-    }
-    try {
-      const response = await fetch('/api/rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          matchType: newRule.matchType,
-          matchValue: newRule.matchValue,
-          categoryId: newRule.categoryId || null,
-          renameTo: newRule.renameTo.trim() || null,
-          priority: newRule.priority,
-        }),
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        alert(`Failed to create rule: ${error.message || 'Unknown error'}`);
-        return;
-      }
-      setNewRule({
-        matchType: 'merchantContains',
-        matchValue: '',
-        categoryId: '',
-        renameTo: '',
-        priority: 100,
-      });
-      refresh();
-      triggerSync();
-    } catch (_error) {
-      alert('Failed to create rule');
-    }
-  };
-
-  const openRuleModal = (rule: Rule) => {
-    setModalRule(rule);
-    setRuleModalOpen(true);
-  };
-
-  const closeRuleModal = () => {
-    setRuleModalOpen(false);
-    setModalRule(null);
-  };
-
-  const updateRule = async () => {
-    if (!modalRule) return;
-
-    if (!modalRule.categoryId && !modalRule.renameTo) {
-      alert('Rule must have either a category or rename value (or both)');
-      return;
-    }
-
-    try {
-      await fetch(`/api/rules/${modalRule.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          matchType: modalRule.matchType,
-          matchValue: modalRule.matchValue,
-          categoryId: modalRule.categoryId || null,
-          renameTo: modalRule.renameTo || null,
-          priority: modalRule.priority,
-          isEnabled: modalRule.isEnabled,
-        }),
-      });
-
-      closeRuleModal();
-      refresh();
-      triggerSync();
-    } catch (_error) {
-      alert('Failed to update rule');
-    }
-  };
-
-  const deleteRule = async () => {
-    if (!modalRule) return;
-
-    try {
-      const response = await fetch(`/api/rules/${modalRule.id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        alert('Failed to delete rule');
-        return;
-      }
-
-      closeRuleModal();
-      refresh();
-      triggerSync();
-    } catch (_error) {
-      alert('Failed to delete rule');
     }
   };
 
@@ -3093,188 +2984,6 @@ function SettingsPageContent() {
         )}
       </Modal>
 
-      {/* Rule Management Modal */}
-      <Modal
-        isOpen={ruleModalOpen}
-        title={modalRule ? `Manage Rule: ${modalRule.matchValue}` : 'Manage Rule'}
-        onClose={closeRuleModal}
-      >
-        {modalRule && (
-          <div className="space-y-6">
-            {/* Edit Rule */}
-            <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
-              <h4 className={`font-semibold ${ds.text.primary} mb-3`}>Edit Rule</h4>
-              <div className="space-y-3">
-                <div>
-                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                    Match Type
-                  </label>
-                  <Select
-                    className="w-full"
-                    value={modalRule.matchType}
-                    onChange={(e) => setModalRule({ ...modalRule, matchType: e.target.value })}
-                  >
-                    <option value="merchantContains">Merchant contains</option>
-                    <option value="merchantRegex">Merchant regex</option>
-                    <option value="noteContains">Note contains</option>
-                  </Select>
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                    Match Value
-                  </label>
-                  <Input
-                    className="w-full"
-                    placeholder="What to match (e.g., 'Starbucks')"
-                    value={modalRule.matchValue}
-                    onChange={(e) => setModalRule({ ...modalRule, matchValue: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                    Category (optional)
-                  </label>
-                  <Select
-                    className="w-full"
-                    value={modalRule.categoryId || ''}
-                    onChange={(e) =>
-                      setModalRule({ ...modalRule, categoryId: e.target.value || null })
-                    }
-                  >
-                    <option value="">No category</option>
-                    {categories
-                      .filter((c) => !c.parentId) // Get all groups
-                      .sort(sortByName)
-                      .map((group) => {
-                        const groupCategories = categories
-                          .filter((c) => c.parentId === group.id)
-                          .sort(sortByName);
-                        if (groupCategories.length === 0) return null;
-
-                        return (
-                          <optgroup key={group.id} label={group.name}>
-                            {groupCategories.map((cat) => (
-                              <option key={cat.id} value={cat.id}>
-                                {cat.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        );
-                      })}
-                  </Select>
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                    Rename Merchant To (optional)
-                  </label>
-                  <Input
-                    className="w-full"
-                    placeholder="e.g., 'Internal Transfer'"
-                    value={modalRule.renameTo || ''}
-                    onChange={(e) =>
-                      setModalRule({ ...modalRule, renameTo: e.target.value || null })
-                    }
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                      Priority
-                    </label>
-                    <Input
-                      className="w-full"
-                      placeholder="1-999"
-                      type="number"
-                      value={modalRule.priority}
-                      onChange={(e) =>
-                        setModalRule({ ...modalRule, priority: Number(e.target.value) })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                      Status
-                    </label>
-                    <Select
-                      className="w-full"
-                      value={modalRule.isEnabled ? 'enabled' : 'disabled'}
-                      onChange={(e) =>
-                        setModalRule({ ...modalRule, isEnabled: e.target.value === 'enabled' })
-                      }
-                    >
-                      <option value="enabled">Enabled</option>
-                      <option value="disabled">Disabled</option>
-                    </Select>
-                  </div>
-                </div>
-                <Button
-                  className="w-full bg-purple-600 hover:bg-purple-700 py-3"
-                  onClick={updateRule}
-                >
-                  Save Changes
-                </Button>
-              </div>
-            </div>
-
-            {/* Rule Info */}
-            <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
-              <h4 className={`font-semibold ${ds.text.primary} mb-3`}>How This Rule Works</h4>
-              <div className={`text-sm ${ds.text.secondary} space-y-2`}>
-                <div>
-                  <strong>When:</strong> A transaction's{' '}
-                  {modalRule.matchType.includes('merchant') ? 'merchant name' : 'note'}{' '}
-                  {modalRule.matchType.includes('regex') ? 'matches the pattern' : 'contains'} "
-                  {modalRule.matchValue}"
-                </div>
-                <div>
-                  <strong>Then:</strong>{' '}
-                  {modalRule.categoryId && modalRule.renameTo ? (
-                    <>
-                      Categorize as "
-                      {categories.find((c) => c.id === modalRule.categoryId)?.name || 'Unknown'}"
-                      and rename merchant to "{modalRule.renameTo}"
-                    </>
-                  ) : modalRule.categoryId ? (
-                    <>
-                      Categorize as "
-                      {categories.find((c) => c.id === modalRule.categoryId)?.name || 'Unknown'}"
-                    </>
-                  ) : modalRule.renameTo ? (
-                    <>Rename merchant to "{modalRule.renameTo}"</>
-                  ) : (
-                    <>No action configured</>
-                  )}
-                </div>
-                <div>
-                  <strong>Priority:</strong> {modalRule.priority} (lower numbers run first - if
-                  multiple rules match, only the first one applies)
-                </div>
-                <div>
-                  <strong>Status:</strong>{' '}
-                  {modalRule.isEnabled
-                    ? 'Active - will process new transactions'
-                    : 'Disabled - will not process transactions'}
-                </div>
-              </div>
-            </div>
-
-            {/* Delete Rule */}
-            <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
-              <h4 className={`font-semibold ${ds.status.error.text} mb-3`}>Delete Rule</h4>
-              <Button
-                className="w-full bg-red-600 text-white hover:bg-red-700 py-3"
-                onClick={deleteRule}
-              >
-                Delete Rule
-              </Button>
-              <div className={`text-sm ${ds.text.secondary} mt-2`}>
-                <strong>Warning:</strong> This will not affect already categorized transactions
-              </div>
-            </div>
-          </div>
-        )}
-      </Modal>
-
       {/* Sync Preview Modal */}
       <Modal
         isOpen={showPreviewModal}
@@ -3705,201 +3414,13 @@ function SettingsPageContent() {
       </Modal>
 
       {tab === 'rules' && (
-        <Card>
-          <CardHeader className="flex items-center justify-between">
-            <div className={`text-sm font-semibold ${ds.text.primary}`}>Automation Rules</div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Add New Rule */}
-            <div className={`${ds.bg.secondary} p-4 rounded-lg border ${ds.border.default}`}>
-              <h4 className={`text-sm font-semibold ${ds.text.primary} mb-3`}>Add New Rule</h4>
-              <div className={`text-xs ${ds.text.secondary} mb-3 ${ds.status.info.bg} p-2 rounded`}>
-                <strong>Priority:</strong> Lower numbers run first. If multiple rules match a
-                transaction, only the first matching rule (lowest priority number) is applied.
-              </div>
-
-              {/* Row 1: Match condition */}
-              <div className="grid gap-3 md:grid-cols-2 mb-3">
-                <div>
-                  <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
-                    When
-                  </label>
-                  <Select
-                    value={newRule.matchType}
-                    onChange={(e) => setNewRule({ ...newRule, matchType: e.target.value })}
-                  >
-                    <option value="merchantContains">Merchant contains</option>
-                    <option value="merchantRegex">Merchant regex</option>
-                    <option value="noteContains">Note contains</option>
-                  </Select>
-                </div>
-                <div>
-                  <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
-                    Match value
-                  </label>
-                  <Input
-                    placeholder="e.g., 'ENDING' or 'Starbucks'"
-                    value={newRule.matchValue}
-                    onChange={(e) => setNewRule({ ...newRule, matchValue: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              {/* Row 2: Actions (at least one required) */}
-              <div className="grid gap-3 md:grid-cols-2 mb-3">
-                <div>
-                  <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
-                    Assign category <span className={ds.text.muted}>(optional)</span>
-                  </label>
-                  <Select
-                    value={newRule.categoryId}
-                    onChange={(e) => setNewRule({ ...newRule, categoryId: e.target.value })}
-                  >
-                    <option value="">— None —</option>
-                    {categories
-                      .filter((c) => !c.parentId)
-                      .sort(sortByName)
-                      .map((group) => {
-                        const groupCategories = categories
-                          .filter((c) => c.parentId === group.id)
-                          .sort(sortByName);
-                        if (groupCategories.length === 0) return null;
-
-                        return (
-                          <optgroup key={group.id} label={group.name}>
-                            {groupCategories.map((cat) => (
-                              <option key={cat.id} value={cat.id}>
-                                {cat.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        );
-                      })}
-                  </Select>
-                </div>
-                <div>
-                  <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
-                    Rename merchant to <span className={ds.text.muted}>(optional)</span>
-                  </label>
-                  <Input
-                    placeholder="e.g., 'Internal Transfer'"
-                    value={newRule.renameTo}
-                    onChange={(e) => setNewRule({ ...newRule, renameTo: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              {/* Row 3: Priority and submit */}
-              <div className="grid gap-3 md:grid-cols-4">
-                <div>
-                  <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
-                    Priority
-                  </label>
-                  <Input
-                    type="number"
-                    value={newRule.priority}
-                    onChange={(e) => setNewRule({ ...newRule, priority: Number(e.target.value) })}
-                  />
-                </div>
-                <div className="md:col-span-3 flex items-end">
-                  <Button className="w-full py-3" onClick={createRule}>
-                    Add Rule
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Rules List */}
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {rules.map((rule) => {
-                const category = categories.find((c) => c.id === rule.categoryId);
-                const group = category ? categories.find((g) => g.id === category.parentId) : null;
-
-                const getMatchTypeStyle = (type: string) => {
-                  switch (type) {
-                    case 'merchantContains':
-                      return { icon: '🏪', textColor: ds.status.info.text };
-                    case 'merchantRegex':
-                      return { icon: '🔍', textColor: ds.status.success.text };
-                    case 'noteContains':
-                      return { icon: '📝', textColor: ds.status.warning.text };
-                    default:
-                      return { icon: '⚙️', textColor: ds.text.primary };
-                  }
-                };
-
-                const style = getMatchTypeStyle(rule.matchType);
-
-                return (
-                  <div
-                    key={rule.id}
-                    className={`rounded-xl border ${ds.border.default} ${ds.bg.primary} p-4 shadow-sm hover:shadow-md ${ds.border.hover} transition-all cursor-pointer`}
-                    onClick={() => openRuleModal(rule)}
-                  >
-                    <div className="space-y-3">
-                      {/* Header */}
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">{style.icon}</span>
-                        <Badge
-                          className={`text-xs px-2 py-1 ${style.textColor} bg-transparent border-current`}
-                        >
-                          {rule.matchType
-                            .replace('merchantContains', 'Merchant')
-                            .replace('merchantRegex', 'Regex')
-                            .replace('noteContains', 'Note')}
-                        </Badge>
-                      </div>
-
-                      {/* Rule Content */}
-                      <div className="space-y-2">
-                        <div className={`text-sm font-medium ${ds.text.primary} truncate`}>
-                          "{rule.matchValue}"
-                        </div>
-                        <div className={`text-xs ${ds.text.secondary} space-y-1`}>
-                          {category && (
-                            <div className="truncate">
-                              → {group?.name} → {category.name}
-                            </div>
-                          )}
-                          {rule.renameTo && (
-                            <div className="truncate">✏️ Rename to "{rule.renameTo}"</div>
-                          )}
-                          {!category && !rule.renameTo && (
-                            <div className="truncate text-red-500">⚠️ No action configured</div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Footer */}
-                      <div className="flex items-center justify-between">
-                        <Badge
-                          className={`text-xs px-2 py-1 ${ds.text.secondary} ${ds.bg.tertiary}`}
-                        >
-                          #{rule.priority}
-                        </Badge>
-                        {!rule.isEnabled && (
-                          <Badge
-                            className={`text-xs px-2 py-1 ${ds.status.error.text} ${ds.status.error.bg}`}
-                          >
-                            Disabled
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {rules.length === 0 && (
-              <div className={`text-center py-8 ${ds.text.muted}`}>
-                <div className="text-4xl mb-2">🤖</div>
-                <div className="text-lg font-medium">No automation rules yet</div>
-                <div className="text-sm">Create rules to automatically categorize transactions</div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <RulesTab
+          accounts={accounts}
+          categories={categories}
+          rules={rules}
+          onRefresh={refresh}
+          onSync={triggerSync}
+        />
       )}
 
       {tab === 'budgets' && (
