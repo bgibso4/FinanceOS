@@ -8,35 +8,20 @@ All feature planning and task tracking for FinanceOS development.
 
 ---
 
-## 1. Tags & Custom Fields ✅
-**Impact:** Medium | **Effort:** Low | **Status:** Complete
+## 1. Net Worth Report Enhancements
+**Impact:** Medium | **Effort:** Low-Medium | **Status:** Core features complete, export deferred
 
-Tag model, management UI, bulk tagging, filtering, and cloud sync are all built.
+Net worth snapshots, trend charts, comparison, backfill, inflation adjustment, and forecasting are all built. Export deferred until needed.
 
-- [x] Custom tags for transactions (travel, business, reimbursable, etc.)
-- [x] Tag management in Settings (create, rename, recolor, delete with cascade)
-- [x] Tag input with autocomplete and inline creation in transaction modals
-- [x] Filter and analyze by tags (FilterRibbon tag dropdown)
-- [x] Bulk tagging (select transactions, add/remove tags in bulk)
-- [x] Tag display in transaction list (colored pills)
-- [x] Cloud sync support for tags
-
----
-
-## 2. Net Worth Report Enhancements
-**Impact:** Medium | **Effort:** Low-Medium | **Status:** Core reports built, needs export & scheduling
-
-Net worth snapshots, trend charts, comparison, and backfill are all built. Remaining work is export formats and automation.
-
+- [x] Inflation-adjusted calculations (manual annual rates in Settings, toggle in Reports)
+- [x] Forecasting / projections based on savings rate (strategy pattern, linear projection)
 - [ ] Scheduled automatic snapshots (isAutomatic flag exists, needs trigger)
 - [ ] Quarter-over-quarter rollup summaries
-- [ ] Inflation-adjusted calculations
 - [ ] Export options (PDF, CSV)
-- [ ] Forecasting / projections based on savings rate
 
 ---
 
-## 3. Recurring Transactions & Subscription Management
+## 2. Recurring Transactions & Subscription Management
 **Impact:** High | **Effort:** Medium | **Status:** Not started
 
 High user value — everyone wants to see their subscriptions. Bounded scope with a clear algorithm.
@@ -58,7 +43,7 @@ High user value — everyone wants to see their subscriptions. Bounded scope wit
 
 ---
 
-## 4. Enhanced Reports & Month-End Closing
+## 3. Enhanced Reports & Month-End Closing
 **Impact:** Medium-High | **Effort:** Medium | **Status:** Basic monthly/cash flow reports exist, needs closing workflow
 
 Monthly detail, cash flow trailing-12, and net worth reports are built. Missing the structured closing workflow and additional report types.
@@ -83,7 +68,7 @@ Monthly detail, cash flow trailing-12, and net worth reports are built. Missing 
 
 ---
 
-## 5. AI Chat Analyst (Full Redesign)
+## 4. AI Chat Analyst (Full Redesign)
 **Impact:** Huge | **Effort:** High | **Status:** Needs full rebuild with LLM
 
 A basic heuristic agent exists (drawer UI, canned query patterns, pin-to-dashboard) but it's too limited to be useful. Needs a ground-up redesign with real LLM integration.
@@ -104,7 +89,7 @@ A basic heuristic agent exists (drawer UI, canned query patterns, pin-to-dashboa
 
 ---
 
-## 6. Mobile App / PWA
+## 5. Mobile App / PWA
 **Impact:** High | **Effort:** High | **Status:** Not started
 
 Huge daily usability win — makes the app useful throughout the week instead of just at a desk. PWA approach builds on the existing Next.js app rather than starting from scratch.
@@ -117,7 +102,7 @@ Huge daily usability win — makes the app useful throughout the week instead of
 
 ---
 
-## 7. Bill Reminders & Due Dates
+## 6. Bill Reminders & Due Dates
 **Impact:** Medium | **Effort:** Medium | **Status:** Not started
 
 - [ ] Mark transactions as bills with due dates
@@ -128,7 +113,7 @@ Huge daily usability win — makes the app useful throughout the week instead of
 
 ---
 
-## 8. Data Backup & Export
+## 7. Data Backup & Export
 **Impact:** Medium | **Effort:** Medium | **Status:** Not started
 
 Cloud sync handles device-to-device transfer. This is about user-facing export and portability.
@@ -140,7 +125,7 @@ Cloud sync handles device-to-device transfer. This is about user-facing export a
 
 ---
 
-## 9. Goals & Spending/Savings Tracking
+## 8. Goals & Spending/Savings Tracking
 **Impact:** Medium | **Effort:** Medium | **Status:** Not started
 
 Flexible goal tracking that goes beyond monthly category budgets. Goals can track spending OR saving, tied to tags or categories, over custom timeframes. This is distinct from category budgets (recurring monthly caps) — goals are for projects, events, and longer-term targets.
@@ -169,7 +154,7 @@ Flexible goal tracking that goes beyond monthly category budgets. Goals can trac
 
 ---
 
-## 10. Transaction Splitting (Blocked - Needs Design)
+## 9. Transaction Splitting (Blocked - Needs Design)
 **Impact:** Medium | **Effort:** Medium-High | **Status:** Blocked on design
 
 A basic split API exists but the approach needs rethinking. The current implementation deletes the parent transaction, which breaks sync deduplication. This is more complex than expected and needs a proper design before building further.
@@ -191,7 +176,7 @@ A basic split API exists but the approach needs rethinking. The current implemen
 
 ---
 
-## 11. Tax Preparation Helper
+## 10. Tax Preparation Helper
 **Impact:** Medium | **Effort:** Medium | **Status:** Not started
 
 Seasonal value. Overlaps with tags and reports — best built after those.
@@ -204,7 +189,7 @@ Seasonal value. Overlaps with tags and reports — best built after those.
 
 ---
 
-## 12. Multi-Currency Enhancements
+## 11. Multi-Currency Enhancements
 **Impact:** Low-Medium | **Effort:** Medium | **Status:** Core features complete
 
 Niche — only matters for users with foreign accounts. Core currency support (5 currencies, manual rates, conversion, per-account config) is done.
@@ -217,7 +202,7 @@ Niche — only matters for users with foreign accounts. Core currency support (5
 
 ---
 
-## 13. Advanced Analytics
+## 12. Advanced Analytics
 **Impact:** Medium | **Effort:** High | **Status:** Not started
 
 - [ ] Spending trends over time
@@ -229,7 +214,7 @@ Niche — only matters for users with foreign accounts. Core currency support (5
 
 ---
 
-## 14. Investment Tracking (Net Worth Phase 3+)
+## 13. Investment Tracking (Net Worth Phase 3+)
 **Impact:** Medium | **Effort:** High | **Status:** Planned
 **Design Doc:** `docs/feature/NET_WORTH_EVOLUTION.md`
 
@@ -241,7 +226,7 @@ Niche — only matters for users with foreign accounts. Core currency support (5
 
 ---
 
-## 15. Shared Finances / Multi-User
+## 14. Shared Finances / Multi-User
 
 **Impact:** Medium | **Effort:** Very High | **Status:** Not started
 

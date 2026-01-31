@@ -221,6 +221,14 @@ model ExchangeRate {
   @@unique([fromCurrency, toCurrency])
 }
 
+model InflationRate {
+  id        String   @id @default(uuid())
+  year      Int      @unique
+  rate      Float    // Annual percentage, e.g. 3.4 for 3.4%
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
 model UserSettings {
   id           String   @id @default(uuid())
   baseCurrency String   @default("USD")
