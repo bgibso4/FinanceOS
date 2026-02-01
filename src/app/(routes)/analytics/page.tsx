@@ -116,39 +116,26 @@ export default function AnalyticsPage() {
   }, [selectedMonth]);
 
   const loadData = async () => {
-    // Load user settings for base currency
-    const settingsRes = await fetch('/api/settings');
-    const settingsData = await settingsRes.json();
-    setBaseCurrency(settingsData.settings?.baseCurrency || 'USD');
-
-    // Load exchange rates
-    const ratesRes = await fetch('/api/exchange-rates');
-    const ratesData = await ratesRes.json();
-    setExchangeRates(parseExchangeRates(ratesData.rates || []));
-
-    // Load categories
-    const catRes = await fetch('/api/categories');
-    const catData = await catRes.json();
-    setCategories(catData.categories ?? []);
-
-    // Load budgets for selected month
-    const budgetRes = await fetch(`/api/budgets/${selectedMonth}`);
-    const budgetData = await budgetRes.json();
-    setBudgets(budgetData.budgets ?? []);
-
-    // Load analytics data for selected month
     const [year, month] = selectedMonth.split('-');
     const startDate = `${year}-${month}-01`;
-    // Get last day of the selected month - month is 1-indexed in the string, 0-indexed in Date
     const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
     const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
 
-    const analyticsRes = await fetch(
-      `/api/analytics/dashboard?preset=custom&startDate=${startDate}&endDate=${endDate}`
-    );
-    const analyticsData = await analyticsRes.json();
+    const [settingsData, ratesData, catData, budgetData, analyticsData] = await Promise.all([
+      fetch('/api/settings').then((r) => r.json()),
+      fetch('/api/exchange-rates').then((r) => r.json()),
+      fetch('/api/categories').then((r) => r.json()),
+      fetch(`/api/budgets/${selectedMonth}`).then((r) => r.json()),
+      fetch(
+        `/api/analytics/dashboard?preset=custom&startDate=${startDate}&endDate=${endDate}`
+      ).then((r) => r.json()),
+    ]);
 
-    // Map category names to IDs
+    setBaseCurrency(settingsData.settings?.baseCurrency || 'USD');
+    setExchangeRates(parseExchangeRates(ratesData.rates || []));
+    setCategories(catData.categories ?? []);
+    setBudgets(budgetData.budgets ?? []);
+
     const categoryMap = new Map(catData.categories?.map((c: Category) => [c.name, c.id]) ?? []);
     const enrichedAnalytics = (analyticsData.spendByCategory ?? []).map(
       (cat: CategoryAnalytics) => ({

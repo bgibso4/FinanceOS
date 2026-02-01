@@ -19,20 +19,7 @@ export async function GET(req: NextRequest) {
   const filters = parseFilters(search);
   const preset = (search.get('preset') ?? 'last-3-months') as any;
 
-  console.log('GET /api/transactions - Raw params:', {
-    preset,
-    startDate: search.get('startDate'),
-    endDate: search.get('endDate'),
-    filters,
-  });
-
   const { startDate, endDate } = resolveDateRange(preset, filters.startDate, filters.endDate);
-
-  console.log('Transaction API filtering:', {
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
-    filters,
-  });
 
   const where: any = {
     date: { gte: startDate, lte: endDate },
@@ -55,13 +42,6 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  console.log(
-    'Found transactions:',
-    transactions.length,
-    'First few dates:',
-    transactions.slice(0, 3).map((t) => t.date.toISOString())
-  );
-
   // Filter by date string to handle timezone issues
   let filtered = transactions;
   if (preset === 'custom' && (filters.startDate || filters.endDate)) {
@@ -71,7 +51,6 @@ export async function GET(req: NextRequest) {
       if (filters.endDate && txDateStr > filters.endDate) return false;
       return true;
     });
-    console.log('After date string filtering:', filtered.length);
   }
 
   // Filter by tags (JSON string field, filtered in JS)

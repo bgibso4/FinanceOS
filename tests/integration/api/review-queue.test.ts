@@ -44,6 +44,17 @@ describe('review-queue API integration', () => {
   });
 
   describe('GET /api/review-queue', () => {
+    it('returns all queue sections including highConfidence and unlinkedReturns', async () => {
+      const result = await reviewQueue(prisma);
+      expect(result).toHaveProperty('uncategorized');
+      expect(result).toHaveProperty('lowConfidence');
+      expect(result).toHaveProperty('highConfidence');
+      expect(result).toHaveProperty('unlinkedReturns');
+      expect(result).toHaveProperty('outliers');
+      expect(Array.isArray(result.highConfidence)).toBe(true);
+      expect(Array.isArray(result.unlinkedReturns)).toBe(true);
+    });
+
     it('returns empty queues when no transactions', async () => {
       const result = await reviewQueue(prisma);
 
