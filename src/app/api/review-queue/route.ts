@@ -7,6 +7,8 @@ export async function GET() {
   return NextResponse.json({
     uncategorized: data.uncategorized.map((t) => ({ ...t, amount: Number(t.amount) })),
     lowConfidence: data.lowConfidence.map((t) => ({ ...t, amount: Number(t.amount) })),
+    highConfidence: data.highConfidence.map((t) => ({ ...t, amount: Number(t.amount) })),
+    unlinkedReturns: data.unlinkedReturns.map((t) => ({ ...t, amount: Number(t.amount) })),
     outliers: data.outliers.map((t) => ({ ...t, amount: Number(t.amount) })),
   });
 }
