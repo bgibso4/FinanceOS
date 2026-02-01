@@ -7,7 +7,7 @@ import {
   createTransactionData,
 } from '../../helpers/factories';
 import type { PrismaClient } from '@prisma/client';
-import { startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { startOfMonth, endOfMonth, subDays } from 'date-fns';
 
 describe('analytics', () => {
   let prisma: PrismaClient;
@@ -278,12 +278,14 @@ describe('analytics', () => {
       const now = new Date();
       const thisMonthStart = startOfMonth(now);
       const thisMonthEnd = endOfMonth(now);
-      const lastMonth = subMonths(now, 1);
+      // Place the "last month" transaction in the middle of the previous period
+      // to avoid date-boundary issues when months have different lengths.
+      const lastMonthMid = subDays(thisMonthStart, 15);
 
       // Last month: $1000 spending
       await prisma.transaction.create({
         data: createTransactionData('test-account', {
-          date: lastMonth,
+          date: lastMonthMid,
           amount: -1000,
           merchant: 'STORE',
           categoryId: 'cat-groceries',

@@ -8,7 +8,7 @@ import {
 import type { PrismaClient } from '@prisma/client';
 import { dashboardAnalytics, buildWhere } from '@/lib/analytics';
 import { parseFilters, resolveDateRange } from '@/lib/filters';
-import { startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { startOfMonth, endOfMonth, subDays } from 'date-fns';
 
 describe('analytics API integration', () => {
   let prisma: PrismaClient;
@@ -101,19 +101,27 @@ describe('analytics API integration', () => {
     });
 
     it('filters by date preset this-month', async () => {
-      const now = new Date();
-      const lastMonth = subMonths(now, 1);
+      // Use resolveDateRange first, then place transactions relative to its
+      // boundaries. This avoids UTC/local timezone mismatches that occur when
+      // new Date() is near a month boundary.
+      const { startDate, endDate } = resolveDateRange('this-month', undefined, undefined);
+      // Place "this month" transaction safely in the middle of the resolved range
+      const thisMonthMid = new Date(
+        startDate.getTime() + (endDate.getTime() - startDate.getTime()) / 2
+      );
+      // Place "last month" transaction well before the start of the range
+      const lastMonthDate = subDays(startDate, 15);
 
       await prisma.transaction.createMany({
         data: [
           createTransactionData(testAccountId, {
-            date: now,
+            date: thisMonthMid,
             amount: -100,
             merchant: 'THIS MONTH',
             categoryId: groceryCategoryId,
           }),
           createTransactionData(testAccountId, {
-            date: lastMonth,
+            date: lastMonthDate,
             amount: -200,
             merchant: 'LAST MONTH',
             categoryId: groceryCategoryId,
@@ -121,7 +129,6 @@ describe('analytics API integration', () => {
         ],
       });
 
-      const { startDate, endDate } = resolveDateRange('this-month', undefined, undefined);
       const result = await dashboardAnalytics(prisma, {}, startDate, endDate);
 
       expect(result.transactionCount).toBe(1);
@@ -129,26 +136,36 @@ describe('analytics API integration', () => {
     });
 
     it('filters by date preset last-3-months', async () => {
-      const now = new Date();
-      const twoMonthsAgo = subMonths(now, 2);
-      const fourMonthsAgo = subMonths(now, 4);
+      // Resolve the date range first, then place transactions relative to the
+      // boundaries to avoid UTC/local date mismatches near month edges.
+      const { startDate, endDate } = resolveDateRange('last-3-months', undefined, undefined);
+      // Place "recent" transaction in the middle of the current month portion
+      const recentDate = new Date(
+        endDate.getTime() - (endDate.getTime() - startDate.getTime()) * 0.1
+      );
+      // Place "in range" transaction in the middle of the resolved range
+      const inRangeDate = new Date(
+        startDate.getTime() + (endDate.getTime() - startDate.getTime()) / 2
+      );
+      // Place "out of range" transaction well before the start of the range
+      const outOfRangeDate = subDays(startDate, 45);
 
       await prisma.transaction.createMany({
         data: [
           createTransactionData(testAccountId, {
-            date: now,
+            date: recentDate,
             amount: -100,
             merchant: 'RECENT',
             categoryId: groceryCategoryId,
           }),
           createTransactionData(testAccountId, {
-            date: twoMonthsAgo,
+            date: inRangeDate,
             amount: -150,
             merchant: 'IN RANGE',
             categoryId: groceryCategoryId,
           }),
           createTransactionData(testAccountId, {
-            date: fourMonthsAgo,
+            date: outOfRangeDate,
             amount: -200,
             merchant: 'OUT OF RANGE',
             categoryId: groceryCategoryId,
@@ -156,7 +173,6 @@ describe('analytics API integration', () => {
         ],
       });
 
-      const { startDate, endDate } = resolveDateRange('last-3-months', undefined, undefined);
       const result = await dashboardAnalytics(prisma, {}, startDate, endDate);
 
       // Should include transactions from last 3 months
@@ -474,14 +490,16 @@ describe('analytics API integration', () => {
   describe('trend alerts', () => {
     it('generates alerts for significant category changes', async () => {
       const now = new Date();
-      const lastMonth = subMonths(now, 1);
       const startDate = startOfMonth(now);
       const endDate = endOfMonth(now);
+      // Place "last month" transaction in the middle of the previous period
+      // to avoid date-boundary issues when months have different lengths.
+      const lastMonthMid = subDays(startDate, 15);
 
       // Last month: low spending
       await prisma.transaction.create({
         data: createTransactionData(testAccountId, {
-          date: lastMonth,
+          date: lastMonthMid,
           amount: -100,
           merchant: 'STORE',
           categoryId: groceryCategoryId,
