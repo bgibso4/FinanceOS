@@ -43,7 +43,11 @@ const links = [
   },
 ];
 
-export function SideNav() {
+type SideNavProps = {
+  onToggleAnalyst?: () => void;
+};
+
+export function SideNav({ onToggleAnalyst }: SideNavProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentTab = searchParams.get('tab') || 'general';
@@ -80,83 +84,102 @@ export function SideNav() {
           width={176}
         />
       </div>
-      <div className="flex flex-col gap-1">
-        {links.map((link) => {
-          const isActive = link.submenu ? pathname.startsWith(link.href) : pathname === link.href;
-          const isExpanded = expandedMenus.has(link.href);
+      <div className="flex flex-1 flex-col">
+        <div className="flex flex-col gap-1">
+          {links.map((link) => {
+            const isActive = link.submenu ? pathname.startsWith(link.href) : pathname === link.href;
+            const isExpanded = expandedMenus.has(link.href);
 
-          return (
-            <div key={link.href} className="mb-2">
-              {link.submenu ? (
-                <>
-                  <button
+            return (
+              <div key={link.href} className="mb-2">
+                {link.submenu ? (
+                  <>
+                    <button
+                      className={cn(
+                        'w-full rounded-lg px-3 py-2 text-sm font-semibold transition flex items-center justify-between',
+                        isActive
+                          ? 'bg-slate-900 dark:bg-slate-700 text-white'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      )}
+                      onClick={() => toggleMenu(link.href)}
+                    >
+                      <span>{link.label}</span>
+                      <svg
+                        className={cn('w-4 h-4 transition-transform', isExpanded && 'rotate-90')}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="M9 5l7 7-7 7"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                        />
+                      </svg>
+                    </button>
+                    {isExpanded && (
+                      <div className="ml-3 mt-1 flex flex-col gap-1 border-l-2 border-slate-200 dark:border-slate-700 pl-2">
+                        {link.submenu.map((sublink) => {
+                          const sublinkTab = sublink.href.includes('?tab=')
+                            ? sublink.href.split('?tab=')[1]
+                            : null;
+                          const isSubmenuActive =
+                            pathname === link.href &&
+                            (sublinkTab ? currentTab === sublinkTab : !currentTab);
+
+                          return (
+                            <Link
+                              key={sublink.href}
+                              className={cn(
+                                'rounded-lg px-3 py-1.5 text-sm transition',
+                                isSubmenuActive
+                                  ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white font-medium'
+                                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                              )}
+                              href={sublink.href}
+                            >
+                              {sublink.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <Link
                     className={cn(
-                      'w-full rounded-lg px-3 py-2 text-sm font-semibold transition flex items-center justify-between',
+                      'rounded-lg px-3 py-2 text-sm font-semibold transition',
                       isActive
                         ? 'bg-slate-900 dark:bg-slate-700 text-white'
                         : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                     )}
-                    onClick={() => toggleMenu(link.href)}
+                    href={link.href}
                   >
-                    <span>{link.label}</span>
-                    <svg
-                      className={cn('w-4 h-4 transition-transform', isExpanded && 'rotate-90')}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M9 5l7 7-7 7"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                      />
-                    </svg>
-                  </button>
-                  {isExpanded && (
-                    <div className="ml-3 mt-1 flex flex-col gap-1 border-l-2 border-slate-200 dark:border-slate-700 pl-2">
-                      {link.submenu.map((sublink) => {
-                        const sublinkTab = sublink.href.includes('?tab=')
-                          ? sublink.href.split('?tab=')[1]
-                          : null;
-                        const isSubmenuActive =
-                          pathname === link.href &&
-                          (sublinkTab ? currentTab === sublinkTab : !currentTab);
-
-                        return (
-                          <Link
-                            key={sublink.href}
-                            className={cn(
-                              'rounded-lg px-3 py-1.5 text-sm transition',
-                              isSubmenuActive
-                                ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white font-medium'
-                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                            )}
-                            href={sublink.href}
-                          >
-                            {sublink.label}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <Link
-                  className={cn(
-                    'rounded-lg px-3 py-2 text-sm font-semibold transition',
-                    isActive
-                      ? 'bg-slate-900 dark:bg-slate-700 text-white'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                  )}
-                  href={link.href}
-                >
-                  {link.label}
-                </Link>
+                    {link.label}
+                  </Link>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex-1" />
+        {onToggleAnalyst && (
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-3 mt-3">
+            <button
+              className={cn(
+                'w-full rounded-lg px-3 py-2 text-sm font-semibold transition flex items-center justify-between',
+                'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
               )}
-            </div>
-          );
-        })}
+              onClick={onToggleAnalyst}
+            >
+              <span>Finance Analyst</span>
+              <kbd className="hidden lg:inline-block rounded bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                ⌘K
+              </kbd>
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );
