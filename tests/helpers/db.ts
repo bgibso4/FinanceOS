@@ -84,6 +84,7 @@ export async function resetTestDb(): Promise<void> {
   await prisma.plaidConnection.deleteMany();
   await prisma.plaidEnrollment.deleteMany();
   await prisma.account.deleteMany();
+  await prisma.tag.deleteMany();
   await prisma.category.deleteMany();
   await prisma.monthlySnapshot.deleteMany();
   await prisma.exchangeRate.deleteMany();
