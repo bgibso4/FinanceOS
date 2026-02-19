@@ -27,6 +27,7 @@ const links = [
       { href: '/reports?tab=monthly', label: 'Monthly Detail' },
     ],
   },
+  { href: '/goals', label: 'Goals' },
   {
     href: '/settings',
     label: 'Settings',
