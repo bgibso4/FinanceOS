@@ -21,6 +21,7 @@ model Account {
   createdAt        DateTime          @default(now())
   transactions              Transaction[]
   recurringTransactions     RecurringTransaction[]
+  goals                     Goal[]
   plaidConnection           PlaidConnection?
   tellerConnection          TellerConnection?
 }
@@ -119,6 +120,7 @@ model Category {
   recurringTransactions  RecurringTransaction[]
   budgets                CategoryBudget[]
   rules                  Rule[]
+  goals                  Goal[]
 }
 
 model Rule {
@@ -138,6 +140,7 @@ model Tag {
   name      String   @unique
   color     String   @default("blue")
   createdAt DateTime @default(now())
+  goals     Goal[]
 }
 
 model Transaction {
@@ -210,6 +213,25 @@ model CategoryBudget {
   createdAt   DateTime @default(now())
 
   @@unique([month, categoryId], name: "month_categoryId")
+}
+
+model Goal {
+  id              String    @id @default(uuid())
+  name            String
+  type            String    // "spending" | "saving"
+  targetAmount    Float
+  trackingMethod  String    // "category" | "tag" | "account"
+  categoryId      String?
+  category        Category? @relation(fields: [categoryId], references: [id])
+  tagId           String?
+  tag             Tag?      @relation(fields: [tagId], references: [id])
+  accountId       String?
+  account         Account?  @relation(fields: [accountId], references: [id])
+  startDate       String?   // ISO date string, null = open-ended start
+  endDate         String?   // ISO date string, null = open-ended end
+  status          String    @default("active") // "active" | "completed" | "archived"
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 model ExchangeRate {
