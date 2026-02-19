@@ -162,6 +162,32 @@ export function createTestTransactions(
   );
 }
 
+export interface GoalData {
+  id?: string;
+  name: string;
+  type: string;
+  targetAmount: number;
+  trackingMethod: string;
+  categoryId?: string;
+  tagId?: string;
+  accountId?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+}
+
+export function createGoalData(overrides: Partial<GoalData> = {}): GoalData {
+  return {
+    id: uuid(),
+    name: 'Test Goal',
+    type: 'spending',
+    targetAmount: 1000,
+    trackingMethod: 'category',
+    status: 'active',
+    ...overrides,
+  };
+}
+
 /**
  * Create a category hierarchy (parent + children)
  */
