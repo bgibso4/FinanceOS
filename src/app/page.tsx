@@ -97,6 +97,15 @@ const Sparkline = ({ data, color = '#3b82f6' }: { data: number[]; color?: string
   );
 };
 
+type GoalWithProgress = {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  percentage: number;
+  paceStatus: 'on_track' | 'ahead' | 'behind' | null;
+};
+
 type AccountBalance = {
   id: string;
   name: string;
@@ -117,6 +126,7 @@ function DashboardPageContent() {
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [balanceData, setBalanceData] = useState<BalanceData | null>(null);
   const [pinned, setPinned] = useState<ChartSpec[]>([]);
+  const [goalsData, setGoalsData] = useState<GoalWithProgress[]>([]);
 
   useEffect(() => {
     const queryParams = new URLSearchParams();
@@ -139,9 +149,11 @@ function DashboardPageContent() {
         r.json()
       ),
       fetch('/api/accounts/balances').then((r) => r.json()),
-    ]).then(([dashboardData, balData]) => {
+      fetch('/api/goals?status=active').then((r) => r.json()),
+    ]).then(([dashboardData, balData, goalsRes]) => {
       setData(dashboardData);
       setBalanceData(balData);
+      setGoalsData(goalsRes.goals ?? []);
     });
 
     const pinnedItems = loadPinned();
@@ -507,6 +519,56 @@ function DashboardPageContent() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Goals */}
+      {goalsData.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className={`text-sm font-semibold ${ds.text.secondary}`}>Goals</div>
+            <a
+              className={`text-xs ${ds.status.info.text} hover:text-blue-700 font-medium`}
+              href="/goals"
+            >
+              View All →
+            </a>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {goalsData.slice(0, 4).map((goal) => {
+                const barColor =
+                  goal.paceStatus === 'ahead'
+                    ? 'bg-green-500'
+                    : goal.paceStatus === 'behind'
+                      ? 'bg-red-500'
+                      : 'bg-blue-500';
+                return (
+                  <div key={goal.id}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-sm font-medium ${ds.text.secondary} truncate`}>
+                        {goal.name}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-semibold ${ds.text.primary}`}>
+                          {formatCurrency(goal.currentAmount)} / {formatCurrency(goal.targetAmount)}
+                        </span>
+                        <span className={`text-xs ${ds.text.muted}`}>
+                          {goal.percentage.toFixed(0)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className={`h-1.5 ${ds.bg.tertiary} rounded-full overflow-hidden`}>
+                      <div
+                        className={`h-full rounded-full ${barColor}`}
+                        style={{ width: `${Math.min(goal.percentage, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Pinned Insights */}
       {pinned.length > 0 && (

@@ -87,36 +87,7 @@ Cloud sync handles device-to-device transfer. This is about user-facing export a
 
 ---
 
-## 6. Goals & Spending/Savings Tracking
-**Impact:** Medium | **Effort:** Medium | **Status:** Not started
-
-Flexible goal tracking that goes beyond monthly category budgets. Goals can track spending OR saving, tied to tags or categories, over custom timeframes. This is distinct from category budgets (recurring monthly caps) — goals are for projects, events, and longer-term targets.
-
-**Use cases:**
-- "2026 Travel Budget" — spending goal of $5,000/year, tracked by the "Travel" category
-- "Ontario Camping Trip" — spending goal of $2,000, tracked by the "Ontario Camping Trip" tag, open-ended
-- "Emergency Fund" — savings goal of $10,000, tracked by account balance or manual progress
-- "Wedding" — spending goal of $15,000, tracked by "Wedding" tag, spans multiple categories (venue, catering, attire)
-- "Business Expenses Q1" — spending goal of $3,000, tracked by "Business" tag, Jan–Mar timeframe
-
-**Goal model:**
-- Name, type (spending/saving), target amount
-- Track by: tag, category, or manual
-- Timeframe: yearly, custom date range, or open-ended
-- Progress: sum of matching transactions vs target
-
-**Tasks:**
-- [ ] Goal model (name, type, target, trackBy, timeframe)
-- [ ] Goals API (CRUD)
-- [ ] Goals dashboard page with progress bars
-- [ ] Goal creation/edit UI
-- [ ] Progress calculation (sum transactions by tag or category within timeframe)
-- [ ] Goal progress display on tag cards in Settings
-- [ ] Cloud sync support for goals
-
----
-
-## 7. Enhanced Reports & Month-End Closing
+## 6. Enhanced Reports & Month-End Closing
 **Impact:** Medium-High | **Effort:** Medium | **Status:** Basic monthly/cash flow reports exist, needs closing workflow
 
 Monthly detail, cash flow trailing-12, and net worth reports are built. Missing the structured closing workflow and additional report types.
@@ -141,7 +112,7 @@ Monthly detail, cash flow trailing-12, and net worth reports are built. Missing 
 
 ---
 
-## 8. Tax Preparation Helper
+## 7. Tax Preparation Helper
 **Impact:** Medium | **Effort:** Medium | **Status:** Not started
 
 Seasonal value. Overlaps with tags and reports — best built after those.
@@ -154,7 +125,7 @@ Seasonal value. Overlaps with tags and reports — best built after those.
 
 ---
 
-## 9. Multi-Currency Enhancements
+## 8. Multi-Currency Enhancements
 **Impact:** Low-Medium | **Effort:** Medium | **Status:** Core features complete
 
 Niche — only matters for users with foreign accounts. Core currency support (5 currencies, manual rates, conversion, per-account config) is done.
@@ -167,7 +138,7 @@ Niche — only matters for users with foreign accounts. Core currency support (5
 
 ---
 
-## 10. Advanced Analytics
+## 9. Advanced Analytics
 **Impact:** Medium | **Effort:** High | **Status:** Not started
 
 - [ ] Spending trends over time
@@ -179,7 +150,7 @@ Niche — only matters for users with foreign accounts. Core currency support (5
 
 ---
 
-## 11. Investment Tracking (Net Worth Phase 3+)
+## 10. Investment Tracking (Net Worth Phase 3+)
 **Impact:** Medium | **Effort:** High | **Status:** Planned
 **Design Doc:** `docs/feature/NET_WORTH_EVOLUTION.md`
 
@@ -191,7 +162,7 @@ Niche — only matters for users with foreign accounts. Core currency support (5
 
 ---
 
-## 12. Shared Finances / Multi-User
+## 11. Shared Finances / Multi-User
 
 **Impact:** Medium | **Effort:** Very High | **Status:** Not started
 
@@ -215,7 +186,7 @@ Foundational architecture change — auth, permissions, data isolation.
 
 ### Testing
 - [x] Unit tests for core logic (categorization, import, analytics, currency, filters, returns, sync, recurring detection)
-- [x] Integration tests for all API routes (accounts, transactions, categories, rules, budgets, analytics, reports, review queue, settings, exchange rates, splits, cloud sync, recurring)
+- [x] Integration tests for all API routes (accounts, transactions, categories, rules, budgets, analytics, reports, review queue, settings, exchange rates, splits, cloud sync, recurring, goals)
 - [x] E2E tests (dashboard, CSV import)
 - [ ] Expand E2E coverage for more flows
 - [ ] Test coverage reporting and thresholds
@@ -269,6 +240,14 @@ Foundational architecture change — auth, permissions, data isolation.
 - [x] **Budgets** - Default + monthly overrides, budget vs actual tracking in analytics
 - [x] **Multi-currency support (core)** - 5 currencies, manual exchange rates, conversion, per-account config, smart display
 
+### Goals & Spending/Savings Tracking
+- [x] **Flexible Goal Model** - Single Goal model with three tracking methods (category, tag, account), spending and saving types, custom date ranges or open-ended
+- [x] **Goals CRUD API** - Full REST API with Zod validation, progress calculation at query time, status filtering
+- [x] **Goals Page** - Dedicated /goals route with progress bars, pace indicators (on_track/ahead/behind), status filter tabs, create/edit modal with timeframe presets
+- [x] **Dashboard Widget** - Active goals summary with progress bars and pace-colored indicators on main dashboard
+- [x] **Category Group Support** - Parent categories dynamically sum all children's transactions for goal tracking
+- [x] **Cloud Sync** - Goals included in E2E encrypted sync payload with export/import support
+
 ### UI & UX
 - [x] **Dark mode** with design system
 - [x] Expandable sidebar navigation
@@ -279,7 +258,7 @@ Foundational architecture change — auth, permissions, data isolation.
 - [x] Manual categorization confidence boost
 
 ### Technical
-- [x] **Comprehensive test suite** - 552 tests (unit, integration, E2E) across 26 test files
+- [x] **Comprehensive test suite** - 640 tests (unit, integration, E2E) across 34 test files
 - [x] **CI/CD pipeline** - GitHub Actions (lint, typecheck, unit, integration, E2E, build)
 - [x] **Linting & formatting** - ESLint 9, Prettier, Husky pre-commit hooks
 - [x] **Memory optimization** - Connection pooling, query optimization, selective field loading

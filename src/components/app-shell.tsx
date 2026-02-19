@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { SideNav } from './side-nav';
 import { FilterRibbon } from './filter-ribbon';
@@ -10,6 +10,23 @@ import { SyncProvider } from './sync-provider';
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const showFilters = pathname === '/' || pathname.startsWith('/transactions');
+  const [analystOpen, setAnalystOpen] = useState(false);
+
+  const toggleAnalyst = useCallback(() => {
+    setAnalystOpen((prev) => !prev);
+  }, []);
+
+  // Cmd+K / Ctrl+K keyboard shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        toggleAnalyst();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [toggleAnalyst]);
 
   return (
     <SyncProvider>
@@ -19,7 +36,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="w-56 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700" />
           }
         >
-          <SideNav />
+          <SideNav onToggleAnalyst={toggleAnalyst} />
         </Suspense>
         <div className="flex min-h-screen flex-1 flex-col">
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 px-4 py-3 backdrop-blur">
@@ -31,9 +48,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 Analytics-first dashboard with auto-categorized spend
               </div>
             </div>
-            <div className="hidden sm:block">
-              {/* Secondary trigger is hidden on mobile; main trigger is floating fab */}
-            </div>
           </div>
           {showFilters && (
             <Suspense
@@ -44,7 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
           <main className="flex-1 p-4">{children}</main>
         </div>
-        <ChatAnalyst buttonLabel="Chat Analyst" trigger="floating" />
+        <ChatAnalyst open={analystOpen} onClose={() => setAnalystOpen(false)} />
       </div>
     </SyncProvider>
   );
