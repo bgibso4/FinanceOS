@@ -20,6 +20,7 @@ import type {
   NetWorthSnapshotExport,
   ExchangeRateExport,
   TagExport,
+  GoalExport,
   UserSettingsExport,
   RecurringTransactionExport,
 } from './types';
@@ -91,6 +92,7 @@ export async function exportDatabase(): Promise<SyncPayload> {
     netWorthSnapshots,
     exchangeRates,
     tags,
+    goals,
     recurringTransactions,
     settings,
   ] = await Promise.all([
@@ -103,6 +105,7 @@ export async function exportDatabase(): Promise<SyncPayload> {
     getPrisma().netWorthSnapshot.findMany(),
     getPrisma().exchangeRate.findMany(),
     getPrisma().tag.findMany(),
+    getPrisma().goal.findMany(),
     getPrisma().recurringTransaction.findMany(),
     getPrisma().userSettings.findFirst(),
   ]);
@@ -220,6 +223,23 @@ export async function exportDatabase(): Promise<SyncPayload> {
         createdAt: t.createdAt.toISOString(),
       })
     ),
+    goals: goals.map(
+      (g): GoalExport => ({
+        id: g.id,
+        name: g.name,
+        type: g.type,
+        targetAmount: g.targetAmount,
+        trackingMethod: g.trackingMethod,
+        categoryId: g.categoryId,
+        tagId: g.tagId,
+        accountId: g.accountId,
+        startDate: g.startDate,
+        endDate: g.endDate,
+        status: g.status,
+        createdAt: g.createdAt.toISOString(),
+        updatedAt: g.updatedAt.toISOString(),
+      })
+    ),
     recurringTransactions: recurringTransactions.map(
       (r): RecurringTransactionExport => ({
         id: r.id,
@@ -270,6 +290,7 @@ export async function exportDatabase(): Promise<SyncPayload> {
       netWorthSnapshots: data.netWorthSnapshots.length,
       exchangeRates: data.exchangeRates.length,
       tags: (data.tags || []).length,
+      goals: (data.goals || []).length,
       recurringTransactions: (data.recurringTransactions || []).length,
     },
     checksum,
@@ -308,6 +329,7 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
     // Keep Plaid/Teller tables untouched!
     await tx.recurringTransaction.deleteMany();
     await tx.transaction.deleteMany();
+    await tx.goal.deleteMany();
     await tx.categoryBudget.deleteMany();
     await tx.rule.deleteMany();
     await tx.category.deleteMany();
@@ -510,6 +532,29 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
             name: tag.name,
             color: tag.color,
             createdAt: new Date(tag.createdAt),
+          },
+        });
+      }
+    }
+
+    // Import goals
+    if (data.goals) {
+      for (const goal of data.goals) {
+        await tx.goal.create({
+          data: {
+            id: goal.id,
+            name: goal.name,
+            type: goal.type,
+            targetAmount: goal.targetAmount,
+            trackingMethod: goal.trackingMethod,
+            categoryId: goal.categoryId,
+            tagId: goal.tagId,
+            accountId: goal.accountId,
+            startDate: goal.startDate,
+            endDate: goal.endDate,
+            status: goal.status,
+            createdAt: new Date(goal.createdAt),
+            updatedAt: new Date(goal.updatedAt),
           },
         });
       }

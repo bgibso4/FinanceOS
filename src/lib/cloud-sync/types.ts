@@ -112,6 +112,23 @@ export const TagExportSchema = z.object({
 });
 export type TagExport = z.infer<typeof TagExportSchema>;
 
+export const GoalExportSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.string(),
+  targetAmount: z.number(),
+  trackingMethod: z.string(),
+  categoryId: z.string().nullable(),
+  tagId: z.string().nullable(),
+  accountId: z.string().nullable(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+  status: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type GoalExport = z.infer<typeof GoalExportSchema>;
+
 export const ExchangeRateExportSchema = z.object({
   id: z.string(),
   fromCurrency: z.string(),
@@ -171,6 +188,7 @@ export const SyncDataSchema = z.object({
   netWorthSnapshots: z.array(NetWorthSnapshotExportSchema),
   exchangeRates: z.array(ExchangeRateExportSchema),
   tags: z.array(TagExportSchema).optional(),
+  goals: z.array(GoalExportSchema).optional(),
   recurringTransactions: z.array(RecurringTransactionExportSchema).optional(),
   settings: UserSettingsExportSchema.nullable(),
 });
@@ -187,6 +205,7 @@ export const SyncMetadataSchema = z.object({
     netWorthSnapshots: z.number(),
     exchangeRates: z.number(),
     tags: z.number().optional(),
+    goals: z.number().optional(),
     recurringTransactions: z.number().optional(),
   }),
   checksum: z.string(), // SHA-256 of JSON data
