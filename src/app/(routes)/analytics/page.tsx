@@ -105,10 +105,12 @@ export default function AnalyticsPage() {
   const [editingTransaction, setEditingTransaction] = useState<Tx | null>(null);
 
   // Return tracking state
-  const [_returnModalOpen, setReturnModalOpen] = useState(false);
+  const [returnModalOpen, setReturnModalOpen] = useState(false);
   const [returnTransaction, setReturnTransaction] = useState<Tx | null>(null);
-  const [_potentialMatches, setPotentialMatches] = useState<Tx[]>([]);
-  const [_loadingMatches, setLoadingMatches] = useState(false);
+  const [potentialMatches, setPotentialMatches] = useState<
+    (Tx & { score: number; amountDiff: number; daysDiff: number })[]
+  >([]);
+  const [loadingMatches, setLoadingMatches] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -304,7 +306,7 @@ export default function AnalyticsPage() {
     }
   };
 
-  const _linkReturn = async (originalTransactionId: string) => {
+  const linkReturn = async (originalTransactionId: string) => {
     if (!returnTransaction) return;
 
     try {
@@ -1307,6 +1309,167 @@ export default function AnalyticsPage() {
                 This action cannot be undone
               </div>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Link Transaction Modal */}
+      <Modal
+        isOpen={returnModalOpen}
+        title={
+          returnTransaction ? `Link Transaction: ${returnTransaction.merchant}` : 'Link Transaction'
+        }
+        onClose={() => setReturnModalOpen(false)}
+      >
+        {returnTransaction && (
+          <div className="space-y-4">
+            <div className={`${ds.status.info.bg} p-4 rounded-lg border ${ds.status.info.border}`}>
+              <div className={`text-sm font-semibold ${ds.status.info.text} mb-2`}>
+                {returnTransaction.amount > 0 ? 'Credit/Offset' : 'Purchase/Expense'} Transaction
+              </div>
+              <div className={`text-sm ${ds.text.primary}`}>
+                <div>
+                  <strong>Merchant:</strong> {returnTransaction.merchant}
+                </div>
+                <div>
+                  <strong>Amount:</strong> ${Math.abs(returnTransaction.amount).toFixed(2)}
+                </div>
+                <div>
+                  <strong>Date:</strong> {returnTransaction.date.split('T')[0]}
+                </div>
+              </div>
+            </div>
+
+            {loadingMatches ? (
+              <div className={`text-center py-8 ${ds.text.muted}`}>
+                <div className="animate-pulse">Finding potential matches...</div>
+              </div>
+            ) : (
+              <>
+                {potentialMatches.length > 0 && (
+                  <div className="space-y-3">
+                    <div className={`text-sm font-semibold ${ds.text.primary}`}>
+                      Suggested Matches ({potentialMatches.length})
+                    </div>
+                    <div className="max-h-64 overflow-y-auto space-y-2">
+                      {potentialMatches.map((match) => (
+                        <div
+                          key={match.id}
+                          className={`p-3 border ${ds.border.default} rounded-lg hover:${ds.status.info.border} hover:${ds.status.info.bg} transition-all cursor-pointer`}
+                          onClick={() => linkReturn(match.id)}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className={`font-medium ${ds.text.primary} truncate`}>
+                                {match.merchant}
+                              </div>
+                              <div className={`text-xs ${ds.text.muted} mt-1`}>
+                                {match.date.split('T')[0]} • {match.daysDiff} days{' '}
+                                {match.date < returnTransaction.date ? 'before' : 'after'}
+                              </div>
+                              {match.note && (
+                                <div className={`text-xs ${ds.text.secondary} mt-1 truncate`}>
+                                  {match.note}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-right ml-3">
+                              <div className={`font-semibold ${ds.text.primary}`}>
+                                ${Math.abs(match.amount).toFixed(2)}
+                              </div>
+                              <div className={`text-xs ${ds.text.muted} mt-1`}>
+                                {(match.score * 100).toFixed(0)}% match
+                              </div>
+                              {match.amountDiff > 0.01 && (
+                                <div className={`text-xs ${ds.status.warning.text} mt-1`}>
+                                  ${match.amountDiff.toFixed(2)} diff
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Manual search section */}
+                <div className={`border-t ${ds.border.default} pt-4`}>
+                  <div className={`text-sm font-semibold ${ds.text.primary} mb-3`}>
+                    {potentialMatches.length > 0
+                      ? "Can't find it? Search manually"
+                      : 'Search for Transaction'}
+                  </div>
+                  <div className="space-y-3">
+                    <Input
+                      className="w-full"
+                      id="analytics-manual-search-input"
+                      placeholder="Search by merchant name..."
+                      type="text"
+                    />
+                    <Button
+                      className="w-full bg-slate-600 hover:bg-slate-700 py-2"
+                      onClick={async () => {
+                        const searchInput = document.getElementById(
+                          'analytics-manual-search-input'
+                        ) as HTMLInputElement;
+                        const searchTerm = searchInput?.value || '';
+
+                        if (!searchTerm) {
+                          alert('Please enter a search term');
+                          return;
+                        }
+
+                        setLoadingMatches(true);
+                        try {
+                          const res = await fetch(
+                            `/api/transactions?merchant=${encodeURIComponent(searchTerm)}&preset=last-12-months`
+                          );
+                          const data = await res.json();
+                          const filtered = (data.transactions || []).filter(
+                            (t: Tx) =>
+                              t.id !== returnTransaction.id && !t.isOffset && !t.linkedTransaction
+                          );
+                          setPotentialMatches(
+                            filtered.map((t: Tx) => ({
+                              ...t,
+                              score: 0.5,
+                              amountDiff: Math.abs(
+                                Math.abs(t.amount) - Math.abs(returnTransaction.amount)
+                              ),
+                              daysDiff: Math.round(
+                                Math.abs(
+                                  new Date(t.date).getTime() -
+                                    new Date(returnTransaction.date).getTime()
+                                ) /
+                                  (1000 * 60 * 60 * 24)
+                              ),
+                            }))
+                          );
+                        } catch (_error) {
+                          alert('Search failed');
+                        } finally {
+                          setLoadingMatches(false);
+                        }
+                      }}
+                    >
+                      Search
+                    </Button>
+                  </div>
+                </div>
+
+                {potentialMatches.length === 0 && !loadingMatches && (
+                  <div className={`text-center py-4 ${ds.text.muted} text-sm`}>
+                    No matches found. Try searching manually above.
+                  </div>
+                )}
+
+                <div className={`text-xs ${ds.text.muted} ${ds.bg.secondary} p-3 rounded border`}>
+                  Click a transaction to link it. Credits reduce expenses (returns, reimbursements,
+                  splits, etc.)
+                </div>
+              </>
+            )}
           </div>
         )}
       </Modal>
