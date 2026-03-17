@@ -145,6 +145,8 @@ export async function exportDatabase(): Promise<SyncPayload> {
         importHash: t.importHash,
         isOffset: t.isOffset,
         linkedTransactionId: t.linkedTransactionId,
+        isSplitParent: t.isSplitParent,
+        parentTransactionId: t.parentTransactionId,
         createdAt: t.createdAt.toISOString(),
       })
     ),
@@ -436,8 +438,14 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
       });
     }
 
-    // Import transactions
-    for (const txn of data.transactions) {
+    // Import transactions — parents before parts (parentTransactionId is a self-FK)
+    const sortedTransactions = [...data.transactions].sort((a, b) => {
+      if (a.parentTransactionId && !b.parentTransactionId) return 1;
+      if (!a.parentTransactionId && b.parentTransactionId) return -1;
+      return 0;
+    });
+
+    for (const txn of sortedTransactions) {
       await tx.transaction.create({
         data: {
           id: txn.id,
@@ -456,6 +464,8 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
           importHash: txn.importHash,
           isOffset: txn.isOffset,
           linkedTransactionId: txn.linkedTransactionId,
+          isSplitParent: txn.isSplitParent ?? false,
+          parentTransactionId: txn.parentTransactionId ?? null,
           createdAt: new Date(txn.createdAt),
         },
       });
