@@ -9,7 +9,7 @@ const splitSchema = z.object({
       z.object({
         amount: z.number(),
         categoryId: z.string().nullable().optional(),
-        note: z.string().optional(),
+        note: z.string().nullable().optional(),
       })
     )
     .min(2),
