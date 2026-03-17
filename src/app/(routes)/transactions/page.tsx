@@ -30,6 +30,20 @@ type Tx = {
   linkedTransactionId?: string | null;
   linkedTransaction?: Tx | null;
   offsetTransactions?: Tx[];
+  parentTransactionId?: string | null;
+  isSplitParent?: boolean;
+  parentTransaction?: {
+    id: string;
+    amount: number;
+    merchant: string;
+    splitParts?: {
+      id: string;
+      amount: number;
+      categoryId: string | null;
+      note: string | null;
+      category?: { id: string; name: string } | null;
+    }[];
+  } | null;
 };
 
 type Queue = {
@@ -612,7 +626,14 @@ function TransactionsPageContent() {
                 {/* Transaction Header */}
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
-                    <div className={`font-medium ${ds.text.primary} truncate`}>{tx.merchant}</div>
+                    <div className={`font-medium ${ds.text.primary} truncate`}>
+                      {tx.merchant}
+                      {tx.parentTransactionId && (
+                        <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium">
+                          Split
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 mt-1">
                       <span className={`text-xs ${ds.text.muted}`}>{tx.date.split('T')[0]}</span>
                       <Badge
@@ -992,7 +1013,14 @@ function TransactionsPageContent() {
                           <span className="text-purple-700 dark:text-purple-400">↩</span>
                         )}
                         <div>
-                          <div className="text-slate-900 dark:text-slate-100">{tx.merchant}</div>
+                          <div className="text-slate-900 dark:text-slate-100">
+                            {tx.merchant}
+                            {tx.parentTransactionId && (
+                              <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium">
+                                Split
+                              </span>
+                            )}
+                          </div>
                           {tx.isOffset && tx.linkedTransaction && (
                             <div className="text-xs text-purple-700 dark:text-purple-400 mt-0.5">
                               Linked to {tx.linkedTransaction.date.split('T')[0]} transaction
