@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
     const transactions = await prisma.transaction.findMany({
-      where: { date: { gte: sixMonthsAgo } },
+      where: { date: { gte: sixMonthsAgo }, isSplitParent: false },
       select: {
         id: true,
         merchant: true,

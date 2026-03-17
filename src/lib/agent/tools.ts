@@ -61,6 +61,7 @@ export async function executeQueryTransactions(
       gte: new Date(params.startDate),
       lte: new Date(params.endDate + 'T23:59:59.999Z'),
     },
+    isSplitParent: false,
   };
 
   if (params.category) {
@@ -158,6 +159,7 @@ export async function executeGetCategoryBreakdown(
       },
       amount: { lt: 0 },
       isTransfer: false,
+      isSplitParent: false,
     },
     select: {
       amount: true,
@@ -209,6 +211,7 @@ export async function executeGetMerchantBreakdown(
       },
       amount: { lt: 0 },
       isTransfer: false,
+      isSplitParent: false,
     },
     select: {
       amount: true,
@@ -274,6 +277,7 @@ export async function executeGetBudgetStatus(
           amount: { lt: 0 },
           category: { name: b.category.name },
           isTransfer: false,
+          isSplitParent: false,
         },
         select: { amount: true },
       });
@@ -325,6 +329,7 @@ export async function executeGetMonthlyTrend(
       where: {
         date: { gte: monthStart, lte: monthEnd },
         isTransfer: false,
+        isSplitParent: false,
       },
       select: { amount: true },
     });
@@ -366,6 +371,7 @@ export async function executeGetCashFlow(
         lte: new Date(params.endDate + 'T23:59:59.999Z'),
       },
       isTransfer: false,
+      isSplitParent: false,
     },
     select: { amount: true },
   });

@@ -30,6 +30,7 @@ function convertTransactionAmount(
 export function buildWhere(filters: FilterParams, startDate: Date, endDate: Date) {
   const where: any = {
     date: { gte: startDate, lte: endDate },
+    isSplitParent: false,
   };
   if (filters.accounts) where.accountId = { in: filters.accounts };
   if (filters.categories) where.categoryId = { in: filters.categories };
@@ -514,6 +515,7 @@ export async function monthlySnapshot(prisma: PrismaClient, month: string) {
     where: {
       date: { gte: start, lte: end },
       isTransfer: false,
+      isSplitParent: false,
       accountId: { in: cashFlowAccountIds },
     },
     select: {
