@@ -9,7 +9,7 @@ export async function reviewQueue(prisma: PrismaClient) {
   const [uncategorized, lowConfidence, highConfidence, unlinkedReturns, recent] = await Promise.all(
     [
       prisma.transaction.findMany({
-        where: { categoryId: null, isTransfer: false },
+        where: { categoryId: null, isTransfer: false, isSplitParent: false },
         orderBy: { date: 'desc' },
         take: 50,
       }),
@@ -17,6 +17,7 @@ export async function reviewQueue(prisma: PrismaClient) {
         where: {
           confidenceScore: { lt: 0.6 },
           isTransfer: false,
+          isSplitParent: false,
           categoryId: { not: null },
         },
         include: { category: true },
@@ -27,6 +28,7 @@ export async function reviewQueue(prisma: PrismaClient) {
         where: {
           confidenceScore: { gte: 0.6 },
           isTransfer: false,
+          isSplitParent: false,
           categoryId: { not: null },
           createdAt: { gte: sevenDaysAgo },
         },
@@ -38,6 +40,7 @@ export async function reviewQueue(prisma: PrismaClient) {
         where: {
           amount: { gt: 0 },
           isTransfer: false,
+          isSplitParent: false,
           isOffset: false,
           linkedTransactionId: null,
           date: { gte: thirtyDaysAgo },
@@ -50,6 +53,7 @@ export async function reviewQueue(prisma: PrismaClient) {
         where: {
           date: { gte: ninetyDaysAgo },
           isTransfer: false,
+          isSplitParent: false,
           categoryId: { not: null },
           confidenceScore: { lt: 1.0 },
         },

@@ -38,6 +38,7 @@ export async function GET() {
     _sum: { amount: true },
     where: {
       accountId: { in: accounts.map((a) => a.id) },
+      isSplitParent: false,
     },
   });
 

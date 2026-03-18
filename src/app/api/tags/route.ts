@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
   if (withCounts) {
     const transactions = await prisma.transaction.findMany({
-      where: { tags: { not: null } },
+      where: { tags: { not: null }, isSplitParent: false },
       select: { tags: true },
     });
 

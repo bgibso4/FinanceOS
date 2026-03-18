@@ -43,6 +43,7 @@ async function calculateCategoryProgress(goal: Goal, prisma: PrismaClient): Prom
   const result = await prisma.transaction.aggregate({
     where: {
       categoryId: { in: categoryIds },
+      isSplitParent: false,
       ...dateFilter,
     },
     _sum: { amount: true },
@@ -61,6 +62,7 @@ async function calculateTagProgress(goal: Goal, prisma: PrismaClient): Promise<n
   const transactions = await prisma.transaction.findMany({
     where: {
       tags: { contains: `"${tag.name}"` },
+      isSplitParent: false,
       ...dateFilter,
     },
     select: { amount: true },
@@ -72,7 +74,7 @@ async function calculateTagProgress(goal: Goal, prisma: PrismaClient): Promise<n
 async function calculateAccountProgress(goal: Goal, prisma: PrismaClient): Promise<number> {
   // Sum all transactions in the account to get current balance
   const result = await prisma.transaction.aggregate({
-    where: { accountId: goal.accountId! },
+    where: { accountId: goal.accountId!, isSplitParent: false },
     _sum: { amount: true },
   });
 

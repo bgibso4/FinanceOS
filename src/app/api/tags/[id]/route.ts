@@ -28,7 +28,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     // Bulk update transactions: replace old name with new name in JSON arrays
     const transactions = await prisma.transaction.findMany({
-      where: { tags: { not: null } },
+      where: { tags: { not: null }, isSplitParent: false },
       select: { id: true, tags: true },
     });
 
@@ -67,7 +67,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   // Remove this tag name from all transactions
   const transactions = await prisma.transaction.findMany({
-    where: { tags: { not: null } },
+    where: { tags: { not: null }, isSplitParent: false },
     select: { id: true, tags: true },
   });
 
