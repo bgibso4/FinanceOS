@@ -345,6 +345,34 @@ export function applyMerchantRename(
   };
 }
 
+/**
+ * Clean up the transfer pair when a transaction is about to be deleted.
+ * Resets isTransfer and transferGroupId on the paired transaction.
+ */
+export async function cleanupTransferPair(
+  transactionId: string,
+  prismaClient: PrismaClient = defaultPrisma
+): Promise<void> {
+  const tx = await prismaClient.transaction.findUnique({
+    where: { id: transactionId },
+    select: { transferGroupId: true },
+  });
+
+  if (!tx?.transferGroupId) return;
+
+  // Reset the paired transaction(s) in this transfer group
+  await prismaClient.transaction.updateMany({
+    where: {
+      transferGroupId: tx.transferGroupId,
+      id: { not: transactionId },
+    },
+    data: {
+      isTransfer: false,
+      transferGroupId: null,
+    },
+  });
+}
+
 // Transfer detection types
 export type TransferDetectionResult = {
   transfersDetected: number;
