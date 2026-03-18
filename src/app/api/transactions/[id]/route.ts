@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
+import { cleanupTransferPair } from '@/lib/sync-common';
 
 const updateSchema = z.object({
   date: z
@@ -48,10 +49,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   return NextResponse.json(tx);
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   try {
+    await cleanupTransferPair(id);
     await prisma.transaction.delete({
       where: { id },
     });

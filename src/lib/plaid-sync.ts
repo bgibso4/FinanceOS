@@ -7,6 +7,7 @@ import {
   findMergeCandidate as findMergeCandidateCommon,
   shouldUpdateMerchant,
   detectTransfers,
+  cleanupTransferPair,
   convertBankAmount,
   retryWithBackoff,
   RateLimitError,
@@ -122,6 +123,29 @@ export async function syncPlaidTransactions(
     plaidEnrollment.accessTokenIv
   );
 
+  // Build routing map for ALL connections under this enrollment.
+  // Plaid returns transactions for all accounts in an item, but the cursor is shared.
+  // We must process transactions for all sibling accounts to avoid silently dropping them.
+  const siblingConnections = await prisma.plaidConnection.findMany({
+    where: {
+      plaidEnrollmentId: plaidEnrollment.id,
+      status: 'connected',
+    },
+    include: { account: true },
+  });
+
+  const accountMap = new Map<
+    string,
+    { accountId: string; invertAmounts: boolean; connectionId: string }
+  >();
+  for (const sibling of siblingConnections) {
+    accountMap.set(sibling.plaidAccountId, {
+      accountId: sibling.accountId,
+      invertAmounts: sibling.account.invertAmounts,
+      connectionId: sibling.id,
+    });
+  }
+
   let cursor = plaidEnrollment.transactionCursor || undefined;
   let hasMore = true;
 
@@ -143,15 +167,12 @@ export async function syncPlaidTransactions(
     transfersDetected: 0,
   };
 
-  // Track newly created transaction IDs for transfer detection
-  const newTransactionIds = new Set<string>();
+  // Track newly created transaction IDs per account for transfer detection
+  const newTransactionIdsByAccount = new Map<string, Set<string>>();
 
   // For dry-run mode, collect previews
   const transactionPreviews: TransactionPreview[] = [];
   let totalFetched = 0;
-
-  // Get account's invertAmounts flag for amount sign handling
-  const invertAmounts = connection.account.invertAmounts;
 
   while (hasMore) {
     const response = await plaidCallWithRetry(() =>
@@ -170,7 +191,8 @@ export async function syncPlaidTransactions(
 
     // Process added transactions
     for (const plaidTx of added) {
-      if (plaidTx.account_id !== connection.plaidAccountId) continue;
+      const target = accountMap.get(plaidTx.account_id);
+      if (!target) continue; // Transaction for an unlinked Plaid account
 
       // Filter out transactions older than cutoff date
       const txDate = new Date(plaidTx.date);
@@ -187,9 +209,9 @@ export async function syncPlaidTransactions(
       if (dryRun) {
         const preview = await previewPlaidTransaction(
           plaidTx,
-          connection.accountId,
+          target.accountId,
           'add',
-          invertAmounts
+          target.invertAmounts
         );
         transactionPreviews.push(preview);
 
@@ -206,28 +228,33 @@ export async function syncPlaidTransactions(
       } else {
         const result = await processPlaidTransaction(
           plaidTx,
-          connection.accountId,
+          target.accountId,
           'add',
-          invertAmounts
+          target.invertAmounts
         );
-        if (result.status === 'created') {
+        if (result.status === 'created' || result.status === 'categorized') {
           stats.added++;
-          if (result.transactionId) newTransactionIds.add(result.transactionId);
+          if (result.status === 'categorized') stats.autoCategorized++;
+          if (result.transactionId) {
+            let ids = newTransactionIdsByAccount.get(target.accountId);
+            if (!ids) {
+              ids = new Set<string>();
+              newTransactionIdsByAccount.set(target.accountId, ids);
+            }
+            ids.add(result.transactionId);
+          }
         } else if (result.status === 'skipped') {
           stats.skippedDuplicates++;
         } else if (result.status === 'merged') {
           stats.merged++;
-        } else if (result.status === 'categorized') {
-          stats.added++;
-          stats.autoCategorized++;
-          if (result.transactionId) newTransactionIds.add(result.transactionId);
         }
       }
     }
 
     // Process modified transactions
     for (const plaidTx of modified) {
-      if (plaidTx.account_id !== connection.plaidAccountId) continue;
+      const target = accountMap.get(plaidTx.account_id);
+      if (!target) continue;
 
       // Filter out transactions older than cutoff date
       const txDate = new Date(plaidTx.date);
@@ -238,9 +265,9 @@ export async function syncPlaidTransactions(
       if (dryRun) {
         const preview = await previewPlaidTransaction(
           plaidTx,
-          connection.accountId,
+          target.accountId,
           'modify',
-          invertAmounts
+          target.invertAmounts
         );
         transactionPreviews.push(preview);
         if (preview.wouldCreate) {
@@ -249,24 +276,28 @@ export async function syncPlaidTransactions(
       } else {
         const result = await processPlaidTransaction(
           plaidTx,
-          connection.accountId,
+          target.accountId,
           'modify',
-          invertAmounts
+          target.invertAmounts
         );
         if (result.status === 'modified') stats.modified++;
       }
     }
 
-    // Process removed transactions
+    // Process removed transactions — route by looking up which account owns the externalId
     for (const removedTx of removed) {
+      // Plaid RemovedTransaction has account_id — use it to route to the correct account
+      const target = removedTx.account_id ? accountMap.get(removedTx.account_id) : null;
+      const targetAccountId = target?.accountId ?? connection.accountId;
+
       if (dryRun) {
-        const preview = await previewRemovedTransaction(removedTx, connection.accountId);
+        const preview = await previewRemovedTransaction(removedTx, targetAccountId);
         transactionPreviews.push(preview);
         if (preview.wouldCreate) {
           stats.removed++;
         }
       } else {
-        const result = await removeTransaction(removedTx.transaction_id, connection.accountId);
+        const result = await removeTransaction(removedTx.transaction_id, targetAccountId);
         if (result) stats.removed++;
       }
     }
@@ -286,11 +317,14 @@ export async function syncPlaidTransactions(
       },
     });
 
-    // Update connection sync status
-    await prisma.plaidConnection.update({
-      where: { id: connection.id },
+    // Update sync status for all sibling connections that were processed
+    const now = new Date();
+    await prisma.plaidConnection.updateMany({
+      where: {
+        id: { in: siblingConnections.map((s) => s.id) },
+      },
       data: {
-        lastSyncAt: new Date(),
+        lastSyncAt: now,
         lastSyncStatus: 'success',
         lastSyncError: null,
       },
@@ -309,10 +343,12 @@ export async function syncPlaidTransactions(
     };
   }
 
-  // Run transfer detection on newly synced transactions
-  if (newTransactionIds.size > 0) {
-    const transferResult = await detectTransfers(connection.accountId, newTransactionIds);
-    stats.transfersDetected = transferResult.transfersDetected;
+  // Run transfer detection for each account that had new transactions
+  for (const [accountId, newIds] of newTransactionIdsByAccount) {
+    if (newIds.size > 0) {
+      const transferResult = await detectTransfers(accountId, newIds);
+      stats.transfersDetected += transferResult.transfersDetected;
+    }
   }
 
   return stats;
@@ -610,10 +646,17 @@ function mapPlaidTransaction(
 }
 
 async function removeTransaction(transactionId: string, accountId: string): Promise<boolean> {
-  const result = await prisma.transaction.deleteMany({
+  // Find the transaction first so we can clean up its transfer pair
+  const tx = await prisma.transaction.findFirst({
     where: { accountId, externalId: transactionId },
+    select: { id: true },
   });
-  return result.count > 0;
+
+  if (!tx) return false;
+
+  await cleanupTransferPair(tx.id);
+  await prisma.transaction.delete({ where: { id: tx.id } });
+  return true;
 }
 
 // Wrapper for the common findMergeCandidate that adapts the mapped transaction type
