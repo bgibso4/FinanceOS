@@ -20,6 +20,7 @@ export async function POST() {
     const transactions = await prisma.transaction.findMany({
       where: {
         date: { gte: threeMonthsAgo },
+        isSplitParent: false,
         OR: [{ categoryId: null }, { confidenceScore: { lt: LOW_CONFIDENCE_THRESHOLD } }],
       },
       select: {

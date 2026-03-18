@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
 
   const where: any = {
     date: { gte: startDate, lte: endDate },
+    isSplitParent: false,
   };
   if (filters.accounts) where.accountId = { in: filters.accounts };
   if (filters.categories) where.categoryId = { in: filters.categories };
@@ -39,6 +40,16 @@ export async function GET(req: NextRequest) {
       account: true,
       linkedTransaction: true,
       offsetTransactions: true,
+      parentTransaction: {
+        select: {
+          id: true,
+          amount: true,
+          merchant: true,
+          splitParts: {
+            select: { id: true, amount: true, categoryId: true, note: true, category: true },
+          },
+        },
+      },
     },
   });
 

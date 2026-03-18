@@ -166,13 +166,20 @@ model Transaction {
   linkedTransactionId String?
   linkedTransaction  Transaction? @relation("TransactionOffset", fields: [linkedTransactionId], references: [id], onDelete: SetNull)
   offsetTransactions Transaction[] @relation("TransactionOffset")
-  
+
+  // Split transaction tracking
+  isSplitParent       Boolean      @default(false)
+  parentTransactionId String?
+  parentTransaction   Transaction? @relation("TransactionSplit", fields: [parentTransactionId], references: [id], onDelete: Cascade)
+  splitParts          Transaction[] @relation("TransactionSplit")
+
   createdAt          DateTime    @default(now())
 
   @@index([date])
   @@index([merchantNormalized])
   @@index([importHash])
   @@index([linkedTransactionId])
+  @@index([parentTransactionId])
   @@unique([accountId, externalId])
 }
 

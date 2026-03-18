@@ -43,6 +43,8 @@ export const TransactionExportSchema = z.object({
   importHash: z.string().nullable(),
   isOffset: z.boolean(),
   linkedTransactionId: z.string().nullable(),
+  isSplitParent: z.boolean().optional().default(false),
+  parentTransactionId: z.string().nullable().optional().default(null),
   createdAt: z.string(), // ISO 8601
 });
 export type TransactionExport = z.infer<typeof TransactionExportSchema>;

@@ -30,6 +30,20 @@ type Tx = {
   linkedTransactionId?: string | null;
   linkedTransaction?: Tx | null;
   offsetTransactions?: Tx[];
+  parentTransactionId?: string | null;
+  isSplitParent?: boolean;
+  parentTransaction?: {
+    id: string;
+    amount: number;
+    merchant: string;
+    splitParts?: {
+      id: string;
+      amount: number;
+      categoryId: string | null;
+      note: string | null;
+      category?: { id: string; name: string } | null;
+    }[];
+  } | null;
 };
 
 type Queue = {
@@ -85,6 +99,14 @@ function TransactionsPageContent() {
     tags: [] as string[],
   });
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
+
+  const [splitModalOpen, setSplitModalOpen] = useState(false);
+  const [splitParts, setSplitParts] = useState<
+    { amount: string; categoryId: string; note: string }[]
+  >([
+    { amount: '', categoryId: '', note: '' },
+    { amount: '', categoryId: '', note: '' },
+  ]);
 
   // Return tracking state
   const [returnModalOpen, setReturnModalOpen] = useState(false);
@@ -389,6 +411,88 @@ function TransactionsPageContent() {
     }
   };
 
+  const openSplitModal = () => {
+    if (!editingTransaction) return;
+    const absAmount = Math.abs(editingTransaction.amount);
+    setSplitParts([
+      { amount: String(absAmount), categoryId: editingTransaction.category?.id || '', note: '' },
+      { amount: '', categoryId: '', note: '' },
+    ]);
+    setSplitModalOpen(true);
+  };
+
+  const addSplitPart = () => {
+    setSplitParts([...splitParts, { amount: '', categoryId: '', note: '' }]);
+  };
+
+  const removeSplitPart = (index: number) => {
+    if (splitParts.length <= 2) return;
+    setSplitParts(splitParts.filter((_, i) => i !== index));
+  };
+
+  const updateSplitPart = (
+    index: number,
+    field: 'amount' | 'categoryId' | 'note',
+    value: string
+  ) => {
+    const updated = [...splitParts];
+    updated[index] = { ...updated[index], [field]: value };
+    setSplitParts(updated);
+  };
+
+  const splitPartsSum = splitParts.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+  const splitOriginalAbs = editingTransaction ? Math.abs(editingTransaction.amount) : 0;
+  const splitSumMatches = Math.abs(splitPartsSum - splitOriginalAbs) < 0.01;
+  const splitIsExpense = editingTransaction ? editingTransaction.amount < 0 : true;
+
+  const submitSplit = async () => {
+    if (!editingTransaction || !splitSumMatches) return;
+
+    try {
+      const sign = splitIsExpense ? -1 : 1;
+      await fetch('/api/transactions/split', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionId: editingTransaction.id,
+          parts: splitParts.map((p) => ({
+            amount: (parseFloat(p.amount) || 0) * sign,
+            categoryId: p.categoryId || null,
+            note: p.note || null,
+          })),
+        }),
+      });
+
+      setSplitModalOpen(false);
+      closeEditModal();
+      refreshTransactionsAndQueue();
+      triggerSync();
+    } catch (_err) {
+      alert('Failed to split transaction');
+    }
+  };
+
+  const unsplitTransaction = async (parentId: string) => {
+    if (
+      !confirm('This will remove all split parts and restore the original transaction. Continue?')
+    )
+      return;
+
+    try {
+      await fetch('/api/transactions/unsplit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transactionId: parentId }),
+      });
+
+      closeEditModal();
+      refreshTransactionsAndQueue();
+      triggerSync();
+    } catch (_err) {
+      alert('Failed to unsplit transaction');
+    }
+  };
+
   const toggleTransfer = async () => {
     if (!editingTransaction) return;
 
@@ -612,7 +716,14 @@ function TransactionsPageContent() {
                 {/* Transaction Header */}
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
-                    <div className={`font-medium ${ds.text.primary} truncate`}>{tx.merchant}</div>
+                    <div className={`font-medium ${ds.text.primary} truncate`}>
+                      {tx.merchant}
+                      {tx.parentTransactionId && (
+                        <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium">
+                          Split
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 mt-1">
                       <span className={`text-xs ${ds.text.muted}`}>{tx.date.split('T')[0]}</span>
                       <Badge
@@ -992,7 +1103,14 @@ function TransactionsPageContent() {
                           <span className="text-purple-700 dark:text-purple-400">↩</span>
                         )}
                         <div>
-                          <div className="text-slate-900 dark:text-slate-100">{tx.merchant}</div>
+                          <div className="text-slate-900 dark:text-slate-100">
+                            {tx.merchant}
+                            {tx.parentTransactionId && (
+                              <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium">
+                                Split
+                              </span>
+                            )}
+                          </div>
                           {tx.isOffset && tx.linkedTransaction && (
                             <div className="text-xs text-purple-700 dark:text-purple-400 mt-0.5">
                               Linked to {tx.linkedTransaction.date.split('T')[0]} transaction
@@ -1248,6 +1366,18 @@ function TransactionsPageContent() {
                 >
                   Save Changes
                 </Button>
+                {!editingTransaction.parentTransactionId &&
+                  !editingTransaction.isSplitParent &&
+                  !editingTransaction.linkedTransactionId &&
+                  (!editingTransaction.offsetTransactions ||
+                    editingTransaction.offsetTransactions.length === 0) && (
+                    <Button
+                      className="w-full py-3 !bg-violet-600 hover:!bg-violet-700 text-white"
+                      onClick={openSplitModal}
+                    >
+                      Split Transaction
+                    </Button>
+                  )}
               </div>
             </div>
 
@@ -1264,6 +1394,50 @@ function TransactionsPageContent() {
                 </div>
               </div>
             </div>
+
+            {/* Split Context */}
+            {editingTransaction.parentTransactionId && editingTransaction.parentTransaction && (
+              <div className="bg-violet-50 dark:bg-violet-900/20 rounded-lg p-4 border border-violet-200 dark:border-violet-800">
+                <h4 className="font-semibold text-violet-700 dark:text-violet-400 mb-3">
+                  Split Transaction
+                </h4>
+                <div className={`text-sm ${ds.text.secondary} mb-3`}>
+                  This is part of a split from the original{' '}
+                  <strong>
+                    ${Math.abs(editingTransaction.parentTransaction.amount).toFixed(2)}
+                  </strong>{' '}
+                  transaction.
+                </div>
+                {editingTransaction.parentTransaction.splitParts &&
+                  editingTransaction.parentTransaction.splitParts.length > 0 && (
+                    <div className="mb-3 space-y-1">
+                      <div className={`text-xs font-medium ${ds.text.muted} mb-1`}>All parts:</div>
+                      {editingTransaction.parentTransaction.splitParts.map((part: any) => (
+                        <div
+                          key={part.id}
+                          className={`text-sm flex justify-between ${
+                            part.id === editingTransaction.id
+                              ? 'font-semibold ' + ds.text.primary
+                              : ds.text.secondary
+                          }`}
+                        >
+                          <span>{part.category?.name || 'Uncategorized'}</span>
+                          <span>${Math.abs(part.amount).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                <Button
+                  className="w-full py-3 !bg-violet-600 hover:!bg-violet-700 text-white"
+                  onClick={() => unsplitTransaction(editingTransaction.parentTransactionId!)}
+                >
+                  Unsplit (Restore Original)
+                </Button>
+                <div className={`text-xs ${ds.text.muted} mt-2`}>
+                  This will remove all split parts and restore the original transaction.
+                </div>
+              </div>
+            )}
 
             {/* Transfer Status */}
             <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
@@ -1712,6 +1886,117 @@ function TransactionsPageContent() {
                 </div>
               </>
             )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Split Transaction Modal */}
+      <Modal
+        isOpen={splitModalOpen}
+        title="Split Transaction"
+        onClose={() => setSplitModalOpen(false)}
+      >
+        {editingTransaction && (
+          <div className="space-y-4">
+            <div className={`${ds.bg.secondary} rounded-lg p-3 border ${ds.border.default}`}>
+              <div className={`text-sm ${ds.text.secondary}`}>
+                Splitting <strong>{editingTransaction.merchant}</strong> &mdash;{' '}
+                <strong>${Math.abs(editingTransaction.amount).toFixed(2)}</strong>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {splitParts.map((part, index) => (
+                <div
+                  key={index}
+                  className={`${ds.bg.secondary} rounded-lg p-3 border ${ds.border.default}`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-sm font-medium ${ds.text.primary}`}>
+                      Part {index + 1}
+                    </span>
+                    {splitParts.length > 2 && (
+                      <button
+                        className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                        onClick={() => removeSplitPart(index)}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className={`block text-xs ${ds.text.muted} mb-1`}>Amount</label>
+                      <Input
+                        placeholder="0.00"
+                        step="0.01"
+                        type="number"
+                        value={part.amount}
+                        onChange={(e) => updateSplitPart(index, 'amount', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-xs ${ds.text.muted} mb-1`}>Category</label>
+                      <Select
+                        value={part.categoryId}
+                        onChange={(e) => updateSplitPart(index, 'categoryId', e.target.value)}
+                      >
+                        <option value="">Uncategorized</option>
+                        {categories
+                          .filter((c) => !c.parentId)
+                          .map((parent) => (
+                            <optgroup key={parent.id} label={parent.name}>
+                              {categories
+                                .filter((c) => c.parentId === parent.id)
+                                .map((child) => (
+                                  <option key={child.id} value={child.id}>
+                                    {child.name}
+                                  </option>
+                                ))}
+                            </optgroup>
+                          ))}
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <label className={`block text-xs ${ds.text.muted} mb-1`}>Note (optional)</label>
+                    <Input
+                      placeholder="Note for this part"
+                      value={part.note}
+                      onChange={(e) => updateSplitPart(index, 'note', e.target.value)}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              onClick={addSplitPart}
+            >
+              + Add another part
+            </button>
+
+            <div
+              className={`text-sm p-3 rounded border ${
+                splitSumMatches
+                  ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400'
+                  : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400'
+              }`}
+            >
+              Total: ${splitPartsSum.toFixed(2)} / ${splitOriginalAbs.toFixed(2)}
+              {splitSumMatches
+                ? ' ✓'
+                : ` — $${Math.abs(splitOriginalAbs - splitPartsSum).toFixed(2)} remaining`}
+            </div>
+
+            <Button
+              className="w-full py-3 !bg-violet-600 hover:!bg-violet-700 text-white disabled:opacity-50"
+              disabled={!splitSumMatches || splitParts.some((p) => !p.amount)}
+              onClick={submitSplit}
+            >
+              Split Transaction
+            </Button>
           </div>
         )}
       </Modal>

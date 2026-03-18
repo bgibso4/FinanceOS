@@ -300,6 +300,8 @@ describe('cloud-sync integration', () => {
           importHash: null,
           isOffset: false,
           linkedTransactionId: null,
+          isSplitParent: false,
+          parentTransactionId: null,
           createdAt: new Date().toISOString(),
         },
       ];

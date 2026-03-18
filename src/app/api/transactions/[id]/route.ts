@@ -31,6 +31,38 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json();
   const parsed = updateSchema.parse(body);
 
+  // If editing a split part's amount, enforce sum constraint
+  if (parsed.amount !== undefined) {
+    const current = await prisma.transaction.findUniqueOrThrow({
+      where: { id },
+    });
+
+    if (current.parentTransactionId) {
+      const parent = await prisma.transaction.findUniqueOrThrow({
+        where: { id: current.parentTransactionId },
+      });
+
+      const siblings = await prisma.transaction.findMany({
+        where: {
+          parentTransactionId: current.parentTransactionId,
+          id: { not: id },
+        },
+      });
+
+      const siblingSum = siblings.reduce((sum, s) => sum + s.amount, 0);
+      const newTotal = siblingSum + parsed.amount;
+
+      if (Math.abs(newTotal - parent.amount) > 0.001) {
+        return NextResponse.json(
+          {
+            error: `Split parts must sum to ${parent.amount}. New sum would be: ${newTotal}`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+  }
+
   // If manually setting a category, boost confidence to 1.0 (manual override)
   const updateData: any = {
     ...parsed,
@@ -53,6 +85,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const { id } = await params;
 
   try {
+    const tx = await prisma.transaction.findUniqueOrThrow({ where: { id } });
+
+    if (tx.parentTransactionId) {
+      return NextResponse.json(
+        { error: 'Cannot delete a split part. Use unsplit to restore the original transaction.' },
+        { status: 400 }
+      );
+    }
+
     await cleanupTransferPair(id);
     await prisma.transaction.delete({
       where: { id },
