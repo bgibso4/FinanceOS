@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import { setupTestDb, teardownTestDb, resetTestDb } from '../../../helpers/db';
 import {
   createAccountData,
@@ -32,6 +32,15 @@ describe('agent tools', () => {
 
   afterAll(async () => {
     await teardownTestDb();
+  });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-31T12:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   beforeEach(async () => {
