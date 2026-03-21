@@ -21,19 +21,19 @@ export function Modal({ isOpen, onClose, title, children, size = 'default' }: Mo
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-60 dark:bg-opacity-80 transition-opacity backdrop-blur-sm"
+        className="fixed inset-0 bg-black/50 transition-opacity backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Modal */}
       <div
-        className={`relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl ${sizeClasses[size]} w-full max-h-[85vh] overflow-hidden border border-slate-200 dark:border-slate-700`}
+        className={`relative bg-[var(--bg-card)] rounded-xl shadow-2xl ${sizeClasses[size]} w-full max-h-[85vh] overflow-hidden border border-[var(--border)]`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-          <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">{title}</h3>
+        <div className="flex items-center justify-between p-6 border-b border-[var(--border)] bg-[var(--bg-base)]">
+          <h3 className="text-xl font-bold text-[var(--text-primary)]">{title}</h3>
           <button
-            className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full p-1 transition-colors"
+            className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] rounded-full p-1 transition-colors"
             onClick={onClose}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

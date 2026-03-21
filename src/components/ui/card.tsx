@@ -5,7 +5,8 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
   return (
     <div
       className={cn(
-        'rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-card',
+        'rounded-xl border border-[var(--border)] bg-[var(--bg-card)] shadow-card transition-colors duration-[250ms]',
+        'hover:border-[var(--border-hover)]',
         className
       )}
       {...props}
@@ -17,7 +18,7 @@ export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDiv
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-3 px-5 py-4 text-slate-700 dark:text-slate-300',
+        'flex items-center justify-between gap-3 px-7 py-5 text-[var(--text-primary)]',
         className
       )}
       {...props}
@@ -26,7 +27,5 @@ export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDiv
 }
 
 export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div className={cn('px-5 pb-5 text-slate-700 dark:text-slate-300', className)} {...props} />
-  );
+  return <div className={cn('px-7 pb-7 text-[var(--text-secondary)]', className)} {...props} />;
 }
