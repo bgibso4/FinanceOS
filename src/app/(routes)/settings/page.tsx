@@ -1,7 +1,9 @@
 'use client';
 
 import React, { Suspense, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { cn } from '@/lib/cn';
 import {
   DndContext,
   closestCenter,
@@ -1855,6 +1857,26 @@ function SettingsPageContent() {
 
   return (
     <div className="space-y-4">
+      {/* Tab Navigation */}
+      <div className="flex items-center gap-6 text-sm font-medium mb-8 border-b border-[var(--border)] pb-2">
+        {['general', 'accounts', 'categories', 'rules', 'budgets', 'import', 'tags', 'sync'].map(
+          (t) => (
+            <Link
+              key={t}
+              className={cn(
+                'pb-2 border-b-2 transition-colors capitalize',
+                tab === t
+                  ? 'text-[var(--text-primary)] border-[var(--accent)]'
+                  : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
+              )}
+              href={`/settings?tab=${t}`}
+            >
+              {t === 'sync' ? 'Cloud Sync' : t.charAt(0).toUpperCase() + t.slice(1)}
+            </Link>
+          )
+        )}
+      </div>
+
       {tab === 'general' && (
         <Card>
           <CardHeader>

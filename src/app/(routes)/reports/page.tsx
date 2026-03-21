@@ -1,7 +1,9 @@
 'use client';
 
 import React, { Suspense, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { cn } from '@/lib/cn';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -137,8 +139,32 @@ function ReportsContent() {
     }
   };
 
+  const reportTabs = [
+    { id: 'net-worth', label: 'Net Worth' },
+    { id: 'cash-flow', label: 'Cash Flow' },
+    { id: 'monthly', label: 'Monthly' },
+  ] as const;
+
   return (
     <div className="space-y-6">
+      {/* Tab Navigation */}
+      <div className="flex items-center gap-6 text-sm font-medium mb-8 border-b border-[var(--border)] pb-2">
+        {reportTabs.map((t) => (
+          <Link
+            key={t.id}
+            className={cn(
+              'pb-2 border-b-2 transition-colors',
+              tab === t.id
+                ? 'text-[var(--text-primary)] border-[var(--accent)]'
+                : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
+            )}
+            href={`/reports?tab=${t.id}`}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </div>
+
       {/* Net Worth Tab */}
       {tab === 'net-worth' && <NetWorthSnapshots />}
 

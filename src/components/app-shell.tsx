@@ -37,23 +37,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <SideNav onToggleAnalyst={toggleAnalyst} />
         </Suspense>
         <div className="flex min-h-screen flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-card)]/80 px-4 py-3 backdrop-blur">
-            <div className="flex flex-col">
-              <div className="text-sm font-semibold text-[var(--text-primary)]">
-                Personal Finance Cockpit
-              </div>
-              <div className="text-xs text-[var(--text-muted)]">
-                Analytics-first dashboard with auto-categorized spend
-              </div>
-            </div>
-          </div>
-          {showFilters && (
-            <Suspense fallback={<div className="h-12 border-b border-[var(--border)]" />}>
-              <FilterRibbon />
-            </Suspense>
-          )}
           <div className="flex-1 flex justify-center">
-            <main className="w-full max-w-[1200px] px-12 py-8">{children}</main>
+            <div className="w-full max-w-[1200px] px-12 py-8">
+              {showFilters && (
+                <Suspense fallback={<div className="h-12 border-b border-[var(--border)]" />}>
+                  <FilterRibbon />
+                </Suspense>
+              )}
+              <main>{children}</main>
+            </div>
           </div>
         </div>
         <ChatAnalyst open={analystOpen} onClose={() => setAnalystOpen(false)} />

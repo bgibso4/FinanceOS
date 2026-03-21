@@ -147,8 +147,8 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
       )}
       style={{ width: isExpanded ? 200 : 56, minWidth: isExpanded ? 200 : 56 }}
     >
-      {/* Logo */}
-      <div className="flex items-center h-14 px-3 shrink-0">
+      {/* Logo + Collapse Toggle */}
+      <div className="flex items-center justify-between h-14 px-3 shrink-0">
         {isExpanded ? (
           <span className="text-[var(--text-primary)] font-semibold text-base whitespace-nowrap overflow-hidden">
             FinanceOS
@@ -158,6 +158,15 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
             F
           </span>
         )}
+        <button
+          className={cn(
+            'flex items-center justify-center w-7 h-7 rounded-md transition-all duration-[250ms] ease-[ease]',
+            'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
+          )}
+          onClick={toggleSidebar}
+        >
+          {isExpanded ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}
+        </button>
       </div>
 
       {/* Main nav */}
@@ -264,7 +273,7 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
       </nav>
 
       {/* Bottom section */}
-      <div className="flex flex-col gap-0.5 px-2 pb-3 pt-2 border-t border-[var(--border)] mt-1">
+      <div className="flex flex-col gap-0.5 px-2 pb-16 pt-2 border-t border-[var(--border)] mt-1">
         {/* Theme toggle */}
         <button
           className={cn(
@@ -313,23 +322,6 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
             )}
           </button>
         )}
-
-        {/* Expand/Collapse toggle */}
-        <button
-          className={cn(
-            'relative flex items-center gap-2 rounded-lg transition-all duration-[250ms] ease-[ease]',
-            isExpanded ? 'px-2 py-2' : 'justify-center p-0 w-9 h-9 mx-auto',
-            'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-          )}
-          onClick={toggleSidebar}
-        >
-          <span className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0">
-            {isExpanded ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
-          </span>
-          {isExpanded && (
-            <span className="text-sm font-medium whitespace-nowrap overflow-hidden">Collapse</span>
-          )}
-        </button>
       </div>
     </aside>
   );

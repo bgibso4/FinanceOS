@@ -1,7 +1,9 @@
 'use client';
 
 import React, { Suspense, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { cn } from '@/lib/cn';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -905,8 +907,32 @@ function TransactionsPageContent() {
     );
   };
 
+  const transactionTabs = [
+    { id: 'review', label: 'Review' },
+    { id: 'all', label: 'All' },
+    { id: 'subscriptions', label: 'Subscriptions' },
+  ] as const;
+
   return (
     <div className="space-y-4">
+      {/* Tab Navigation */}
+      <div className="flex items-center gap-6 text-sm font-medium mb-8 border-b border-[var(--border)] pb-2">
+        {transactionTabs.map((t) => (
+          <Link
+            key={t.id}
+            className={cn(
+              'pb-2 border-b-2 transition-colors',
+              tab === t.id
+                ? 'text-[var(--text-primary)] border-[var(--accent)]'
+                : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
+            )}
+            href={`/transactions?tab=${t.id}`}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </div>
+
       {tab === 'review' && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {queue && (

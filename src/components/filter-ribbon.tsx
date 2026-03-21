@@ -53,7 +53,7 @@ export function FilterRibbon() {
   const currentPreset = presets.find((p) => p.id === preset);
 
   return (
-    <div className="sticky top-0 z-20 bg-[var(--bg-card)] border-b border-[var(--border)]">
+    <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg mb-6">
       <div className="px-4 py-3">
         <div className="flex items-center justify-between gap-4">
           {/* Time Period Pills */}
