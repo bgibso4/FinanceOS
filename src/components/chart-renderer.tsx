@@ -22,20 +22,18 @@ type Props = {
   spec: ChartSpec;
 };
 
-// Color palette for pie charts
+// Friedrik muted, monochrome-forward palette for pie / multi-category charts
 const PIE_COLORS = [
-  '#3b82f6', // blue
-  '#10b981', // emerald
-  '#f59e0b', // amber
-  '#ef4444', // red
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#84cc16', // lime
-  '#f97316', // orange
-  '#6366f1', // indigo
-  '#14b8a6', // teal
-  '#a855f7', // purple
+  '#9a7a58', // cognac  (accent)
+  '#9a9690', // warm gray
+  '#6a6660', // darker gray
+  '#7a8a7a', // muted sage
+  '#8a7a6a', // warm tan
+  '#6a7a8a', // cool steel
+  '#8a6a7a', // muted mauve
+  '#7a7a6a', // olive gray
+  '#6a6a7a', // slate purple
+  '#8a8a7a', // khaki gray
 ];
 
 export function ChartRenderer({ spec }: Props) {
@@ -52,7 +50,7 @@ export function ChartRenderer({ spec }: Props) {
           <YAxis tick={{ fontSize: 12 }} />
           <Tooltip contentStyle={{ fontSize: '13px', fontFamily: 'inherit' }} />
           {spec.series.map((s, idx) => {
-            const color = idx === 0 ? '#10b981' : idx === 1 ? '#ef4444' : '#94a3b8';
+            const color = idx === 0 ? '#6a9a68' : idx === 1 ? '#6a6660' : '#9a7a58';
             return (
               <Line
                 key={s.label}
@@ -71,12 +69,12 @@ export function ChartRenderer({ spec }: Props) {
         <AreaChart data={merged}>
           <defs>
             <linearGradient id="incomeGradient" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+              <stop offset="5%" stopColor="#6a9a68" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#6a9a68" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="spendingGradient" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+              <stop offset="5%" stopColor="#6a6660" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#6a6660" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" />
@@ -85,7 +83,7 @@ export function ChartRenderer({ spec }: Props) {
           <Tooltip contentStyle={{ fontSize: '13px', fontFamily: 'inherit' }} />
           <Legend wrapperStyle={{ fontSize: '12px', fontFamily: 'inherit' }} />
           {spec.series.map((s, idx) => {
-            const color = idx === 0 ? '#10b981' : '#ef4444';
+            const color = idx === 0 ? '#6a9a68' : '#6a6660';
             const gradient = idx === 0 ? 'url(#incomeGradient)' : 'url(#spendingGradient)';
             return (
               <Area
@@ -108,7 +106,7 @@ export function ChartRenderer({ spec }: Props) {
           <YAxis tick={{ fontSize: 12 }} />
           <Tooltip contentStyle={{ fontSize: '13px', fontFamily: 'inherit' }} />
           {spec.series.map((s, idx) => {
-            const color = idx === 0 ? '#0f172a' : idx === 1 ? '#475569' : '#94a3b8';
+            const color = idx === 0 ? '#9a7a58' : idx === 1 ? '#6a6660' : '#9a9690';
             return <Bar key={s.label} dataKey={s.label} fill={color} />;
           })}
         </BarChart>
@@ -134,7 +132,7 @@ export function ChartRenderer({ spec }: Props) {
             label={false}
             nameKey="x"
             outerRadius="70%"
-            stroke="#fff"
+            stroke="var(--bg-primary)"
             strokeWidth={2}
           >
             {pieData.map((_, index) => (
@@ -151,7 +149,7 @@ export function ChartRenderer({ spec }: Props) {
     return (
       <Card>
         <CardHeader>
-          <div className="text-sm font-semibold text-slate-800">{spec.title}</div>
+          <div className="text-sm font-semibold text-[var(--text-primary)]">{spec.title}</div>
         </CardHeader>
         <CardContent className="h-64">{chartContent}</CardContent>
       </Card>

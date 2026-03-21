@@ -1,17 +1,33 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import {
+  BarChart3,
+  ChevronRight,
+  FileText,
+  LayoutGrid,
+  List,
+  Moon,
+  PanelLeft,
+  PanelLeftClose,
+  Settings,
+  Sparkles,
+  Sun,
+  Target,
+} from 'lucide-react';
 import { cn } from '@/lib/cn';
 
-const links = [
-  { href: '/', label: 'Dashboard' },
-  { href: '/analytics', label: 'Analytics' },
+import type { LucideIcon } from 'lucide-react';
+
+const links: NavLink[] = [
+  { href: '/', label: 'Dashboard', icon: LayoutGrid },
+  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   {
     href: '/transactions',
     label: 'Transactions',
+    icon: List,
     submenu: [
       { href: '/transactions?tab=all', label: 'All Transactions' },
       { href: '/transactions?tab=review', label: 'Review Queue' },
@@ -21,16 +37,18 @@ const links = [
   {
     href: '/reports',
     label: 'Reports',
+    icon: FileText,
     submenu: [
       { href: '/reports?tab=net-worth', label: 'Net Worth' },
       { href: '/reports?tab=cash-flow', label: 'Cash Flow' },
       { href: '/reports?tab=monthly', label: 'Monthly Detail' },
     ],
   },
-  { href: '/goals', label: 'Goals' },
+  { href: '/goals', label: 'Goals', icon: Target },
   {
     href: '/settings',
     label: 'Settings',
+    icon: Settings,
     submenu: [
       { href: '/settings?tab=accounts', label: 'Accounts' },
       { href: '/settings?tab=budgets', label: 'Budgets' },
@@ -44,6 +62,18 @@ const links = [
   },
 ];
 
+type SubLink = {
+  href: string;
+  label: string;
+};
+
+type NavLink = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  submenu?: SubLink[];
+};
+
 type SideNavProps = {
   onToggleAnalyst?: () => void;
 };
@@ -53,6 +83,19 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
   const searchParams = useSearchParams();
   const currentTab = searchParams.get('tab') || 'general';
 
+  const [isExpanded, setIsExpanded] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sidebar-expanded') === 'true';
+    }
+    return false;
+  });
+
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    setIsDark(document.documentElement.classList.contains('dark'));
+  }, []);
+
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(
     new Set([
       ...(pathname.startsWith('/settings') ? ['/settings'] : []),
@@ -60,6 +103,14 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
       ...(pathname.startsWith('/reports') ? ['/reports'] : []),
     ])
   );
+
+  const toggleSidebar = () => {
+    setIsExpanded((prev) => {
+      const next = !prev;
+      localStorage.setItem('sidebar-expanded', String(next));
+      return next;
+    });
+  };
 
   const toggleMenu = (href: string) => {
     setExpandedMenus((prev) => {
@@ -73,113 +124,207 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
     });
   };
 
+  const toggleTheme = () => {
+    const html = document.documentElement;
+    const currentlyDark = html.classList.contains('dark');
+    if (currentlyDark) {
+      html.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+      setIsDark(false);
+    } else {
+      html.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+      setIsDark(true);
+    }
+  };
+
   return (
-    <aside className="hidden w-52 shrink-0 border-r border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 px-4 py-6 md:flex md:flex-col md:gap-4">
-      <div className="mb-2">
-        <Image
-          priority
-          alt="FinanceOS"
-          className="dark:brightness-110"
-          height={44}
-          src="/images/logo-full.png"
-          width={176}
-        />
-      </div>
-      <div className="flex flex-1 flex-col">
-        <div className="flex flex-col gap-1">
-          {links.map((link) => {
-            const isActive = link.submenu ? pathname.startsWith(link.href) : pathname === link.href;
-            const isExpanded = expandedMenus.has(link.href);
-
-            return (
-              <div key={link.href} className="mb-2">
-                {link.submenu ? (
-                  <>
-                    <button
-                      className={cn(
-                        'w-full rounded-lg px-3 py-2 text-sm font-semibold transition flex items-center justify-between',
-                        isActive
-                          ? 'bg-slate-900 dark:bg-slate-700 text-white'
-                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                      )}
-                      onClick={() => toggleMenu(link.href)}
-                    >
-                      <span>{link.label}</span>
-                      <svg
-                        className={cn('w-4 h-4 transition-transform', isExpanded && 'rotate-90')}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          d="M9 5l7 7-7 7"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                        />
-                      </svg>
-                    </button>
-                    {isExpanded && (
-                      <div className="ml-3 mt-1 flex flex-col gap-1 border-l-2 border-slate-200 dark:border-slate-700 pl-2">
-                        {link.submenu.map((sublink) => {
-                          const sublinkTab = sublink.href.includes('?tab=')
-                            ? sublink.href.split('?tab=')[1]
-                            : null;
-                          const isSubmenuActive =
-                            pathname === link.href &&
-                            (sublinkTab ? currentTab === sublinkTab : !currentTab);
-
-                          return (
-                            <Link
-                              key={sublink.href}
-                              className={cn(
-                                'rounded-lg px-3 py-1.5 text-sm transition',
-                                isSubmenuActive
-                                  ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white font-medium'
-                                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                              )}
-                              href={sublink.href}
-                            >
-                              {sublink.label}
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <Link
-                    className={cn(
-                      'rounded-lg px-3 py-2 text-sm font-semibold transition',
-                      isActive
-                        ? 'bg-slate-900 dark:bg-slate-700 text-white'
-                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                    )}
-                    href={link.href}
-                  >
-                    {link.label}
-                  </Link>
-                )}
-              </div>
-            );
-          })}
+    <aside
+      className={cn(
+        'hidden md:flex flex-col shrink-0 h-screen sticky top-0',
+        'bg-[var(--bg-surface)] border-r border-[var(--border)]',
+        'transition-all duration-[250ms] ease-[ease]'
+      )}
+      style={{ width: isExpanded ? 200 : 56, minWidth: isExpanded ? 200 : 56 }}
+    >
+      {/* Logo + Collapse Toggle */}
+      <div className="flex flex-col px-3 shrink-0">
+        <div className="flex items-center h-14">
+          {isExpanded ? (
+            <span className="text-[var(--text-primary)] font-semibold text-base whitespace-nowrap overflow-hidden">
+              FinanceOS
+            </span>
+          ) : (
+            <span className="flex items-center justify-center w-9 h-9 text-[var(--text-primary)] font-medium text-base">
+              F
+            </span>
+          )}
         </div>
-        <div className="flex-1" />
-        {onToggleAnalyst && (
-          <div className="border-t border-slate-200 dark:border-slate-700 pt-3 mt-3">
-            <button
-              className={cn(
-                'w-full rounded-lg px-3 py-2 text-sm font-semibold transition flex items-center justify-between',
-                'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+        <div className={cn('flex pb-2', isExpanded ? 'justify-end' : 'justify-center')}>
+          <button
+            className={cn(
+              'flex items-center justify-center w-7 h-7 rounded-md transition-all duration-[250ms] ease-[ease]',
+              'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
+            )}
+            onClick={toggleSidebar}
+          >
+            {isExpanded ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Main nav */}
+      <nav className="flex-1 flex flex-col gap-0.5 px-2 overflow-y-auto overflow-x-hidden">
+        {links.map((link) => {
+          const isActive = link.submenu ? pathname.startsWith(link.href) : pathname === link.href;
+          const isMenuExpanded = expandedMenus.has(link.href);
+          const Icon = link.icon;
+
+          return (
+            <div key={link.href}>
+              {/* Nav item */}
+              {link.submenu && isExpanded ? (
+                <button
+                  className={cn(
+                    'relative flex items-center gap-2 w-full rounded-lg transition-all duration-[250ms] ease-[ease]',
+                    isExpanded ? 'px-2 py-2' : 'justify-center p-0 w-10 h-10 mx-auto',
+                    isActive
+                      ? 'text-[var(--accent)]'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  )}
+                  onClick={() => toggleMenu(link.href)}
+                >
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[var(--accent)] rounded-r" />
+                  )}
+                  <span className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0">
+                    <Icon size={20} />
+                  </span>
+                  {isExpanded && (
+                    <>
+                      <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
+                        {link.label}
+                      </span>
+                      <ChevronRight
+                        className={cn(
+                          'ml-auto shrink-0 transition-transform duration-[250ms] ease-[ease]',
+                          isMenuExpanded && 'rotate-90'
+                        )}
+                        size={14}
+                      />
+                    </>
+                  )}
+                </button>
+              ) : (
+                <Link
+                  className={cn(
+                    'relative flex items-center gap-2 rounded-lg transition-all duration-[250ms] ease-[ease]',
+                    isExpanded ? 'px-2 py-2' : 'justify-center p-0 w-10 h-10 mx-auto',
+                    isActive
+                      ? 'text-[var(--accent)]'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  )}
+                  href={link.href}
+                >
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[var(--accent)] rounded-r" />
+                  )}
+                  <span className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0">
+                    <Icon size={20} />
+                  </span>
+                  {isExpanded && (
+                    <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
+                      {link.label}
+                    </span>
+                  )}
+                  {isExpanded && link.submenu && (
+                    <ChevronRight className="ml-auto shrink-0" size={14} />
+                  )}
+                </Link>
               )}
-              onClick={onToggleAnalyst}
-            >
-              <span>Finance Analyst</span>
-              <kbd className="hidden lg:inline-block rounded bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+
+              {/* Submenu (expanded sidebar only) */}
+              {isExpanded && link.submenu && isMenuExpanded && (
+                <div className="ml-6 mt-0.5 mb-1 flex flex-col gap-0.5 border-l border-[var(--border)] pl-2">
+                  {link.submenu.map((sublink) => {
+                    const sublinkTab = sublink.href.includes('?tab=')
+                      ? sublink.href.split('?tab=')[1]
+                      : null;
+                    const isSubmenuActive =
+                      pathname === link.href &&
+                      (sublinkTab ? currentTab === sublinkTab : !currentTab);
+
+                    return (
+                      <Link
+                        key={sublink.href}
+                        className={cn(
+                          'rounded-md px-2 py-1 text-xs transition-all duration-[250ms] ease-[ease] whitespace-nowrap overflow-hidden',
+                          isSubmenuActive
+                            ? 'text-[var(--accent)] font-medium'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                        )}
+                        href={sublink.href}
+                      >
+                        {sublink.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </nav>
+
+      {/* Bottom section */}
+      <div className="flex flex-col gap-0.5 px-2 pb-16 pt-2 border-t border-[var(--border)] mt-1">
+        {/* Theme toggle */}
+        <button
+          className={cn(
+            'relative flex items-center gap-2 rounded-lg transition-all duration-[250ms] ease-[ease]',
+            isExpanded ? 'px-2 py-2' : 'justify-center p-0 w-10 h-10 mx-auto',
+            'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          )}
+          onClick={toggleTheme}
+        >
+          <span className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0">
+            {isDark ? <Sun size={20} /> : <Moon size={20} />}
+          </span>
+          {isExpanded && (
+            <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
+              {isDark ? 'Light Mode' : 'Dark Mode'}
+            </span>
+          )}
+        </button>
+
+        {/* AI Analyst */}
+        {onToggleAnalyst && (
+          <button
+            className={cn(
+              'relative flex items-center gap-2 rounded-lg transition-all duration-[250ms] ease-[ease]',
+              isExpanded ? 'px-2 py-2' : 'justify-center p-0 w-10 h-10 mx-auto',
+              'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            )}
+            onClick={onToggleAnalyst}
+          >
+            <span className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0">
+              <Sparkles size={20} />
+            </span>
+            {isExpanded ? (
+              <>
+                <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
+                  Finance Analyst
+                </span>
+                <kbd className="ml-auto rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-muted)] shrink-0">
+                  ⌘K
+                </kbd>
+              </>
+            ) : (
+              <span className="font-mono text-[9px] opacity-50 absolute -bottom-0.5 left-1/2 -translate-x-1/2">
                 ⌘K
-              </kbd>
-            </button>
-          </div>
+              </span>
+            )}
+          </button>
         )}
       </div>
     </aside>

@@ -43,9 +43,9 @@ export function TellerAccountSelector({
   };
 
   const getAccountTypeColor = (type: string) => {
-    if (type === 'depository') return 'bg-blue-100 text-blue-800';
-    if (type === 'credit') return 'bg-purple-100 text-purple-800';
-    return 'bg-gray-100 text-gray-800';
+    if (type === 'depository') return 'bg-[var(--accent)]/15 text-[var(--accent)]';
+    if (type === 'credit') return 'bg-[var(--accent)]/15 text-[var(--accent)]';
+    return 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]';
   };
 
   if (!isOpen) return null;
@@ -62,7 +62,7 @@ export function TellerAccountSelector({
           {accounts.map((account) => (
             <button
               key={account.id}
-              className={`w-full text-left p-4 rounded-lg border ${ds.border.default} hover:border-blue-500 hover:${ds.bg.hover} transition-colors`}
+              className={`w-full text-left p-4 rounded-lg border ${ds.border.default} hover:border-[var(--accent)] hover:${ds.bg.hover} transition-colors`}
               onClick={() => onSelect(account.id)}
             >
               <div className="flex items-start justify-between">
@@ -88,7 +88,7 @@ export function TellerAccountSelector({
         </div>
 
         <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button className="bg-gray-600 hover:bg-gray-700" onClick={onCancel}>
+          <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
         </div>

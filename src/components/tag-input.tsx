@@ -7,54 +7,54 @@ export type TagDef = { id: string; name: string; color: string };
 
 export const tagColorMap: Record<string, { bg: string; text: string; border: string }> = {
   blue: {
-    bg: 'bg-blue-100 dark:bg-blue-500/20',
-    text: 'text-blue-700 dark:text-blue-300',
-    border: 'border-blue-200 dark:border-blue-500/30',
+    bg: 'bg-[var(--tag-blue)]/10',
+    text: 'text-[var(--tag-blue)]',
+    border: 'border-[var(--tag-blue)]/30',
   },
   green: {
-    bg: 'bg-green-100 dark:bg-green-500/20',
-    text: 'text-green-700 dark:text-green-300',
-    border: 'border-green-200 dark:border-green-500/30',
+    bg: 'bg-[var(--tag-green)]/10',
+    text: 'text-[var(--tag-green)]',
+    border: 'border-[var(--tag-green)]/30',
   },
   red: {
-    bg: 'bg-red-100 dark:bg-red-500/20',
-    text: 'text-red-700 dark:text-red-300',
-    border: 'border-red-200 dark:border-red-500/30',
+    bg: 'bg-[var(--tag-red)]/10',
+    text: 'text-[var(--tag-red)]',
+    border: 'border-[var(--tag-red)]/30',
   },
   yellow: {
-    bg: 'bg-yellow-100 dark:bg-yellow-500/20',
-    text: 'text-yellow-700 dark:text-yellow-300',
-    border: 'border-yellow-200 dark:border-yellow-500/30',
+    bg: 'bg-[var(--tag-yellow)]/10',
+    text: 'text-[var(--tag-yellow)]',
+    border: 'border-[var(--tag-yellow)]/30',
   },
   purple: {
-    bg: 'bg-purple-100 dark:bg-purple-500/20',
-    text: 'text-purple-700 dark:text-purple-300',
-    border: 'border-purple-200 dark:border-purple-500/30',
+    bg: 'bg-[var(--tag-purple)]/10',
+    text: 'text-[var(--tag-purple)]',
+    border: 'border-[var(--tag-purple)]/30',
   },
   pink: {
-    bg: 'bg-pink-100 dark:bg-pink-500/20',
-    text: 'text-pink-700 dark:text-pink-300',
-    border: 'border-pink-200 dark:border-pink-500/30',
+    bg: 'bg-[var(--tag-pink)]/10',
+    text: 'text-[var(--tag-pink)]',
+    border: 'border-[var(--tag-pink)]/30',
   },
   indigo: {
-    bg: 'bg-indigo-100 dark:bg-indigo-500/20',
-    text: 'text-indigo-700 dark:text-indigo-300',
-    border: 'border-indigo-200 dark:border-indigo-500/30',
+    bg: 'bg-[var(--tag-indigo)]/10',
+    text: 'text-[var(--tag-indigo)]',
+    border: 'border-[var(--tag-indigo)]/30',
   },
   orange: {
-    bg: 'bg-orange-100 dark:bg-orange-500/20',
-    text: 'text-orange-700 dark:text-orange-300',
-    border: 'border-orange-200 dark:border-orange-500/30',
+    bg: 'bg-[var(--tag-orange)]/10',
+    text: 'text-[var(--tag-orange)]',
+    border: 'border-[var(--tag-orange)]/30',
   },
   teal: {
-    bg: 'bg-teal-100 dark:bg-teal-500/20',
-    text: 'text-teal-700 dark:text-teal-300',
-    border: 'border-teal-200 dark:border-teal-500/30',
+    bg: 'bg-[var(--tag-teal)]/10',
+    text: 'text-[var(--tag-teal)]',
+    border: 'border-[var(--tag-teal)]/30',
   },
   gray: {
-    bg: 'bg-slate-100 dark:bg-slate-500/20',
-    text: 'text-slate-700 dark:text-slate-300',
-    border: 'border-slate-200 dark:border-slate-500/30',
+    bg: 'bg-[var(--bg-elevated)]',
+    text: 'text-[var(--text-secondary)]',
+    border: 'border-[var(--border)]',
   },
 };
 
@@ -160,7 +160,7 @@ export function TagInput({
       {/* Pills + Input Row */}
       <div
         className={cn(
-          'flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5',
+          'flex flex-wrap items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-2 py-1.5',
           size === 'sm' ? 'min-h-[32px]' : 'min-h-[38px]'
         )}
         onClick={() => inputRef.current?.focus()}
@@ -202,7 +202,7 @@ export function TagInput({
         <input
           ref={inputRef}
           className={cn(
-            'flex-1 min-w-[80px] bg-transparent outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400',
+            'flex-1 min-w-[80px] bg-transparent outline-none text-[var(--text-primary)] placeholder:text-[var(--text-muted)]',
             size === 'sm' ? 'text-xs' : 'text-sm'
           )}
           placeholder={value.length > 0 ? 'Add tag...' : 'Type to add tags...'}
@@ -219,7 +219,7 @@ export function TagInput({
 
       {/* Autocomplete Dropdown */}
       {isOpen && totalItems > 0 && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg max-h-48 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] shadow-lg max-h-48 overflow-y-auto">
           {filtered.map((tag, i) => {
             const colors = getTagColors(tag.color);
             return (
@@ -227,9 +227,7 @@ export function TagInput({
                 key={tag.id}
                 className={cn(
                   'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors',
-                  i === highlightIndex
-                    ? 'bg-slate-100 dark:bg-slate-700'
-                    : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                  i === highlightIndex ? 'bg-[var(--bg-elevated)]' : 'hover:bg-[var(--bg-base)]'
                 )}
                 type="button"
                 onClick={() => addTag(tag.name)}
@@ -238,24 +236,24 @@ export function TagInput({
                 <span
                   className={cn('w-2.5 h-2.5 rounded-full', colors.bg, 'border', colors.border)}
                 />
-                <span className="text-slate-900 dark:text-slate-100">{tag.name}</span>
+                <span className="text-[var(--text-primary)]">{tag.name}</span>
               </button>
             );
           })}
           {showCreate && (
             <button
               className={cn(
-                'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors border-t border-slate-200 dark:border-slate-700',
+                'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors border-t border-[var(--border)]',
                 highlightIndex === filtered.length
-                  ? 'bg-slate-100 dark:bg-slate-700'
-                  : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                  ? 'bg-[var(--bg-elevated)]'
+                  : 'hover:bg-[var(--bg-base)]'
               )}
               type="button"
               onClick={handleCreateTag}
               onMouseEnter={() => setHighlightIndex(filtered.length)}
             >
-              <span className="text-blue-600 dark:text-blue-400">+</span>
-              <span className="text-slate-700 dark:text-slate-300">
+              <span className="text-[var(--accent)]">+</span>
+              <span className="text-[var(--text-secondary)]">
                 Create &ldquo;{inputValue.trim()}&rdquo;
               </span>
             </button>

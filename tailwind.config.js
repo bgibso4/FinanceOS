@@ -9,18 +9,22 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        background: 'rgb(var(--background))',
-        foreground: 'rgb(var(--foreground))',
-        muted: 'rgb(var(--muted))',
-        card: 'rgb(var(--card))',
-        'card-foreground': 'rgb(var(--card-foreground))',
-        accent: 'rgb(var(--accent))',
+        'bg-base': 'var(--bg-base)',
+        'bg-surface': 'var(--bg-surface)',
+        'bg-card': 'var(--bg-card)',
+        'bg-elevated': 'var(--bg-elevated)',
+        'text-primary': 'var(--text-primary)',
+        'text-secondary': 'var(--text-secondary)',
+        'text-muted': 'var(--text-muted)',
+        accent: 'var(--accent)',
+        green: 'var(--green)',
+        red: 'var(--red)',
       },
       borderRadius: {
         xl: '1rem',
       },
       boxShadow: {
-        card: '0 10px 40px rgba(15, 23, 42, 0.08)',
+        card: 'var(--card-shadow)',
       },
     },
   },

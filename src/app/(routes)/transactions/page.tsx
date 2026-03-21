@@ -1,7 +1,9 @@
 'use client';
 
 import React, { Suspense, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { cn } from '@/lib/cn';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +13,7 @@ import { Modal } from '@/components/ui/modal';
 import { ds } from '@/lib/design-system';
 import { formatAmountCompact, getCurrencyFlag } from '@/lib/currency';
 import { triggerSync } from '@/lib/cloud-sync';
+import { FilterRibbon } from '@/components/filter-ribbon';
 import { TagInput, getTagColors } from '@/components/tag-input';
 import type { TagDef } from '@/components/tag-input';
 import { SubscriptionsTab } from '@/components/subscriptions-tab';
@@ -78,7 +81,7 @@ const sortByName = (a: { name: string }, b: { name: string }) =>
 
 function TransactionsPageContent() {
   const searchParams = useSearchParams();
-  const tab = (searchParams.get('tab') || 'review') as 'review' | 'all' | 'subscriptions';
+  const tab = (searchParams.get('tab') || 'all') as 'review' | 'all' | 'subscriptions';
 
   const [queue, setQueue] = useState<Queue | null>(null);
   const [transactions, setTransactions] = useState<Tx[]>([]);
@@ -689,7 +692,7 @@ function TransactionsPageContent() {
             <Badge>{txs?.length || 0} items</Badge>
             {isHighConfidence && txs && txs.length > 0 && (
               <Button
-                className="text-xs px-3 py-1 bg-green-600 text-white hover:bg-green-700"
+                className="text-xs px-3 py-1 bg-[var(--green)] text-white hover:bg-[var(--green)]"
                 onClick={approveAllHighConfidence}
               >
                 Approve All
@@ -719,7 +722,7 @@ function TransactionsPageContent() {
                     <div className={`font-medium ${ds.text.primary} truncate`}>
                       {tx.merchant}
                       {tx.parentTransactionId && (
-                        <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium">
+                        <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)] font-medium">
                           Split
                         </span>
                       )}
@@ -756,14 +759,16 @@ function TransactionsPageContent() {
                         </span>
                       )}
                       {selectedCategoryName && (
-                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                        <span className="text-xs text-[var(--green)] font-medium">
                           → {selectedCategoryName}
                         </span>
                       )}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className={`font-semibold text-lg ${ds.text.primary}`}>
+                    <div
+                      className={`font-semibold text-lg tracking-tight font-mono ${ds.text.primary}`}
+                    >
                       {formatCurrency(tx.amount, tx.account?.currency, userSettings?.baseCurrency)}
                     </div>
                   </div>
@@ -821,7 +826,7 @@ function TransactionsPageContent() {
                       </Select>
                       {tx.category && !hasPendingCategory && (
                         <button
-                          className="text-green-500 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950 p-2 rounded-lg transition-colors"
+                          className="text-[var(--green)] hover:text-[var(--green)] hover:bg-[var(--green)]/10 p-2 rounded-lg transition-colors"
                           title="Confirm this category"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -866,7 +871,7 @@ function TransactionsPageContent() {
                     <div className="flex items-center gap-2 flex-1">
                       <span className={`text-xs ${ds.status.info.text}`}>↩ Linked to original</span>
                       <button
-                        className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 underline"
+                        className="text-xs text-[var(--red)] hover:text-[var(--red)] underline"
                         onClick={(e) => {
                           e.stopPropagation();
                           unlinkReturn(tx.id);
@@ -903,8 +908,42 @@ function TransactionsPageContent() {
     );
   };
 
+  const [selectMode, setSelectMode] = useState(false);
+
+  const transactionTabs = [
+    { id: 'all', label: 'All' },
+    { id: 'review', label: 'Review' },
+    { id: 'subscriptions', label: 'Subscriptions' },
+  ] as const;
+
   return (
     <div className="space-y-4">
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Transactions</h1>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="flex items-center gap-6 text-sm font-medium mb-8 border-b border-[var(--border)] pb-2">
+        {transactionTabs.map((t) => (
+          <Link
+            key={t.id}
+            className={cn(
+              'pb-2 border-b-2 transition-colors',
+              tab === t.id
+                ? 'text-[var(--text-primary)] border-[var(--accent)]'
+                : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
+            )}
+            href={`/transactions?tab=${t.id}`}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </div>
+
+      <Suspense fallback={<div className="h-12" />}>
+        <FilterRibbon />
+      </Suspense>
+
       {tab === 'review' && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {queue && (
@@ -930,7 +969,7 @@ function TransactionsPageContent() {
                   {Object.keys(pendingNotes).length} note(s) ready to submit
                 </div>
                 <Button
-                  className="bg-green-600 text-white hover:bg-green-700 py-3 px-6"
+                  className="bg-[var(--green)] text-white hover:bg-[var(--green)] py-3 px-6"
                   onClick={submitAllCategories}
                 >
                   Submit All Changes
@@ -946,13 +985,26 @@ function TransactionsPageContent() {
           <CardHeader className="flex items-center justify-between">
             <div className={`text-sm font-semibold ${ds.text.primary}`}>All transactions</div>
             <div className="flex items-center gap-2">
-              {selectedTransactions.size > 0 && (
-                <span className="text-sm text-slate-600 dark:text-slate-400">
-                  {selectedTransactions.size} selected
-                </span>
+              {selectMode ? (
+                <Button
+                  className="bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] py-2 px-4 text-sm"
+                  onClick={() => {
+                    setSelectMode(false);
+                    clearSelection();
+                  }}
+                >
+                  Cancel
+                </Button>
+              ) : (
+                <Button
+                  className="bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] py-2 px-4 text-sm"
+                  onClick={() => setSelectMode(true)}
+                >
+                  Select
+                </Button>
               )}
               <Button
-                className="bg-blue-600 text-white hover:bg-blue-700 py-2 px-4 text-sm"
+                className="bg-[var(--accent)] text-white hover:bg-[var(--accent)] py-2 px-4 text-sm"
                 onClick={() => setCreateModalOpen(true)}
               >
                 + New Transaction
@@ -961,12 +1013,24 @@ function TransactionsPageContent() {
           </CardHeader>
 
           {/* Bulk Edit Bar */}
-          {selectedTransactions.size > 0 && (
-            <div className="px-5 py-3 bg-blue-50 dark:bg-blue-500/10 border-b border-blue-200 dark:border-blue-500/30">
+          {selectMode && selectedTransactions.size > 0 && (
+            <div className="px-5 py-3 bg-[var(--accent)]/10 border-b border-[var(--accent)]">
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                <span className="text-sm font-medium text-[var(--accent)]">
                   {selectedTransactions.size} selected
                 </span>
+                <button
+                  className="text-xs text-[var(--accent)] hover:underline whitespace-nowrap"
+                  onClick={() =>
+                    selectedTransactions.size === transactions.length
+                      ? clearSelection()
+                      : selectAll()
+                  }
+                >
+                  {selectedTransactions.size === transactions.length && transactions.length > 0
+                    ? 'Deselect All'
+                    : 'Select All'}
+                </button>
                 <div className="flex items-center gap-2">
                   <Select
                     className="w-48"
@@ -995,7 +1059,7 @@ function TransactionsPageContent() {
                       })}
                   </Select>
                   <Button
-                    className="!bg-blue-600 hover:!bg-blue-700 text-white py-2 px-3 text-xs"
+                    className="!bg-[var(--accent)] hover:!bg-[var(--accent)] text-white py-2 px-3 text-xs"
                     disabled={!bulkCategory}
                     onClick={bulkUpdateCategory}
                   >
@@ -1004,7 +1068,7 @@ function TransactionsPageContent() {
                 </div>
                 <div className="flex items-center gap-2">
                   <select
-                    className="text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                    className="text-sm border border-[var(--border)] rounded-lg px-2 py-1.5 bg-[var(--bg-card)] text-[var(--text-secondary)]"
                     value={bulkTagAction}
                     onChange={(e) => setBulkTagAction(e.target.value as 'add' | 'remove')}
                   >
@@ -1012,7 +1076,7 @@ function TransactionsPageContent() {
                     <option value="remove">Remove Tag</option>
                   </select>
                   <select
-                    className="w-40 text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                    className="w-40 text-sm border border-[var(--border)] rounded-lg px-2 py-1.5 bg-[var(--bg-card)] text-[var(--text-secondary)]"
                     value={bulkTagName}
                     onChange={(e) => setBulkTagName(e.target.value)}
                   >
@@ -1024,7 +1088,7 @@ function TransactionsPageContent() {
                     ))}
                   </select>
                   <Button
-                    className="!bg-indigo-600 hover:!bg-indigo-700 text-white py-2 px-3 text-xs"
+                    className="!bg-[var(--accent)] hover:!bg-[var(--accent)] text-white py-2 px-3 text-xs"
                     disabled={!bulkTagName}
                     onClick={bulkUpdateTags}
                   >
@@ -1032,94 +1096,88 @@ function TransactionsPageContent() {
                   </Button>
                 </div>
                 <Button
-                  className="!bg-red-600 hover:!bg-red-700 text-white py-2 px-3 text-xs"
+                  className="!bg-[var(--red)] hover:!bg-[var(--red)] text-white py-2 px-3 text-xs"
                   onClick={bulkDelete}
                 >
                   Delete ({selectedTransactions.size})
                 </Button>
                 <button
-                  className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 underline ml-auto"
-                  onClick={clearSelection}
+                  className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] underline ml-auto"
+                  onClick={() => {
+                    setSelectMode(false);
+                    clearSelection();
+                  }}
                 >
-                  Clear Selection
+                  Done
                 </button>
               </div>
             </div>
           )}
 
           <CardContent className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="min-w-full text-sm table-fixed">
               <thead className={`text-left ${ds.text.muted}`}>
                 <tr>
-                  <th className="px-3 py-2 w-10">
-                    <input
-                      checked={
-                        selectedTransactions.size === transactions.length && transactions.length > 0
-                      }
-                      className="rounded"
-                      type="checkbox"
-                      onChange={(e) => (e.target.checked ? selectAll() : clearSelection())}
-                    />
-                  </th>
-                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2 w-[100px]">Date</th>
                   <th className="px-3 py-2">Merchant</th>
-                  <th className="px-3 py-2">Category</th>
-                  <th className="px-3 py-2">Account</th>
-                  <th className="px-3 py-2 text-right">Amount</th>
+                  <th className="px-3 py-2 w-[200px] whitespace-nowrap">Category</th>
+                  <th className="px-3 py-2 w-[150px]">Account</th>
+                  <th className="px-3 py-2 w-[120px] text-right">Amount</th>
                   <th className="w-8" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200/50 dark:divide-slate-700/50">
+              <tbody className="divide-y divide-[var(--border)]">
                 {transactions.map((tx) => (
                   <tr
                     key={tx.id}
-                    className={`hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer ${
-                      tx.isTransfer
-                        ? 'bg-blue-50/50 dark:bg-blue-500/10'
-                        : tx.isOffset
-                          ? 'bg-purple-50/50 dark:bg-purple-500/10'
-                          : tx.amount > 0
-                            ? 'bg-green-50/40 dark:bg-green-500/10'
-                            : 'bg-red-50/30 dark:bg-red-500/10'
+                    className={`hover:bg-[var(--bg-elevated)] cursor-pointer transition-colors ${
+                      selectMode && selectedTransactions.has(tx.id)
+                        ? 'bg-[var(--bg-elevated)]'
+                        : tx.isTransfer
+                          ? 'bg-[var(--accent)]/5'
+                          : tx.isOffset
+                            ? 'bg-[var(--accent)]/5'
+                            : tx.amount > 0
+                              ? 'bg-[var(--green)]/5'
+                              : ''
                     }`}
+                    style={
+                      selectMode && selectedTransactions.has(tx.id)
+                        ? { boxShadow: 'inset 3px 0 0 var(--accent)' }
+                        : undefined
+                    }
+                    onClick={selectMode ? () => toggleSelection(tx.id) : undefined}
                   >
-                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        checked={selectedTransactions.has(tx.id)}
-                        className="rounded"
-                        type="checkbox"
-                        onChange={() => toggleSelection(tx.id)}
-                      />
-                    </td>
                     <td
-                      className="px-3 py-2 text-slate-500 dark:text-slate-500"
-                      onClick={() => openEditModal(tx)}
+                      className="px-3 py-2 text-[var(--text-muted)] whitespace-nowrap"
+                      onClick={selectMode ? undefined : () => openEditModal(tx)}
                     >
                       {tx.date.split('T')[0]}
                     </td>
-                    <td className="px-3 py-2" onClick={() => openEditModal(tx)}>
+                    <td
+                      className="px-3 py-2"
+                      onClick={selectMode ? undefined : () => openEditModal(tx)}
+                    >
                       <div className="flex items-center gap-2">
-                        {tx.isOffset && (
-                          <span className="text-purple-700 dark:text-purple-400">↩</span>
-                        )}
+                        {tx.isOffset && <span className="text-[var(--accent)]">↩</span>}
                         <div>
-                          <div className="text-slate-900 dark:text-slate-100">
+                          <div className="text-[var(--text-primary)]">
                             {tx.merchant}
                             {tx.parentTransactionId && (
-                              <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 font-medium">
+                              <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)] font-medium">
                                 Split
                               </span>
                             )}
                           </div>
                           {tx.isOffset && tx.linkedTransaction && (
-                            <div className="text-xs text-purple-700 dark:text-purple-400 mt-0.5">
+                            <div className="text-xs text-[var(--accent)] mt-0.5">
                               Linked to {tx.linkedTransaction.date.split('T')[0]} transaction
                             </div>
                           )}
                           {!tx.isOffset &&
                             tx.offsetTransactions &&
                             tx.offsetTransactions.length > 0 && (
-                              <div className="text-xs text-purple-700 dark:text-purple-400 mt-0.5">
+                              <div className="text-xs text-[var(--accent)] mt-0.5">
                                 Linked $
                                 {tx.offsetTransactions
                                   .reduce((sum: number, r: any) => sum + Math.abs(r.amount), 0)
@@ -1129,7 +1187,7 @@ function TransactionsPageContent() {
                               </div>
                             )}
                           {tx.note && (
-                            <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 italic">
+                            <div className="text-xs text-[var(--text-muted)] mt-0.5 italic">
                               {tx.note}
                             </div>
                           )}
@@ -1137,12 +1195,17 @@ function TransactionsPageContent() {
                             <div className="flex flex-wrap gap-1 mt-1">
                               {tx.tags.map((tagName: string) => {
                                 const tagDef = availableTags.find((t) => t.name === tagName);
-                                const colors = getTagColors(tagDef?.color || 'gray');
+                                const tagColor = tagDef?.color || 'gray';
+                                const cssVar = `var(--tag-${tagColor})`;
                                 return (
                                   <span
                                     key={tagName}
-                                    className={`text-xs px-1.5 py-0.5 rounded-full ${colors.bg} ${colors.text}`}
+                                    className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)]"
                                   >
+                                    <span
+                                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                      style={{ backgroundColor: cssVar }}
+                                    />
                                     {tagName}
                                   </span>
                                 );
@@ -1152,47 +1215,50 @@ function TransactionsPageContent() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2" onClick={() => openEditModal(tx)}>
+                    <td
+                      className="px-3 py-2 whitespace-nowrap"
+                      onClick={selectMode ? undefined : () => openEditModal(tx)}
+                    >
                       {tx.isTransfer ? (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400">
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]">
                           Transfer
                         </span>
                       ) : tx.isOffset ? (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400">
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]">
                           Linked
                         </span>
                       ) : tx.category?.name ? (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100">
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-primary)]">
                           {tx.category.name}
                         </span>
                       ) : (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400">
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]">
                           Uncategorized
                         </span>
                       )}
                     </td>
                     <td
-                      className="px-3 py-2 text-slate-600 dark:text-slate-400 text-sm"
-                      onClick={() => openEditModal(tx)}
+                      className="px-3 py-2 text-[var(--text-secondary)] text-sm"
+                      onClick={selectMode ? undefined : () => openEditModal(tx)}
                     >
                       {tx.account?.name || '—'}
                     </td>
                     <td
-                      className={`px-3 py-2 text-right font-semibold ${
+                      className={`px-3 py-2 text-right font-semibold font-mono ${
                         tx.isTransfer
-                          ? 'text-blue-600 dark:text-blue-400'
+                          ? 'text-[var(--accent)]'
                           : tx.amount > 0
-                            ? 'text-green-600 dark:text-green-400'
-                            : 'text-red-600 dark:text-red-400'
+                            ? 'text-[var(--green)]'
+                            : 'text-[var(--red)]'
                       }`}
-                      onClick={() => openEditModal(tx)}
+                      onClick={selectMode ? undefined : () => openEditModal(tx)}
                     >
                       {tx.amount > 0 ? '+' : ''}
                       {formatCurrency(tx.amount, tx.account?.currency, userSettings?.baseCurrency)}
                       {!tx.isOffset &&
                         tx.offsetTransactions &&
                         tx.offsetTransactions.length > 0 && (
-                          <div className="text-xs text-slate-500 dark:text-slate-500 font-normal mt-0.5">
+                          <div className="text-xs text-[var(--text-muted)] font-normal mt-0.5">
                             Net:{' '}
                             {(() => {
                               // Calculate net based on whether linked transactions are same sign or opposite
@@ -1329,7 +1395,7 @@ function TransactionsPageContent() {
                   </label>
                   <Input
                     disabled
-                    className="w-full !bg-slate-100 dark:!bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-75"
+                    className="w-full !bg-[var(--bg-elevated)] text-[var(--text-muted)] cursor-not-allowed opacity-75"
                     value={editingTransaction.account?.name || 'Unknown'}
                   />
                 </div>
@@ -1361,7 +1427,7 @@ function TransactionsPageContent() {
                   />
                 </div>
                 <Button
-                  className="w-full bg-blue-600 hover:bg-blue-700 py-3"
+                  className="w-full bg-[var(--accent)] hover:bg-[var(--accent)] py-3"
                   onClick={updateTransaction}
                 >
                   Save Changes
@@ -1372,7 +1438,7 @@ function TransactionsPageContent() {
                   (!editingTransaction.offsetTransactions ||
                     editingTransaction.offsetTransactions.length === 0) && (
                     <Button
-                      className="w-full py-3 !bg-violet-600 hover:!bg-violet-700 text-white"
+                      className="w-full py-3 !bg-[var(--accent)] hover:!bg-[var(--accent)] text-white"
                       onClick={openSplitModal}
                     >
                       Split Transaction
@@ -1397,10 +1463,8 @@ function TransactionsPageContent() {
 
             {/* Split Context */}
             {editingTransaction.parentTransactionId && editingTransaction.parentTransaction && (
-              <div className="bg-violet-50 dark:bg-violet-900/20 rounded-lg p-4 border border-violet-200 dark:border-violet-800">
-                <h4 className="font-semibold text-violet-700 dark:text-violet-400 mb-3">
-                  Split Transaction
-                </h4>
+              <div className="bg-[var(--accent)]/10 rounded-lg p-4 border border-[var(--accent)]">
+                <h4 className="font-semibold text-[var(--accent)] mb-3">Split Transaction</h4>
                 <div className={`text-sm ${ds.text.secondary} mb-3`}>
                   This is part of a split from the original{' '}
                   <strong>
@@ -1428,7 +1492,7 @@ function TransactionsPageContent() {
                     </div>
                   )}
                 <Button
-                  className="w-full py-3 !bg-violet-600 hover:!bg-violet-700 text-white"
+                  className="w-full py-3 !bg-[var(--accent)] hover:!bg-[var(--accent)] text-white"
                   onClick={() => unsplitTransaction(editingTransaction.parentTransactionId!)}
                 >
                   Unsplit (Restore Original)
@@ -1440,10 +1504,8 @@ function TransactionsPageContent() {
             )}
 
             {/* Transfer Status */}
-            <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-              <h4 className="font-semibold text-blue-700 dark:text-blue-400 mb-3">
-                Transfer Status
-              </h4>
+            <div className="bg-[var(--bg-base)] rounded-lg p-4 border border-[var(--border)]">
+              <h4 className="font-semibold text-[var(--accent)] mb-3">Transfer Status</h4>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${ds.text.secondary}`}>
@@ -1462,7 +1524,7 @@ function TransactionsPageContent() {
                   </span>
                 </div>
                 <Button
-                  className="w-full py-3 !bg-blue-600 hover:!bg-blue-700 text-white"
+                  className="w-full py-3 !bg-[var(--accent)] hover:!bg-[var(--accent)] text-white"
                   onClick={toggleTransfer}
                 >
                   {editingTransaction.isTransfer ? 'Unmark as Transfer' : 'Mark as Transfer'}
@@ -1477,10 +1539,8 @@ function TransactionsPageContent() {
 
             {/* Linked Transaction Tracking */}
             {!editingTransaction.isTransfer && (
-              <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
-                <h4 className="font-semibold text-purple-700 dark:text-purple-400 mb-3">
-                  Linked Transactions
-                </h4>
+              <div className="bg-[var(--bg-base)] rounded-lg p-4 border border-[var(--border)]">
+                <h4 className="font-semibold text-[var(--accent)] mb-3">Linked Transactions</h4>
                 {editingTransaction.isOffset && editingTransaction.linkedTransactionId ? (
                   <div className="space-y-3">
                     <div
@@ -1510,7 +1570,7 @@ function TransactionsPageContent() {
                           </div>
                         </div>
                         <Button
-                          className="w-full mt-3 !bg-purple-600 hover:!bg-purple-700 py-2 text-sm text-white"
+                          className="w-full mt-3 !bg-[var(--accent)] hover:!bg-[var(--accent)] py-2 text-sm text-white"
                           onClick={async () => {
                             closeEditModal();
                             // Fetch the full transaction with relations
@@ -1529,7 +1589,7 @@ function TransactionsPageContent() {
                       </div>
                     )}
                     <Button
-                      className="w-full !bg-purple-600 hover:!bg-purple-700 py-3 text-white"
+                      className="w-full !bg-[var(--accent)] hover:!bg-[var(--accent)] py-3 text-white"
                       onClick={() => {
                         unlinkReturn(editingTransaction.id);
                         closeEditModal();
@@ -1559,7 +1619,7 @@ function TransactionsPageContent() {
                           <div className={`text-xs ${ds.text.muted}`}>{ret.date.split('T')[0]}</div>
                         </div>
                         <button
-                          className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 underline"
+                          className="text-xs text-[var(--red)] hover:text-[var(--red)] underline"
                           onClick={() => {
                             unlinkReturn(ret.id);
                             closeEditModal();
@@ -1572,7 +1632,7 @@ function TransactionsPageContent() {
                   </div>
                 ) : (
                   <Button
-                    className="w-full !bg-purple-600 hover:!bg-purple-700 py-3 text-white"
+                    className="w-full !bg-[var(--accent)] hover:!bg-[var(--accent)] py-3 text-white"
                     onClick={() => {
                       closeEditModal();
                       openReturnModal(editingTransaction);
@@ -1585,12 +1645,10 @@ function TransactionsPageContent() {
             )}
 
             {/* Delete Transaction */}
-            <div className="bg-red-50 dark:bg-slate-900 rounded-lg p-4 border border-red-200 dark:border-slate-700 mb-2">
-              <h4 className="font-semibold text-red-700 dark:text-red-400 mb-3">
-                Delete Transaction
-              </h4>
+            <div className="bg-[var(--red)]/10 rounded-lg p-4 border border-[var(--red)] mb-2">
+              <h4 className="font-semibold text-[var(--red)] mb-3">Delete Transaction</h4>
               <Button
-                className="w-full !bg-red-600 text-white hover:!bg-red-700 py-3"
+                className="w-full !bg-[var(--red)] text-white hover:!bg-[var(--red)] py-3"
                 onClick={deleteTransaction}
               >
                 Delete Transaction
@@ -1720,7 +1778,7 @@ function TransactionsPageContent() {
           </div>
 
           <Button
-            className="w-full bg-blue-600 text-white hover:bg-blue-700 py-3"
+            className="w-full bg-[var(--accent)] text-white hover:bg-[var(--accent)] py-3"
             onClick={createTransaction}
           >
             Create Transaction
@@ -1823,7 +1881,7 @@ function TransactionsPageContent() {
                       type="text"
                     />
                     <Button
-                      className="w-full bg-slate-600 hover:bg-slate-700 py-2"
+                      className="w-full bg-[var(--bg-elevated)] hover:bg-[var(--bg-elevated)] py-2"
                       onClick={async () => {
                         const searchInput = document.getElementById(
                           'manual-search-input'
@@ -1917,7 +1975,7 @@ function TransactionsPageContent() {
                     </span>
                     {splitParts.length > 2 && (
                       <button
-                        className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                        className="text-xs text-[var(--red)] hover:underline"
                         onClick={() => removeSplitPart(index)}
                       >
                         Remove
@@ -1970,18 +2028,15 @@ function TransactionsPageContent() {
               ))}
             </div>
 
-            <button
-              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-              onClick={addSplitPart}
-            >
+            <button className="text-sm text-[var(--accent)] hover:underline" onClick={addSplitPart}>
               + Add another part
             </button>
 
             <div
-              className={`text-sm p-3 rounded border ${
+              className={`text-sm font-mono p-3 rounded border ${
                 splitSumMatches
-                  ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400'
-                  : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400'
+                  ? 'bg-[var(--green)]/10 border-[var(--green)] text-[var(--green)]'
+                  : 'bg-[var(--red)]/10 border-[var(--red)] text-[var(--red)]'
               }`}
             >
               Total: ${splitPartsSum.toFixed(2)} / ${splitOriginalAbs.toFixed(2)}
@@ -1991,7 +2046,7 @@ function TransactionsPageContent() {
             </div>
 
             <Button
-              className="w-full py-3 !bg-violet-600 hover:!bg-violet-700 text-white disabled:opacity-50"
+              className="w-full py-3 !bg-[var(--accent)] hover:!bg-[var(--accent)] text-white disabled:opacity-50"
               disabled={!splitSumMatches || splitParts.some((p) => !p.amount)}
               onClick={submitSplit}
             >

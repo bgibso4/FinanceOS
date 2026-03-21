@@ -1,7 +1,9 @@
 'use client';
 
 import React, { Suspense, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { cn } from '@/lib/cn';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -137,8 +139,36 @@ function ReportsContent() {
     }
   };
 
+  const reportTabs = [
+    { id: 'net-worth', label: 'Net Worth' },
+    { id: 'cash-flow', label: 'Cash Flow' },
+    { id: 'monthly', label: 'Monthly' },
+  ] as const;
+
   return (
     <div className="space-y-6">
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Reports</h1>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="flex items-center gap-6 text-sm font-medium mb-8 border-b border-[var(--border)] pb-2">
+        {reportTabs.map((t) => (
+          <Link
+            key={t.id}
+            className={cn(
+              'pb-2 border-b-2 transition-colors',
+              tab === t.id
+                ? 'text-[var(--text-primary)] border-[var(--accent)]'
+                : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
+            )}
+            href={`/reports?tab=${t.id}`}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </div>
+
       {/* Net Worth Tab */}
       {tab === 'net-worth' && <NetWorthSnapshots />}
 
@@ -168,7 +198,7 @@ function ReportsContent() {
                         <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
                           Avg Monthly Income
                         </div>
-                        <div className="text-2xl font-bold text-green-600">
+                        <div className="text-2xl font-bold tracking-tight font-mono text-[var(--green)]">
                           {formatCurrency(avgIncome)}
                         </div>
                       </CardContent>
@@ -178,7 +208,7 @@ function ReportsContent() {
                         <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
                           Avg Monthly Spending
                         </div>
-                        <div className="text-2xl font-bold text-red-600">
+                        <div className="text-2xl font-bold tracking-tight font-mono text-[var(--red)]">
                           {formatCurrency(avgSpending)}
                         </div>
                       </CardContent>
@@ -189,7 +219,7 @@ function ReportsContent() {
                           Avg Monthly Savings
                         </div>
                         <div
-                          className={`text-2xl font-bold ${avgSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                          className={`text-2xl font-bold tracking-tight font-mono ${avgSavings >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                         >
                           {formatCurrency(avgSavings)}
                         </div>
@@ -201,7 +231,7 @@ function ReportsContent() {
                           Avg Savings Rate
                         </div>
                         <div
-                          className={`text-2xl font-bold ${avgSavingsRate >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                          className={`text-2xl font-bold tracking-tight font-mono ${avgSavingsRate >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                         >
                           {(avgSavingsRate * 100).toFixed(1)}%
                         </div>
@@ -297,7 +327,7 @@ function ReportsContent() {
                           {trailing12Months.map((m) => (
                             <td
                               key={m.month}
-                              className="px-3 py-2 text-right text-green-600 font-semibold"
+                              className="px-3 py-2 text-right text-[var(--green)] font-semibold font-mono"
                             >
                               {formatCurrency(m.income)}
                             </td>
@@ -312,7 +342,7 @@ function ReportsContent() {
                           {trailing12Months.map((m) => (
                             <td
                               key={m.month}
-                              className="px-3 py-2 text-right text-red-600 font-semibold"
+                              className="px-3 py-2 text-right text-[var(--red)] font-semibold font-mono"
                             >
                               {formatCurrency(m.spending)}
                             </td>
@@ -327,7 +357,7 @@ function ReportsContent() {
                           {trailing12Months.map((m) => (
                             <td
                               key={m.month}
-                              className={`px-3 py-2 text-right font-semibold ${m.savings >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                              className={`px-3 py-2 text-right font-semibold font-mono ${m.savings >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                             >
                               {formatCurrency(m.savings)}
                             </td>
@@ -342,7 +372,7 @@ function ReportsContent() {
                           {trailing12Months.map((m) => (
                             <td
                               key={m.month}
-                              className={`px-3 py-2 text-right font-bold ${m.savingsRate >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                              className={`px-3 py-2 text-right font-bold font-mono ${m.savingsRate >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                             >
                               {(m.savingsRate * 100).toFixed(1)}%
                             </td>
@@ -419,7 +449,7 @@ function ReportsContent() {
 
               <div>
                 <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                  Income <span className="text-red-500">*</span>
+                  Income <span className="text-[var(--red)]">*</span>
                 </label>
                 <Input
                   placeholder="e.g., 5000"
@@ -432,7 +462,7 @@ function ReportsContent() {
 
               <div>
                 <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                  Spending <span className="text-red-500">*</span>
+                  Spending <span className="text-[var(--red)]">*</span>
                 </label>
                 <Input
                   placeholder="e.g., 3500"
@@ -453,7 +483,7 @@ function ReportsContent() {
                   Cancel
                 </Button>
                 <Button
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="bg-[var(--accent)] hover:bg-[var(--accent)] text-white"
                   disabled={backfillSaving || !backfillForm.income || !backfillForm.spending}
                   onClick={backfillSnapshot}
                 >
@@ -506,7 +536,7 @@ function ReportsContent() {
                       <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
                         Cash In
                       </div>
-                      <div className="text-2xl font-bold text-green-600">
+                      <div className="text-2xl font-bold tracking-tight font-mono text-[var(--green)]">
                         {formatCurrency(reportData.netCashflow.income)}
                       </div>
                     </div>
@@ -514,7 +544,7 @@ function ReportsContent() {
                       <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
                         Cash Out
                       </div>
-                      <div className="text-2xl font-bold text-red-600">
+                      <div className="text-2xl font-bold tracking-tight font-mono text-[var(--red)]">
                         -{formatCurrency(reportData.netCashflow.spending)}
                       </div>
                     </div>
@@ -523,7 +553,7 @@ function ReportsContent() {
                         Savings Rate
                       </div>
                       <div
-                        className={`text-2xl font-bold ${reportData.savingsRate.rate >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                        className={`text-2xl font-bold tracking-tight font-mono ${reportData.savingsRate.rate >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                       >
                         {(reportData.savingsRate.rate * 100).toFixed(1)}%
                       </div>
@@ -580,7 +610,7 @@ function ReportsContent() {
                               {groupName}
                             </div>
                             <div
-                              className={`text-2xl font-bold ${isIncome ? 'text-green-600' : 'text-red-600'}`}
+                              className={`text-2xl font-bold tracking-tight font-mono ${isIncome ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                             >
                               {isIncome ? '' : '-'}
                               {formatCurrency(Math.abs(groupTotal))}
@@ -599,7 +629,7 @@ function ReportsContent() {
                                   >
                                     <span className={ds.text.secondary}>{cat.category}</span>
                                     <span
-                                      className={`font-semibold ${cat.amount < 0 ? 'text-green-600' : cat.amount > 0 ? 'text-red-600' : ds.text.primary}`}
+                                      className={`font-semibold font-mono ${cat.amount < 0 ? 'text-[var(--green)]' : cat.amount > 0 ? 'text-[var(--red)]' : ds.text.primary}`}
                                     >
                                       {formatCurrency(Math.abs(cat.amount))}
                                     </span>

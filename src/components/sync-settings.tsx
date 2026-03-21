@@ -456,13 +456,13 @@ export function SyncSettings() {
             <div className="flex items-center gap-2">
               {!isUnlocked && (
                 <>
-                  <span className="text-yellow-500">⚠</span>
+                  <span className="text-[var(--yellow)]">⚠</span>
                   <span className={`font-medium ${ds.text.primary}`}>Locked</span>
                 </>
               )}
               {isUnlocked && status?.status === 'synced' && (
                 <>
-                  <span className="text-green-500">✓</span>
+                  <span className="text-[var(--green)]">✓</span>
                   <span className={`font-medium ${ds.text.primary}`}>Synced</span>
                 </>
               )}
@@ -474,7 +474,7 @@ export function SyncSettings() {
               )}
               {isUnlocked && status?.status === 'error' && (
                 <>
-                  <span className="text-red-500">⚠</span>
+                  <span className="text-[var(--red)]">⚠</span>
                   <span className={`font-medium ${ds.text.primary}`}>Sync Error</span>
                 </>
               )}

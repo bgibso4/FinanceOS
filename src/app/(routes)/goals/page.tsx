@@ -50,9 +50,9 @@ const formatDateRange = (start: string | null, end: string | null) => {
 };
 
 const paceColors: Record<string, string> = {
-  ahead: 'bg-green-500',
-  on_track: 'bg-blue-500',
-  behind: 'bg-red-500',
+  ahead: 'bg-[var(--green)]',
+  on_track: 'bg-[var(--accent)]',
+  behind: 'bg-[var(--red)]',
 };
 
 const paceLabels: Record<string, string> = {
@@ -75,7 +75,7 @@ function GoalCard({
         ? `${goal.tag?.name ?? 'Unknown'} tag`
         : `${goal.account?.name ?? 'Unknown'} account`;
 
-  const barColor = goal.paceStatus ? paceColors[goal.paceStatus] : 'bg-blue-500';
+  const barColor = goal.paceStatus ? paceColors[goal.paceStatus] : 'bg-[var(--accent)]';
   const cappedPercentage = Math.min(goal.percentage, 100);
 
   return (
@@ -99,7 +99,7 @@ function GoalCard({
 
         <div className="mb-2">
           <div className="flex items-center justify-between mb-1">
-            <span className={`text-sm font-semibold ${ds.text.primary}`}>
+            <span className={`text-sm font-semibold font-mono ${ds.text.primary}`}>
               {formatCurrency(goal.currentAmount)} / {formatCurrency(goal.targetAmount)}
             </span>
             <span className={`text-xs font-medium ${ds.text.muted}`}>
@@ -123,9 +123,9 @@ function GoalCard({
               <span
                 className={`text-xs font-medium ${
                   goal.paceStatus === 'ahead'
-                    ? 'text-green-600'
+                    ? 'text-[var(--green)]'
                     : goal.paceStatus === 'behind'
-                      ? 'text-red-600'
+                      ? 'text-[var(--red)]'
                       : ds.status.info.text
                 }`}
               >
@@ -284,7 +284,7 @@ function GoalFormModal({
                 key={t}
                 className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${
                   type === t
-                    ? 'bg-slate-900 dark:bg-slate-600 text-white'
+                    ? 'bg-[var(--text-primary)] text-[var(--bg-base)]'
                     : `${ds.bg.tertiary} ${ds.text.secondary}`
                 }`}
                 type="button"
@@ -317,7 +317,7 @@ function GoalFormModal({
                 key={m}
                 className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ${
                   trackingMethod === m
-                    ? 'bg-slate-900 dark:bg-slate-600 text-white'
+                    ? 'bg-[var(--text-primary)] text-[var(--bg-base)]'
                     : `${ds.bg.tertiary} ${ds.text.secondary}`
                 }`}
                 type="button"
@@ -388,7 +388,7 @@ function GoalFormModal({
                 key={p.key}
                 className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                   timeframe === p.key
-                    ? 'bg-slate-900 dark:bg-slate-600 text-white'
+                    ? 'bg-[var(--text-primary)] text-[var(--bg-base)]'
                     : `${ds.bg.tertiary} ${ds.text.secondary}`
                 }`}
                 type="button"
@@ -440,7 +440,7 @@ function GoalFormModal({
         <div className="flex items-center justify-between pt-2">
           {goal ? (
             <button
-              className="text-sm text-red-600 hover:text-red-700 font-medium"
+              className="text-sm text-[var(--red)] hover:text-[var(--red)] font-medium"
               type="button"
               onClick={handleDelete}
             >
@@ -519,8 +519,8 @@ function GoalsPageContent() {
             key={tab.value}
             className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
               statusFilter === tab.value
-                ? 'bg-slate-900 dark:bg-slate-700 text-white'
-                : `${ds.text.secondary} hover:bg-slate-100 dark:hover:bg-slate-700`
+                ? 'bg-[var(--text-primary)] text-[var(--bg-base)]'
+                : `${ds.text.secondary} hover:bg-[var(--bg-elevated)]`
             }`}
             href={`/goals?status=${tab.value}`}
           >

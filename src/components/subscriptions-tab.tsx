@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
 import { ds } from '@/lib/design-system';
 import { formatAmountCompact } from '@/lib/currency';
+import { Pencil, XCircle, EyeOff } from 'lucide-react';
 import { triggerSync } from '@/lib/cloud-sync';
 
 type RecurringItem = {
@@ -262,8 +263,9 @@ export function SubscriptionsTab({ categories, accounts, userSettings }: Subscri
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button
-            className="bg-blue-600 text-white hover:bg-blue-700 py-2 px-4 text-sm"
+            className="py-2 px-4 text-sm"
             disabled={detecting}
+            variant="outline"
             onClick={runDetection}
           >
             {detecting ? 'Detecting...' : 'Run Detection'}
@@ -285,7 +287,7 @@ export function SubscriptionsTab({ categories, accounts, userSettings }: Subscri
               <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wider`}>
                 Monthly Cost
               </div>
-              <div className={`text-2xl font-bold ${ds.text.primary} mt-1`}>
+              <div className={`text-2xl font-bold font-mono ${ds.text.primary} mt-1`}>
                 {formatCurrency(summary.totalMonthlyEstimate, baseCurrency)}
               </div>
             </CardContent>
@@ -295,7 +297,7 @@ export function SubscriptionsTab({ categories, accounts, userSettings }: Subscri
               <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wider`}>
                 Annual Cost
               </div>
-              <div className={`text-2xl font-bold ${ds.text.primary} mt-1`}>
+              <div className={`text-2xl font-bold font-mono ${ds.text.primary} mt-1`}>
                 {formatCurrency(summary.totalAnnualEstimate, baseCurrency)}
               </div>
             </CardContent>
@@ -305,7 +307,7 @@ export function SubscriptionsTab({ categories, accounts, userSettings }: Subscri
               <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wider`}>
                 Active Subscriptions
               </div>
-              <div className={`text-2xl font-bold ${ds.text.primary} mt-1`}>
+              <div className={`text-2xl font-bold font-mono ${ds.text.primary} mt-1`}>
                 {summary.activeCount}
               </div>
             </CardContent>
@@ -356,7 +358,7 @@ export function SubscriptionsTab({ categories, accounts, userSettings }: Subscri
             key={f}
             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
               filter === f
-                ? 'bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900'
+                ? 'bg-[var(--text-primary)] text-[var(--bg-base)]'
                 : `${ds.text.secondary} hover:${ds.bg.tertiary}`
             }`}
             onClick={() => setFilter(f)}
@@ -470,24 +472,27 @@ export function SubscriptionsTab({ categories, accounts, userSettings }: Subscri
                             <td className="px-4 py-2.5 text-right">
                               <div className="flex items-center justify-end gap-1">
                                 <button
-                                  className={`px-2 py-1 rounded text-xs ${ds.text.secondary} hover:${ds.bg.tertiary}`}
+                                  className="p-1.5 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                                  title="Edit"
                                   onClick={() => openEditModal(item)}
                                 >
-                                  Edit
+                                  <Pencil size={14} />
                                 </button>
                                 {item.status === 'active' && (
                                   <button
-                                    className="px-2 py-1 rounded text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10"
+                                    className="p-1.5 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
+                                    title="Cancel subscription"
                                     onClick={() => markCancelled(item.id)}
                                   >
-                                    Cancel
+                                    <XCircle size={14} />
                                   </button>
                                 )}
                                 <button
-                                  className="px-2 py-1 rounded text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                  className="p-1.5 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--red)] transition-colors"
+                                  title="Dismiss"
                                   onClick={() => dismissItem(item.id)}
                                 >
-                                  Dismiss
+                                  <EyeOff size={14} />
                                 </button>
                               </div>
                             </td>
@@ -600,7 +605,7 @@ export function SubscriptionsTab({ categories, accounts, userSettings }: Subscri
               Cancel
             </Button>
             <Button
-              className="bg-blue-600 text-white hover:bg-blue-700 py-2 px-4 text-sm"
+              className="bg-[var(--accent)] text-white hover:opacity-90 py-2 px-4 text-sm"
               onClick={saveEdit}
             >
               Save Changes
@@ -710,7 +715,7 @@ export function SubscriptionsTab({ categories, accounts, userSettings }: Subscri
               Cancel
             </Button>
             <Button
-              className="bg-blue-600 text-white hover:bg-blue-700 py-2 px-4 text-sm"
+              className="bg-[var(--accent)] text-white hover:opacity-90 py-2 px-4 text-sm"
               onClick={saveNewSubscription}
             >
               Add Subscription

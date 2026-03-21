@@ -174,7 +174,7 @@ export function TellerAccountLinkSelector({
       </Select>
 
       <Button
-        className="w-full bg-blue-600 hover:bg-blue-700"
+        className="w-full bg-[var(--accent)] hover:opacity-90"
         disabled={!selectedAccountId || linking}
         onClick={handleLink}
       >

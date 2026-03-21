@@ -1,7 +1,9 @@
 'use client';
 
 import React, { Suspense, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { cn } from '@/lib/cn';
 import {
   DndContext,
   closestCenter,
@@ -178,8 +180,8 @@ const getAccountStyle = (type: string) => {
     case 'crypto':
       return {
         icon: '₿',
-        color: 'bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800',
-        textColor: 'text-orange-700 dark:text-orange-400',
+        color: 'bg-[var(--accent)]/10 border-[var(--accent)]',
+        textColor: 'text-[var(--accent)]',
       };
     case 'cash':
       return {
@@ -316,12 +318,12 @@ function SortableAccountCard({
                   {account.type.charAt(0).toUpperCase() + account.type.slice(1)}
                 </span>
                 {account.trackingMode === 'balance_only' && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/50 text-white font-medium backdrop-blur-sm">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--accent)]/50 text-white font-medium backdrop-blur-sm">
                     Net Worth Only
                   </span>
                 )}
                 {isArchived && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/50 text-white font-medium backdrop-blur-sm">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--red)]/50 text-white font-medium backdrop-blur-sm">
                     Archived
                   </span>
                 )}
@@ -331,7 +333,7 @@ function SortableAccountCard({
             {/* Bottom section - Balance prominent, Institution smaller */}
             <div>
               <div
-                className={`text-xl font-bold drop-shadow-lg ${balance >= 0 ? 'text-white' : 'text-red-300'}`}
+                className={`text-xl font-bold tracking-tight font-mono drop-shadow-lg ${balance >= 0 ? 'text-white' : 'text-[var(--red)]'}`}
               >
                 {formatCurrency(balance)}
               </div>
@@ -402,7 +404,9 @@ function SortableAccountCard({
                 </div>
               </div>
             </div>
-            <div className={`text-lg font-bold ${balance >= 0 ? ds.text.primary : 'text-red-600'}`}>
+            <div
+              className={`text-lg font-bold font-mono ${balance >= 0 ? ds.text.primary : 'text-[var(--red)]'}`}
+            >
               {formatCurrency(balance)}
             </div>
           </div>
@@ -1853,6 +1857,30 @@ function SettingsPageContent() {
 
   return (
     <div className="space-y-4">
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Settings</h1>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="flex items-center gap-6 text-sm font-medium mb-8 border-b border-[var(--border)] pb-2">
+        {['general', 'accounts', 'categories', 'rules', 'budgets', 'import', 'tags', 'sync'].map(
+          (t) => (
+            <Link
+              key={t}
+              className={cn(
+                'pb-2 border-b-2 transition-colors capitalize',
+                tab === t
+                  ? 'text-[var(--text-primary)] border-[var(--accent)]'
+                  : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
+              )}
+              href={`/settings?tab=${t}`}
+            >
+              {t === 'sync' ? 'Cloud Sync' : t.charAt(0).toUpperCase() + t.slice(1)}
+            </Link>
+          )
+        )}
+      </div>
+
       {tab === 'general' && (
         <Card>
           <CardHeader>
@@ -2044,7 +2072,7 @@ function SettingsPageContent() {
                       }
                     />
                     <Button
-                      className="py-2 bg-blue-600 hover:bg-blue-700 text-white"
+                      className="py-2 bg-[var(--accent)] hover:bg-[var(--accent)] text-white"
                       onClick={addExchangeRate}
                     >
                       Add Rate
@@ -2169,7 +2197,7 @@ function SettingsPageContent() {
                       }
                     />
                     <Button
-                      className="py-2 bg-blue-600 hover:bg-blue-700 text-white"
+                      className="py-2 bg-[var(--accent)] hover:bg-[var(--accent)] text-white"
                       onClick={addInflationRate}
                     >
                       Add Rate
@@ -2190,7 +2218,7 @@ function SettingsPageContent() {
                 <label className={`block text-sm font-medium ${ds.text.primary} mb-2`}>Theme</label>
                 <div className="grid grid-cols-3 gap-3">
                   <button
-                    className={`p-4 border-2 ${ds.border.default} rounded-lg hover:border-blue-400 dark:hover:border-blue-500 transition-colors ${ds.bg.primary}`}
+                    className={`p-4 border-2 ${ds.border.default} rounded-lg hover:border-[var(--accent)] transition-colors ${ds.bg.primary}`}
                     onClick={() => {
                       const { setTheme } = require('@/lib/theme');
                       setTheme('light');
@@ -2200,7 +2228,7 @@ function SettingsPageContent() {
                     <div className={`text-sm font-medium ${ds.text.primary}`}>Light</div>
                   </button>
                   <button
-                    className={`p-4 border-2 ${ds.border.default} rounded-lg hover:border-blue-400 dark:hover:border-blue-500 transition-colors ${ds.bg.primary}`}
+                    className={`p-4 border-2 ${ds.border.default} rounded-lg hover:border-[var(--accent)] transition-colors ${ds.bg.primary}`}
                     onClick={() => {
                       const { setTheme } = require('@/lib/theme');
                       setTheme('dark');
@@ -2210,7 +2238,7 @@ function SettingsPageContent() {
                     <div className={`text-sm font-medium ${ds.text.primary}`}>Dark</div>
                   </button>
                   <button
-                    className={`p-4 border-2 ${ds.border.default} rounded-lg hover:border-blue-400 dark:hover:border-blue-500 transition-colors ${ds.bg.primary}`}
+                    className={`p-4 border-2 ${ds.border.default} rounded-lg hover:border-[var(--accent)] transition-colors ${ds.bg.primary}`}
                     onClick={() => {
                       const { setTheme } = require('@/lib/theme');
                       setTheme('system');
@@ -2471,7 +2499,7 @@ function SettingsPageContent() {
                             <div key={category.id} className="group">
                               {editingCategory?.id === category.id ? (
                                 <div
-                                  className={`${ds.bg.primary} rounded-lg border-2 border-blue-300 dark:border-blue-600 p-3 shadow-sm`}
+                                  className={`${ds.bg.primary} rounded-lg border-2 border-[var(--accent)] p-3 shadow-sm`}
                                 >
                                   <Input
                                     className="text-sm mb-2"
@@ -2662,7 +2690,7 @@ function SettingsPageContent() {
                   </div>
                 )}
                 <Button
-                  className="w-full bg-blue-600 hover:bg-blue-700 py-3"
+                  className="w-full bg-[var(--accent)] hover:bg-[var(--accent)] py-3"
                   onClick={updateModalAccount}
                 >
                   Save Changes
@@ -2682,7 +2710,11 @@ function SettingsPageContent() {
                 </div>
                 <div>
                   <strong>Current Balance:</strong>{' '}
-                  <span className={modalAccountBalance >= 0 ? 'text-green-600' : 'text-red-600'}>
+                  <span
+                    className={
+                      modalAccountBalance >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'
+                    }
+                  >
                     {formatCurrency(modalAccountBalance)}
                   </span>
                 </div>
@@ -2703,7 +2735,7 @@ function SettingsPageContent() {
                       Current
                     </label>
                     <div
-                      className={`text-lg font-bold ${modalAccountBalance >= 0 ? ds.text.primary : 'text-red-600'}`}
+                      className={`text-lg font-bold ${modalAccountBalance >= 0 ? ds.text.primary : 'text-[var(--red)]'}`}
                     >
                       {formatCurrency(modalAccountBalance)}
                     </div>
@@ -2727,7 +2759,7 @@ function SettingsPageContent() {
                   <div className={`${ds.bg.primary} rounded p-2 text-sm`}>
                     <span className={ds.text.secondary}>Adjustment needed: </span>
                     <span
-                      className={`font-semibold ${parseFloat(reconcileTarget) - modalAccountBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                      className={`font-semibold ${parseFloat(reconcileTarget) - modalAccountBalance >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                     >
                       {parseFloat(reconcileTarget) - modalAccountBalance >= 0 ? '+' : ''}
                       {formatCurrency(parseFloat(reconcileTarget) - modalAccountBalance)}
@@ -2735,7 +2767,7 @@ function SettingsPageContent() {
                   </div>
                 )}
                 <Button
-                  className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 disabled:cursor-not-allowed py-3"
+                  className="w-full bg-[var(--accent)] hover:bg-[var(--accent)] disabled:bg-[var(--bg-elevated)] disabled:cursor-not-allowed py-3"
                   disabled={
                     !reconcileTarget ||
                     isNaN(parseFloat(reconcileTarget)) ||
@@ -2853,7 +2885,7 @@ function SettingsPageContent() {
                             {previewLoading ? 'Loading...' : 'Preview'}
                           </Button>
                           <Button
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 py-3"
+                            className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent)] py-3"
                             disabled={syncingAccountId === modalAccount.id}
                             onClick={handleTellerSync}
                           >
@@ -2928,7 +2960,7 @@ function SettingsPageContent() {
                   <div className="space-y-3">
                     {modalAccount.plaidConnection.status === 'needs_reauth' ? (
                       <PlaidReconnectButton
-                        className="w-full bg-yellow-600 hover:bg-yellow-700 py-3"
+                        className="w-full bg-[var(--accent)] hover:bg-[var(--accent)] py-3"
                         enrollmentId={modalAccount.plaidConnection.plaidEnrollmentId}
                         onSuccess={async () => {
                           await refreshAccounts();
@@ -2970,7 +3002,7 @@ function SettingsPageContent() {
                             {previewLoading ? 'Loading...' : 'Preview'}
                           </Button>
                           <Button
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 py-3"
+                            className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent)] py-3"
                             disabled={syncingAccountId === modalAccount.id}
                             onClick={handlePlaidSync}
                           >
@@ -3044,7 +3076,7 @@ function SettingsPageContent() {
               <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
                 <h4 className={`font-semibold ${ds.status.warning.text} mb-3`}>Archive Account</h4>
                 <Button
-                  className="w-full bg-yellow-600 text-white hover:bg-yellow-700 py-3"
+                  className="w-full bg-[var(--accent)] text-white hover:bg-[var(--accent)] py-3"
                   onClick={archiveAccount}
                 >
                   Archive Account
@@ -3057,7 +3089,7 @@ function SettingsPageContent() {
               <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
                 <h4 className={`font-semibold ${ds.status.success.text} mb-3`}>Restore Account</h4>
                 <Button
-                  className="w-full bg-green-600 text-white hover:bg-green-700 py-3"
+                  className="w-full bg-[var(--green)] text-white hover:bg-[var(--green)] py-3"
                   onClick={restoreAccount}
                 >
                   Restore Account
@@ -3074,8 +3106,8 @@ function SettingsPageContent() {
               <Button
                 className={`w-full py-3 ${
                   accountTransactionCount > 0
-                    ? '!bg-slate-300 dark:!bg-slate-700 !text-slate-500 dark:!text-slate-400 cursor-not-allowed'
-                    : '!bg-red-600 !text-white hover:!bg-red-700'
+                    ? '!bg-[var(--bg-elevated)] !text-[var(--text-muted)] cursor-not-allowed'
+                    : '!bg-[var(--red)] !text-white hover:!bg-[var(--red)]'
                 }`}
                 disabled={accountTransactionCount > 0}
                 onClick={deleteAccount}
@@ -3141,7 +3173,7 @@ function SettingsPageContent() {
                   </div>
                 </div>
                 <Button
-                  className="w-full bg-blue-600 hover:bg-blue-700 py-3"
+                  className="w-full bg-[var(--accent)] hover:bg-[var(--accent)] py-3"
                   onClick={updateModalCategory}
                 >
                   Save Changes
@@ -3167,7 +3199,7 @@ function SettingsPageContent() {
                     {categoryTransactions.slice(0, 8).map((tx: any) => (
                       <div
                         key={tx.id}
-                        className="flex justify-between items-center p-3 border-b border-slate-200/50 dark:border-slate-700/50 last:border-b-0"
+                        className="flex justify-between items-center p-3 border-b border-[var(--border)] last:border-b-0"
                       >
                         <div className="flex-1 min-w-0">
                           <div className={`font-medium ${ds.text.primary} truncate`}>
@@ -3190,7 +3222,7 @@ function SettingsPageContent() {
                   </div>
 
                   <Button
-                    className="w-full bg-yellow-600 text-white hover:bg-yellow-700 py-3"
+                    className="w-full bg-[var(--accent)] text-white hover:bg-[var(--accent)] py-3"
                     onClick={unclassifyTransactions}
                   >
                     Unclassify All Transactions
@@ -3217,7 +3249,7 @@ function SettingsPageContent() {
             <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
               <h4 className={`font-semibold ${ds.status.error.text} mb-3`}>Danger Zone</h4>
               <Button
-                className={`w-full bg-red-600 text-white hover:bg-red-700 disabled:bg-slate-300 disabled:cursor-not-allowed disabled:${ds.text.muted} py-3`}
+                className={`w-full bg-[var(--red)] text-white hover:bg-[var(--red)] disabled:bg-[var(--bg-elevated)] disabled:cursor-not-allowed disabled:${ds.text.muted} py-3`}
                 disabled={categoryTransactions.length > 0}
                 onClick={deleteCategory}
               >
@@ -3256,19 +3288,19 @@ function SettingsPageContent() {
             <div className={`${ds.bg.secondary} p-4 rounded-lg border ${ds.border.default}`}>
               <div className="grid grid-cols-4 gap-4 text-center">
                 <div>
-                  <div className="text-2xl font-bold text-green-600">
+                  <div className="text-2xl font-bold tracking-tight font-mono text-[var(--green)]">
                     {previewResult.stats.added}
                   </div>
                   <div className={`text-xs ${ds.text.muted}`}>New</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-blue-600">
+                  <div className="text-2xl font-bold tracking-tight font-mono text-[var(--accent)]">
                     {previewResult.stats.merged}
                   </div>
                   <div className={`text-xs ${ds.text.muted}`}>Merge</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-yellow-600">
+                  <div className="text-2xl font-bold tracking-tight font-mono text-[var(--accent)]">
                     {previewResult.stats.skippedDuplicates}
                   </div>
                   <div className={`text-xs ${ds.text.muted}`}>Duplicates</div>
@@ -3318,7 +3350,7 @@ function SettingsPageContent() {
                       </td>
                       <td
                         className={`p-2 text-right ${
-                          tx.amount < 0 ? 'text-red-600' : 'text-green-600'
+                          tx.amount < 0 ? 'text-[var(--red)]' : 'text-[var(--green)]'
                         }`}
                       >
                         {tx.amount < 0 ? '-' : '+'}${Math.abs(tx.amount).toFixed(2)}
@@ -3337,19 +3369,19 @@ function SettingsPageContent() {
                       </td>
                       <td className="p-2">
                         {tx.wouldCreate ? (
-                          <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                          <span className="text-xs px-2 py-0.5 rounded bg-[var(--green)]/10 text-[var(--green)]">
                             New
                           </span>
                         ) : tx.wouldMerge ? (
                           <span
-                            className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                            className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]"
                             title={tx.skipReason || 'Will merge with existing transaction'}
                           >
                             Merge
                           </span>
                         ) : (
                           <span
-                            className="text-xs px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                            className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]"
                             title={tx.skipReason || 'Skipped'}
                           >
                             Skip
@@ -3380,7 +3412,7 @@ function SettingsPageContent() {
                 Cancel
               </Button>
               <Button
-                className="flex-1 bg-blue-600 hover:bg-blue-700"
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent)]"
                 disabled={
                   (previewResult.stats.added === 0 && previewResult.stats.merged === 0) ||
                   syncingAccountId !== null
@@ -3459,7 +3491,7 @@ function SettingsPageContent() {
                   Cancel
                 </Button>
                 <Button
-                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent)]"
                   onClick={handleSyncAllPreview}
                 >
                   Preview All
@@ -3496,15 +3528,21 @@ function SettingsPageContent() {
                     <div className={`${ds.bg.secondary} rounded-lg border p-4`}>
                       <div className="grid grid-cols-4 gap-4 text-center">
                         <div>
-                          <div className="text-2xl font-bold text-green-600">{totalNew}</div>
+                          <div className="text-2xl font-bold tracking-tight font-mono text-[var(--green)]">
+                            {totalNew}
+                          </div>
                           <div className={`text-xs ${ds.text.muted}`}>New</div>
                         </div>
                         <div>
-                          <div className="text-2xl font-bold text-blue-600">{totalMerge}</div>
+                          <div className="text-2xl font-bold tracking-tight font-mono text-[var(--accent)]">
+                            {totalMerge}
+                          </div>
                           <div className={`text-xs ${ds.text.muted}`}>Merge</div>
                         </div>
                         <div>
-                          <div className="text-2xl font-bold text-yellow-600">{totalDupes}</div>
+                          <div className="text-2xl font-bold tracking-tight font-mono text-[var(--accent)]">
+                            {totalDupes}
+                          </div>
                           <div className={`text-xs ${ds.text.muted}`}>Duplicates</div>
                         </div>
                         <div>
@@ -3536,13 +3574,13 @@ function SettingsPageContent() {
                         <td className="p-2">
                           <Badge>{r.connectionType === 'teller' ? 'Teller' : 'Plaid'}</Badge>
                         </td>
-                        <td className="p-2 text-right text-green-600">
+                        <td className="p-2 text-right text-[var(--green)] font-mono">
                           {r.preview?.stats.added ?? '—'}
                         </td>
-                        <td className="p-2 text-right text-blue-600">
+                        <td className="p-2 text-right text-[var(--accent)] font-mono">
                           {r.preview?.stats.merged ?? '—'}
                         </td>
-                        <td className="p-2 text-right text-yellow-600">
+                        <td className="p-2 text-right text-[var(--accent)] font-mono">
                           {r.preview
                             ? (r.preview.stats.skippedDuplicates ?? 0) +
                               (r.preview.stats.skippedPending ?? 0)
@@ -3553,17 +3591,17 @@ function SettingsPageContent() {
                             <span className={`text-xs ${ds.text.muted}`}>Previewing...</span>
                           )}
                           {r.status === 'preview_done' && (
-                            <span className="text-xs rounded bg-green-100 px-2 py-0.5 text-green-800 dark:bg-green-900 dark:text-green-300">
+                            <span className="text-xs rounded bg-[var(--green)]/10 px-2 py-0.5 text-[var(--green)]">
                               Ready
                             </span>
                           )}
                           {r.status === 'syncing' && (
-                            <span className="text-xs rounded bg-blue-100 px-2 py-0.5 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                            <span className="text-xs rounded bg-[var(--accent)]/10 px-2 py-0.5 text-[var(--accent)]">
                               Syncing...
                             </span>
                           )}
                           {r.status === 'synced' && (
-                            <span className="text-xs rounded bg-green-100 px-2 py-0.5 text-green-800 dark:bg-green-900 dark:text-green-300">
+                            <span className="text-xs rounded bg-[var(--green)]/10 px-2 py-0.5 text-[var(--green)]">
                               {r.syncResult
                                 ? `${r.syncResult.added} added${r.syncResult.merged ? `, ${r.syncResult.merged} merged` : ''}`
                                 : 'Done'}
@@ -3571,7 +3609,7 @@ function SettingsPageContent() {
                           )}
                           {r.status === 'error' && (
                             <span
-                              className="text-xs rounded bg-red-100 px-2 py-0.5 text-red-800 dark:bg-red-900 dark:text-red-300"
+                              className="text-xs rounded bg-[var(--red)]/10 px-2 py-0.5 text-[var(--red)]"
                               title={r.error}
                             >
                               Error: {r.error}
@@ -3631,7 +3669,7 @@ function SettingsPageContent() {
                       Cancel
                     </Button>
                     <Button
-                      className="flex-1 bg-blue-600 hover:bg-blue-700"
+                      className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent)]"
                       disabled={
                         !Array.from(syncAllResults.values()).some(
                           (r) =>
@@ -3772,7 +3810,7 @@ function SettingsPageContent() {
                   onChange={(e) => setBudgetForm({ ...budgetForm, limitAmount: e.target.value })}
                 />
                 <Button
-                  className={`py-3 ${budgetViewMonth ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}
+                  className={`py-3 ${budgetViewMonth ? 'bg-[var(--accent)] hover:bg-[var(--accent)]' : 'bg-[var(--green)] hover:bg-[var(--green)]'}`}
                   onClick={saveBudget}
                 >
                   {budgetViewMonth
@@ -3790,16 +3828,16 @@ function SettingsPageContent() {
             {budgets.length > 0 ? (
               <div className="space-y-6">
                 {/* Total Budget Summary */}
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-5 border border-green-200">
-                  <div className="text-sm text-green-700 font-medium">
+                <div className="bg-[var(--green)]/10 rounded-xl p-5 border border-[var(--green)]">
+                  <div className="text-sm text-[var(--green)] font-medium">
                     {budgetViewMonth
                       ? `Total Budget for ${new Date(budgetViewMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
                       : 'Total Monthly Budget'}
                   </div>
-                  <div className="text-3xl font-bold text-green-800 mt-1">
+                  <div className="text-3xl font-bold tracking-tight font-mono text-[var(--green)] mt-1">
                     {formatCurrency(budgets.reduce((sum, b) => sum + b.limitAmount, 0))}
                   </div>
-                  <div className="text-xs text-green-600 mt-1">
+                  <div className="text-xs text-[var(--green)] mt-1">
                     {budgets.length} {budgets.length === 1 ? 'category' : 'categories'} budgeted
                   </div>
                 </div>
@@ -3849,7 +3887,7 @@ function SettingsPageContent() {
                             return (
                               <div
                                 key={b.id}
-                                className={`${ds.bg.primary} rounded-lg border p-4 hover:shadow-md transition-shadow ${isOverride ? 'border-amber-300 dark:border-amber-600' : ds.border.default}`}
+                                className={`${ds.bg.primary} rounded-lg border p-4 hover:shadow-md transition-shadow ${isOverride ? 'border-[var(--accent)]' : ds.border.default}`}
                               >
                                 <div className="flex items-start justify-between">
                                   <div
@@ -3866,7 +3904,7 @@ function SettingsPageContent() {
                                         {category?.name ?? 'Unknown'}
                                       </span>
                                       {isOverride && (
-                                        <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 rounded font-medium">
+                                        <span className="text-xs px-1.5 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded font-medium">
                                           Override
                                         </span>
                                       )}
@@ -3879,13 +3917,13 @@ function SettingsPageContent() {
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <div
-                                      className={`text-lg font-bold ${isOverride ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}
+                                      className={`text-lg font-bold font-mono ${isOverride ? 'text-[var(--accent)]' : 'text-[var(--green)]'}`}
                                     >
                                       {formatCurrency(b.limitAmount)}
                                     </div>
                                     {isOverride ? (
                                       <button
-                                        className={`${ds.text.muted} hover:text-amber-600 dark:hover:text-amber-400 transition-colors p-1`}
+                                        className={`${ds.text.muted} hover:text-[var(--accent)] transition-colors p-1`}
                                         title="Remove override (revert to default)"
                                         onClick={() => removeOverride(b.categoryId)}
                                       >
@@ -3905,7 +3943,7 @@ function SettingsPageContent() {
                                       </button>
                                     ) : (
                                       <button
-                                        className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                                        className="text-[var(--text-muted)] hover:text-[var(--red)] transition-colors p-1"
                                         title="Remove budget"
                                         onClick={() => deleteBudget(b.categoryId)}
                                       >
@@ -3990,7 +4028,7 @@ function SettingsPageContent() {
                   onChange={(e) => onFileSelect(e.target.files?.[0] ?? null)}
                 />
                 <div
-                  className={`flex items-center justify-center gap-2 px-4 py-3 ${ds.bg.primary} border-2 ${ds.border.default} rounded-lg hover:border-blue-400 dark:hover:border-blue-500 ${ds.bg.hover} transition-colors`}
+                  className={`flex items-center justify-center gap-2 px-4 py-3 ${ds.bg.primary} border-2 ${ds.border.default} rounded-lg hover:border-[var(--accent)] ${ds.bg.hover} transition-colors`}
                 >
                   <svg
                     className={`w-5 h-5 ${ds.text.secondary}`}
@@ -4168,7 +4206,7 @@ function SettingsPageContent() {
                             {importState.summary.autoCategorizedList.map((t: any, i: number) => (
                               <div
                                 key={i}
-                                className="flex items-center justify-between py-2 border-b border-slate-200/50 dark:border-slate-700/50 last:border-0"
+                                className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0"
                               >
                                 <div className="flex-1 min-w-0">
                                   <div
@@ -4179,7 +4217,7 @@ function SettingsPageContent() {
                                   <div className={`text-xs ${ds.text.muted}`}>{t.date}</div>
                                 </div>
                                 <div
-                                  className={`text-sm font-semibold ml-3 ${t.amount < 0 ? 'text-red-600' : 'text-green-600'}`}
+                                  className={`text-sm font-semibold ml-3 ${t.amount < 0 ? 'text-[var(--red)]' : 'text-[var(--green)]'}`}
                                 >
                                   ${Math.abs(t.amount).toFixed(2)}
                                 </div>
@@ -4204,7 +4242,7 @@ function SettingsPageContent() {
                             {importState.summary.duplicates.map((t: any, i: number) => (
                               <div
                                 key={i}
-                                className="flex items-center justify-between py-2 border-b border-slate-200/50 dark:border-slate-700/50 last:border-0"
+                                className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0"
                               >
                                 <div className="flex-1 min-w-0">
                                   <div
@@ -4217,7 +4255,7 @@ function SettingsPageContent() {
                                   </div>
                                 </div>
                                 <div
-                                  className={`text-sm font-semibold ml-3 ${t.amount < 0 ? 'text-red-600' : 'text-green-600'}`}
+                                  className={`text-sm font-semibold ml-3 ${t.amount < 0 ? 'text-[var(--red)]' : 'text-[var(--green)]'}`}
                                 >
                                   ${Math.abs(t.amount).toFixed(2)}
                                 </div>
@@ -4242,7 +4280,7 @@ function SettingsPageContent() {
                             importState.summary.crossAccountTransfers.map((t: any, i: number) => (
                               <div
                                 key={i}
-                                className="py-2 border-b border-slate-200/50 dark:border-slate-700/50 last:border-0"
+                                className="py-2 border-b border-[var(--border)] last:border-0"
                               >
                                 <div className={`text-xs ${ds.text.muted} mb-1`}>{t.date}</div>
                                 <div className="flex items-center gap-2">
@@ -4252,7 +4290,7 @@ function SettingsPageContent() {
                                       {t.merchant1}
                                     </div>
                                   </div>
-                                  <div className="text-sm font-semibold text-red-600">
+                                  <div className="text-sm font-semibold text-[var(--red)]">
                                     ${Math.abs(t.amount1).toFixed(2)}
                                   </div>
                                   <div className={`text-xs ${ds.text.muted}`}>↔</div>
@@ -4262,7 +4300,7 @@ function SettingsPageContent() {
                                       {t.merchant2}
                                     </div>
                                   </div>
-                                  <div className="text-sm font-semibold text-green-600">
+                                  <div className="text-sm font-semibold text-[var(--green)]">
                                     ${Math.abs(t.amount2).toFixed(2)}
                                   </div>
                                 </div>
@@ -4272,7 +4310,7 @@ function SettingsPageContent() {
                             importState.summary.sameAccountTransfers.map((t: any, i: number) => (
                               <div
                                 key={`same-${i}`}
-                                className="py-2 border-b border-slate-200/50 dark:border-slate-700/50 last:border-0"
+                                className="py-2 border-b border-[var(--border)] last:border-0"
                               >
                                 <div className={`text-xs ${ds.text.muted} mb-1`}>
                                   {t.date} • Same account
@@ -4283,7 +4321,7 @@ function SettingsPageContent() {
                                       {t.merchant1}
                                     </div>
                                   </div>
-                                  <div className="text-sm font-semibold text-red-600">
+                                  <div className="text-sm font-semibold text-[var(--red)]">
                                     ${Math.abs(t.amount1).toFixed(2)}
                                   </div>
                                   <div className={`text-xs ${ds.text.muted}`}>↔</div>
@@ -4292,7 +4330,7 @@ function SettingsPageContent() {
                                       {t.merchant2}
                                     </div>
                                   </div>
-                                  <div className="text-sm font-semibold text-green-600">
+                                  <div className="text-sm font-semibold text-[var(--green)]">
                                     ${Math.abs(t.amount2).toFixed(2)}
                                   </div>
                                 </div>
@@ -4314,7 +4352,7 @@ function SettingsPageContent() {
                           className={`${ds.status.warning.bg} rounded-lg border ${ds.status.warning.border}`}
                         >
                           <summary
-                            className={`cursor-pointer p-3 font-medium text-sm ${ds.status.warning.text} hover:bg-yellow-100 dark:hover:bg-yellow-500/20`}
+                            className={`cursor-pointer p-3 font-medium text-sm ${ds.status.warning.text} hover:bg-[var(--accent)]/10`}
                           >
                             ❓ Need Categorization ({importState.summary.uncategorized})
                           </summary>
@@ -4322,7 +4360,7 @@ function SettingsPageContent() {
                             {importState.summary.uncategorizedList.map((t: any, i: number) => (
                               <div
                                 key={i}
-                                className="flex items-center justify-between py-2 border-b border-yellow-200/50 dark:border-yellow-500/20 last:border-0"
+                                className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0"
                               >
                                 <div className="flex-1 min-w-0">
                                   <div
@@ -4333,7 +4371,7 @@ function SettingsPageContent() {
                                   <div className={`text-xs ${ds.text.muted}`}>{t.date}</div>
                                 </div>
                                 <div
-                                  className={`text-sm font-semibold ml-3 ${t.amount < 0 ? 'text-red-600' : 'text-green-600'}`}
+                                  className={`text-sm font-semibold ml-3 ${t.amount < 0 ? 'text-[var(--red)]' : 'text-[var(--green)]'}`}
                                 >
                                   ${Math.abs(t.amount).toFixed(2)}
                                 </div>
@@ -4418,7 +4456,7 @@ function SettingsPageContent() {
                 }}
               />
               <Button
-                className="bg-blue-600 text-white hover:bg-blue-700 py-2 px-3 text-sm"
+                className="bg-[var(--accent)] text-white hover:bg-[var(--accent)] py-2 px-3 text-sm"
                 disabled={!newTagName.trim()}
                 onClick={async () => {
                   if (!newTagName.trim()) return;
@@ -4479,7 +4517,7 @@ function SettingsPageContent() {
                       )}
                       {/* Hover delete button */}
                       <button
-                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-500/20 text-red-500 dark:text-red-400 transition-all"
+                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--red)]/10 text-[var(--red)] transition-all"
                         title="Delete tag"
                         onClick={async (e) => {
                           e.stopPropagation();
@@ -4561,7 +4599,7 @@ function SettingsPageContent() {
                       key={c}
                       className={`px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
                         editingTag.color === c
-                          ? `${colors.bg} ${colors.text} ${colors.border} ring-2 ring-offset-1 ring-blue-500`
+                          ? `${colors.bg} ${colors.text} ${colors.border} ring-2 ring-offset-1 ring-[var(--accent)]`
                           : `${colors.bg} ${colors.text} ${colors.border} opacity-60 hover:opacity-100`
                       }`}
                       onClick={() => setEditingTag({ ...editingTag, color: c })}
@@ -4573,7 +4611,7 @@ function SettingsPageContent() {
               </div>
             </div>
             <Button
-              className="w-full bg-blue-600 text-white hover:bg-blue-700 py-3"
+              className="w-full bg-[var(--accent)] text-white hover:bg-[var(--accent)] py-3"
               onClick={async () => {
                 if (!editingTag.name.trim()) return;
                 const res = await fetch(`/api/tags/${editingTag.id}`, {
