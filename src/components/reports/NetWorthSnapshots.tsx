@@ -17,16 +17,16 @@ const ASSET_GROUPS: Record<string, { label: string; types: string[]; color: stri
   cash_banking: {
     label: 'Cash & Banking',
     types: ['checking', 'savings', 'cash'],
-    color: '#3b82f6',
+    color: '#9a7a58',
   },
-  investments: { label: 'Investments', types: ['brokerage', 'retirement'], color: '#8b5cf6' },
-  crypto: { label: 'Crypto', types: ['crypto'], color: '#f59e0b' },
-  other: { label: 'Other', types: ['other'], color: '#6b7280' },
+  investments: { label: 'Investments', types: ['brokerage', 'retirement'], color: '#6a6660' },
+  crypto: { label: 'Crypto', types: ['crypto'], color: '#7a8a7a' },
+  other: { label: 'Other', types: ['other'], color: '#9a9690' },
 };
 
 const LIABILITY_GROUPS: Record<string, { label: string; types: string[]; color: string }> = {
-  credit: { label: 'Credit Cards', types: ['credit'], color: '#ef4444' },
-  loans: { label: 'Loans', types: ['loan'], color: '#f97316' },
+  credit: { label: 'Credit Cards', types: ['credit'], color: '#8a7a6a' },
+  loans: { label: 'Loans', types: ['loan'], color: '#6a7a8a' },
 };
 
 // Helper to group accounts by type category
@@ -247,8 +247,8 @@ function ForecastChart({
       <svg className="w-full block" viewBox={`0 0 ${width} ${height}`}>
         <defs>
           <linearGradient id="forecastHistGradient" x1="0%" x2="0%" y1="0%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+            <stop offset="0%" stopColor="#9a7a58" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#9a7a58" stopOpacity="0" />
           </linearGradient>
         </defs>
 
@@ -256,7 +256,7 @@ function ForecastChart({
         {gridLines.map((gl, i) => (
           <g key={`grid-${i}`}>
             <line
-              stroke="#374151"
+              stroke="#9a9690"
               strokeDasharray="2 2"
               strokeWidth="0.3"
               x1={paddingLeft}
@@ -267,7 +267,7 @@ function ForecastChart({
             <text
               className="text-[3px]"
               dominantBaseline="middle"
-              fill="#6b7280"
+              fill="#9a9690"
               textAnchor="end"
               x={paddingLeft - 2}
               y={gl.y}
@@ -284,7 +284,7 @@ function ForecastChart({
         <path
           d={histPath}
           fill="none"
-          stroke="#3b82f6"
+          stroke="#9a7a58"
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth="0.75"
@@ -294,7 +294,7 @@ function ForecastChart({
         <path
           d={projPath}
           fill="none"
-          stroke="#8b5cf6"
+          stroke="#6a6660"
           strokeDasharray="3 2"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -303,7 +303,7 @@ function ForecastChart({
 
         {/* Divider line at "now" */}
         <line
-          stroke="#9ca3af"
+          stroke="#9a9690"
           strokeDasharray="2 2"
           strokeWidth="0.5"
           x1={lastHist.x}
@@ -313,7 +313,7 @@ function ForecastChart({
         />
         <text
           className="text-[3.5px] font-medium"
-          fill="#9ca3af"
+          fill="#9a9690"
           textAnchor="middle"
           x={lastHist.x}
           y={paddingTop - 2}
@@ -323,16 +323,16 @@ function ForecastChart({
 
         {/* Historical dots */}
         {histPoints.map((p, i) => (
-          <circle key={`h-${i}`} cx={p.x} cy={p.y} fill="#3b82f6" r="1" />
+          <circle key={`h-${i}`} cx={p.x} cy={p.y} fill="#9a7a58" r="1" />
         ))}
 
         {/* Projected dots with labels */}
         {projPoints.map((p, i) => (
           <g key={`p-${i}`}>
-            <circle cx={p.x} cy={p.y} fill="#8b5cf6" r="1.5" />
+            <circle cx={p.x} cy={p.y} fill="#6a6660" r="1.5" />
             <text
               className="text-[3.5px] font-medium"
-              fill="#8b5cf6"
+              fill="#6a6660"
               textAnchor="middle"
               x={p.x}
               y={p.y - 3}
@@ -341,7 +341,7 @@ function ForecastChart({
             </text>
             <text
               className="text-[3px]"
-              fill="#9ca3af"
+              fill="#9a9690"
               textAnchor="middle"
               x={p.x}
               y={height - paddingBottom + 5}
@@ -354,7 +354,7 @@ function ForecastChart({
         {/* X-axis labels for first and last historical */}
         <text
           className="text-[3px]"
-          fill="#9ca3af"
+          fill="#9a9690"
           textAnchor="start"
           x={histPoints[0].x}
           y={height - paddingBottom + 5}
@@ -363,7 +363,7 @@ function ForecastChart({
         </text>
         <text
           className="text-[3px]"
-          fill="#9ca3af"
+          fill="#9a9690"
           textAnchor="middle"
           x={lastHist.x}
           y={height - paddingBottom + 5}
@@ -381,7 +381,7 @@ function ForecastChart({
             className="w-3 h-0.5 rounded"
             style={{
               backgroundImage:
-                'repeating-linear-gradient(to right, #8b5cf6 0, #8b5cf6 3px, transparent 3px, transparent 5px)',
+                'repeating-linear-gradient(to right, #6a6660 0, #6a6660 3px, transparent 3px, transparent 5px)',
             }}
           />
           <span className={`text-[10px] ${ds.text.muted}`}>Projected</span>
@@ -435,15 +435,15 @@ function NetWorthTrendChart({ snapshots }: { snapshots: NetWorthSnapshot[] }) {
       >
         <defs>
           <linearGradient id="netWorthGradient" x1="0%" x2="0%" y1="0%" y2="100%">
-            <stop offset="0%" stopColor={isPositive ? '#22c55e' : '#ef4444'} stopOpacity="0.3" />
-            <stop offset="100%" stopColor={isPositive ? '#22c55e' : '#ef4444'} stopOpacity="0" />
+            <stop offset="0%" stopColor={isPositive ? '#6a9a68' : '#8a6a7a'} stopOpacity="0.3" />
+            <stop offset="100%" stopColor={isPositive ? '#6a9a68' : '#8a6a7a'} stopOpacity="0" />
           </linearGradient>
         </defs>
         <path d={areaD} fill="url(#netWorthGradient)" />
         <path
           d={pathD}
           fill="none"
-          stroke={isPositive ? '#22c55e' : '#ef4444'}
+          stroke={isPositive ? '#6a9a68' : '#8a6a7a'}
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth="2"
@@ -452,7 +452,7 @@ function NetWorthTrendChart({ snapshots }: { snapshots: NetWorthSnapshot[] }) {
         <circle
           cx={points[points.length - 1].x}
           cy={points[points.length - 1].y}
-          fill={isPositive ? '#22c55e' : '#ef4444'}
+          fill={isPositive ? '#6a9a68' : '#8a6a7a'}
           r="3"
         />
       </svg>

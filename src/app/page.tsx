@@ -52,7 +52,7 @@ const ChangeIndicator = ({
 };
 
 // Mini sparkline component
-const Sparkline = ({ data, color = '#3b82f6' }: { data: number[]; color?: string }) => {
+const Sparkline = ({ data, color = '#9a7a58' }: { data: number[]; color?: string }) => {
   if (data.length < 2) return null;
 
   const min = Math.min(...data);
@@ -256,7 +256,7 @@ function DashboardPageContent() {
                 )}
               </div>
               <Sparkline
-                color={(data?.netCashflow.savings ?? 0) >= 0 ? '#16a34a' : '#dc2626'}
+                color={(data?.netCashflow.savings ?? 0) >= 0 ? '#6a9a68' : '#6a6660'}
                 data={savingsSparkline}
               />
             </div>
@@ -300,7 +300,7 @@ function DashboardPageContent() {
                   />
                 )}
               </div>
-              <Sparkline color="#dc2626" data={spendingSparkline} />
+              <Sparkline color="#6a6660" data={spendingSparkline} />
             </div>
           </CardContent>
         </Card>
