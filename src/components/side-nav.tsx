@@ -148,25 +148,29 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
       style={{ width: isExpanded ? 200 : 56, minWidth: isExpanded ? 200 : 56 }}
     >
       {/* Logo + Collapse Toggle */}
-      <div className="flex items-center justify-between h-14 px-3 shrink-0">
-        {isExpanded ? (
-          <span className="text-[var(--text-primary)] font-semibold text-base whitespace-nowrap overflow-hidden">
-            FinanceOS
-          </span>
-        ) : (
-          <span className="flex items-center justify-center w-9 h-9 text-[var(--text-primary)] font-medium text-base">
-            F
-          </span>
-        )}
-        <button
-          className={cn(
-            'flex items-center justify-center w-7 h-7 rounded-md transition-all duration-[250ms] ease-[ease]',
-            'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
+      <div className="flex flex-col px-3 shrink-0">
+        <div className="flex items-center h-14">
+          {isExpanded ? (
+            <span className="text-[var(--text-primary)] font-semibold text-base whitespace-nowrap overflow-hidden">
+              FinanceOS
+            </span>
+          ) : (
+            <span className="flex items-center justify-center w-9 h-9 text-[var(--text-primary)] font-medium text-base">
+              F
+            </span>
           )}
-          onClick={toggleSidebar}
-        >
-          {isExpanded ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}
-        </button>
+        </div>
+        <div className={cn('flex pb-2', isExpanded ? 'justify-end' : 'justify-center')}>
+          <button
+            className={cn(
+              'flex items-center justify-center w-7 h-7 rounded-md transition-all duration-[250ms] ease-[ease]',
+              'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
+            )}
+            onClick={toggleSidebar}
+          >
+            {isExpanded ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}
+          </button>
+        </div>
       </div>
 
       {/* Main nav */}
@@ -183,18 +187,18 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
                 <button
                   className={cn(
                     'relative flex items-center gap-2 w-full rounded-lg transition-all duration-[250ms] ease-[ease]',
-                    isExpanded ? 'px-2 py-2' : 'justify-center p-0 w-9 h-9 mx-auto',
+                    isExpanded ? 'px-2 py-2' : 'justify-center p-0 w-10 h-10 mx-auto',
                     isActive
                       ? 'text-[var(--accent)]'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   )}
                   onClick={() => toggleMenu(link.href)}
                 >
                   {isActive && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[var(--accent)] rounded-r" />
                   )}
-                  <span className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0">
-                    <Icon size={18} />
+                  <span className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0">
+                    <Icon size={20} />
                   </span>
                   {isExpanded && (
                     <>
@@ -215,18 +219,18 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
                 <Link
                   className={cn(
                     'relative flex items-center gap-2 rounded-lg transition-all duration-[250ms] ease-[ease]',
-                    isExpanded ? 'px-2 py-2' : 'justify-center p-0 w-9 h-9 mx-auto',
+                    isExpanded ? 'px-2 py-2' : 'justify-center p-0 w-10 h-10 mx-auto',
                     isActive
                       ? 'text-[var(--accent)]'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   )}
                   href={link.href}
                 >
                   {isActive && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[var(--accent)] rounded-r" />
                   )}
-                  <span className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0">
-                    <Icon size={18} />
+                  <span className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0">
+                    <Icon size={20} />
                   </span>
                   {isExpanded && (
                     <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
@@ -278,13 +282,13 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
         <button
           className={cn(
             'relative flex items-center gap-2 rounded-lg transition-all duration-[250ms] ease-[ease]',
-            isExpanded ? 'px-2 py-2' : 'justify-center p-0 w-9 h-9 mx-auto',
-            'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+            isExpanded ? 'px-2 py-2' : 'justify-center p-0 w-10 h-10 mx-auto',
+            'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
           )}
           onClick={toggleTheme}
         >
-          <span className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0">
-            {isDark ? <Sun size={18} /> : <Moon size={18} />}
+          <span className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0">
+            {isDark ? <Sun size={20} /> : <Moon size={20} />}
           </span>
           {isExpanded && (
             <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
@@ -298,13 +302,13 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
           <button
             className={cn(
               'relative flex items-center gap-2 rounded-lg transition-all duration-[250ms] ease-[ease]',
-              isExpanded ? 'px-2 py-2' : 'justify-center p-0 w-9 h-9 mx-auto',
-              'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+              isExpanded ? 'px-2 py-2' : 'justify-center p-0 w-10 h-10 mx-auto',
+              'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             )}
             onClick={onToggleAnalyst}
           >
-            <span className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0">
-              <Sparkles size={18} />
+            <span className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0">
+              <Sparkles size={20} />
             </span>
             {isExpanded ? (
               <>
