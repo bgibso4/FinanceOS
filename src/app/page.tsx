@@ -69,17 +69,9 @@ const Sparkline = ({ data, color = '#9a7a58' }: { data: number[]; color?: string
   });
 
   const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x},${p.y}`).join(' ');
-  const areaPath = `${linePath} L ${points[points.length - 1].x},${height - padding} L ${points[0].x},${height - padding} Z`;
 
   return (
     <svg className="overflow-visible opacity-55" height={height} width={width}>
-      <defs>
-        <linearGradient id={`sparkGradient-${color.replace('#', '')}`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.3} />
-          <stop offset="100%" stopColor={color} stopOpacity={0.05} />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill={`url(#sparkGradient-${color.replace('#', '')})`} />
       <path
         d={linePath}
         fill="none"
@@ -182,96 +174,88 @@ function DashboardPageContent() {
         style={{ background: 'var(--border)' }}
       >
         {/* Net Worth */}
-        <div className="bg-[var(--bg-card)] p-7 transition-colors hover:bg-[var(--bg-elevated)]">
-          <div className="flex items-end justify-between">
-            <div>
-              <div className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-[0.8px] mb-3.5">
-                Net Worth
-              </div>
-              <div className="text-[28px] font-mono font-medium tracking-tight leading-none text-[var(--accent)]">
-                {balanceData ? formatCurrency(balanceData.netWorth) : '—'}
-              </div>
-              <div className="mt-2">
-                {balanceData && data && (
-                  <ChangeIndicator
-                    current={data.netCashflow.savings}
-                    previous={data.netCashflow.prevSavings}
-                  />
-                )}
-              </div>
-            </div>
+        <div className="bg-[var(--bg-card)] px-7 pt-6 pb-5 transition-colors hover:bg-[var(--bg-elevated)]">
+          <div className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-[0.8px] mb-3.5">
+            Net Worth
+          </div>
+          <div className="text-[28px] font-mono font-medium tracking-tight leading-none text-[var(--accent)]">
+            {balanceData ? formatCurrency(balanceData.netWorth) : '—'}
+          </div>
+          <div className="mt-2 mb-4">
+            {balanceData && data && (
+              <ChangeIndicator
+                current={data.netCashflow.savings}
+                previous={data.netCashflow.prevSavings}
+              />
+            )}
+          </div>
+          <div className="flex justify-center mt-3.5">
             <Sparkline color="var(--accent)" data={incomeSparkline} />
           </div>
         </div>
 
         {/* Income */}
-        <div className="bg-[var(--bg-card)] p-7 transition-colors hover:bg-[var(--bg-elevated)]">
-          <div className="flex items-end justify-between">
-            <div>
-              <div className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-[0.8px] mb-3.5">
-                Income
-              </div>
-              <div className="text-[28px] font-mono font-medium tracking-tight leading-none text-[var(--text-primary)]">
-                {data ? formatCurrency(data.netCashflow.income) : '—'}
-              </div>
-              <div className="mt-2">
-                {data && (
-                  <ChangeIndicator
-                    current={data.netCashflow.income}
-                    previous={data.netCashflow.prevIncome}
-                  />
-                )}
-              </div>
-            </div>
+        <div className="bg-[var(--bg-card)] px-7 pt-6 pb-5 transition-colors hover:bg-[var(--bg-elevated)]">
+          <div className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-[0.8px] mb-3.5">
+            Income
+          </div>
+          <div className="text-[28px] font-mono font-medium tracking-tight leading-none text-[var(--text-primary)]">
+            {data ? formatCurrency(data.netCashflow.income) : '—'}
+          </div>
+          <div className="mt-2">
+            {data && (
+              <ChangeIndicator
+                current={data.netCashflow.income}
+                previous={data.netCashflow.prevIncome}
+              />
+            )}
+          </div>
+          <div className="flex justify-center mt-3.5">
             <Sparkline color="var(--text-muted)" data={incomeSparkline} />
           </div>
         </div>
 
         {/* Expenses */}
-        <div className="bg-[var(--bg-card)] p-7 transition-colors hover:bg-[var(--bg-elevated)]">
-          <div className="flex items-end justify-between">
-            <div>
-              <div className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-[0.8px] mb-3.5">
-                Expenses
-              </div>
-              <div className="text-[28px] font-mono font-medium tracking-tight leading-none text-[var(--text-primary)]">
-                {data ? formatCurrency(data.netCashflow.spending) : '—'}
-              </div>
-              <div className="mt-2">
-                {data && (
-                  <ChangeIndicator
-                    inverted
-                    current={data.netCashflow.spending}
-                    previous={data.netCashflow.prevSpending}
-                  />
-                )}
-              </div>
-            </div>
+        <div className="bg-[var(--bg-card)] px-7 pt-6 pb-5 transition-colors hover:bg-[var(--bg-elevated)]">
+          <div className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-[0.8px] mb-3.5">
+            Expenses
+          </div>
+          <div className="text-[28px] font-mono font-medium tracking-tight leading-none text-[var(--text-primary)]">
+            {data ? formatCurrency(data.netCashflow.spending) : '—'}
+          </div>
+          <div className="mt-2">
+            {data && (
+              <ChangeIndicator
+                inverted
+                current={data.netCashflow.spending}
+                previous={data.netCashflow.prevSpending}
+              />
+            )}
+          </div>
+          <div className="flex justify-center mt-3.5">
             <Sparkline color="var(--text-muted)" data={spendingSparkline} />
           </div>
         </div>
 
         {/* Savings Rate */}
-        <div className="bg-[var(--bg-card)] p-7 transition-colors hover:bg-[var(--bg-elevated)]">
-          <div className="flex items-end justify-between">
-            <div>
-              <div className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-[0.8px] mb-3.5">
-                Savings Rate
-              </div>
-              <div className="text-[28px] font-mono font-medium tracking-tight leading-none text-[var(--text-primary)]">
-                {data ? `${(data.savingsRate.rate * 100).toFixed(1)}%` : '—'}
-              </div>
-              <div className="mt-2">
-                {data && (
-                  <span
-                    className={`text-xs font-medium font-mono ${data.savingsRate.delta >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
-                  >
-                    {data.savingsRate.delta >= 0 ? '↑' : '↓'}{' '}
-                    {Math.abs(data.savingsRate.delta * 100).toFixed(1)}pp
-                  </span>
-                )}
-              </div>
-            </div>
+        <div className="bg-[var(--bg-card)] px-7 pt-6 pb-5 transition-colors hover:bg-[var(--bg-elevated)]">
+          <div className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-[0.8px] mb-3.5">
+            Savings Rate
+          </div>
+          <div className="text-[28px] font-mono font-medium tracking-tight leading-none text-[var(--text-primary)]">
+            {data ? `${(data.savingsRate.rate * 100).toFixed(1)}%` : '—'}
+          </div>
+          <div className="mt-2">
+            {data && (
+              <span
+                className={`text-xs font-medium font-mono ${data.savingsRate.delta >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
+              >
+                {data.savingsRate.delta >= 0 ? '↑' : '↓'}{' '}
+                {Math.abs(data.savingsRate.delta * 100).toFixed(1)}pp
+              </span>
+            )}
+          </div>
+          <div className="flex justify-center mt-3.5">
             <Sparkline color="var(--text-muted)" data={savingsRateSparkline} />
           </div>
         </div>
