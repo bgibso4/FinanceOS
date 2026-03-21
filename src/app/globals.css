@@ -3,36 +3,90 @@
 @tailwind utilities;
 
 :root {
-  --background: 255, 255, 255;
-  --foreground: 19, 24, 40;
-  --muted: 99, 115, 139;
-  --card: 255, 255, 255;
-  --card-foreground: 19, 24, 40;
-  --accent: 59, 130, 246;
+  --bg-base: #f5f3f0;
+  --bg-surface: #ebe8e4;
+  --bg-card: #ffffff;
+  --bg-elevated: #efece9;
+  --border: rgba(0, 0, 0, 0.06);
+  --border-hover: rgba(0, 0, 0, 0.1);
+  --text-primary: #2a2826;
+  --text-secondary: #6a6460;
+  --text-muted: #a8a098;
+  --accent: #8a6040;
+  --green: #5a7a5a;
+  --red: #984a42;
+  --track-bg: rgba(0, 0, 0, 0.05);
+  --grid-line: rgba(0, 0, 0, 0.04);
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-lg: 20px;
+  --text-metric: 28px;
 }
 
 .dark {
-  --background: 15, 23, 42;
-  --foreground: 248, 250, 252;
-  --muted: 148, 163, 184;
-  --card: 30, 41, 59;
-  --card-foreground: 248, 250, 252;
-  --accent: 96, 165, 250;
+  --bg-base: #0b0b0b;
+  --bg-surface: #101010;
+  --bg-card: #171717;
+  --bg-elevated: #1e1e1e;
+  --border: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(255, 255, 255, 0.1);
+  --text-primary: #e8e4de;
+  --text-secondary: #9a9690;
+  --text-muted: #6a6660;
+  --accent: #9a7a58;
+  --green: #6a9a68;
+  --red: #a06058;
+  --track-bg: rgba(255, 255, 255, 0.04);
+  --grid-line: rgba(255, 255, 255, 0.03);
+  --card-shadow: none;
 }
 
 body {
-  background: rgb(var(--background));
-  color: rgb(var(--foreground));
+  background: var(--bg-base);
+  color: var(--text-primary);
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
 }
 
-.glass {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.4)) border-box;
-  backdrop-filter: blur(16px);
+.font-mono {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
-.dark .glass {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(30, 41, 59, 0.4)) border-box;
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.5s ease both;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.skeleton {
+  background: var(--bg-elevated);
+  animation: skeleton-pulse 1.5s ease infinite;
 }
 
 /* Chat markdown rendering */
