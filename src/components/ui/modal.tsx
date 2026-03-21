@@ -27,7 +27,8 @@ export function Modal({ isOpen, onClose, title, children, size = 'default' }: Mo
 
       {/* Modal */}
       <div
-        className={`relative bg-[var(--bg-card)] rounded-xl shadow-2xl ${sizeClasses[size]} w-full max-h-[85vh] overflow-hidden border border-[var(--border)]`}
+        className={`relative bg-[var(--bg-elevated)] rounded-xl ${sizeClasses[size]} w-full max-h-[85vh] overflow-hidden border border-[var(--border-hover)]`}
+        style={{ boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-[var(--border)] bg-[var(--bg-base)]">

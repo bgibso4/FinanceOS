@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
 import { ds } from '@/lib/design-system';
 import { formatAmountCompact } from '@/lib/currency';
+import { Pencil, XCircle, EyeOff } from 'lucide-react';
 import { triggerSync } from '@/lib/cloud-sync';
 
 type RecurringItem = {
@@ -262,8 +263,9 @@ export function SubscriptionsTab({ categories, accounts, userSettings }: Subscri
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button
-            className="bg-[var(--accent)] text-white hover:opacity-90 py-2 px-4 text-sm"
+            className="py-2 px-4 text-sm"
             disabled={detecting}
+            variant="outline"
             onClick={runDetection}
           >
             {detecting ? 'Detecting...' : 'Run Detection'}
@@ -470,24 +472,27 @@ export function SubscriptionsTab({ categories, accounts, userSettings }: Subscri
                             <td className="px-4 py-2.5 text-right">
                               <div className="flex items-center justify-end gap-1">
                                 <button
-                                  className={`px-2 py-1 rounded text-xs ${ds.text.secondary} hover:${ds.bg.tertiary}`}
+                                  className="p-1.5 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                                  title="Edit"
                                   onClick={() => openEditModal(item)}
                                 >
-                                  Edit
+                                  <Pencil size={14} />
                                 </button>
                                 {item.status === 'active' && (
                                   <button
-                                    className="px-2 py-1 rounded text-xs text-[var(--yellow)] hover:bg-[var(--yellow)]/10"
+                                    className="p-1.5 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
+                                    title="Cancel subscription"
                                     onClick={() => markCancelled(item.id)}
                                   >
-                                    Cancel
+                                    <XCircle size={14} />
                                   </button>
                                 )}
                                 <button
-                                  className="px-2 py-1 rounded text-xs text-[var(--red)] hover:bg-[var(--red)]/10"
+                                  className="p-1.5 rounded hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--red)] transition-colors"
+                                  title="Dismiss"
                                   onClick={() => dismissItem(item.id)}
                                 >
-                                  Dismiss
+                                  <EyeOff size={14} />
                                 </button>
                               </div>
                             </td>
