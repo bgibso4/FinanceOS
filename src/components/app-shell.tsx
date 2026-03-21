@@ -30,33 +30,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SyncProvider>
-      <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900">
+      <div className="flex min-h-screen bg-[var(--bg-base)]">
         <Suspense
-          fallback={
-            <div className="w-56 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700" />
-          }
+          fallback={<div className="w-14 bg-[var(--bg-surface)] border-r border-[var(--border)]" />}
         >
           <SideNav onToggleAnalyst={toggleAnalyst} />
         </Suspense>
         <div className="flex min-h-screen flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 px-4 py-3 backdrop-blur">
+          <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-card)]/80 px-4 py-3 backdrop-blur">
             <div className="flex flex-col">
-              <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              <div className="text-sm font-semibold text-[var(--text-primary)]">
                 Personal Finance Cockpit
               </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">
+              <div className="text-xs text-[var(--text-muted)]">
                 Analytics-first dashboard with auto-categorized spend
               </div>
             </div>
           </div>
           {showFilters && (
-            <Suspense
-              fallback={<div className="h-12 border-b border-slate-200 dark:border-slate-700" />}
-            >
+            <Suspense fallback={<div className="h-12 border-b border-[var(--border)]" />}>
               <FilterRibbon />
             </Suspense>
           )}
-          <main className="flex-1 p-4">{children}</main>
+          <div className="flex-1 flex justify-center">
+            <main className="w-full max-w-[1200px] px-12 py-8">{children}</main>
+          </div>
         </div>
         <ChatAnalyst open={analystOpen} onClose={() => setAnalystOpen(false)} />
       </div>
