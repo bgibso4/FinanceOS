@@ -13,6 +13,7 @@ import { Modal } from '@/components/ui/modal';
 import { ds } from '@/lib/design-system';
 import { formatAmountCompact, getCurrencyFlag } from '@/lib/currency';
 import { triggerSync } from '@/lib/cloud-sync';
+import { FilterRibbon } from '@/components/filter-ribbon';
 import { TagInput, getTagColors } from '@/components/tag-input';
 import type { TagDef } from '@/components/tag-input';
 import { SubscriptionsTab } from '@/components/subscriptions-tab';
@@ -80,7 +81,7 @@ const sortByName = (a: { name: string }, b: { name: string }) =>
 
 function TransactionsPageContent() {
   const searchParams = useSearchParams();
-  const tab = (searchParams.get('tab') || 'review') as 'review' | 'all' | 'subscriptions';
+  const tab = (searchParams.get('tab') || 'all') as 'review' | 'all' | 'subscriptions';
 
   const [queue, setQueue] = useState<Queue | null>(null);
   const [transactions, setTransactions] = useState<Tx[]>([]);
@@ -907,9 +908,11 @@ function TransactionsPageContent() {
     );
   };
 
+  const [selectMode, setSelectMode] = useState(false);
+
   const transactionTabs = [
-    { id: 'review', label: 'Review' },
     { id: 'all', label: 'All' },
+    { id: 'review', label: 'Review' },
     { id: 'subscriptions', label: 'Subscriptions' },
   ] as const;
 
@@ -936,6 +939,10 @@ function TransactionsPageContent() {
           </Link>
         ))}
       </div>
+
+      <Suspense fallback={<div className="h-12" />}>
+        <FilterRibbon />
+      </Suspense>
 
       {tab === 'review' && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -978,10 +985,28 @@ function TransactionsPageContent() {
           <CardHeader className="flex items-center justify-between">
             <div className={`text-sm font-semibold ${ds.text.primary}`}>All transactions</div>
             <div className="flex items-center gap-2">
-              {selectedTransactions.size > 0 && (
+              {selectMode && selectedTransactions.size > 0 && (
                 <span className="text-sm text-[var(--text-secondary)]">
                   {selectedTransactions.size} selected
                 </span>
+              )}
+              {selectMode ? (
+                <Button
+                  className="bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] py-2 px-4 text-sm"
+                  onClick={() => {
+                    setSelectMode(false);
+                    clearSelection();
+                  }}
+                >
+                  Cancel
+                </Button>
+              ) : (
+                <Button
+                  className="bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] py-2 px-4 text-sm"
+                  onClick={() => setSelectMode(true)}
+                >
+                  Select
+                </Button>
               )}
               <Button
                 className="bg-[var(--accent)] text-white hover:bg-[var(--accent)] py-2 px-4 text-sm"
@@ -993,7 +1018,7 @@ function TransactionsPageContent() {
           </CardHeader>
 
           {/* Bulk Edit Bar */}
-          {selectedTransactions.size > 0 && (
+          {selectMode && selectedTransactions.size > 0 && (
             <div className="px-5 py-3 bg-[var(--accent)]/10 border-b border-[var(--accent)]">
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-sm font-medium text-[var(--accent)]">
@@ -1071,9 +1096,12 @@ function TransactionsPageContent() {
                 </Button>
                 <button
                   className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] underline ml-auto"
-                  onClick={clearSelection}
+                  onClick={() => {
+                    setSelectMode(false);
+                    clearSelection();
+                  }}
                 >
-                  Clear Selection
+                  Done
                 </button>
               </div>
             </div>
@@ -1083,16 +1111,23 @@ function TransactionsPageContent() {
             <table className="min-w-full text-sm">
               <thead className={`text-left ${ds.text.muted}`}>
                 <tr>
-                  <th className="px-3 py-2 w-10">
-                    <input
-                      checked={
-                        selectedTransactions.size === transactions.length && transactions.length > 0
-                      }
-                      className="rounded"
-                      type="checkbox"
-                      onChange={(e) => (e.target.checked ? selectAll() : clearSelection())}
-                    />
-                  </th>
+                  {selectMode && (
+                    <th className="px-3 py-2 w-10">
+                      <button
+                        className="text-xs text-[var(--accent)] hover:underline whitespace-nowrap"
+                        onClick={() =>
+                          selectedTransactions.size === transactions.length
+                            ? clearSelection()
+                            : selectAll()
+                        }
+                      >
+                        {selectedTransactions.size === transactions.length &&
+                        transactions.length > 0
+                          ? 'Deselect'
+                          : 'Select All'}
+                      </button>
+                    </th>
+                  )}
                   <th className="px-3 py-2">Date</th>
                   <th className="px-3 py-2">Merchant</th>
                   <th className="px-3 py-2">Category</th>
@@ -1105,31 +1140,40 @@ function TransactionsPageContent() {
                 {transactions.map((tx) => (
                   <tr
                     key={tx.id}
-                    className={`hover:bg-[var(--bg-elevated)] cursor-pointer ${
-                      tx.isTransfer
-                        ? 'bg-[var(--accent)]/5'
-                        : tx.isOffset
+                    className={`hover:bg-[var(--bg-elevated)] cursor-pointer transition-all ${
+                      selectMode && selectedTransactions.has(tx.id)
+                        ? 'ring-2 ring-[var(--accent)] bg-[var(--accent)]/5'
+                        : tx.isTransfer
                           ? 'bg-[var(--accent)]/5'
-                          : tx.amount > 0
-                            ? 'bg-[var(--green)]/5'
-                            : 'bg-[var(--red)]/5'
+                          : tx.isOffset
+                            ? 'bg-[var(--accent)]/5'
+                            : tx.amount > 0
+                              ? 'bg-[var(--green)]/5'
+                              : 'bg-[var(--red)]/5'
                     }`}
+                    onClick={selectMode ? () => toggleSelection(tx.id) : undefined}
                   >
-                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        checked={selectedTransactions.has(tx.id)}
-                        className="rounded"
-                        type="checkbox"
-                        onChange={() => toggleSelection(tx.id)}
-                      />
-                    </td>
+                    {selectMode && (
+                      <td className="px-3 py-2 w-10 text-center">
+                        <span
+                          className={`inline-block w-4 h-4 rounded border-2 ${
+                            selectedTransactions.has(tx.id)
+                              ? 'bg-[var(--accent)] border-[var(--accent)]'
+                              : 'border-[var(--border)]'
+                          }`}
+                        />
+                      </td>
+                    )}
                     <td
                       className="px-3 py-2 text-[var(--text-muted)]"
-                      onClick={() => openEditModal(tx)}
+                      onClick={selectMode ? undefined : () => openEditModal(tx)}
                     >
                       {tx.date.split('T')[0]}
                     </td>
-                    <td className="px-3 py-2" onClick={() => openEditModal(tx)}>
+                    <td
+                      className="px-3 py-2"
+                      onClick={selectMode ? undefined : () => openEditModal(tx)}
+                    >
                       <div className="flex items-center gap-2">
                         {tx.isOffset && <span className="text-[var(--accent)]">↩</span>}
                         <div>
@@ -1167,12 +1211,17 @@ function TransactionsPageContent() {
                             <div className="flex flex-wrap gap-1 mt-1">
                               {tx.tags.map((tagName: string) => {
                                 const tagDef = availableTags.find((t) => t.name === tagName);
-                                const colors = getTagColors(tagDef?.color || 'gray');
+                                const tagColor = tagDef?.color || 'gray';
+                                const cssVar = `var(--tag-${tagColor})`;
                                 return (
                                   <span
                                     key={tagName}
-                                    className={`text-xs px-1.5 py-0.5 rounded-full ${colors.bg} ${colors.text}`}
+                                    className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)]"
                                   >
+                                    <span
+                                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                      style={{ backgroundColor: cssVar }}
+                                    />
                                     {tagName}
                                   </span>
                                 );
@@ -1182,7 +1231,10 @@ function TransactionsPageContent() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2" onClick={() => openEditModal(tx)}>
+                    <td
+                      className="px-3 py-2"
+                      onClick={selectMode ? undefined : () => openEditModal(tx)}
+                    >
                       {tx.isTransfer ? (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]">
                           Transfer
@@ -1203,7 +1255,7 @@ function TransactionsPageContent() {
                     </td>
                     <td
                       className="px-3 py-2 text-[var(--text-secondary)] text-sm"
-                      onClick={() => openEditModal(tx)}
+                      onClick={selectMode ? undefined : () => openEditModal(tx)}
                     >
                       {tx.account?.name || '—'}
                     </td>
@@ -1215,7 +1267,7 @@ function TransactionsPageContent() {
                             ? 'text-[var(--green)]'
                             : 'text-[var(--red)]'
                       }`}
-                      onClick={() => openEditModal(tx)}
+                      onClick={selectMode ? undefined : () => openEditModal(tx)}
                     >
                       {tx.amount > 0 ? '+' : ''}
                       {formatCurrency(tx.amount, tx.account?.currency, userSettings?.baseCurrency)}

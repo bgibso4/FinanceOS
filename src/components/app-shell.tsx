@@ -1,15 +1,11 @@
 'use client';
 
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
 import { SideNav } from './side-nav';
-import { FilterRibbon } from './filter-ribbon';
 import { ChatAnalyst } from './chat-analyst';
 import { SyncProvider } from './sync-provider';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const showFilters = pathname === '/' || pathname.startsWith('/transactions');
   const [analystOpen, setAnalystOpen] = useState(false);
 
   const toggleAnalyst = useCallback(() => {
@@ -38,12 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Suspense>
         <div className="flex min-h-screen flex-1 flex-col">
           <div className="flex-1 flex justify-center">
-            <div className="w-full max-w-[1200px] px-12 py-8">
-              {showFilters && (
-                <Suspense fallback={<div className="h-12 border-b border-[var(--border)]" />}>
-                  <FilterRibbon />
-                </Suspense>
-              )}
+            <div className="w-full max-w-[1400px] px-12 py-8">
               <main>{children}</main>
             </div>
           </div>

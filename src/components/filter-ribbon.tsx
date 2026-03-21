@@ -54,14 +54,14 @@ export function FilterRibbon() {
 
   return (
     <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg mb-6">
-      <div className="px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
+      <div className="px-3 py-2">
+        <div className="flex items-center justify-between gap-3">
           {/* Time Period Pills */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-1">
+          <div className="flex items-center gap-0.5 overflow-x-auto pb-0.5">
             {presets.map((p) => (
               <button
                 key={p.id}
-                className={`px-3 py-1.5 text-sm font-medium rounded-full whitespace-nowrap transition-colors ${
+                className={`px-2.5 py-1 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
                   preset === p.id
                     ? 'bg-[var(--text-primary)] text-[var(--bg-base)]'
                     : 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]'
@@ -81,10 +81,10 @@ export function FilterRibbon() {
           </div>
 
           {/* Filter Toggle + Account Quick Select */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {/* Account Quick Filter */}
             <select
-              className="text-sm border border-[var(--border)] rounded-lg px-3 py-1.5 bg-[var(--bg-card)] text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              className="text-xs border border-[var(--border)] rounded-md px-2 py-1 h-7 bg-[var(--bg-card)] text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
               value={selectedAccount}
               onChange={(e) => updateParams({ account: e.target.value || null })}
             >
@@ -99,7 +99,7 @@ export function FilterRibbon() {
             {/* Tag Quick Filter */}
             {tags.length > 0 && (
               <select
-                className="text-sm border border-[var(--border)] rounded-lg px-3 py-1.5 bg-[var(--bg-card)] text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                className="text-xs border border-[var(--border)] rounded-md px-2 py-1 h-7 bg-[var(--bg-card)] text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 value={selectedTag}
                 onChange={(e) => updateParams({ tag: e.target.value || null })}
               >
@@ -115,7 +115,7 @@ export function FilterRibbon() {
             {/* Clear Filters */}
             {(selectedAccount || selectedTag || preset !== 'last-3-months') && (
               <button
-                className="text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] px-2 py-1"
+                className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] px-1.5 py-0.5"
                 onClick={() =>
                   updateParams({
                     account: null,
@@ -134,17 +134,17 @@ export function FilterRibbon() {
 
         {/* Custom Date Range Inputs */}
         {preset === 'custom' && (
-          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-[var(--border)]">
-            <label className="text-sm text-[var(--text-secondary)] font-medium">From:</label>
+          <div className="flex items-center gap-2 mt-2 pt-2 border-t border-[var(--border)]">
+            <label className="text-xs text-[var(--text-secondary)] font-medium">From:</label>
             <input
-              className="text-sm border border-[var(--border)] rounded-lg px-3 py-1.5 bg-[var(--bg-card)] text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              className="text-xs border border-[var(--border)] rounded-md px-2 py-1 h-7 bg-[var(--bg-card)] text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
               type="date"
               value={startDate}
               onChange={(e) => updateParams({ startDate: e.target.value })}
             />
-            <label className="text-sm text-[var(--text-secondary)] font-medium">To:</label>
+            <label className="text-xs text-[var(--text-secondary)] font-medium">To:</label>
             <input
-              className="text-sm border border-[var(--border)] rounded-lg px-3 py-1.5 bg-[var(--bg-card)] text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              className="text-xs border border-[var(--border)] rounded-md px-2 py-1 h-7 bg-[var(--bg-card)] text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
               type="date"
               value={endDate}
               onChange={(e) => updateParams({ endDate: e.target.value })}

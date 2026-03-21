@@ -4,6 +4,7 @@ import React, { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { ChartRenderer } from '@/components/chart-renderer';
+import { FilterRibbon } from '@/components/filter-ribbon';
 import { DashboardPayload, ChartSpec } from '@/lib/types';
 import { loadPinned } from '@/lib/pinned';
 import { ds } from '@/lib/design-system';
@@ -173,6 +174,10 @@ function DashboardPageContent() {
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-[var(--text-primary)]">Dashboard</h1>
       </div>
+
+      <Suspense fallback={<div className="h-12" />}>
+        <FilterRibbon />
+      </Suspense>
 
       {/* Net Worth Card */}
       {balanceData && (
