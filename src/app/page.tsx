@@ -43,7 +43,9 @@ const ChangeIndicator = ({
   }
 
   return (
-    <span className={`text-xs font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+    <span
+      className={`text-xs font-medium font-mono ${isPositive ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
+    >
       {change > 0 ? '↑' : '↓'} {Math.abs(change).toFixed(1)}%
     </span>
   );
@@ -70,7 +72,7 @@ const Sparkline = ({ data, color = '#3b82f6' }: { data: number[]; color?: string
   const areaPath = `${linePath} L ${points[points.length - 1].x},${height - padding} L ${points[0].x},${height - padding} Z`;
 
   return (
-    <svg className="overflow-visible" height={height} width={width}>
+    <svg className="overflow-visible opacity-55" height={height} width={width}>
       <defs>
         <linearGradient id={`sparkGradient-${color.replace('#', '')}`} x1="0" x2="0" y1="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity={0.3} />
@@ -167,7 +169,7 @@ function DashboardPageContent() {
   const avgDailySpend = data && data.transactionCount > 0 ? data.netCashflow.spending / 30 : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Net Worth Card */}
       {balanceData && (
         <Card>
@@ -178,15 +180,15 @@ function DashboardPageContent() {
                   Net Worth
                 </div>
                 <div
-                  className={`text-3xl font-bold mt-1 ${balanceData.netWorth >= 0 ? ds.text.primary : 'text-red-600'}`}
+                  className={`text-3xl font-bold font-mono tracking-tight mt-1 ${balanceData.netWorth >= 0 ? ds.text.primary : 'text-[var(--red)]'}`}
                 >
                   {formatCurrency(balanceData.netWorth)}
                 </div>
                 <div className="flex items-center gap-4 mt-2 text-sm">
-                  <span className="text-green-600">
+                  <span className="text-[var(--green)] font-mono">
                     Assets: {formatCurrency(balanceData.totalAssets)}
                   </span>
-                  <span className="text-red-600">
+                  <span className="text-[var(--red)] font-mono">
                     Liabilities: {formatCurrency(balanceData.totalLiabilities)}
                   </span>
                 </div>
@@ -207,7 +209,7 @@ function DashboardPageContent() {
                       <div key={acc.id} className="flex items-center justify-between">
                         <span className={`${ds.text.secondary} truncate mr-2`}>{acc.name}</span>
                         <span
-                          className={`font-semibold ${acc.balance >= 0 ? ds.text.primary : 'text-red-600'}`}
+                          className={`font-semibold font-mono ${acc.balance >= 0 ? ds.text.primary : 'text-[var(--red)]'}`}
                         >
                           {formatCurrency(acc.balance)}
                         </span>
@@ -238,7 +240,7 @@ function DashboardPageContent() {
                   Net Cashflow
                 </div>
                 <div
-                  className={`text-2xl font-bold mt-1 ${(data?.netCashflow.savings ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                  className={`text-2xl font-bold font-mono tracking-tight mt-1 ${(data?.netCashflow.savings ?? 0) >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                 >
                   {data ? formatCurrency(data.netCashflow.savings) : '—'}
                 </div>
@@ -263,7 +265,7 @@ function DashboardPageContent() {
               <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wide`}>
                 Income
               </div>
-              <div className="text-2xl font-bold mt-1 text-green-600">
+              <div className="text-2xl font-bold font-mono tracking-tight mt-1 text-[var(--green)]">
                 {data ? formatCurrency(data.netCashflow.income) : '—'}
               </div>
               {data && (
@@ -283,7 +285,7 @@ function DashboardPageContent() {
                 <div className={`text-xs font-medium ${ds.text.muted} uppercase tracking-wide`}>
                   Spending
                 </div>
-                <div className="text-2xl font-bold mt-1 text-red-600">
+                <div className="text-2xl font-bold font-mono tracking-tight mt-1 text-[var(--red)]">
                   {data ? formatCurrency(data.netCashflow.spending) : '—'}
                 </div>
                 {data && (
@@ -306,13 +308,13 @@ function DashboardPageContent() {
                 Savings Rate
               </div>
               <div
-                className={`text-2xl font-bold mt-1 ${(data?.savingsRate.rate ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                className={`text-2xl font-bold font-mono tracking-tight mt-1 ${(data?.savingsRate.rate ?? 0) >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
               >
                 {data ? `${(data.savingsRate.rate * 100).toFixed(1)}%` : '—'}
               </div>
               {data && (
                 <span
-                  className={`text-xs font-medium ${data.savingsRate.delta >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                  className={`text-xs font-medium font-mono ${data.savingsRate.delta >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                 >
                   {data.savingsRate.delta >= 0 ? '↑' : '↓'}{' '}
                   {Math.abs(data.savingsRate.delta * 100).toFixed(1)}pp
@@ -328,7 +330,7 @@ function DashboardPageContent() {
         <Card>
           <CardContent className="pt-5 pb-4">
             <div className={`text-xs ${ds.text.muted}`}>Transactions</div>
-            <div className={`text-xl font-bold ${ds.text.primary}`}>
+            <div className={`text-xl font-bold font-mono ${ds.text.primary}`}>
               {data?.transactionCount ?? '—'}
             </div>
           </CardContent>
@@ -336,7 +338,7 @@ function DashboardPageContent() {
         <Card>
           <CardContent className="pt-5 pb-4">
             <div className={`text-xs ${ds.text.muted}`}>Avg Daily Spend</div>
-            <div className={`text-xl font-bold ${ds.text.primary}`}>
+            <div className={`text-xl font-bold font-mono ${ds.text.primary}`}>
               {formatCurrency(avgDailySpend)}
             </div>
           </CardContent>
@@ -352,7 +354,7 @@ function DashboardPageContent() {
         <Card>
           <CardContent className="pt-5 pb-4">
             <div className={`text-xs ${ds.text.muted}`}>3-Mo Savings Avg</div>
-            <div className={`text-xl font-bold ${ds.text.primary}`}>
+            <div className={`text-xl font-bold font-mono ${ds.text.primary}`}>
               {data ? `${(data.savingsRate.rollingAvg * 100).toFixed(1)}%` : '—'}
             </div>
           </CardContent>
@@ -394,7 +396,7 @@ function DashboardPageContent() {
                 Spending by Category
               </div>
               <a
-                className={`text-xs ${ds.status.info.text} hover:text-blue-700 font-medium`}
+                className="text-xs text-[var(--accent)] hover:opacity-80 font-medium"
                 href="/analytics"
               >
                 Details →
@@ -439,12 +441,12 @@ function DashboardPageContent() {
                         {cat.category}
                       </span>
                       <div className="flex items-center gap-2">
-                        <span className={`text-sm font-semibold ${ds.text.primary}`}>
+                        <span className={`text-sm font-semibold font-mono ${ds.text.primary}`}>
                           {formatCurrency(cat.amount)}
                         </span>
                         {cat.monthOverMonth !== 0 && (
                           <span
-                            className={`text-xs ${cat.monthOverMonth > 0 ? 'text-red-600' : 'text-green-600'}`}
+                            className={`text-xs font-mono ${cat.monthOverMonth > 0 ? 'text-[var(--red)]' : 'text-[var(--green)]'}`}
                           >
                             {cat.monthOverMonth > 0 ? '↑' : '↓'}
                             {Math.abs(cat.monthOverMonth).toFixed(0)}%
@@ -454,7 +456,7 @@ function DashboardPageContent() {
                     </div>
                     <div className={`h-1.5 ${ds.bg.tertiary} rounded-full overflow-hidden`}>
                       <div
-                        className={`h-full rounded-full ${cat.isOutlier ? 'bg-amber-500' : 'bg-blue-500'}`}
+                        className="h-full rounded-full bg-[var(--accent)]"
                         style={{ width: `${percentage}%` }}
                       />
                     </div>
@@ -483,7 +485,7 @@ function DashboardPageContent() {
                       {m.merchant}
                     </span>
                   </div>
-                  <div className={`text-sm font-semibold ${ds.text.primary}`}>
+                  <div className={`text-sm font-semibold font-mono ${ds.text.primary}`}>
                     {formatCurrency(m.amount)}
                   </div>
                 </div>
@@ -506,7 +508,7 @@ function DashboardPageContent() {
                       {alert.title.replace(' change', '')}
                     </span>
                     <span
-                      className={`text-sm font-medium ${isIncrease ? 'text-red-600' : 'text-green-600'}`}
+                      className={`text-sm font-medium font-mono ${isIncrease ? 'text-[var(--red)]' : 'text-[var(--green)]'}`}
                     >
                       {isIncrease ? '+' : ''}
                       {formatCurrency(alert.deltaAmount)}
@@ -525,10 +527,7 @@ function DashboardPageContent() {
         <Card>
           <CardHeader>
             <div className={`text-sm font-semibold ${ds.text.secondary}`}>Goals</div>
-            <a
-              className={`text-xs ${ds.status.info.text} hover:text-blue-700 font-medium`}
-              href="/goals"
-            >
+            <a className="text-xs text-[var(--accent)] hover:opacity-80 font-medium" href="/goals">
               View All →
             </a>
           </CardHeader>
@@ -537,10 +536,10 @@ function DashboardPageContent() {
               {goalsData.slice(0, 4).map((goal) => {
                 const barColor =
                   goal.paceStatus === 'ahead'
-                    ? 'bg-green-500'
+                    ? 'bg-[var(--green)]'
                     : goal.paceStatus === 'behind'
-                      ? 'bg-red-500'
-                      : 'bg-blue-500';
+                      ? 'bg-[var(--red)]'
+                      : 'bg-[var(--accent)]';
                 return (
                   <div key={goal.id}>
                     <div className="flex items-center justify-between mb-1">
@@ -548,10 +547,10 @@ function DashboardPageContent() {
                         {goal.name}
                       </span>
                       <div className="flex items-center gap-2">
-                        <span className={`text-sm font-semibold ${ds.text.primary}`}>
+                        <span className={`text-sm font-semibold font-mono ${ds.text.primary}`}>
                           {formatCurrency(goal.currentAmount)} / {formatCurrency(goal.targetAmount)}
                         </span>
-                        <span className={`text-xs ${ds.text.muted}`}>
+                        <span className={`text-xs font-mono ${ds.text.muted}`}>
                           {goal.percentage.toFixed(0)}%
                         </span>
                       </div>
