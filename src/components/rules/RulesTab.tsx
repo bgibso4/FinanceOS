@@ -141,7 +141,7 @@ function SortableRuleCard({
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
       <div
-        className={`rounded-xl border ${selected ? 'border-purple-500 ring-1 ring-purple-500' : ds.border.default} ${ds.bg.primary} p-4 shadow-sm hover:shadow-md ${ds.border.hover} transition-all cursor-pointer ${!rule.isEnabled ? 'opacity-60' : ''}`}
+        className={`rounded-xl border ${selected ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]' : ds.border.default} ${ds.bg.primary} p-4 shadow-sm hover:shadow-md ${ds.border.hover} transition-all cursor-pointer ${!rule.isEnabled ? 'opacity-60' : ''}`}
         onClick={onClick}
       >
         <div className="space-y-3">
@@ -586,7 +586,7 @@ export function RulesTab({ rules, categories, accounts, onRefresh, onSync }: Rul
             {testerOpen ? 'Hide Tester' : 'Test Rules'}
           </Button>
           <Button
-            className="text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white"
+            className="text-xs px-3 py-1.5 bg-[var(--accent)] hover:opacity-90 text-white"
             disabled={suggestionsLoading}
             onClick={fetchSuggestions}
           >
@@ -979,7 +979,7 @@ export function RulesTab({ rules, categories, accounts, onRefresh, onSync }: Rul
                   </div>
                 </div>
                 <Button
-                  className="w-full bg-purple-600 hover:bg-purple-700 py-3"
+                  className="w-full bg-[var(--accent)] hover:opacity-90 text-white py-3"
                   onClick={updateRule}
                 >
                   Save Changes
@@ -1050,7 +1050,7 @@ export function RulesTab({ rules, categories, accounts, onRefresh, onSync }: Rul
                   {suggestions.length} suggestion(s)
                 </span>
                 <Button
-                  className="text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white"
+                  className="text-xs px-3 py-1.5 bg-[var(--accent)] hover:opacity-90 text-white"
                   onClick={acceptAllSuggestions}
                 >
                   Accept All

@@ -738,7 +738,7 @@ export function NetWorthSnapshots() {
               {hasInflationRates && (
                 <Button
                   className={
-                    showInflationAdjusted ? 'bg-amber-600 hover:bg-amber-700 text-white' : ''
+                    showInflationAdjusted ? 'bg-[var(--accent)] hover:opacity-90 text-white' : ''
                   }
                   variant={showInflationAdjusted ? 'primary' : 'outline'}
                   onClick={() => setShowInflationAdjusted(!showInflationAdjusted)}
@@ -779,7 +779,7 @@ export function NetWorthSnapshots() {
                   <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
                     Current Net Worth
                     {showInflationAdjusted && (
-                      <span className="ml-1 text-amber-600">
+                      <span className="ml-1 text-[var(--accent)]">
                         (in {new Date().getFullYear()} dollars)
                       </span>
                     )}
@@ -1063,7 +1063,7 @@ export function NetWorthSnapshots() {
                           </td>
                           {showInflationAdjusted && adjustedSnapshots && (
                             <td className="px-3 py-2 text-right">
-                              <span className="font-medium text-amber-600">
+                              <span className="font-medium text-[var(--accent)]">
                                 {formatCurrency(adjustedSnapshots[idx].adjustedNetWorth)}
                               </span>
                             </td>

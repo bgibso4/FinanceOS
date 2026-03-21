@@ -18,6 +18,15 @@
   --track-bg: rgba(0, 0, 0, 0.05);
   --grid-line: rgba(0, 0, 0, 0.04);
   --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --tag-blue: #3b82f6;
+  --tag-green: #22c55e;
+  --tag-red: #ef4444;
+  --tag-yellow: #eab308;
+  --tag-purple: #a855f7;
+  --tag-pink: #ec4899;
+  --tag-indigo: #6366f1;
+  --tag-orange: #f97316;
+  --tag-teal: #14b8a6;
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 16px;
@@ -47,6 +56,15 @@
   --track-bg: rgba(255, 255, 255, 0.04);
   --grid-line: rgba(255, 255, 255, 0.03);
   --card-shadow: none;
+  --tag-blue: #60a5fa;
+  --tag-green: #4ade80;
+  --tag-red: #f87171;
+  --tag-yellow: #facc15;
+  --tag-purple: #c084fc;
+  --tag-pink: #f472b6;
+  --tag-indigo: #818cf8;
+  --tag-orange: #fb923c;
+  --tag-teal: #2dd4bf;
 }
 
 body {
