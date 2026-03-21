@@ -1120,7 +1120,7 @@ function TransactionsPageContent() {
                 <tr>
                   <th className="px-3 py-2 w-[100px]">Date</th>
                   <th className="px-3 py-2">Merchant</th>
-                  <th className="px-3 py-2 w-[150px]">Category</th>
+                  <th className="px-3 py-2 w-[200px] whitespace-nowrap">Category</th>
                   <th className="px-3 py-2 w-[150px]">Account</th>
                   <th className="px-3 py-2 w-[120px] text-right">Amount</th>
                   <th className="w-8" />
@@ -1216,7 +1216,7 @@ function TransactionsPageContent() {
                       </div>
                     </td>
                     <td
-                      className="px-3 py-2"
+                      className="px-3 py-2 whitespace-nowrap"
                       onClick={selectMode ? undefined : () => openEditModal(tx)}
                     >
                       {tx.isTransfer ? (
