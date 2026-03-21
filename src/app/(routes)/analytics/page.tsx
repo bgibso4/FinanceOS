@@ -485,7 +485,7 @@ export default function AnalyticsPage() {
                       key={month}
                       className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                         isSelected
-                          ? 'bg-blue-600 text-white'
+                          ? 'bg-[var(--accent)] text-white'
                           : isFuture
                             ? `${ds.text.muted} cursor-not-allowed`
                             : `${ds.text.secondary} ${ds.bg.hover}`
@@ -508,12 +508,12 @@ export default function AnalyticsPage() {
         <Card>
           <CardContent className="pt-6">
             <div className={`text-sm ${ds.text.muted}`}>Total Spending</div>
-            <div className={`text-3xl font-bold ${ds.text.primary}`}>
+            <div className={`text-3xl font-bold tracking-tight font-mono ${ds.text.primary}`}>
               {formatCurrencyWithSymbol(totalSpending, baseCurrency)}
             </div>
             {overallChange !== 0 && (
               <div
-                className={`text-sm mt-1 ${overallChange > 0 ? 'text-red-600' : 'text-green-600'}`}
+                className={`text-sm mt-1 font-mono ${overallChange > 0 ? 'text-[var(--red)]' : 'text-[var(--green)]'}`}
               >
                 {overallChange > 0 ? '↑' : '↓'} {Math.abs(overallChange).toFixed(1)}% vs prev month
               </div>
@@ -523,13 +523,15 @@ export default function AnalyticsPage() {
         <Card>
           <CardContent className="pt-6">
             <div className={`text-sm ${ds.text.muted}`}>Transactions</div>
-            <div className={`text-3xl font-bold ${ds.text.primary}`}>{totalTransactions}</div>
+            <div className={`text-3xl font-bold tracking-tight font-mono ${ds.text.primary}`}>
+              {totalTransactions}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className={`text-sm ${ds.text.muted}`}>Avg per Transaction</div>
-            <div className={`text-3xl font-bold ${ds.text.primary}`}>
+            <div className={`text-3xl font-bold tracking-tight font-mono ${ds.text.primary}`}>
               {totalTransactions > 0
                 ? formatCurrencyWithSymbol(totalSpending / totalTransactions, baseCurrency)
                 : `${getCurrencySymbol(baseCurrency)}0`}
@@ -604,7 +606,7 @@ export default function AnalyticsPage() {
                           className={`flex-1 h-1.5 ${ds.bg.tertiary} rounded-full overflow-hidden`}
                         >
                           <div
-                            className="h-full bg-blue-500 rounded-full"
+                            className="h-full bg-[var(--accent)] rounded-full"
                             style={{ width: `${percentage}%` }}
                           />
                         </div>
@@ -676,7 +678,7 @@ export default function AnalyticsPage() {
                     </div>
 
                     {/* Categories in Group */}
-                    <div className="divide-y divide-slate-200/50 dark:divide-slate-700/50">
+                    <div className="divide-y divide-[var(--border)]">
                       {cats.map((cat) => {
                         const _percentage =
                           totalSpending > 0 ? (cat.amount / totalSpending) * 100 : 0;
@@ -734,7 +736,7 @@ export default function AnalyticsPage() {
                                     <span
                                       className={
                                         isOverBudget
-                                          ? 'text-red-600 font-medium'
+                                          ? 'text-[var(--red)] font-medium'
                                           : ds.text.secondary
                                       }
                                     >
@@ -744,7 +746,9 @@ export default function AnalyticsPage() {
                                     </span>
                                     <span
                                       className={
-                                        isOverBudget ? 'text-red-600 font-medium' : ds.text.muted
+                                        isOverBudget
+                                          ? 'text-[var(--red)] font-medium'
+                                          : ds.text.muted
                                       }
                                     >
                                       {isOverBudget
@@ -758,10 +762,10 @@ export default function AnalyticsPage() {
                                     <div
                                       className={`h-full rounded-full transition-all ${
                                         isOverBudget
-                                          ? 'bg-red-500'
+                                          ? 'bg-[var(--red)]'
                                           : budgetPercentage! > 80
-                                            ? 'bg-amber-500'
-                                            : 'bg-green-500'
+                                            ? 'bg-[var(--accent)]'
+                                            : 'bg-[var(--green)]'
                                       }`}
                                       style={{ width: `${Math.min(budgetPercentage!, 100)}%` }}
                                     />
@@ -801,11 +805,11 @@ export default function AnalyticsPage() {
                                       className={`font-semibold ${
                                         budget
                                           ? budget.limitAmount - cat.amount >= 0
-                                            ? 'text-green-600'
-                                            : 'text-red-600'
+                                            ? 'text-[var(--green)]'
+                                            : 'text-[var(--red)]'
                                           : cat.monthOverMonth > 0
-                                            ? 'text-red-600'
-                                            : 'text-green-600'
+                                            ? 'text-[var(--red)]'
+                                            : 'text-[var(--green)]'
                                       }`}
                                     >
                                       {budget
@@ -914,7 +918,9 @@ export default function AnalyticsPage() {
                                               </td>
                                               <td
                                                 className={`p-3 text-sm font-semibold text-right ${
-                                                  tx.amount >= 0 ? 'text-green-600' : 'text-red-600'
+                                                  tx.amount >= 0
+                                                    ? 'text-[var(--green)]'
+                                                    : 'text-[var(--red)]'
                                                 }`}
                                               >
                                                 {(() => {
@@ -1130,7 +1136,7 @@ export default function AnalyticsPage() {
                   </label>
                   <Input
                     disabled
-                    className="w-full !bg-slate-100 dark:!bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-75"
+                    className="w-full !bg-[var(--bg-elevated)] text-[var(--text-muted)] cursor-not-allowed opacity-75"
                     value={editingTransaction.account?.name || 'Unknown'}
                   />
                 </div>
@@ -1151,7 +1157,7 @@ export default function AnalyticsPage() {
                   />
                 </div>
                 <Button
-                  className="w-full bg-blue-600 hover:bg-blue-700 py-3"
+                  className="w-full bg-[var(--accent)] hover:bg-[var(--accent)] py-3"
                   onClick={updateTransaction}
                 >
                   Save Changes
@@ -1191,7 +1197,7 @@ export default function AnalyticsPage() {
                   </span>
                 </div>
                 <Button
-                  className="w-full py-3 !bg-blue-600 hover:!bg-blue-700 text-white"
+                  className="w-full py-3 !bg-[var(--accent)] hover:!bg-[var(--accent)] text-white"
                   onClick={toggleTransfer}
                 >
                   {editingTransaction.isTransfer ? 'Unmark as Transfer' : 'Mark as Transfer'}
@@ -1241,7 +1247,7 @@ export default function AnalyticsPage() {
                       </div>
                     )}
                     <Button
-                      className="w-full !bg-purple-600 hover:!bg-purple-700 py-3 text-white"
+                      className="w-full !bg-[var(--accent)] hover:!bg-[var(--accent)] py-3 text-white"
                       onClick={() => {
                         unlinkReturn(editingTransaction.id);
                         closeEditModal();
@@ -1271,7 +1277,7 @@ export default function AnalyticsPage() {
                           <div className={`text-xs ${ds.text.muted}`}>{ret.date.split('T')[0]}</div>
                         </div>
                         <button
-                          className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 underline"
+                          className="text-xs text-[var(--red)] hover:text-[var(--red)] underline"
                           onClick={() => {
                             unlinkReturn(ret.id);
                             closeEditModal();
@@ -1284,7 +1290,7 @@ export default function AnalyticsPage() {
                   </div>
                 ) : (
                   <Button
-                    className="w-full !bg-purple-600 hover:!bg-purple-700 py-3 text-white"
+                    className="w-full !bg-[var(--accent)] hover:!bg-[var(--accent)] py-3 text-white"
                     onClick={() => {
                       closeEditModal();
                       openReturnModal(editingTransaction);
@@ -1300,7 +1306,7 @@ export default function AnalyticsPage() {
             <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
               <h4 className={`font-semibold ${ds.status.error.text} mb-3`}>Danger Zone</h4>
               <Button
-                className="w-full !bg-red-600 hover:!bg-red-700 py-3 text-white"
+                className="w-full !bg-[var(--red)] hover:!bg-[var(--red)] py-3 text-white"
                 onClick={deleteTransaction}
               >
                 Delete Transaction
@@ -1408,7 +1414,7 @@ export default function AnalyticsPage() {
                       type="text"
                     />
                     <Button
-                      className="w-full bg-slate-600 hover:bg-slate-700 py-2"
+                      className="w-full bg-[var(--bg-elevated)] hover:bg-[var(--bg-elevated)] py-2"
                       onClick={async () => {
                         const searchInput = document.getElementById(
                           'analytics-manual-search-input'
