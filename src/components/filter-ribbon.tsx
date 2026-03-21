@@ -34,7 +34,7 @@ export function FilterRibbon() {
       .catch(() => {});
   }, []);
 
-  const preset = (params.get('preset') as DateRangePreset) ?? 'last-3-months';
+  const preset = (params.get('preset') as DateRangePreset) ?? 'last-12-months';
   const selectedAccount = params.get('account') ?? '';
   const selectedTag = params.get('tag') ?? '';
   const startDate = params.get('startDate') ?? '';
@@ -113,14 +113,14 @@ export function FilterRibbon() {
             )}
 
             {/* Clear Filters */}
-            {(selectedAccount || selectedTag || preset !== 'last-3-months') && (
+            {(selectedAccount || selectedTag || preset !== 'last-12-months') && (
               <button
                 className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] px-1.5 py-0.5"
                 onClick={() =>
                   updateParams({
                     account: null,
                     tag: null,
-                    preset: 'last-3-months',
+                    preset: 'last-12-months',
                     startDate: null,
                     endDate: null,
                   })
