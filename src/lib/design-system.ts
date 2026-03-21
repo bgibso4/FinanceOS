@@ -1,85 +1,84 @@
 // Design system - centralized styling classes
-// Use these instead of hardcoded Tailwind classes
+// Uses CSS custom properties defined in globals.css
+// Automatically adapts to light/dark mode via .dark class
 
 export const ds = {
-  // Text colors
   text: {
-    primary: 'text-slate-900 dark:text-slate-100',
-    secondary: 'text-slate-600 dark:text-slate-400',
-    muted: 'text-slate-500 dark:text-slate-500',
-    heading: 'text-slate-900 dark:text-slate-100',
+    primary: 'text-[var(--text-primary)]',
+    secondary: 'text-[var(--text-secondary)]',
+    muted: 'text-[var(--text-muted)]',
+    heading: 'text-[var(--text-primary)]',
   },
 
-  // Background colors
   bg: {
-    primary: 'bg-white dark:bg-slate-800',
-    secondary: 'bg-slate-50 dark:bg-slate-900',
-    tertiary: 'bg-slate-100 dark:bg-slate-700',
-    hover: 'hover:bg-slate-50 dark:hover:bg-slate-700',
+    base: 'bg-[var(--bg-base)]',
+    surface: 'bg-[var(--bg-surface)]',
+    card: 'bg-[var(--bg-card)]',
+    elevated: 'bg-[var(--bg-elevated)]',
+    // Legacy aliases for backward compatibility
+    primary: 'bg-[var(--bg-card)]',
+    secondary: 'bg-[var(--bg-base)]',
+    tertiary: 'bg-[var(--bg-elevated)]',
+    hover: 'hover:bg-[var(--bg-elevated)]',
   },
 
-  // Border colors
   border: {
-    default: 'border-slate-200 dark:border-slate-700',
-    hover: 'hover:border-slate-300 dark:hover:border-slate-600',
+    default: 'border-[var(--border)]',
+    hover: 'hover:border-[var(--border-hover)]',
   },
 
-  // Status colors (these work in both themes)
   status: {
     success: {
-      bg: 'bg-green-50 dark:bg-green-500/10',
-      bgRow: 'bg-green-100 dark:bg-green-500/10', // Full color in light mode
-      text: 'text-green-700 dark:text-green-400',
-      border: 'border-green-200 dark:border-green-500/30',
-      accent: 'border-l-4 border-l-green-500',
+      bg: 'bg-[var(--green)]/10',
+      bgRow: 'bg-[var(--green)]/10',
+      text: 'text-[var(--green)]',
+      border: 'border-[var(--green)]/30',
+      accent: 'border-l-4 border-l-[var(--green)]',
     },
     warning: {
-      bg: 'bg-yellow-50 dark:bg-yellow-500/10',
-      bgRow: 'bg-yellow-100 dark:bg-yellow-500/10',
-      text: 'text-yellow-700 dark:text-yellow-400',
-      border: 'border-yellow-200 dark:border-yellow-500/30',
-      accent: 'border-l-4 border-l-yellow-500',
+      bg: 'bg-[var(--accent)]/10',
+      bgRow: 'bg-[var(--accent)]/10',
+      text: 'text-[var(--accent)]',
+      border: 'border-[var(--accent)]/30',
+      accent: 'border-l-4 border-l-[var(--accent)]',
     },
     error: {
-      bg: 'bg-red-50 dark:bg-red-500/10',
-      bgRow: 'bg-red-100 dark:bg-red-500/10',
-      text: 'text-red-700 dark:text-red-400',
-      border: 'border-red-200 dark:border-red-500/30',
-      accent: 'border-l-4 border-l-red-500',
+      bg: 'bg-[var(--red)]/10',
+      bgRow: 'bg-[var(--red)]/10',
+      text: 'text-[var(--red)]',
+      border: 'border-[var(--red)]/30',
+      accent: 'border-l-4 border-l-[var(--red)]',
     },
     info: {
-      bg: 'bg-blue-50 dark:bg-blue-500/10',
-      bgRow: 'bg-blue-100 dark:bg-blue-500/10',
-      text: 'text-blue-700 dark:text-blue-400',
-      border: 'border-blue-200 dark:border-blue-500/30',
-      accent: 'border-l-4 border-l-blue-500',
+      bg: 'bg-[var(--accent)]/10',
+      bgRow: 'bg-[var(--accent)]/10',
+      text: 'text-[var(--accent)]',
+      border: 'border-[var(--accent)]/30',
+      accent: 'border-l-4 border-l-[var(--accent)]',
     },
     purple: {
-      bg: 'bg-purple-50 dark:bg-purple-500/10',
-      bgRow: 'bg-purple-100 dark:bg-purple-500/10',
-      text: 'text-purple-700 dark:text-purple-400',
-      border: 'border-purple-200 dark:border-purple-500/30',
-      accent: 'border-l-4 border-l-purple-500',
+      bg: 'bg-[var(--accent)]/10',
+      bgRow: 'bg-[var(--accent)]/10',
+      text: 'text-[var(--accent)]',
+      border: 'border-[var(--accent)]/30',
+      accent: 'border-l-4 border-l-[var(--accent)]',
     },
   },
 
-  // Interactive elements
   interactive: {
-    default: 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700',
-    active: 'bg-slate-900 dark:bg-slate-700 text-white',
+    default: 'text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]',
+    active: 'bg-[var(--bg-elevated)] text-[var(--text-primary)]',
   },
 
-  // Cards and containers
   card: {
-    default: 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700',
-    hover: 'hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md',
+    default: 'bg-[var(--bg-card)] border-[var(--border)]',
+    hover: 'hover:border-[var(--border-hover)]',
   },
 
-  // Table rows
   table: {
-    header: 'bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400',
-    row: 'border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700',
-    rowAlt: 'bg-slate-50/30 dark:bg-slate-800/30',
+    header: 'bg-[var(--bg-base)] text-[var(--text-muted)]',
+    row: 'border-[var(--border)] hover:bg-[var(--bg-elevated)]',
+    rowAlt: 'bg-[var(--bg-base)]/30',
   },
 };
 
