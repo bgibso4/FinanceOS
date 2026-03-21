@@ -1024,6 +1024,18 @@ function TransactionsPageContent() {
                 <span className="text-sm font-medium text-[var(--accent)]">
                   {selectedTransactions.size} selected
                 </span>
+                <button
+                  className="text-xs text-[var(--accent)] hover:underline whitespace-nowrap"
+                  onClick={() =>
+                    selectedTransactions.size === transactions.length
+                      ? clearSelection()
+                      : selectAll()
+                  }
+                >
+                  {selectedTransactions.size === transactions.length && transactions.length > 0
+                    ? 'Deselect All'
+                    : 'Select All'}
+                </button>
                 <div className="flex items-center gap-2">
                   <Select
                     className="w-48"
@@ -1111,24 +1123,7 @@ function TransactionsPageContent() {
             <table className="min-w-full text-sm">
               <thead className={`text-left ${ds.text.muted}`}>
                 <tr>
-                  {selectMode && (
-                    <th className="px-3 py-2 w-10">
-                      <button
-                        className="text-xs text-[var(--accent)] hover:underline whitespace-nowrap"
-                        onClick={() =>
-                          selectedTransactions.size === transactions.length
-                            ? clearSelection()
-                            : selectAll()
-                        }
-                      >
-                        {selectedTransactions.size === transactions.length &&
-                        transactions.length > 0
-                          ? 'Deselect'
-                          : 'Select All'}
-                      </button>
-                    </th>
-                  )}
-                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2 whitespace-nowrap min-w-[80px]">Date</th>
                   <th className="px-3 py-2">Merchant</th>
                   <th className="px-3 py-2">Category</th>
                   <th className="px-3 py-2">Account</th>
@@ -1140,32 +1135,21 @@ function TransactionsPageContent() {
                 {transactions.map((tx) => (
                   <tr
                     key={tx.id}
-                    className={`hover:bg-[var(--bg-elevated)] cursor-pointer transition-all ${
+                    className={`hover:bg-[var(--bg-elevated)] cursor-pointer transition-colors ${
                       selectMode && selectedTransactions.has(tx.id)
-                        ? 'ring-2 ring-[var(--accent)] bg-[var(--accent)]/5'
+                        ? 'border-l-2 border-l-[var(--accent)] bg-[var(--accent)]/5'
                         : tx.isTransfer
                           ? 'bg-[var(--accent)]/5'
                           : tx.isOffset
                             ? 'bg-[var(--accent)]/5'
                             : tx.amount > 0
                               ? 'bg-[var(--green)]/5'
-                              : 'bg-[var(--red)]/5'
+                              : ''
                     }`}
                     onClick={selectMode ? () => toggleSelection(tx.id) : undefined}
                   >
-                    {selectMode && (
-                      <td className="px-3 py-2 w-10 text-center">
-                        <span
-                          className={`inline-block w-4 h-4 rounded border-2 ${
-                            selectedTransactions.has(tx.id)
-                              ? 'bg-[var(--accent)] border-[var(--accent)]'
-                              : 'border-[var(--border)]'
-                          }`}
-                        />
-                      </td>
-                    )}
                     <td
-                      className="px-3 py-2 text-[var(--text-muted)]"
+                      className="px-3 py-2 text-[var(--text-muted)] whitespace-nowrap"
                       onClick={selectMode ? undefined : () => openEditModal(tx)}
                     >
                       {tx.date.split('T')[0]}
