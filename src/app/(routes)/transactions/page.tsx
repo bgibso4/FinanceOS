@@ -985,11 +985,6 @@ function TransactionsPageContent() {
           <CardHeader className="flex items-center justify-between">
             <div className={`text-sm font-semibold ${ds.text.primary}`}>All transactions</div>
             <div className="flex items-center gap-2">
-              {selectMode && selectedTransactions.size > 0 && (
-                <span className="text-sm text-[var(--text-secondary)]">
-                  {selectedTransactions.size} selected
-                </span>
-              )}
               {selectMode ? (
                 <Button
                   className="bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] py-2 px-4 text-sm"
@@ -1120,14 +1115,14 @@ function TransactionsPageContent() {
           )}
 
           <CardContent className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="min-w-full text-sm table-fixed">
               <thead className={`text-left ${ds.text.muted}`}>
                 <tr>
-                  <th className="px-3 py-2 whitespace-nowrap min-w-[80px]">Date</th>
+                  <th className="px-3 py-2 w-[100px]">Date</th>
                   <th className="px-3 py-2">Merchant</th>
-                  <th className="px-3 py-2">Category</th>
-                  <th className="px-3 py-2">Account</th>
-                  <th className="px-3 py-2 text-right">Amount</th>
+                  <th className="px-3 py-2 w-[150px]">Category</th>
+                  <th className="px-3 py-2 w-[150px]">Account</th>
+                  <th className="px-3 py-2 w-[120px] text-right">Amount</th>
                   <th className="w-8" />
                 </tr>
               </thead>
@@ -1137,7 +1132,7 @@ function TransactionsPageContent() {
                     key={tx.id}
                     className={`hover:bg-[var(--bg-elevated)] cursor-pointer transition-colors ${
                       selectMode && selectedTransactions.has(tx.id)
-                        ? 'border-l-2 border-l-[var(--accent)] bg-[var(--accent)]/5'
+                        ? 'bg-[var(--bg-elevated)]'
                         : tx.isTransfer
                           ? 'bg-[var(--accent)]/5'
                           : tx.isOffset
@@ -1146,6 +1141,11 @@ function TransactionsPageContent() {
                               ? 'bg-[var(--green)]/5'
                               : ''
                     }`}
+                    style={
+                      selectMode && selectedTransactions.has(tx.id)
+                        ? { boxShadow: 'inset 3px 0 0 var(--accent)' }
+                        : undefined
+                    }
                     onClick={selectMode ? () => toggleSelection(tx.id) : undefined}
                   >
                     <td
