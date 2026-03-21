@@ -1,10 +1,13 @@
-# FinanceOS "Carbon" Redesign — Design Spec
+# FinanceOS "Friedrik" Redesign — Design Spec
 
 ## Overview
 
-A UI redesign of FinanceOS with a "quiet strength" aesthetic: monochrome base, precision over decoration, one muted accent color used surgically. The design should feel like a matte black watch — clearly high-quality, zero flash.
+A UI redesign of FinanceOS inspired by Carl Friedrik's quiet luxury aesthetic: warm neutrals, generous spacing, cognac accent, refined proportions. The design should feel like a premium leather portfolio — warm, tactile, confident without being loud.
 
-Reference mocks: `design-mocks/dashboard-carbon.html` (dark), `design-mocks/dashboard-carbon-light-sunrise.html` (light).
+Reference mocks:
+- **Dark**: `design-mocks/dashboard-friedrik-dark-b.html` (approved)
+- **Light**: `design-mocks/dashboard-friedrik.html` (approved)
+- **Page mocks**: `design-mocks/pages/*-dark.html` and `*-light.html` (all 6 pages)
 
 ### Departures from REDESIGN-BRIEF.md
 
@@ -46,51 +49,53 @@ All colors defined as CSS custom properties in `globals.css` using hex/rgba valu
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--bg-base` | `#09090b` | Page background |
-| `--bg-surface` | `#0f0f11` | Sidebar background |
-| `--bg-card` | `#141416` | Card backgrounds |
-| `--bg-elevated` | `#1a1a1d` | Hover states on cards |
+| `--bg-base` | `#0b0b0b` | Page background |
+| `--bg-surface` | `#101010` | Sidebar background |
+| `--bg-card` | `#171717` | Card backgrounds |
+| `--bg-elevated` | `#1e1e1e` | Hover states on cards |
 | `--border` | `rgba(255,255,255,0.06)` | Default borders |
-| `--border-hover` | `rgba(255,255,255,0.1)` | Hover borders |
-| `--text-primary` | `#fafafa` | Headings, merchant names, key data |
-| `--text-secondary` | `#a1a1aa` | Expense amounts, chart lines |
-| `--text-muted` | `#52525b` | Labels, dates, meta text |
-| `--accent` | `#6882a0` | Net Worth value, active nav indicator, income chart line |
-| `--accent-dim` | `rgba(104,130,160,0.1)` | Reserved for subtle accent backgrounds |
-| `--green` | `#4ade80` | Income amounts, positive changes |
-| `--red` | `#f87171` | Expense warnings, negative changes |
+| `--border-hover` | `rgba(255,255,255,0.10)` | Hover borders |
+| `--text-primary` | `#e8e4de` | Headings, merchant names (warm ivory, not pure white) |
+| `--text-secondary` | `#9a9690` | Expense amounts, secondary info |
+| `--text-muted` | `#6a6660` | Labels, dates, meta text |
+| `--accent` | `#9a7a58` | Cognac — Net Worth value, active nav indicator, chart income line |
+| `--green` | `#6a9a68` | Income amounts, positive changes (muted, earthy) |
+| `--red` | `#a06058` | Budget warnings >80%, negative change indicators (muted warm red) |
 
-**Light mode ("sunrise"):**
+**Light mode ("Friedrik Light"):**
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--bg-base` | `#f4f2f0` | Page background (warm off-white) |
-| `--bg-surface` | `#ece9e6` | Sidebar background |
-| `--bg-card` | `#fdfcfb` | Card backgrounds (near-cream) |
+| `--bg-base` | `#f5f3f0` | Page background (warm off-white) |
+| `--bg-surface` | `#ebe8e4` | Sidebar background |
+| `--bg-card` | `#ffffff` | Card backgrounds (white, lifts off warm base) |
 | `--bg-elevated` | `#efece9` | Hover states |
 | `--border` | `rgba(0,0,0,0.06)` | Default borders |
-| `--border-hover` | `rgba(0,0,0,0.11)` | Hover borders |
-| `--text-primary` | `#1a1a1e` | Headings, key data |
-| `--text-secondary` | `#52525b` | Secondary text, expense amounts |
-| `--text-muted` | `#a1a1aa` | Labels, meta text |
-| `--accent` | `#4a6a8a` | Net Worth, active nav, chart line |
-| `--green` | `#16a34a` | Income (deeper for light bg contrast) |
-| `--red` | `#dc2626` | Expenses/warnings (deeper for light bg contrast) |
+| `--border-hover` | `rgba(0,0,0,0.10)` | Hover borders |
+| `--text-primary` | `#2a2826` | Headings, key data (warm near-black) |
+| `--text-secondary` | `#6a6460` | Secondary text, expense amounts |
+| `--text-muted` | `#a8a098` | Labels, meta text |
+| `--accent` | `#8a6040` | Cognac — Net Worth, active nav, chart line |
+| `--green` | `#5a7a5a` | Income (muted forest green) |
+| `--red` | `#984a42` | Budget warnings (deeper for light bg contrast) |
 
 ### Color Usage Rules
 
-- **Accent color** is used in exactly 3 places: Net Worth metric value, active sidebar indicator, income line on cash flow chart. Nowhere else.
+- **Accent color (cognac)** is used in exactly 3 places: Net Worth metric value, active sidebar indicator, income line on cash flow chart. Nowhere else.
 - **Green** only for income amounts and positive change indicators.
-- **Red** only for budget warnings (>80% used) and negative change indicators. Expense amounts use `--text-secondary`, not red.
-- **No color tints** on backgrounds. All backgrounds are pure neutral (no blue, green, or warm cast in dark mode).
+- **Red** only for budget warnings (>80% used) and negative change indicators. Expense amounts use `--text-secondary`, not red. The red is muted/warm (#a06058 dark, #984a42 light) — it signals "careful" without screaming.
+- **No color tints** on backgrounds. Dark mode uses pure neutral blacks. Light mode uses warm off-white.
 - **No glow effects, no colored borders, no gradient backgrounds.**
+- **Warm text tones**: Text in both themes has a slight warm cast (#e8e4de not #fafafa, #2a2826 not #1a1a1e). This is the Carl Friedrik signature — warmth in the text, neutral in the backgrounds.
 
 ### Typography
 
 | Role | Font | Weight | Example sizes |
 |------|------|--------|---------------|
-| All UI text | Inter | 400, 500, 600, 700 | 11-20px |
-| Numbers/data | JetBrains Mono | 400, 500, 600 | 11-28px |
+| All UI text | Inter | 400, 500, 600 | 11-20px |
+| Numbers/data | JetBrains Mono | 400, 500 | 11-28px |
+
+Friedrik uses lighter font weights than typical dark UIs — 500 on metric values (not 600/700), 400 on body text. The refinement is in the restraint.
 
 - `font-variant-numeric: tabular-nums` on all monospace numbers for alignment.
 - `letter-spacing: -1px` on large metric values (28px+).
@@ -193,10 +198,11 @@ Old color names (`background`, `foreground`, `muted`, `card`, `card-foreground`)
 
 ### Page Shell
 
-- **Max-width**: 1200px
-- **Left-aligned** (not centered) when viewport exceeds max-width
-- **Padding**: 32px 40px
+- **Max-width**: 1200px (960px for Settings page)
+- **Centered** in remaining space after sidebar
+- **Padding**: 32px 48px (wider horizontal padding — Friedrik's generous spacing)
 - **Content grid**: 2 columns, `1.6fr 1fr`, 24px gap
+- **Card padding**: 28px (more generous than default)
 
 ### Sidebar
 
@@ -297,7 +303,7 @@ Old color names (`background`, `foreground`, `muted`, `card`, `card-foreground`)
 
 ## Page Guidelines
 
-The dashboard has a pixel-precise mock. Other pages follow the same design language without individual mocks — the Carbon tokens and components are the spec. General rules for all pages:
+The dashboard has a pixel-precise mock. Other pages follow the same design language without individual mocks — the Friedrik tokens and components are the spec. General rules for all pages:
 
 ### Transactions Page
 
@@ -314,7 +320,7 @@ The dashboard has a pixel-precise mock. Other pages follow the same design langu
 
 ### Analytics, Reports, Goals
 
-- Apply Carbon tokens to existing layouts
+- Apply Friedrik tokens to existing layouts
 - Charts follow the Recharts spec above
 - Cards follow the Content Card spec
 
@@ -341,9 +347,9 @@ The dashboard has a pixel-precise mock. Other pages follow the same design langu
 
 ## Animation
 
-- **Page load**: fade-in (0.4s ease) with 50ms stagger on metric cards
-- **Card hover**: background color transition (0.15s) only. No scale, no shadow change, no glow.
-- **Sparklines**: 40% opacity default, 80% on card hover
+- **Page load**: fade-in (0.5s ease) with subtle translateY(4px), 80ms stagger on metric cards. Slower and more graceful than typical.
+- **Card hover**: background/border color transition (0.25s ease). No scale, no shadow change, no glow.
+- **Sparklines**: 55% opacity default, 1.5px stroke width. Visible but not dominant.
 - **No page transitions** (keep navigation instant)
 - **No count-up animations on numbers** (data appears immediately)
 
@@ -410,8 +416,11 @@ Priority order:
 
 | File | Purpose |
 |------|---------|
-| `design-mocks/dashboard-carbon.html` | Approved dark mode dashboard mock |
-| `design-mocks/dashboard-carbon-light-sunrise.html` | Approved light mode dashboard mock |
+| `design-mocks/dashboard-friedrik-dark-b.html` | Approved dark mode dashboard mock |
+| `design-mocks/dashboard-friedrik.html` | Approved light mode dashboard mock |
+| `design-mocks/pages/*-dark.html` | Approved dark mode page mocks (analytics, transactions, reports, goals, settings) |
+| `design-mocks/pages/*-light.html` | Approved light mode page mocks |
+| `docs/superpowers/specs/2026-03-21-page-feature-inventory.md` | Exhaustive feature checklist — ensure nothing is lost |
 | `src/lib/design-system.ts` | Design token source (expand, don't replace) |
 | `src/app/globals.css` | CSS variable definitions |
 | `tailwind.config.js` | Tailwind theme extension |
