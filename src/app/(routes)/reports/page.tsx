@@ -147,6 +147,10 @@ function ReportsContent() {
 
   return (
     <div className="space-y-6">
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Reports</h1>
+      </div>
+
       {/* Tab Navigation */}
       <div className="flex items-center gap-6 text-sm font-medium mb-8 border-b border-[var(--border)] pb-2">
         {reportTabs.map((t) => (

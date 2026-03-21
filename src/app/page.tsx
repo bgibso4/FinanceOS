@@ -170,6 +170,10 @@ function DashboardPageContent() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Dashboard</h1>
+      </div>
+
       {/* Net Worth Card */}
       {balanceData && (
         <Card>
