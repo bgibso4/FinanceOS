@@ -52,9 +52,9 @@ export const tagColorMap: Record<string, { bg: string; text: string; border: str
     border: 'border-teal-200 dark:border-teal-500/30',
   },
   gray: {
-    bg: 'bg-slate-100 dark:bg-slate-500/20',
-    text: 'text-slate-700 dark:text-slate-300',
-    border: 'border-slate-200 dark:border-slate-500/30',
+    bg: 'bg-[var(--bg-elevated)]',
+    text: 'text-[var(--text-secondary)]',
+    border: 'border-[var(--border)]',
   },
 };
 
@@ -160,7 +160,7 @@ export function TagInput({
       {/* Pills + Input Row */}
       <div
         className={cn(
-          'flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5',
+          'flex flex-wrap items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-2 py-1.5',
           size === 'sm' ? 'min-h-[32px]' : 'min-h-[38px]'
         )}
         onClick={() => inputRef.current?.focus()}
@@ -202,7 +202,7 @@ export function TagInput({
         <input
           ref={inputRef}
           className={cn(
-            'flex-1 min-w-[80px] bg-transparent outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400',
+            'flex-1 min-w-[80px] bg-transparent outline-none text-[var(--text-primary)] placeholder:text-[var(--text-muted)]',
             size === 'sm' ? 'text-xs' : 'text-sm'
           )}
           placeholder={value.length > 0 ? 'Add tag...' : 'Type to add tags...'}
@@ -219,7 +219,7 @@ export function TagInput({
 
       {/* Autocomplete Dropdown */}
       {isOpen && totalItems > 0 && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg max-h-48 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] shadow-lg max-h-48 overflow-y-auto">
           {filtered.map((tag, i) => {
             const colors = getTagColors(tag.color);
             return (
@@ -227,9 +227,7 @@ export function TagInput({
                 key={tag.id}
                 className={cn(
                   'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors',
-                  i === highlightIndex
-                    ? 'bg-slate-100 dark:bg-slate-700'
-                    : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                  i === highlightIndex ? 'bg-[var(--bg-elevated)]' : 'hover:bg-[var(--bg-base)]'
                 )}
                 type="button"
                 onClick={() => addTag(tag.name)}
@@ -238,24 +236,24 @@ export function TagInput({
                 <span
                   className={cn('w-2.5 h-2.5 rounded-full', colors.bg, 'border', colors.border)}
                 />
-                <span className="text-slate-900 dark:text-slate-100">{tag.name}</span>
+                <span className="text-[var(--text-primary)]">{tag.name}</span>
               </button>
             );
           })}
           {showCreate && (
             <button
               className={cn(
-                'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors border-t border-slate-200 dark:border-slate-700',
+                'w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors border-t border-[var(--border)]',
                 highlightIndex === filtered.length
-                  ? 'bg-slate-100 dark:bg-slate-700'
-                  : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                  ? 'bg-[var(--bg-elevated)]'
+                  : 'hover:bg-[var(--bg-base)]'
               )}
               type="button"
               onClick={handleCreateTag}
               onMouseEnter={() => setHighlightIndex(filtered.length)}
             >
-              <span className="text-blue-600 dark:text-blue-400">+</span>
-              <span className="text-slate-700 dark:text-slate-300">
+              <span className="text-[var(--accent)]">+</span>
+              <span className="text-[var(--text-secondary)]">
                 Create &ldquo;{inputValue.trim()}&rdquo;
               </span>
             </button>

@@ -191,7 +191,7 @@ function SortableRuleCard({
                 <div className="truncate">✏️ Rename to &quot;{rule.renameTo}&quot;</div>
               )}
               {!category && !rule.renameTo && (
-                <div className="truncate text-red-500">⚠️ No action configured</div>
+                <div className="truncate text-[var(--red)]">⚠️ No action configured</div>
               )}
             </div>
           </div>
@@ -822,7 +822,7 @@ export function RulesTab({ rules, categories, accounts, onRefresh, onSync }: Rul
                 Disable
               </Button>
               <Button
-                className="text-xs px-3 py-1.5 bg-red-600 text-white hover:bg-red-700"
+                className="text-xs px-3 py-1.5 bg-[var(--red)] text-white hover:opacity-90"
                 onClick={() => bulkAction('delete')}
               >
                 Delete
@@ -1021,7 +1021,7 @@ export function RulesTab({ rules, categories, accounts, onRefresh, onSync }: Rul
             <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
               <h4 className={`font-semibold ${ds.status.error.text} mb-3`}>Delete Rule</h4>
               <Button
-                className="w-full bg-red-600 text-white hover:bg-red-700 py-3"
+                className="w-full bg-[var(--red)] text-white hover:opacity-90 py-3"
                 onClick={deleteRule}
               >
                 Delete Rule
@@ -1083,7 +1083,7 @@ export function RulesTab({ rules, categories, accounts, onRefresh, onSync }: Rul
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
-                      className="text-xs px-3 py-1 bg-green-600 hover:bg-green-700 text-white"
+                      className="text-xs px-3 py-1 bg-[var(--green)] hover:opacity-90 text-white"
                       onClick={() => acceptSuggestion(s)}
                     >
                       Accept

@@ -151,7 +151,7 @@ export function ChartRenderer({ spec }: Props) {
     return (
       <Card>
         <CardHeader>
-          <div className="text-sm font-semibold text-slate-800">{spec.title}</div>
+          <div className="text-sm font-semibold text-[var(--text-primary)]">{spec.title}</div>
         </CardHeader>
         <CardContent className="h-64">{chartContent}</CardContent>
       </Card>

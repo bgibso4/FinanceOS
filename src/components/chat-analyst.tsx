@@ -230,7 +230,7 @@ export function ChatAnalyst({ open, onClose }: Props) {
 
           {/* Input area */}
           <form
-            className="flex gap-2 border-t border-slate-200 pt-3 dark:border-slate-700"
+            className="flex gap-2 border-t border-[var(--border)] pt-3"
             id="chat-form"
             onSubmit={handleSubmit}
           >

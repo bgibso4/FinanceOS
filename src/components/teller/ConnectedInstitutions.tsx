@@ -73,20 +73,20 @@ type PlaidEnrollment = {
 function StatusBadge({ status }: { status: string }) {
   if (status === 'connected') {
     return (
-      <span className="text-xs px-2 py-0.5 rounded bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+      <span className="text-xs px-2 py-0.5 rounded bg-[var(--green)]/15 text-[var(--green)]">
         Connected
       </span>
     );
   }
   if (status === 'disconnected' || status === 'needs_reauth' || status === 'error') {
     return (
-      <span className="text-xs px-2 py-0.5 rounded bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200">
+      <span className="text-xs px-2 py-0.5 rounded bg-[var(--red)]/15 text-[var(--red)]">
         Needs Reconnection
       </span>
     );
   }
   return (
-    <span className="text-xs px-2 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200">
+    <span className="text-xs px-2 py-0.5 rounded bg-[var(--yellow)]/15 text-[var(--yellow)]">
       {status}
     </span>
   );
@@ -301,7 +301,7 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                         <h4 className={`font-semibold ${ds.text.primary}`}>
                           {enrollment.institutionName}
                         </h4>
-                        <span className="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                        <span className="text-xs px-2 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-muted)]">
                           Teller
                         </span>
                         <StatusBadge status={enrollment.status} />
@@ -309,9 +309,7 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                       <p className={`text-sm ${ds.text.muted} mt-1`}>
                         {linkedCount} of {totalCount} accounts linked
                         {enrollment.status === 'disconnected' && (
-                          <span className="text-red-600 dark:text-red-400 ml-2">
-                            • Authorization expired
-                          </span>
+                          <span className="text-[var(--red)] ml-2">• Authorization expired</span>
                         )}
                       </p>
                     </div>
@@ -366,7 +364,7 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                                     )}
                                   </div>
                                   {isLinked && (
-                                    <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                                    <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">
                                       Linked
                                     </span>
                                   )}
@@ -395,7 +393,7 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                                       Linked to: {conn.account.name}
                                     </p>
                                   </div>
-                                  <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                                  <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">
                                     Linked
                                   </span>
                                 </div>
@@ -456,7 +454,7 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                         <h4 className={`font-semibold ${ds.text.primary}`}>
                           {enrollment.institutionName}
                         </h4>
-                        <span className="text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300">
+                        <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">
                           Plaid
                         </span>
                         <StatusBadge status={enrollment.status} />
@@ -465,9 +463,7 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                         {linkedCount} of {linkedCount + availableCount} accounts linked
                         {(enrollment.status === 'error' ||
                           enrollment.status === 'needs_reauth') && (
-                          <span className="text-red-600 dark:text-red-400 ml-2">
-                            • Authorization expired
-                          </span>
+                          <span className="text-[var(--red)] ml-2">• Authorization expired</span>
                         )}
                       </p>
                     </div>
@@ -530,7 +526,7 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                                     Linked to: {conn.account.name}
                                   </p>
                                 </div>
-                                <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                                <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">
                                   Linked
                                 </span>
                               </div>

@@ -373,7 +373,7 @@ function ForecastChart({
       </svg>
       <div className="flex items-center justify-center gap-4 mt-1">
         <div className="flex items-center gap-1">
-          <div className="w-3 h-0.5 bg-blue-500 rounded" />
+          <div className="w-3 h-0.5 bg-[var(--accent)] rounded" />
           <span className={`text-[10px] ${ds.text.muted}`}>Historical</span>
         </div>
         <div className="flex items-center gap-1">
@@ -457,11 +457,13 @@ function NetWorthTrendChart({ snapshots }: { snapshots: NetWorthSnapshot[] }) {
         />
       </svg>
       <div className="text-right shrink-0">
-        <div className={`text-sm font-semibold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+        <div
+          className={`text-sm font-semibold ${isPositive ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
+        >
           {isPositive ? '+' : ''}
           {formatCurrency(change)}
         </div>
-        <div className={`text-xs ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+        <div className={`text-xs ${isPositive ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}>
           {formatPercent(changePercent)}
         </div>
         <div className={`text-xs ${ds.text.muted}`}>
@@ -485,7 +487,7 @@ function BreakdownBarChart({
   return (
     <div className="space-y-2">
       {/* Stacked bar */}
-      <div className="h-3 rounded-full overflow-hidden flex bg-slate-200 dark:bg-slate-700">
+      <div className="h-3 rounded-full overflow-hidden flex bg-[var(--bg-elevated)]">
         {groups.map((group, i) => {
           const percentage = (group.total / total) * 100;
           if (percentage < 1) return null;
@@ -746,7 +748,7 @@ export function NetWorthSnapshots() {
               )}
               {snapshots.length >= 2 && (
                 <Button
-                  className={compareMode ? 'bg-purple-600 hover:bg-purple-700 text-white' : ''}
+                  className={compareMode ? 'bg-[var(--accent)] hover:opacity-90 text-white' : ''}
                   variant={compareMode ? 'primary' : 'outline'}
                   onClick={() => {
                     setCompareMode(!compareMode);
@@ -760,7 +762,7 @@ export function NetWorthSnapshots() {
                 Backfill Historical
               </Button>
               <Button
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-[var(--accent)] hover:opacity-90 text-white"
                 onClick={() => setCaptureModalOpen(true)}
               >
                 Capture Snapshot
@@ -784,7 +786,7 @@ export function NetWorthSnapshots() {
                   </div>
                   <div className="flex items-baseline gap-3">
                     <div
-                      className={`text-4xl font-bold ${latestSnapshot.netWorth >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                      className={`text-4xl font-bold font-mono ${latestSnapshot.netWorth >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                     >
                       {formatCurrency(
                         showInflationAdjusted && adjustedSnapshots
@@ -795,7 +797,7 @@ export function NetWorthSnapshots() {
                     {netWorthChange !== null && (
                       <div className="flex items-center gap-1">
                         <span
-                          className={`text-sm font-medium ${netWorthChange >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                          className={`text-sm font-medium ${netWorthChange >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                         >
                           {netWorthChange >= 0 ? '↑' : '↓'}{' '}
                           {formatCurrency(Math.abs(netWorthChange))}
@@ -832,7 +834,7 @@ export function NetWorthSnapshots() {
                     <div className={`text-xs ${ds.text.muted} uppercase tracking-wide`}>
                       Total Assets
                     </div>
-                    <div className="text-xl font-bold text-green-600">
+                    <div className="text-xl font-bold text-[var(--green)]">
                       {formatCurrency(latestSnapshot.totalAssets)}
                     </div>
                   </div>
@@ -853,7 +855,7 @@ export function NetWorthSnapshots() {
                     <div className={`text-xs ${ds.text.muted} uppercase tracking-wide`}>
                       Total Liabilities
                     </div>
-                    <div className="text-xl font-bold text-red-600">
+                    <div className="text-xl font-bold text-[var(--red)]">
                       {formatCurrency(latestSnapshot.totalLiabilities)}
                     </div>
                   </div>
@@ -928,7 +930,7 @@ export function NetWorthSnapshots() {
                         {formatCurrency(p.projectedNetWorth)}
                       </div>
                       <div
-                        className={`text-xs font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}
+                        className={`text-xs font-medium ${isPositive ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                       >
                         {isPositive ? '+' : ''}
                         {formatCurrency(projectedChange)}
@@ -967,7 +969,7 @@ export function NetWorthSnapshots() {
               <div className={`text-sm font-semibold ${ds.text.primary}`}>Snapshot History</div>
               {compareMode && compareSelection.length === 2 && (
                 <Button
-                  className="bg-purple-600 hover:bg-purple-700 text-white shrink-0"
+                  className="bg-[var(--accent)] hover:opacity-90 text-white shrink-0"
                   onClick={runComparison}
                 >
                   Compare Selected
@@ -1026,7 +1028,7 @@ export function NetWorthSnapshots() {
                       return (
                         <tr
                           key={snapshot.id}
-                          className={`hover:${ds.bg.secondary} ${isSelected ? 'bg-purple-50 dark:bg-purple-900/20' : ''}`}
+                          className={`hover:${ds.bg.secondary} ${isSelected ? 'bg-[var(--accent)]/10' : ''}`}
                         >
                           {compareMode && (
                             <td className="px-3 py-2">
@@ -1046,13 +1048,13 @@ export function NetWorthSnapshots() {
                           </td>
                           <td className="px-3 py-2 text-right">
                             <span
-                              className={`font-semibold ${snapshot.netWorth >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                              className={`font-semibold ${snapshot.netWorth >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                             >
                               {formatCurrency(snapshot.netWorth)}
                             </span>
                             {change !== null && (
                               <span
-                                className={`ml-2 text-xs ${change >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                                className={`ml-2 text-xs ${change >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                               >
                                 {change >= 0 ? '+' : ''}
                                 {formatCurrency(change)}
@@ -1066,10 +1068,10 @@ export function NetWorthSnapshots() {
                               </span>
                             </td>
                           )}
-                          <td className="px-3 py-2 text-right text-green-600">
+                          <td className="px-3 py-2 text-right text-[var(--green)]">
                             {formatCurrency(snapshot.totalAssets)}
                           </td>
-                          <td className="px-3 py-2 text-right text-red-600">
+                          <td className="px-3 py-2 text-right text-[var(--red)]">
                             {formatCurrency(snapshot.totalLiabilities)}
                           </td>
                           <td className="px-3 py-2 text-right">
@@ -1129,7 +1131,7 @@ export function NetWorthSnapshots() {
               Cancel
             </Button>
             <Button
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-[var(--accent)] hover:opacity-90 text-white"
               disabled={capturing}
               onClick={captureSnapshot}
             >
@@ -1149,7 +1151,7 @@ export function NetWorthSnapshots() {
           <div className="space-y-5">
             <div className="flex justify-end">
               <button
-                className="text-red-600 hover:text-red-700 text-sm"
+                className="text-[var(--red)] hover:opacity-80 text-sm"
                 onClick={() => deleteSnapshot(selectedSnapshot.id)}
               >
                 Delete Snapshot
@@ -1161,20 +1163,20 @@ export function NetWorthSnapshots() {
               <div className={`p-4 rounded-lg ${ds.bg.secondary} border-l-4 border-l-blue-500`}>
                 <div className={`text-xs ${ds.text.muted} uppercase`}>Net Worth</div>
                 <div
-                  className={`text-2xl font-bold ${selectedSnapshot.netWorth >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                  className={`text-2xl font-bold font-mono ${selectedSnapshot.netWorth >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                 >
                   {formatCurrency(selectedSnapshot.netWorth)}
                 </div>
               </div>
               <div className={`p-4 rounded-lg ${ds.bg.secondary} border-l-4 border-l-green-500`}>
                 <div className={`text-xs ${ds.text.muted} uppercase`}>Total Assets</div>
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-2xl font-bold font-mono text-[var(--green)]">
                   {formatCurrency(selectedSnapshot.totalAssets)}
                 </div>
               </div>
               <div className={`p-4 rounded-lg ${ds.bg.secondary} border-l-4 border-l-red-500`}>
                 <div className={`text-xs ${ds.text.muted} uppercase`}>Total Liabilities</div>
-                <div className="text-2xl font-bold text-red-600">
+                <div className="text-2xl font-bold font-mono text-[var(--red)]">
                   {formatCurrency(selectedSnapshot.totalLiabilities)}
                 </div>
               </div>
@@ -1192,7 +1194,7 @@ export function NetWorthSnapshots() {
               <div
                 className={`text-sm font-semibold ${ds.text.primary} mb-3 flex items-center gap-2`}
               >
-                <span className="w-2 h-2 rounded-full bg-green-500" />
+                <span className="w-2 h-2 rounded-full bg-[var(--green)]" />
                 Assets Breakdown
               </div>
               <div className="space-y-4 max-h-[250px] overflow-y-auto pr-1">
@@ -1209,7 +1211,7 @@ export function NetWorthSnapshots() {
                             {group.label}
                           </span>
                         </div>
-                        <span className="text-sm font-semibold text-green-600">
+                        <span className="text-sm font-semibold text-[var(--green)]">
                           {formatCurrency(group.total)}
                         </span>
                       </div>
@@ -1225,7 +1227,7 @@ export function NetWorthSnapshots() {
                                 <div className={`text-xs ${ds.text.muted}`}>{acc.currency}</div>
                               )}
                             </div>
-                            <div className="text-sm font-medium text-green-600">
+                            <div className="text-sm font-medium text-[var(--green)]">
                               {formatCurrency(acc.balance)}
                             </div>
                           </div>
@@ -1246,7 +1248,7 @@ export function NetWorthSnapshots() {
               <div
                 className={`text-sm font-semibold ${ds.text.primary} mb-3 flex items-center gap-2`}
               >
-                <span className="w-2 h-2 rounded-full bg-red-500" />
+                <span className="w-2 h-2 rounded-full bg-[var(--red)]" />
                 Liabilities Breakdown
               </div>
               <div className="space-y-4 max-h-[200px] overflow-y-auto pr-1">
@@ -1263,7 +1265,7 @@ export function NetWorthSnapshots() {
                             {group.label}
                           </span>
                         </div>
-                        <span className="text-sm font-semibold text-red-600">
+                        <span className="text-sm font-semibold text-[var(--red)]">
                           {formatCurrency(group.total)}
                         </span>
                       </div>
@@ -1279,7 +1281,7 @@ export function NetWorthSnapshots() {
                                 <div className={`text-xs ${ds.text.muted}`}>{acc.currency}</div>
                               )}
                             </div>
-                            <div className="text-sm font-medium text-red-600">
+                            <div className="text-sm font-medium text-[var(--red)]">
                               {formatCurrency(Math.abs(acc.balance))}
                             </div>
                           </div>
@@ -1326,13 +1328,13 @@ export function NetWorthSnapshots() {
               >
                 <div className={`text-xs ${ds.text.muted}`}>Change</div>
                 <div
-                  className={`text-lg font-bold ${comparison.comparison.netWorthChange >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                  className={`text-lg font-bold ${comparison.comparison.netWorthChange >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                 >
                   {comparison.comparison.netWorthChange >= 0 ? '+' : ''}
                   {formatCurrency(comparison.comparison.netWorthChange)}
                 </div>
                 <div
-                  className={`text-sm ${comparison.comparison.netWorthChangePercent >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                  className={`text-sm ${comparison.comparison.netWorthChangePercent >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                 >
                   {formatPercent(comparison.comparison.netWorthChangePercent)}
                 </div>
@@ -1351,7 +1353,7 @@ export function NetWorthSnapshots() {
               <div className={`p-3 rounded-lg ${ds.bg.secondary}`}>
                 <div className={`text-xs ${ds.text.muted} uppercase`}>Assets Change</div>
                 <div
-                  className={`text-lg font-bold ${comparison.comparison.assetsChange >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                  className={`text-lg font-bold ${comparison.comparison.assetsChange >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                 >
                   {comparison.comparison.assetsChange >= 0 ? '+' : ''}
                   {formatCurrency(comparison.comparison.assetsChange)}
@@ -1363,7 +1365,7 @@ export function NetWorthSnapshots() {
               <div className={`p-3 rounded-lg ${ds.bg.secondary}`}>
                 <div className={`text-xs ${ds.text.muted} uppercase`}>Liabilities Change</div>
                 <div
-                  className={`text-lg font-bold ${comparison.comparison.liabilitiesChange <= 0 ? 'text-green-600' : 'text-red-600'}`}
+                  className={`text-lg font-bold ${comparison.comparison.liabilitiesChange <= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                 >
                   {comparison.comparison.liabilitiesChange >= 0 ? '+' : ''}
                   {formatCurrency(comparison.comparison.liabilitiesChange)}
@@ -1390,7 +1392,7 @@ export function NetWorthSnapshots() {
                     </div>
                     <div className="text-right">
                       <div
-                        className={`font-semibold ${acc.change >= 0 ? 'text-green-600' : 'text-red-600'}`}
+                        className={`font-semibold ${acc.change >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                       >
                         {acc.change >= 0 ? '+' : ''}
                         {formatCurrency(acc.change)}
@@ -1427,7 +1429,7 @@ export function NetWorthSnapshots() {
 
           <div>
             <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-              Date <span className="text-red-500">*</span>
+              Date <span className="text-[var(--red)]">*</span>
             </label>
             <Input
               type="date"
@@ -1438,7 +1440,7 @@ export function NetWorthSnapshots() {
 
           <div>
             <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-              Net Worth <span className="text-red-500">*</span>
+              Net Worth <span className="text-[var(--red)]">*</span>
             </label>
             <Input
               placeholder="e.g., 50000 or -5000"
@@ -1510,7 +1512,7 @@ export function NetWorthSnapshots() {
               Cancel
             </Button>
             <Button
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-[var(--accent)] hover:opacity-90 text-white"
               disabled={backfillSaving || !backfillForm.date || !backfillForm.netWorth}
               onClick={saveBackfillSnapshot}
             >
