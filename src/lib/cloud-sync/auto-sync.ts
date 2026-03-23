@@ -3,6 +3,7 @@
  *
  * Manages automatic synchronization with debouncing, retries, and state management.
  * Uses a singleton pattern to ensure only one sync manager exists.
+ * Encryption key is read from SYNC_ENCRYPTION_KEY env var server-side.
  */
 
 import { exportDatabase, importDatabase } from './sync';
@@ -31,7 +32,6 @@ class SyncManager {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private retryCount = 0;
   private isSyncing = false;
-  private passphrase: string | null = null;
 
   private listeners: Map<SyncEventType, Set<SyncEventListener>> = new Map();
 
@@ -127,13 +127,11 @@ class SyncManager {
   /**
    * Initialize sync for the first time (creates new sync ID)
    */
-  async setup(passphrase: string): Promise<string> {
+  async setup(): Promise<string> {
     const syncId = crypto.randomUUID();
 
-    this.passphrase = passphrase;
     this.config = {
       syncId,
-      passphraseHash: await this.hashPassphrase(passphrase),
       lastSyncAt: null,
       deviceId: this.getDeviceId(),
       enabled: true,
@@ -151,22 +149,20 @@ class SyncManager {
   /**
    * Connect to existing sync (downloads and restores data)
    */
-  async connect(syncId: string, passphrase: string): Promise<{ restored: number }> {
+  async connect(syncId: string): Promise<{ restored: number }> {
     this.setStatus('syncing');
 
     try {
       // Download and decrypt
       const blob = await downloadBlob(syncId);
-      const payload = await decrypt(blob, passphrase);
+      const payload = await decrypt(blob);
 
       // Import into database
       await importDatabase(payload);
 
       // Save config
-      this.passphrase = passphrase;
       this.config = {
         syncId,
-        passphraseHash: await this.hashPassphrase(passphrase),
         lastSyncAt: new Date().toISOString(),
         deviceId: this.getDeviceId(),
         enabled: true,
@@ -192,7 +188,6 @@ class SyncManager {
    */
   disable(): void {
     this.config = null;
-    this.passphrase = null;
     this.state = {
       status: 'disabled',
       lastSyncAt: null,
@@ -203,13 +198,6 @@ class SyncManager {
     this.emit('status-change', { status: 'disabled' });
   }
 
-  /**
-   * Set the passphrase (required for sync operations)
-   */
-  setPassphrase(passphrase: string): void {
-    this.passphrase = passphrase;
-  }
-
   // ============================================================================
   // Sync Operations
   // ============================================================================
@@ -218,7 +206,7 @@ class SyncManager {
    * Queue a sync operation (debounced)
    */
   queueSync(): void {
-    if (!this.isEnabled() || !this.passphrase) return;
+    if (!this.isEnabled()) return;
 
     this.state.pendingChanges++;
 
@@ -235,8 +223,8 @@ class SyncManager {
    * Force immediate sync
    */
   async syncNow(): Promise<void> {
-    if (!this.config?.syncId || !this.passphrase) {
-      throw new Error('Sync not configured or passphrase not set');
+    if (!this.config?.syncId) {
+      throw new Error('Sync not configured');
     }
 
     if (this.isSyncing) {
@@ -253,7 +241,7 @@ class SyncManager {
       const payload = await exportDatabase();
 
       // Encrypt
-      const blob = await encrypt(payload, this.passphrase);
+      const blob = await encrypt(payload);
 
       // Upload
       await uploadBlob(this.config.syncId, blob);
@@ -295,7 +283,7 @@ class SyncManager {
    * Check if cloud has newer data and pull if so
    */
   async checkForUpdates(): Promise<boolean> {
-    if (!this.config?.syncId || !this.passphrase) return false;
+    if (!this.config?.syncId) return false;
 
     try {
       const hasNewer = await isCloudNewer(this.config.syncId, this.config.lastSyncAt);
@@ -304,7 +292,7 @@ class SyncManager {
         this.setStatus('syncing');
 
         const blob = await downloadBlob(this.config.syncId);
-        const payload = await decrypt(blob, this.passphrase);
+        const payload = await decrypt(blob);
         await importDatabase(payload);
 
         this.config.lastSyncAt = new Date().toISOString();
@@ -352,14 +340,6 @@ class SyncManager {
     }
 
     return deviceId;
-  }
-
-  private async hashPassphrase(passphrase: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(`financeos-sync:${passphrase}`);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
   }
 }
 

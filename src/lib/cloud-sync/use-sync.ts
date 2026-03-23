@@ -3,8 +3,9 @@
 /**
  * React Hook for Cloud Sync
  *
- * Provides a hook for components to interact with the sync system
- * and trigger syncs after mutations.
+ * Provides a hook for components to interact with the sync system.
+ * Encryption is handled server-side via SYNC_ENCRYPTION_KEY env var,
+ * so no passphrase management is needed on the client.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -12,7 +13,6 @@ import type { SyncState, SyncStatus } from './types';
 
 interface SyncConfig {
   syncId: string | null;
-  passphraseHash: string | null;
   lastSyncAt: string | null;
   deviceId: string;
   enabled: boolean;
@@ -28,33 +28,13 @@ interface UseSyncReturn {
 
   // Actions
   queueSync: () => void;
-  setup: (passphrase: string) => Promise<string>;
-  connect: (syncId: string, passphrase: string) => Promise<void>;
+  setup: () => Promise<string>;
+  connect: (syncId: string) => Promise<void>;
   disable: () => void;
-  setPassphrase: (passphrase: string) => void;
 }
 
 const STORAGE_KEY = 'financeos-sync-config';
 const DEVICE_ID_KEY = 'financeos-device-id';
-const SESSION_PASSPHRASE_KEY = 'financeos-sync-passphrase';
-
-// Store passphrase in sessionStorage (persists across page refreshes, cleared when browser closes)
-function storeSessionPassphrase(passphrase: string): void {
-  if (typeof window !== 'undefined') {
-    sessionStorage.setItem(SESSION_PASSPHRASE_KEY, passphrase);
-  }
-}
-
-function getSessionPassphrase(): string | null {
-  if (typeof window === 'undefined') return null;
-  return sessionStorage.getItem(SESSION_PASSPHRASE_KEY);
-}
-
-function clearSessionPassphrase(): void {
-  if (typeof window !== 'undefined') {
-    sessionStorage.removeItem(SESSION_PASSPHRASE_KEY);
-  }
-}
 
 function getDeviceId(): string {
   if (typeof window === 'undefined') return '';
@@ -90,7 +70,6 @@ function saveConfig(config: SyncConfig | null): void {
 
 // Debounce timer (module-level to persist across re-renders)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-let pendingPassphrase: string | null = null;
 
 export function useSync(): UseSyncReturn {
   const [config, setConfig] = useState<SyncConfig | null>(null);
@@ -104,80 +83,39 @@ export function useSync(): UseSyncReturn {
   // Load config on mount
   useEffect(() => {
     const loaded = loadConfig();
-    const sessionPassphrase = getSessionPassphrase();
-
-    console.warn('[CloudSync] Config loaded on mount:', {
-      enabled: loaded?.enabled,
-      hasSyncId: !!loaded?.syncId,
-      hasSessionPassphrase: !!sessionPassphrase,
-    });
-
     setConfig(loaded);
 
     if (loaded?.enabled) {
-      if (sessionPassphrase) {
-        pendingPassphrase = sessionPassphrase;
-        console.warn('[CloudSync] Passphrase restored from session, auto-sync ready');
-      } else {
-        console.warn('[CloudSync] Sync enabled but no session passphrase (new browser session)');
-      }
       setState((s) => ({ ...s, status: 'synced', lastSyncAt: loaded.lastSyncAt }));
     }
   }, []);
 
-  // Set passphrase for sync operations
-  const setPassphrase = useCallback((passphrase: string) => {
-    console.warn('[CloudSync] setPassphrase() called, storing in session');
-    pendingPassphrase = passphrase;
-    storeSessionPassphrase(passphrase);
-  }, []);
-
   // Queue a sync (debounced)
   const queueSync = useCallback(() => {
-    console.warn('[CloudSync] queueSync() called', {
-      configEnabled: config?.enabled,
-      hasSyncId: !!config?.syncId,
-      hasPassphrase: !!pendingPassphrase,
-    });
-
-    if (!config?.enabled || !config?.syncId || !pendingPassphrase) {
-      console.warn('[CloudSync] queueSync() skipped - missing requirements', {
-        enabled: config?.enabled,
-        syncId: config?.syncId,
-        passphrase: pendingPassphrase ? '[set]' : '[not set]',
-      });
+    if (!config?.enabled || !config?.syncId) {
       return;
     }
 
     if (debounceTimer) {
-      console.warn('[CloudSync] Clearing existing debounce timer');
       clearTimeout(debounceTimer);
     }
 
-    console.warn('[CloudSync] Setting 2s debounce timer for sync');
     debounceTimer = setTimeout(async () => {
-      console.warn('[CloudSync] Debounce complete, starting sync...');
       setState((s) => ({ ...s, status: 'syncing' }));
 
       try {
-        console.warn('[CloudSync] Calling /api/sync/push...');
         const response = await fetch('/api/sync/push', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            syncId: config.syncId,
-            passphrase: pendingPassphrase,
-          }),
+          body: JSON.stringify({ syncId: config.syncId }),
         });
 
         if (!response.ok) {
           const error = await response.json();
-          console.error('[CloudSync] Push failed:', error);
           throw new Error(error.error || 'Sync failed');
         }
 
         const result = await response.json();
-        console.warn('[CloudSync] Push successful!', result);
 
         const updatedConfig = {
           ...config,
@@ -206,26 +144,23 @@ export function useSync(): UseSyncReturn {
   // Listen for sync trigger events from anywhere in the app
   useEffect(() => {
     const handleSyncTrigger = () => {
-      console.warn('[CloudSync] Event received, calling queueSync()');
       queueSync();
     };
 
-    console.warn('[CloudSync] Setting up event listener for financeos-sync-trigger');
     window.addEventListener('financeos-sync-trigger', handleSyncTrigger);
     return () => {
-      console.warn('[CloudSync] Removing event listener');
       window.removeEventListener('financeos-sync-trigger', handleSyncTrigger);
     };
   }, [queueSync]);
 
   // Setup new sync
-  const setup = useCallback(async (passphrase: string): Promise<string> => {
+  const setup = useCallback(async (): Promise<string> => {
     setState((s) => ({ ...s, status: 'syncing' }));
 
     const response = await fetch('/api/sync/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ passphrase }),
+      body: JSON.stringify({}),
     });
 
     if (!response.ok) {
@@ -238,7 +173,6 @@ export function useSync(): UseSyncReturn {
 
     const newConfig: SyncConfig = {
       syncId: result.syncId,
-      passphraseHash: result.passphraseHash,
       lastSyncAt: result.setupAt,
       deviceId: getDeviceId(),
       enabled: true,
@@ -246,9 +180,6 @@ export function useSync(): UseSyncReturn {
 
     setConfig(newConfig);
     saveConfig(newConfig);
-    pendingPassphrase = passphrase;
-    storeSessionPassphrase(passphrase);
-    console.warn('[CloudSync] Setup complete, passphrase stored in session for auto-sync');
 
     setState({
       status: 'synced',
@@ -261,13 +192,13 @@ export function useSync(): UseSyncReturn {
   }, []);
 
   // Connect to existing sync
-  const connect = useCallback(async (syncId: string, passphrase: string): Promise<void> => {
+  const connect = useCallback(async (syncId: string): Promise<void> => {
     setState((s) => ({ ...s, status: 'syncing' }));
 
     const response = await fetch('/api/sync/connect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ syncId, passphrase }),
+      body: JSON.stringify({ syncId }),
     });
 
     if (!response.ok) {
@@ -280,7 +211,6 @@ export function useSync(): UseSyncReturn {
 
     const newConfig: SyncConfig = {
       syncId,
-      passphraseHash: result.passphraseHash,
       lastSyncAt: result.connectedAt,
       deviceId: getDeviceId(),
       enabled: true,
@@ -288,9 +218,6 @@ export function useSync(): UseSyncReturn {
 
     setConfig(newConfig);
     saveConfig(newConfig);
-    pendingPassphrase = passphrase;
-    storeSessionPassphrase(passphrase);
-    console.warn('[CloudSync] Connect complete, passphrase stored in session for auto-sync');
 
     setState({
       status: 'synced',
@@ -306,8 +233,6 @@ export function useSync(): UseSyncReturn {
 
     setConfig(null);
     saveConfig(null);
-    pendingPassphrase = null;
-    clearSessionPassphrase();
 
     setState({
       status: 'disabled',
@@ -327,7 +252,6 @@ export function useSync(): UseSyncReturn {
     setup,
     connect,
     disable,
-    setPassphrase,
   };
 }
 
@@ -338,7 +262,6 @@ export function useSync(): UseSyncReturn {
 export function triggerSync(): void {
   // Dispatch a custom event that the sync hook can listen to
   if (typeof window !== 'undefined') {
-    console.warn('[CloudSync] triggerSync() called, dispatching event');
     window.dispatchEvent(new CustomEvent('financeos-sync-trigger'));
   }
 }

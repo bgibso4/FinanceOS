@@ -229,7 +229,6 @@ export type SyncPayload = z.infer<typeof SyncPayloadSchema>;
 
 export interface SyncConfig {
   syncId: string | null;
-  passphraseHash: string | null;
   lastSyncAt: string | null; // ISO 8601
   deviceId: string;
   enabled: boolean;
@@ -248,9 +247,7 @@ export interface SyncState {
 // API Types
 // ============================================================================
 
-export interface SyncSetupRequest {
-  passphrase: string;
-}
+export type SyncSetupRequest = Record<string, never>;
 
 export interface SyncSetupResponse {
   syncId: string;
@@ -259,7 +256,6 @@ export interface SyncSetupResponse {
 
 export interface SyncConnectRequest {
   syncId: string;
-  passphrase: string;
 }
 
 export interface SyncConnectResponse {

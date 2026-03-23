@@ -4,19 +4,25 @@ import { exportDatabase, encrypt, uploadBlob, getRecordCounts } from '@/lib/clou
 
 const PushRequestSchema = z.object({
   syncId: z.string().uuid('Invalid sync ID format'),
-  passphrase: z.string().min(1, 'Passphrase is required'),
 });
 
 export async function POST(request: NextRequest) {
   try {
+    if (!process.env.SYNC_ENCRYPTION_KEY) {
+      return NextResponse.json(
+        { error: 'SYNC_ENCRYPTION_KEY not configured on server' },
+        { status: 500 }
+      );
+    }
+
     const body = await request.json();
-    const { syncId, passphrase } = PushRequestSchema.parse(body);
+    const { syncId } = PushRequestSchema.parse(body);
 
     // Export database
     const payload = await exportDatabase();
 
     // Encrypt
-    const blob = await encrypt(payload, passphrase);
+    const blob = await encrypt(payload);
 
     // Upload to R2
     const result = await uploadBlob(syncId, blob);
