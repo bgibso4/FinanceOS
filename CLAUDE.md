@@ -137,18 +137,21 @@ Uses `.env` with `DATABASE_URL` for Prisma.
 Required for cloud sync:
 
 ```
-NEXT_PUBLIC_SYNC_WORKER_URL=https://financeos-sync.financeos.workers.dev
+NEXT_PUBLIC_SYNC_WORKER_URL=https://financeos-sync.bgibso4.workers.dev
+SYNC_ENCRYPTION_KEY=<base64-encoded 256-bit key>
 ```
+
+Generate an encryption key with: `npx tsx scripts/generate-sync-key.ts`
 
 ## Cloud Sync
 
-End-to-end encrypted sync using Cloudflare R2. Data is encrypted client-side with AES-256-GCM before upload.
+End-to-end encrypted sync using Cloudflare R2. Data is encrypted server-side with AES-256-GCM before upload.
 
 ### Architecture
 
 ```
 src/lib/cloud-sync/
-├── encryption.ts    # AES-256-GCM + PBKDF2 key derivation
+├── encryption.ts    # AES-256-GCM encryption with env var key
 ├── sync.ts          # Database export/import
 ├── r2-client.ts     # Cloudflare Worker API client
 ├── auto-sync.ts     # Debounced auto-sync (2s after writes)
@@ -162,17 +165,17 @@ workers/sync-api/    # Cloudflare Worker (separate tsconfig)
 
 ### Security Model
 
-- **Client-side encryption**: Data encrypted before leaving the browser
-- **PBKDF2 key derivation**: 100,000 iterations from user passphrase
+- **Server-side encryption**: Data encrypted with AES-256-GCM before upload
+- **Auto-generated key**: 256-bit key stored in `.env` (no passphrase to remember)
 - **Unguessable paths**: UUID v4 sync IDs (128-bit entropy)
 - **Zero-knowledge**: Cloudflare cannot read your data
 - **Bank tokens NOT synced**: Plaid/Teller credentials stay device-local
 
 ### User Flow
 
-1. **Setup**: User creates passphrase → generates Sync ID → initial push
+1. **Setup**: One-click enable → generates Sync ID → initial push
 2. **Auto-sync**: Every database write triggers sync after 2s debounce
-3. **Connect new device**: Enter Sync ID + passphrase → pull from cloud
+3. **Connect new device**: Copy Sync ID + `SYNC_ENCRYPTION_KEY` to new device's `.env` → pull from cloud
 
 ### Key APIs
 
@@ -219,7 +222,7 @@ resetPrismaClient();
 **Check if sync is working:**
 
 ```bash
-curl "https://financeos-sync.financeos.workers.dev/metadata?syncId=YOUR_SYNC_ID"
+curl "https://financeos-sync.bgibso4.workers.dev/metadata?syncId=YOUR_SYNC_ID"
 ```
 
 **Find Sync ID in browser:**
@@ -228,7 +231,7 @@ curl "https://financeos-sync.financeos.workers.dev/metadata?syncId=YOUR_SYNC_ID"
 localStorage.getItem('financeos-sync-id');
 ```
 
-**Forgot passphrase:** Data is unrecoverable. Disable sync and set up again with new passphrase (local data preserved).
+**Lost encryption key:** Cloud data is unrecoverable without the key. Disable sync and set up again with a new key (local data preserved).
 
 ## Code Quality & Linting
 

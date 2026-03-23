@@ -10,7 +10,6 @@ import { useSync } from '@/lib/cloud-sync';
 
 interface SyncConfig {
   syncId: string | null;
-  passphraseHash: string | null;
   lastSyncAt: string | null;
   deviceId: string;
   enabled: boolean;
@@ -31,7 +30,6 @@ interface SyncStatusData {
 }
 
 const STORAGE_KEY = 'financeos-sync-config';
-const SESSION_PASSPHRASE_KEY = 'financeos-sync-passphrase';
 
 function loadConfig(): SyncConfig | null {
   if (typeof window === 'undefined') return null;
@@ -52,13 +50,7 @@ function saveConfig(config: SyncConfig | null): void {
   }
 }
 
-function hasSessionPassphrase(): boolean {
-  if (typeof window === 'undefined') return false;
-  return !!sessionStorage.getItem(SESSION_PASSPHRASE_KEY);
-}
-
 export function SyncSettings() {
-  // Use the sync hook to set up event listener and manage passphrase
   const syncHook = useSync();
 
   const [config, setConfig] = useState<SyncConfig | null>(null);
@@ -67,34 +59,22 @@ export function SyncSettings() {
   const [error, setError] = useState<string | null>(null);
 
   // Setup form state
-  const [passphrase, setPassphrase] = useState('');
-  const [showPassphrase, setShowPassphrase] = useState(false);
   const [isSettingUp, setIsSettingUp] = useState(false);
 
   // Connect modal state
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [connectSyncId, setConnectSyncId] = useState('');
-  const [connectPassphrase, setConnectPassphrase] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
 
   // Copied state
   const [copied, setCopied] = useState(false);
 
-  // Passphrase unlock state (for existing sync that needs passphrase)
-  const [unlockPassphrase, setUnlockPassphrase] = useState('');
-  const [isUnlocking, setIsUnlocking] = useState(false);
-  const [unlockError, setUnlockError] = useState<string | null>(null);
-  // Check if session already has passphrase (persists across page refreshes)
-  const [isUnlocked, setIsUnlocked] = useState(() => hasSessionPassphrase());
-
   // Load config and status on mount
   useEffect(() => {
     const loaded = loadConfig();
     setConfig(loaded);
     fetchStatus(loaded?.syncId ?? null);
-    // Re-check session passphrase in case it was set after initial render
-    setIsUnlocked(hasSessionPassphrase());
   }, []);
 
   const fetchStatus = async (syncId: string | null) => {
@@ -114,11 +94,6 @@ export function SyncSettings() {
   };
 
   const handleSetup = async () => {
-    if (passphrase.length < 8) {
-      setError('Passphrase must be at least 8 characters');
-      return;
-    }
-
     setIsSettingUp(true);
     setError(null);
 
@@ -126,7 +101,7 @@ export function SyncSettings() {
       const response = await fetch('/api/sync/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passphrase }),
+        body: JSON.stringify({}),
       });
 
       if (!response.ok) {
@@ -138,7 +113,6 @@ export function SyncSettings() {
 
       const newConfig: SyncConfig = {
         syncId: result.syncId,
-        passphraseHash: result.passphraseHash,
         lastSyncAt: result.setupAt,
         deviceId: crypto.randomUUID(),
         enabled: true,
@@ -146,11 +120,6 @@ export function SyncSettings() {
 
       setConfig(newConfig);
       saveConfig(newConfig);
-      // Store passphrase in hook for auto-sync
-      syncHook.setPassphrase(passphrase);
-      setIsUnlocked(true);
-      console.warn('[SyncSettings] Setup complete, passphrase stored for auto-sync');
-      setPassphrase('');
       await fetchStatus(result.syncId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Setup failed');
@@ -160,8 +129,8 @@ export function SyncSettings() {
   };
 
   const handleConnect = async () => {
-    if (!connectSyncId || !connectPassphrase) {
-      setConnectError('Both Sync ID and passphrase are required');
+    if (!connectSyncId) {
+      setConnectError('Sync ID is required');
       return;
     }
 
@@ -172,10 +141,7 @@ export function SyncSettings() {
       const response = await fetch('/api/sync/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          syncId: connectSyncId,
-          passphrase: connectPassphrase,
-        }),
+        body: JSON.stringify({ syncId: connectSyncId }),
       });
 
       if (!response.ok) {
@@ -187,7 +153,6 @@ export function SyncSettings() {
 
       const newConfig: SyncConfig = {
         syncId: connectSyncId,
-        passphraseHash: result.passphraseHash,
         lastSyncAt: result.connectedAt,
         deviceId: crypto.randomUUID(),
         enabled: true,
@@ -195,13 +160,8 @@ export function SyncSettings() {
 
       setConfig(newConfig);
       saveConfig(newConfig);
-      // Store passphrase in hook for auto-sync
-      syncHook.setPassphrase(connectPassphrase);
-      setIsUnlocked(true);
-      console.warn('[SyncSettings] Connect complete, passphrase stored for auto-sync');
       setShowConnectModal(false);
       setConnectSyncId('');
-      setConnectPassphrase('');
       await fetchStatus(connectSyncId);
 
       // Reload page to show restored data
@@ -210,29 +170,6 @@ export function SyncSettings() {
       setConnectError(err instanceof Error ? err.message : 'Connection failed');
     } finally {
       setIsConnecting(false);
-    }
-  };
-
-  const handleUnlock = async () => {
-    if (!unlockPassphrase) {
-      setUnlockError('Please enter your passphrase');
-      return;
-    }
-
-    setIsUnlocking(true);
-    setUnlockError(null);
-
-    try {
-      // Verify passphrase by calling status with it (or a verify endpoint)
-      // For now, we'll just trust the user and set the passphrase
-      syncHook.setPassphrase(unlockPassphrase);
-      setIsUnlocked(true);
-      setUnlockPassphrase('');
-      console.warn('[SyncSettings] Passphrase unlocked for auto-sync');
-    } catch (err) {
-      setUnlockError(err instanceof Error ? err.message : 'Failed to unlock');
-    } finally {
-      setIsUnlocking(false);
     }
   };
 
@@ -246,7 +183,6 @@ export function SyncSettings() {
       setConfig(null);
       saveConfig(null);
       setStatus(null);
-      setIsUnlocked(false);
       await fetchStatus(null);
     } catch (err) {
       console.error('Failed to disable sync:', err);
@@ -299,36 +235,10 @@ export function SyncSettings() {
                 Back up your data securely to the cloud
               </div>
               <div className={`text-sm ${ds.text.secondary} space-y-1`}>
-                <p>Your data is encrypted on your device before upload.</p>
-                <p>Only you can read it—not even Cloudflare.</p>
+                <p>Your data is encrypted on the server before upload.</p>
+                <p>Encryption is automatic using your server key.</p>
                 <p className="mt-2">Once enabled, sync happens automatically.</p>
               </div>
-            </div>
-
-            {/* Passphrase input */}
-            <div>
-              <label className={`block text-sm font-medium ${ds.text.secondary} mb-2`}>
-                Passphrase
-              </label>
-              <div className="relative">
-                <Input
-                  className="pr-16"
-                  placeholder="Choose a strong passphrase"
-                  type={showPassphrase ? 'text' : 'password'}
-                  value={passphrase}
-                  onChange={(e) => setPassphrase(e.target.value)}
-                />
-                <button
-                  className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${ds.text.muted} hover:${ds.text.primary}`}
-                  type="button"
-                  onClick={() => setShowPassphrase(!showPassphrase)}
-                >
-                  {showPassphrase ? 'Hide' : 'Show'}
-                </button>
-              </div>
-              <p className={`mt-1 text-xs ${ds.text.muted}`}>
-                You&apos;ll need this to access your data on other devices.
-              </p>
             </div>
 
             {error && (
@@ -337,7 +247,7 @@ export function SyncSettings() {
               </div>
             )}
 
-            <Button className="w-full" disabled={isSettingUp || !passphrase} onClick={handleSetup}>
+            <Button className="w-full" disabled={isSettingUp} onClick={handleSetup}>
               {isSettingUp ? 'Setting up...' : 'Enable Cloud Sync'}
             </Button>
 
@@ -361,7 +271,8 @@ export function SyncSettings() {
         >
           <div className="space-y-4">
             <p className={`text-sm ${ds.text.secondary}`}>
-              Enter your Sync ID and passphrase from another device.
+              Enter the Sync ID from your other device. Make sure both devices have the same
+              SYNC_ENCRYPTION_KEY in their .env file.
             </p>
 
             <div>
@@ -372,18 +283,6 @@ export function SyncSettings() {
                 placeholder="a1b2c3d4-5678-90ab-cdef-1234567890ab"
                 value={connectSyncId}
                 onChange={(e) => setConnectSyncId(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className={`block text-sm font-medium ${ds.text.secondary} mb-2`}>
-                Passphrase
-              </label>
-              <Input
-                placeholder="Your passphrase"
-                type="password"
-                value={connectPassphrase}
-                onChange={(e) => setConnectPassphrase(e.target.value)}
               />
             </div>
 
@@ -402,10 +301,7 @@ export function SyncSettings() {
               <Button variant="outline" onClick={() => setShowConnectModal(false)}>
                 Cancel
               </Button>
-              <Button
-                disabled={isConnecting || !connectSyncId || !connectPassphrase}
-                onClick={handleConnect}
-              >
+              <Button disabled={isConnecting || !connectSyncId} onClick={handleConnect}>
                 {isConnecting ? 'Connecting...' : 'Connect & Restore'}
               </Button>
             </div>
@@ -422,60 +318,32 @@ export function SyncSettings() {
         <div className={`text-sm font-semibold ${ds.text.primary}`}>Cloud Sync</div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Unlock prompt if passphrase not set (only shown in new browser session) */}
-        {!isUnlocked && (
-          <div
-            className={`p-4 rounded-lg ${ds.status.warning.bg} border ${ds.status.warning.border}`}
-          >
-            <div className={`font-medium ${ds.text.primary} mb-2`}>
-              New session — enter passphrase to resume auto-sync
-            </div>
-            <p className={`text-sm ${ds.text.secondary} mb-3`}>
-              For security, your passphrase isn&apos;t saved when you close your browser.
-            </p>
-            <div className="flex gap-2">
-              <Input
-                className="flex-1"
-                placeholder="Enter your passphrase"
-                type="password"
-                value={unlockPassphrase}
-                onChange={(e) => setUnlockPassphrase(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
-              />
-              <Button disabled={isUnlocking || !unlockPassphrase} onClick={handleUnlock}>
-                {isUnlocking ? 'Unlocking...' : 'Unlock'}
-              </Button>
-            </div>
-            {unlockError && <p className={`mt-2 text-sm ${ds.status.error.text}`}>{unlockError}</p>}
-          </div>
-        )}
-
         {/* Status indicator */}
         <div className={`p-4 rounded-lg ${ds.bg.secondary} border ${ds.border.default}`}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              {!isUnlocked && (
+              {syncHook.status === 'synced' && (
                 <>
-                  <span className="text-[var(--yellow)]">⚠</span>
-                  <span className={`font-medium ${ds.text.primary}`}>Locked</span>
-                </>
-              )}
-              {isUnlocked && status?.status === 'synced' && (
-                <>
-                  <span className="text-[var(--green)]">✓</span>
+                  <span className="text-[var(--green)]">&#10003;</span>
                   <span className={`font-medium ${ds.text.primary}`}>Synced</span>
                 </>
               )}
-              {isUnlocked && status?.status === 'syncing' && (
+              {syncHook.status === 'syncing' && (
                 <>
-                  <span className="animate-spin">↻</span>
+                  <span className="animate-spin">&#8635;</span>
                   <span className={`font-medium ${ds.text.primary}`}>Syncing...</span>
                 </>
               )}
-              {isUnlocked && status?.status === 'error' && (
+              {syncHook.status === 'error' && (
                 <>
-                  <span className="text-[var(--red)]">⚠</span>
+                  <span className="text-[var(--red)]">&#9888;</span>
                   <span className={`font-medium ${ds.text.primary}`}>Sync Error</span>
+                </>
+              )}
+              {syncHook.status === 'disabled' && (
+                <>
+                  <span className={ds.text.muted}>&#9679;</span>
+                  <span className={`font-medium ${ds.text.primary}`}>Disabled</span>
                 </>
               )}
             </div>
@@ -511,7 +379,7 @@ export function SyncSettings() {
         </div>
 
         <p className={`text-sm ${ds.text.muted}`}>
-          Use your Sync ID and passphrase to connect other devices.
+          To sync to another device, copy your Sync ID and SYNC_ENCRYPTION_KEY from .env.
         </p>
 
         <div className={`border-t ${ds.border.default} pt-4`}>
