@@ -18,15 +18,15 @@
   --track-bg: rgba(0, 0, 0, 0.05);
   --grid-line: rgba(0, 0, 0, 0.04);
   --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  --tag-blue: #3b82f6;
-  --tag-green: #22c55e;
-  --tag-red: #ef4444;
-  --tag-yellow: #eab308;
-  --tag-purple: #a855f7;
-  --tag-pink: #ec4899;
-  --tag-indigo: #6366f1;
-  --tag-orange: #f97316;
-  --tag-teal: #14b8a6;
+  --tag-blue: #7a9ec4;
+  --tag-green: #6a9e78;
+  --tag-red: #b87a74;
+  --tag-yellow: #a89a5c;
+  --tag-purple: #9a7eb8;
+  --tag-pink: #b87a96;
+  --tag-indigo: #7a7eb8;
+  --tag-orange: #b8916a;
+  --tag-teal: #6a9e96;
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 16px;
@@ -56,15 +56,15 @@
   --track-bg: rgba(255, 255, 255, 0.04);
   --grid-line: rgba(255, 255, 255, 0.03);
   --card-shadow: none;
-  --tag-blue: #60a5fa;
-  --tag-green: #4ade80;
-  --tag-red: #f87171;
-  --tag-yellow: #facc15;
-  --tag-purple: #c084fc;
-  --tag-pink: #f472b6;
-  --tag-indigo: #818cf8;
-  --tag-orange: #fb923c;
-  --tag-teal: #2dd4bf;
+  --tag-blue: #8aaac8;
+  --tag-green: #7aaa88;
+  --tag-red: #c08a84;
+  --tag-yellow: #b8a86c;
+  --tag-purple: #a88ec0;
+  --tag-pink: #c08aa0;
+  --tag-indigo: #8a8ec0;
+  --tag-orange: #c09a7a;
+  --tag-teal: #7aaa9e;
 }
 
 body {
@@ -116,6 +116,30 @@ body {
 }
 .chat-markdown strong {
   font-weight: 600;
+  color: var(--text-primary);
+}
+.chat-markdown em {
+  font-style: italic;
+}
+.chat-markdown h1,
+.chat-markdown h2,
+.chat-markdown h3,
+.chat-markdown h4 {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0.75rem 0 0.25rem;
+}
+.chat-markdown h1 {
+  font-size: 1.1rem;
+}
+.chat-markdown h2 {
+  font-size: 1rem;
+}
+.chat-markdown h3 {
+  font-size: 0.9rem;
+}
+.chat-markdown h4 {
+  font-size: 0.85rem;
 }
 .chat-markdown ul,
 .chat-markdown ol {
@@ -130,4 +154,70 @@ body {
 }
 .chat-markdown li {
   margin-bottom: 0.15rem;
+}
+.chat-markdown code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+.chat-markdown pre {
+  margin: 0.5rem 0;
+  padding: 0.75rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+.chat-markdown pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.chat-markdown blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 0.5rem 0;
+  padding: 0.25rem 0.75rem;
+  color: var(--text-secondary);
+}
+.chat-markdown hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.75rem 0;
+}
+.chat-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  font-size: 0.85rem;
+}
+.chat-markdown th {
+  text-align: left;
+  padding: 0.35rem 0.6rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.chat-markdown td {
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.chat-markdown tr:last-child td {
+  border-bottom: none;
+}
+.chat-markdown a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.chat-markdown a:hover {
+  opacity: 0.8;
 }
