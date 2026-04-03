@@ -834,7 +834,7 @@ export function NetWorthSnapshots() {
                     <div className={`text-xs ${ds.text.muted} uppercase tracking-wide`}>
                       Total Assets
                     </div>
-                    <div className="text-xl font-bold text-[var(--green)]">
+                    <div className="text-xl font-bold font-mono text-[var(--green)]">
                       {formatCurrency(latestSnapshot.totalAssets)}
                     </div>
                   </div>
@@ -855,7 +855,7 @@ export function NetWorthSnapshots() {
                     <div className={`text-xs ${ds.text.muted} uppercase tracking-wide`}>
                       Total Liabilities
                     </div>
-                    <div className="text-xl font-bold text-[var(--red)]">
+                    <div className="text-xl font-bold font-mono text-[var(--red)]">
                       {formatCurrency(latestSnapshot.totalLiabilities)}
                     </div>
                   </div>
@@ -1017,7 +1017,7 @@ export function NetWorthSnapshots() {
                       </th>
                     </tr>
                   </thead>
-                  <tbody className={`divide-y ${ds.border.default}`}>
+                  <tbody className="divide-y divide-[var(--border)]">
                     {snapshots.map((snapshot, idx) => {
                       const prevSnapshot = snapshots[idx + 1];
                       const change = prevSnapshot

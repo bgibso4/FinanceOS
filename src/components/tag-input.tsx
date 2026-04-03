@@ -9,47 +9,47 @@ export const tagColorMap: Record<string, { bg: string; text: string; border: str
   blue: {
     bg: 'bg-[var(--tag-blue)]/10',
     text: 'text-[var(--tag-blue)]',
-    border: 'border-[var(--tag-blue)]/30',
+    border: 'border-[var(--tag-blue)]/15',
   },
   green: {
     bg: 'bg-[var(--tag-green)]/10',
     text: 'text-[var(--tag-green)]',
-    border: 'border-[var(--tag-green)]/30',
+    border: 'border-[var(--tag-green)]/15',
   },
   red: {
     bg: 'bg-[var(--tag-red)]/10',
     text: 'text-[var(--tag-red)]',
-    border: 'border-[var(--tag-red)]/30',
+    border: 'border-[var(--tag-red)]/15',
   },
   yellow: {
     bg: 'bg-[var(--tag-yellow)]/10',
     text: 'text-[var(--tag-yellow)]',
-    border: 'border-[var(--tag-yellow)]/30',
+    border: 'border-[var(--tag-yellow)]/15',
   },
   purple: {
     bg: 'bg-[var(--tag-purple)]/10',
     text: 'text-[var(--tag-purple)]',
-    border: 'border-[var(--tag-purple)]/30',
+    border: 'border-[var(--tag-purple)]/15',
   },
   pink: {
     bg: 'bg-[var(--tag-pink)]/10',
     text: 'text-[var(--tag-pink)]',
-    border: 'border-[var(--tag-pink)]/30',
+    border: 'border-[var(--tag-pink)]/15',
   },
   indigo: {
     bg: 'bg-[var(--tag-indigo)]/10',
     text: 'text-[var(--tag-indigo)]',
-    border: 'border-[var(--tag-indigo)]/30',
+    border: 'border-[var(--tag-indigo)]/15',
   },
   orange: {
     bg: 'bg-[var(--tag-orange)]/10',
     text: 'text-[var(--tag-orange)]',
-    border: 'border-[var(--tag-orange)]/30',
+    border: 'border-[var(--tag-orange)]/15',
   },
   teal: {
     bg: 'bg-[var(--tag-teal)]/10',
     text: 'text-[var(--tag-teal)]',
-    border: 'border-[var(--tag-teal)]/30',
+    border: 'border-[var(--tag-teal)]/15',
   },
   gray: {
     bg: 'bg-[var(--bg-elevated)]',
@@ -234,7 +234,8 @@ export function TagInput({
                 onMouseEnter={() => setHighlightIndex(i)}
               >
                 <span
-                  className={cn('w-2.5 h-2.5 rounded-full', colors.bg, 'border', colors.border)}
+                  className={cn('w-2.5 h-2.5 rounded-full shrink-0', colors.text)}
+                  style={{ backgroundColor: 'currentColor' }}
                 />
                 <span className="text-[var(--text-primary)]">{tag.name}</span>
               </button>

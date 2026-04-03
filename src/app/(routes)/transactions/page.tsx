@@ -1232,7 +1232,7 @@ function TransactionsPageContent() {
                           {tx.category.name}
                         </span>
                       ) : (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]">
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--red)]/10 text-[var(--red)]">
                           Uncategorized
                         </span>
                       )}
@@ -1298,7 +1298,7 @@ function TransactionsPageContent() {
         {editingTransaction && (
           <div className="space-y-6">
             {/* Edit Transaction */}
-            <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
+            <div className={`${ds.bg.elevated} rounded-lg p-4 border ${ds.border.default}`}>
               <h4 className={`font-semibold ${ds.text.primary} mb-3`}>Transaction Details</h4>
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
@@ -1427,7 +1427,7 @@ function TransactionsPageContent() {
                   />
                 </div>
                 <Button
-                  className="w-full bg-[var(--accent)] hover:bg-[var(--accent)] py-3"
+                  className="w-full !bg-[var(--accent)] hover:!bg-[var(--accent)] text-white py-3"
                   onClick={updateTransaction}
                 >
                   Save Changes
@@ -1437,10 +1437,7 @@ function TransactionsPageContent() {
                   !editingTransaction.linkedTransactionId &&
                   (!editingTransaction.offsetTransactions ||
                     editingTransaction.offsetTransactions.length === 0) && (
-                    <Button
-                      className="w-full py-3 !bg-[var(--accent)] hover:!bg-[var(--accent)] text-white"
-                      onClick={openSplitModal}
-                    >
+                    <Button className="w-full py-3" variant="outline" onClick={openSplitModal}>
                       Split Transaction
                     </Button>
                   )}
@@ -1448,7 +1445,7 @@ function TransactionsPageContent() {
             </div>
 
             {/* Transaction Info */}
-            <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
+            <div className={`${ds.bg.elevated} rounded-lg p-4 border ${ds.border.default}`}>
               <h4 className={`font-semibold ${ds.text.primary} mb-3`}>Transaction Info</h4>
               <div className={`text-sm ${ds.text.secondary} space-y-1`}>
                 <div>
@@ -1492,7 +1489,8 @@ function TransactionsPageContent() {
                     </div>
                   )}
                 <Button
-                  className="w-full py-3 !bg-[var(--accent)] hover:!bg-[var(--accent)] text-white"
+                  className="w-full py-3"
+                  variant="outline"
                   onClick={() => unsplitTransaction(editingTransaction.parentTransactionId!)}
                 >
                   Unsplit (Restore Original)
@@ -1504,8 +1502,8 @@ function TransactionsPageContent() {
             )}
 
             {/* Transfer Status */}
-            <div className="bg-[var(--bg-base)] rounded-lg p-4 border border-[var(--border)]">
-              <h4 className="font-semibold text-[var(--accent)] mb-3">Transfer Status</h4>
+            <div className={`${ds.bg.elevated} rounded-lg p-4 border ${ds.border.default}`}>
+              <h4 className={`font-semibold ${ds.text.primary} mb-3`}>Transfer Status</h4>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className={`text-sm ${ds.text.secondary}`}>
@@ -1523,10 +1521,7 @@ function TransactionsPageContent() {
                     {editingTransaction.isTransfer ? 'Transfer' : 'Normal'}
                   </span>
                 </div>
-                <Button
-                  className="w-full py-3 !bg-[var(--accent)] hover:!bg-[var(--accent)] text-white"
-                  onClick={toggleTransfer}
-                >
+                <Button className="w-full py-3" variant="outline" onClick={toggleTransfer}>
                   {editingTransaction.isTransfer ? 'Unmark as Transfer' : 'Mark as Transfer'}
                 </Button>
                 <div className={`text-xs ${ds.text.muted}`}>
@@ -1539,8 +1534,8 @@ function TransactionsPageContent() {
 
             {/* Linked Transaction Tracking */}
             {!editingTransaction.isTransfer && (
-              <div className="bg-[var(--bg-base)] rounded-lg p-4 border border-[var(--border)]">
-                <h4 className="font-semibold text-[var(--accent)] mb-3">Linked Transactions</h4>
+              <div className={`${ds.bg.elevated} rounded-lg p-4 border ${ds.border.default}`}>
+                <h4 className={`font-semibold ${ds.text.primary} mb-3`}>Linked Transactions</h4>
                 {editingTransaction.isOffset && editingTransaction.linkedTransactionId ? (
                   <div className="space-y-3">
                     <div
@@ -1570,7 +1565,8 @@ function TransactionsPageContent() {
                           </div>
                         </div>
                         <Button
-                          className="w-full mt-3 !bg-[var(--accent)] hover:!bg-[var(--accent)] py-2 text-sm text-white"
+                          className="w-full mt-3 py-2 text-sm"
+                          variant="outline"
                           onClick={async () => {
                             closeEditModal();
                             // Fetch the full transaction with relations
@@ -1589,7 +1585,8 @@ function TransactionsPageContent() {
                       </div>
                     )}
                     <Button
-                      className="w-full !bg-[var(--accent)] hover:!bg-[var(--accent)] py-3 text-white"
+                      className="w-full py-3"
+                      variant="outline"
                       onClick={() => {
                         unlinkReturn(editingTransaction.id);
                         closeEditModal();
@@ -1632,13 +1629,14 @@ function TransactionsPageContent() {
                   </div>
                 ) : (
                   <Button
-                    className="w-full !bg-[var(--accent)] hover:!bg-[var(--accent)] py-3 text-white"
+                    className="w-full py-3"
+                    variant="outline"
                     onClick={() => {
                       closeEditModal();
                       openReturnModal(editingTransaction);
                     }}
                   >
-                    🔗 Link Transaction
+                    Link Transaction
                   </Button>
                 )}
               </div>

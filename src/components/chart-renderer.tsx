@@ -22,18 +22,18 @@ type Props = {
   spec: ChartSpec;
 };
 
-// Friedrik muted, monochrome-forward palette for pie / multi-category charts
-const PIE_COLORS = [
-  '#9a7a58', // cognac  (accent)
-  '#9a9690', // warm gray
-  '#6a6660', // darker gray
-  '#7a8a7a', // muted sage
-  '#8a7a6a', // warm tan
-  '#6a7a8a', // cool steel
-  '#8a6a7a', // muted mauve
-  '#7a7a6a', // olive gray
-  '#6a6a7a', // slate purple
-  '#8a8a7a', // khaki gray
+// Friedrik muted palette — distinct hues at low saturation for pie / multi-category charts
+export const PIE_COLORS = [
+  '#9a7a58', // cognac (accent)
+  '#7a9ec4', // slate blue
+  '#6a9e78', // sage green
+  '#b87a74', // dusty rose
+  '#a89a5c', // olive gold
+  '#9a7eb8', // muted lavender
+  '#6a9e96', // teal
+  '#b8916a', // warm tan
+  '#7a7eb8', // periwinkle
+  '#c08aa0', // mauve pink
 ];
 
 export function ChartRenderer({ spec }: Props) {

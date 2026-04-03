@@ -37,7 +37,7 @@ const chatTransport = new DefaultChatTransport({ api: '/api/agent/chat' });
 export function ChatAnalyst({ open, onClose }: Props) {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedChart, setExpandedChart] = useState<ChartSpec | null>(null);
   const [inputValue, setInputValue] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -52,6 +52,11 @@ export function ChatAnalyst({ open, onClose }: Props) {
     const loaded = loadConversations();
     setConversations(loaded);
   }, []);
+
+  // Collapse sidebar when drawer closes
+  useEffect(() => {
+    if (!open) setSidebarOpen(false);
+  }, [open]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -206,15 +211,12 @@ export function ChatAnalyst({ open, onClose }: Props) {
       />
 
       <div
-        className={cn(
-          'fixed right-0 top-0 z-50 flex h-full transition-transform duration-200',
-          open ? 'translate-x-0' : 'translate-x-full'
-        )}
-        style={{ width: 580 }}
+        className={cn('fixed top-0 right-0 z-50 flex h-full transition-transform duration-200')}
+        style={{ transform: open ? 'translateX(0)' : `translateX(500px)` }}
       >
         <div
           className={cn(
-            'h-full bg-[var(--bg-base)] border-r border-[var(--border)] flex flex-col overflow-hidden transition-all duration-200',
+            'h-full bg-[var(--bg-card)] border-r border-[var(--border)] flex flex-col overflow-hidden transition-all duration-200',
             sidebarOpen ? 'w-[180px] min-w-[180px]' : 'w-0 min-w-0 border-r-0'
           )}
         >
@@ -289,7 +291,7 @@ export function ChatAnalyst({ open, onClose }: Props) {
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col bg-[var(--bg-card)] border-l border-[var(--border)]">
+        <div className="flex w-[500px] min-w-[500px] flex-col bg-[var(--bg-card)]">
           <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
             <div className="flex items-center gap-2 min-w-0">
               <button

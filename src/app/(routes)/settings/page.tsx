@@ -1951,7 +1951,7 @@ function SettingsPageContent() {
                           <th className="w-20" />
                         </tr>
                       </thead>
-                      <tbody className={`divide-y ${ds.border.default}`}>
+                      <tbody className="divide-y divide-[var(--border)]">
                         {exchangeRates.map((rate) => (
                           <tr
                             key={rate.id}
@@ -2118,7 +2118,7 @@ function SettingsPageContent() {
                           <th className="w-20" />
                         </tr>
                       </thead>
-                      <tbody className={`divide-y ${ds.border.default}`}>
+                      <tbody className="divide-y divide-[var(--border)]">
                         {inflationRates.map((rate) => (
                           <tr
                             key={rate.id}
@@ -3810,7 +3810,7 @@ function SettingsPageContent() {
                   onChange={(e) => setBudgetForm({ ...budgetForm, limitAmount: e.target.value })}
                 />
                 <Button
-                  className={`py-3 ${budgetViewMonth ? 'bg-[var(--accent)] hover:bg-[var(--accent)]' : 'bg-[var(--green)] hover:bg-[var(--green)]'}`}
+                  className={`py-3 text-white ${budgetViewMonth ? 'bg-[var(--accent)] hover:bg-[var(--accent)]' : 'bg-[var(--green)] hover:bg-[var(--green)]'}`}
                   onClick={saveBudget}
                 >
                   {budgetViewMonth
@@ -4456,7 +4456,7 @@ function SettingsPageContent() {
                 }}
               />
               <Button
-                className="bg-[var(--accent)] text-white hover:bg-[var(--accent)] py-2 px-3 text-sm"
+                className="bg-[var(--accent)] text-[var(--text-primary)] dark:text-white hover:bg-[var(--accent)] py-2 px-3 text-sm"
                 disabled={!newTagName.trim()}
                 onClick={async () => {
                   if (!newTagName.trim()) return;
@@ -4492,7 +4492,7 @@ function SettingsPageContent() {
                   return (
                     <div
                       key={tag.id}
-                      className={`group relative px-3 py-2.5 rounded-lg border ${colors.border} ${colors.bg} cursor-pointer hover:shadow-md transition-all`}
+                      className="group relative px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] cursor-pointer hover:bg-[var(--bg-elevated)] transition-all"
                       onClick={() => {
                         setEditingTag(tag);
                         setEditTagModalOpen(true);
