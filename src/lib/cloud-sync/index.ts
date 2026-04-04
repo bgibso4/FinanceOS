@@ -32,7 +32,13 @@ export type {
 export { validateSyncPayload, isSyncPayload } from './types';
 
 // Encryption
-export { encrypt, decrypt, hashPassphrase, deriveKey, EncryptionError } from './encryption';
+export {
+  encrypt,
+  decrypt,
+  generateEncryptionKey,
+  getEncryptionKey,
+  EncryptionError,
+} from './encryption';
 
 // Database sync
 export {

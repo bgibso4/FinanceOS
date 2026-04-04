@@ -1,12 +1,23 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   encrypt,
   decrypt,
-  deriveKey,
-  hashPassphrase,
+  generateEncryptionKey,
+  getEncryptionKey,
   EncryptionError,
 } from '@/lib/cloud-sync/encryption';
 import type { SyncPayload } from '@/lib/cloud-sync/types';
+
+// Generate a test key and set it in the env before each test
+const TEST_KEY = 'YV10ZXN0LWtleS10aGF0LWlzLWV4YWN0bHktMzItYiE='; // 32 bytes base64
+
+function setTestKey(key?: string): void {
+  process.env.SYNC_ENCRYPTION_KEY = key ?? TEST_KEY;
+}
+
+function clearTestKey(): void {
+  delete process.env.SYNC_ENCRYPTION_KEY;
+}
 
 // Create a minimal valid sync payload for testing
 function createTestPayload(): SyncPayload {
@@ -91,12 +102,35 @@ function createTestPayload(): SyncPayload {
 }
 
 describe('cloud-sync/encryption', () => {
-  describe('deriveKey', () => {
-    it('derives a key from passphrase and salt', async () => {
-      const passphrase = 'my-secret-passphrase';
-      const salt = crypto.getRandomValues(new Uint8Array(32));
+  beforeEach(() => {
+    setTestKey();
+  });
 
-      const key = await deriveKey(passphrase, salt);
+  afterEach(() => {
+    clearTestKey();
+  });
+
+  describe('generateEncryptionKey', () => {
+    it('generates a valid base64-encoded 32-byte key', () => {
+      const key = generateEncryptionKey();
+
+      expect(typeof key).toBe('string');
+      // Decode and verify length
+      const binary = atob(key);
+      expect(binary.length).toBe(32);
+    });
+
+    it('generates unique keys each time', () => {
+      const key1 = generateEncryptionKey();
+      const key2 = generateEncryptionKey();
+
+      expect(key1).not.toBe(key2);
+    });
+  });
+
+  describe('getEncryptionKey', () => {
+    it('returns a CryptoKey from env var', async () => {
+      const key = await getEncryptionKey();
 
       expect(key).toBeDefined();
       expect(key.type).toBe('secret');
@@ -105,105 +139,21 @@ describe('cloud-sync/encryption', () => {
       expect(key.usages).toContain('decrypt');
     });
 
-    it('produces consistent encryption with same passphrase and salt', async () => {
-      // Since keys are non-extractable, we verify by encrypting the same data
-      // and checking that decryption works with both keys
-      const passphrase = 'consistent-passphrase';
-      const salt = new Uint8Array(32).fill(42);
-      const iv = new Uint8Array(12).fill(1);
-      const testData = new TextEncoder().encode('test-data');
+    it('throws MISSING_KEY when env var is not set', async () => {
+      clearTestKey();
 
-      const key1 = await deriveKey(passphrase, salt);
-      const key2 = await deriveKey(passphrase, salt);
-
-      // Encrypt with key1
-      const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key1, testData);
-
-      // Decrypt with key2 - should work if keys are the same
-      const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key2, encrypted);
-
-      expect(Array.from(new Uint8Array(decrypted))).toEqual(Array.from(testData));
-    });
-
-    it('produces different keys with different passphrases', async () => {
-      // Verify that different passphrases produce different keys by checking
-      // that decryption fails with wrong passphrase
-      const salt = new Uint8Array(32).fill(42);
-      const iv = new Uint8Array(12).fill(1);
-      const testData = new TextEncoder().encode('test-data');
-
-      const key1 = await deriveKey('passphrase-one', salt);
-      const key2 = await deriveKey('passphrase-two', salt);
-
-      // Encrypt with key1
-      const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key1, testData);
-
-      // Decrypt with key2 should fail
-      await expect(
-        crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key2, encrypted)
-      ).rejects.toThrow();
-    });
-
-    it('produces different keys with different salts', async () => {
-      // Verify that different salts produce different keys
-      const passphrase = 'same-passphrase';
-      const salt1 = new Uint8Array(32).fill(1);
-      const salt2 = new Uint8Array(32).fill(2);
-      const iv = new Uint8Array(12).fill(1);
-      const testData = new TextEncoder().encode('test-data');
-
-      const key1 = await deriveKey(passphrase, salt1);
-      const key2 = await deriveKey(passphrase, salt2);
-
-      // Encrypt with key1
-      const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key1, testData);
-
-      // Decrypt with key2 should fail
-      await expect(
-        crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key2, encrypted)
-      ).rejects.toThrow();
-    });
-  });
-
-  describe('hashPassphrase', () => {
-    it('hashes a passphrase', async () => {
-      const passphrase = 'test-passphrase';
-      const hash = await hashPassphrase(passphrase);
-
-      expect(hash).toBeDefined();
-      expect(typeof hash).toBe('string');
-      expect(hash.length).toBe(64); // SHA-256 = 32 bytes = 64 hex chars
-    });
-
-    it('produces consistent hash for same passphrase', async () => {
-      const passphrase = 'consistent-test';
-
-      const hash1 = await hashPassphrase(passphrase);
-      const hash2 = await hashPassphrase(passphrase);
-
-      expect(hash1).toBe(hash2);
-    });
-
-    it('produces different hashes for different passphrases', async () => {
-      const hash1 = await hashPassphrase('passphrase-one');
-      const hash2 = await hashPassphrase('passphrase-two');
-
-      expect(hash1).not.toBe(hash2);
-    });
-
-    it('produces valid hex string', async () => {
-      const hash = await hashPassphrase('any-passphrase');
-
-      expect(hash).toMatch(/^[0-9a-f]{64}$/);
+      await expect(getEncryptionKey()).rejects.toThrow(EncryptionError);
+      await expect(getEncryptionKey()).rejects.toMatchObject({
+        code: 'MISSING_KEY',
+      });
     });
   });
 
   describe('encrypt', () => {
     it('encrypts a payload to ArrayBuffer', async () => {
       const payload = createTestPayload();
-      const passphrase = 'encryption-test-pass';
 
-      const encrypted = await encrypt(payload, passphrase);
+      const encrypted = await encrypt(payload);
 
       expect(encrypted).toBeInstanceOf(ArrayBuffer);
       expect(encrypted.byteLength).toBeGreaterThan(52); // Header size
@@ -211,7 +161,7 @@ describe('cloud-sync/encryption', () => {
 
     it('produces blob with correct magic number', async () => {
       const payload = createTestPayload();
-      const encrypted = await encrypt(payload, 'test-pass');
+      const encrypted = await encrypt(payload);
 
       const bytes = new Uint8Array(encrypted);
       // Magic number: 0x46 0x4F 0x53 0x31 = "FOS1"
@@ -223,7 +173,7 @@ describe('cloud-sync/encryption', () => {
 
     it('produces blob with version 1', async () => {
       const payload = createTestPayload();
-      const encrypted = await encrypt(payload, 'test-pass');
+      const encrypted = await encrypt(payload);
 
       const bytes = new Uint8Array(encrypted);
       // Version at offset 4-5 (little-endian uint16)
@@ -233,7 +183,7 @@ describe('cloud-sync/encryption', () => {
 
     it('produces blob with gzip flag set', async () => {
       const payload = createTestPayload();
-      const encrypted = await encrypt(payload, 'test-pass');
+      const encrypted = await encrypt(payload);
 
       const bytes = new Uint8Array(encrypted);
       // Flags at offset 6-7 (little-endian uint16), gzip flag = 0x0001
@@ -243,19 +193,18 @@ describe('cloud-sync/encryption', () => {
 
     it('produces different ciphertext each time (random IV)', async () => {
       const payload = createTestPayload();
-      const passphrase = 'same-passphrase';
 
-      const encrypted1 = await encrypt(payload, passphrase);
-      const encrypted2 = await encrypt(payload, passphrase);
+      const encrypted1 = await encrypt(payload);
+      const encrypted2 = await encrypt(payload);
 
-      // The ciphertext portion should differ due to random salt and IV
+      // The IV portion should differ due to random generation
       const bytes1 = new Uint8Array(encrypted1);
       const bytes2 = new Uint8Array(encrypted2);
 
-      // Salt is at offset 8-39, should be different
-      const salt1 = bytes1.slice(8, 40);
-      const salt2 = bytes2.slice(8, 40);
-      expect(salt1).not.toEqual(salt2);
+      // IV is at offset 40-51, should be different
+      const iv1 = bytes1.slice(40, 52);
+      const iv2 = bytes2.slice(40, 52);
+      expect(Array.from(iv1)).not.toEqual(Array.from(iv2));
     });
 
     it('compresses data effectively', async () => {
@@ -285,11 +234,10 @@ describe('cloud-sync/encryption', () => {
         });
       }
 
-      const encrypted = await encrypt(payload, 'test-pass');
+      const encrypted = await encrypt(payload);
       const jsonSize = JSON.stringify(payload).length;
 
       // Compressed + encrypted should be smaller than raw JSON
-      // (accounting for some overhead from encryption)
       expect(encrypted.byteLength).toBeLessThan(jsonSize);
     });
   });
@@ -297,20 +245,18 @@ describe('cloud-sync/encryption', () => {
   describe('decrypt', () => {
     it('decrypts an encrypted payload correctly', async () => {
       const originalPayload = createTestPayload();
-      const passphrase = 'decrypt-test-pass';
 
-      const encrypted = await encrypt(originalPayload, passphrase);
-      const decrypted = await decrypt(encrypted, passphrase);
+      const encrypted = await encrypt(originalPayload);
+      const decrypted = await decrypt(encrypted);
 
       expect(decrypted).toEqual(originalPayload);
     });
 
     it('preserves all payload fields through encrypt/decrypt cycle', async () => {
       const payload = createTestPayload();
-      const passphrase = 'field-preservation-test';
 
-      const encrypted = await encrypt(payload, passphrase);
-      const decrypted = await decrypt(encrypted, passphrase);
+      const encrypted = await encrypt(payload);
+      const decrypted = await decrypt(encrypted);
 
       expect(decrypted.version).toBe(payload.version);
       expect(decrypted.exportedAt).toBe(payload.exportedAt);
@@ -322,22 +268,25 @@ describe('cloud-sync/encryption', () => {
       expect(decrypted.metadata.checksum).toBe(payload.metadata.checksum);
     });
 
-    it('throws EncryptionError with wrong passphrase', async () => {
+    it('throws EncryptionError with wrong key', async () => {
       const payload = createTestPayload();
+      const encrypted = await encrypt(payload);
 
-      const encrypted = await encrypt(payload, 'correct-passphrase');
+      // Switch to a different key for decryption
+      const differentKey = generateEncryptionKey();
+      setTestKey(differentKey);
 
-      await expect(decrypt(encrypted, 'wrong-passphrase')).rejects.toThrow(EncryptionError);
-      await expect(decrypt(encrypted, 'wrong-passphrase')).rejects.toMatchObject({
-        code: 'WRONG_PASSPHRASE',
+      await expect(decrypt(encrypted)).rejects.toThrow(EncryptionError);
+      await expect(decrypt(encrypted)).rejects.toMatchObject({
+        code: 'WRONG_KEY',
       });
     });
 
     it('throws EncryptionError for invalid blob (too small)', async () => {
       const tooSmall = new ArrayBuffer(20);
 
-      await expect(decrypt(tooSmall, 'any-pass')).rejects.toThrow(EncryptionError);
-      await expect(decrypt(tooSmall, 'any-pass')).rejects.toMatchObject({
+      await expect(decrypt(tooSmall)).rejects.toThrow(EncryptionError);
+      await expect(decrypt(tooSmall)).rejects.toMatchObject({
         code: 'INVALID_FORMAT',
       });
     });
@@ -349,23 +298,23 @@ describe('cloud-sync/encryption', () => {
       invalidBlob[2] = 0x00;
       invalidBlob[3] = 0x00;
 
-      await expect(decrypt(invalidBlob.buffer, 'any-pass')).rejects.toThrow(EncryptionError);
-      await expect(decrypt(invalidBlob.buffer, 'any-pass')).rejects.toMatchObject({
+      await expect(decrypt(invalidBlob.buffer)).rejects.toThrow(EncryptionError);
+      await expect(decrypt(invalidBlob.buffer)).rejects.toMatchObject({
         code: 'INVALID_FORMAT',
       });
     });
 
     it('throws EncryptionError for unsupported version', async () => {
       const payload = createTestPayload();
-      const encrypted = await encrypt(payload, 'test-pass');
+      const encrypted = await encrypt(payload);
 
       // Modify version to 99
       const bytes = new Uint8Array(encrypted);
       bytes[4] = 99;
       bytes[5] = 0;
 
-      await expect(decrypt(bytes.buffer, 'test-pass')).rejects.toThrow(EncryptionError);
-      await expect(decrypt(bytes.buffer, 'test-pass')).rejects.toMatchObject({
+      await expect(decrypt(bytes.buffer)).rejects.toThrow(EncryptionError);
+      await expect(decrypt(bytes.buffer)).rejects.toMatchObject({
         code: 'UNSUPPORTED_VERSION',
       });
     });
@@ -403,9 +352,8 @@ describe('cloud-sync/encryption', () => {
         },
       };
 
-      const passphrase = 'empty-test-pass';
-      const encrypted = await encrypt(payload, passphrase);
-      const decrypted = await decrypt(encrypted, passphrase);
+      const encrypted = await encrypt(payload);
+      const decrypted = await decrypt(encrypted);
 
       expect(decrypted.data.accounts).toHaveLength(0);
       expect(decrypted.data.transactions).toHaveLength(0);
@@ -419,34 +367,13 @@ describe('cloud-sync/encryption', () => {
       payload.data.transactions[0].merchant = 'Café Müller';
       payload.data.transactions[0].note = 'Payment for 中文商品';
 
-      const passphrase = 'unicode-test-pass';
-      const encrypted = await encrypt(payload, passphrase);
-      const decrypted = await decrypt(encrypted, passphrase);
+      const encrypted = await encrypt(payload);
+      const decrypted = await decrypt(encrypted);
 
       expect(decrypted.data.accounts[0].name).toBe('日本語アカウント 🏦');
       expect(decrypted.data.accounts[0].institution).toBe('Банк России');
       expect(decrypted.data.transactions[0].merchant).toBe('Café Müller');
       expect(decrypted.data.transactions[0].note).toBe('Payment for 中文商品');
-    });
-
-    it('handles special characters in passphrase', async () => {
-      const payload = createTestPayload();
-      const specialPassphrase = 'p@$$w0rd!#$%^&*()_+-=[]{}|;:,.<>?';
-
-      const encrypted = await encrypt(payload, specialPassphrase);
-      const decrypted = await decrypt(encrypted, specialPassphrase);
-
-      expect(decrypted).toEqual(payload);
-    });
-
-    it('handles very long passphrase', async () => {
-      const payload = createTestPayload();
-      const longPassphrase = 'x'.repeat(10000);
-
-      const encrypted = await encrypt(payload, longPassphrase);
-      const decrypted = await decrypt(encrypted, longPassphrase);
-
-      expect(decrypted).toEqual(payload);
     });
 
     it('handles large number of transactions', async () => {
@@ -479,9 +406,8 @@ describe('cloud-sync/encryption', () => {
       }
       payload.metadata.recordCounts.transactions = 1000;
 
-      const passphrase = 'bulk-test-pass';
-      const encrypted = await encrypt(payload, passphrase);
-      const decrypted = await decrypt(encrypted, passphrase);
+      const encrypted = await encrypt(payload);
+      const decrypted = await decrypt(encrypted);
 
       expect(decrypted.data.transactions).toHaveLength(1000);
       expect(decrypted.data.transactions[999].merchant).toBe('Merchant 999');
@@ -490,19 +416,20 @@ describe('cloud-sync/encryption', () => {
 
   describe('EncryptionError', () => {
     it('has correct properties', () => {
-      const error = new EncryptionError('Test message', 'WRONG_PASSPHRASE');
+      const error = new EncryptionError('Test message', 'WRONG_KEY');
 
       expect(error).toBeInstanceOf(Error);
       expect(error).toBeInstanceOf(EncryptionError);
       expect(error.message).toBe('Test message');
-      expect(error.code).toBe('WRONG_PASSPHRASE');
+      expect(error.code).toBe('WRONG_KEY');
       expect(error.name).toBe('EncryptionError');
     });
 
     it('supports all error codes', () => {
       const codes = [
         'INVALID_FORMAT',
-        'WRONG_PASSPHRASE',
+        'WRONG_KEY',
+        'MISSING_KEY',
         'CORRUPTED',
         'UNSUPPORTED_VERSION',
       ] as const;

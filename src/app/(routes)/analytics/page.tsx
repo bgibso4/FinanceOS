@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
-import { ChartRenderer } from '@/components/chart-renderer';
+import { ChartRenderer, PIE_COLORS } from '@/components/chart-renderer';
 import { ds } from '@/lib/design-system';
 import {
   getCurrencySymbol,
@@ -606,8 +606,11 @@ export default function AnalyticsPage() {
                           className={`flex-1 h-1.5 ${ds.bg.tertiary} rounded-full overflow-hidden`}
                         >
                           <div
-                            className="h-full bg-[var(--accent)] rounded-full"
-                            style={{ width: `${percentage}%` }}
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${percentage}%`,
+                              backgroundColor: PIE_COLORS[idx % PIE_COLORS.length],
+                            }}
                           />
                         </div>
                         <span className={`text-xs ${ds.text.muted} w-12 text-right`}>

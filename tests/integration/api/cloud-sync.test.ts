@@ -22,6 +22,8 @@ describe('cloud-sync integration', () => {
   let prisma: PrismaClient;
 
   beforeAll(async () => {
+    // Set test encryption key (32 bytes base64)
+    process.env.SYNC_ENCRYPTION_KEY = 'YV10ZXN0LWtleS10aGF0LWlzLWV4YWN0bHktMzItYiE=';
     prisma = await setupTestDb();
     // Set the sync module to use the test database
     setPrismaClient(prisma);
@@ -569,11 +571,10 @@ describe('cloud-sync integration', () => {
       const exportedPayload = await exportDatabase();
 
       // Encrypt
-      const passphrase = 'integration-test-passphrase-12345';
-      const encrypted = await encrypt(exportedPayload, passphrase);
+      const encrypted = await encrypt(exportedPayload);
 
       // Decrypt
-      const decrypted = await decrypt(encrypted, passphrase);
+      const decrypted = await decrypt(encrypted);
 
       // Validate payload structure
       expect(isSyncPayload(decrypted)).toBe(true);
@@ -609,8 +610,8 @@ describe('cloud-sync integration', () => {
       });
 
       const payload = await exportDatabase();
-      const encrypted = await encrypt(payload, 'unicode-test');
-      const decrypted = await decrypt(encrypted, 'unicode-test');
+      const encrypted = await encrypt(payload);
+      const decrypted = await decrypt(encrypted);
 
       await resetTestDb();
       await importDatabase(decrypted);

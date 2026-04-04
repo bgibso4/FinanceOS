@@ -1,28 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import {
-  downloadBlob,
-  decrypt,
-  importDatabase,
-  hashPassphrase,
-  getRecordCounts,
-} from '@/lib/cloud-sync';
+import { downloadBlob, decrypt, importDatabase, getRecordCounts } from '@/lib/cloud-sync';
 
 const ConnectRequestSchema = z.object({
   syncId: z.string().uuid('Invalid sync ID format'),
-  passphrase: z.string().min(1, 'Passphrase is required'),
 });
 
 export async function POST(request: NextRequest) {
   try {
+    if (!process.env.SYNC_ENCRYPTION_KEY) {
+      return NextResponse.json(
+        { error: 'SYNC_ENCRYPTION_KEY not configured on server' },
+        { status: 500 }
+      );
+    }
+
     const body = await request.json();
-    const { syncId, passphrase } = ConnectRequestSchema.parse(body);
+    const { syncId } = ConnectRequestSchema.parse(body);
 
     // Download encrypted blob
     const blob = await downloadBlob(syncId);
 
-    // Decrypt (this validates the passphrase)
-    const payload = await decrypt(blob, passphrase);
+    // Decrypt with server key
+    const payload = await decrypt(blob);
 
     // Import into database
     await importDatabase(payload);
@@ -30,13 +30,9 @@ export async function POST(request: NextRequest) {
     // Get updated record counts
     const recordCounts = await getRecordCounts();
 
-    // Hash passphrase for local storage
-    const passphraseHash = await hashPassphrase(passphrase);
-
     return NextResponse.json({
       success: true,
       connectedAt: new Date().toISOString(),
-      passphraseHash,
       restored: {
         accounts: recordCounts.accounts,
         transactions: recordCounts.transactions,
@@ -56,8 +52,15 @@ export async function POST(request: NextRequest) {
     // Check for specific error types
     const errorMessage = error instanceof Error ? error.message : 'Connection failed';
 
-    if (errorMessage.includes('passphrase') || errorMessage.includes('decrypt')) {
-      return NextResponse.json({ error: 'Incorrect passphrase' }, { status: 401 });
+    if (
+      errorMessage.includes('key') ||
+      errorMessage.includes('decrypt') ||
+      errorMessage.includes('Decryption')
+    ) {
+      return NextResponse.json(
+        { error: 'Decryption failed — wrong encryption key' },
+        { status: 401 }
+      );
     }
 
     if (errorMessage.includes('not found') || errorMessage.includes('NOT_FOUND')) {

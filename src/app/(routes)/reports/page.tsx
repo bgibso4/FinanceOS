@@ -317,7 +317,7 @@ function ReportsContent() {
                           ))}
                         </tr>
                       </thead>
-                      <tbody className={`divide-y ${ds.border.default}`}>
+                      <tbody className="divide-y divide-[var(--border)]">
                         <tr className={`hover:${ds.bg.secondary}`}>
                           <td
                             className={`px-3 py-2 ${ds.text.primary} font-medium sticky left-0 ${ds.bg.primary}`}
