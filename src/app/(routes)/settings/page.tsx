@@ -76,7 +76,7 @@ type Account = {
   plaidConnection?: PlaidConnection | null;
   tellerConnection?: TellerConnection | null;
 };
-type AccountBalance = { id: string; balance: number };
+type AccountBalance = { id: string; balance: number; nativeBalance: number; currency: string };
 type Category = { id: string; name: string; type: string; parentId?: string | null };
 type Rule = {
   id: string;
@@ -141,10 +141,10 @@ const sortByName = (a: { name: string }, b: { name: string }) =>
   stripEmojis(a.name).localeCompare(stripEmojis(b.name));
 
 // Format currency
-const formatCurrency = (amount: number) => {
+const formatCurrency = (amount: number, currencyCode = 'USD') => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
+    currency: currencyCode,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
@@ -429,6 +429,9 @@ function SettingsPageContent() {
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountBalances, setAccountBalances] = useState<Map<string, number>>(new Map());
+  const [accountNativeBalances, setAccountNativeBalances] = useState<
+    Map<string, { balance: number; currency: string }>
+  >(new Map());
   const [categories, setCategories] = useState<Category[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
   const [_snapshots, setSnapshots] = useState<Snapshot[]>([]);
@@ -468,6 +471,8 @@ function SettingsPageContent() {
   const [modalAccount, setModalAccount] = useState<Account | null>(null);
   const [accountTransactionCount, setAccountTransactionCount] = useState(0);
   const [modalAccountBalance, setModalAccountBalance] = useState(0);
+  const [modalNativeBalance, setModalNativeBalance] = useState(0);
+  const [modalAccountCurrency, setModalAccountCurrency] = useState('USD');
   const [reconcileTarget, setReconcileTarget] = useState('');
   const [newCategory, setNewCategory] = useState({ name: '', type: 'expense', parentId: '' });
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -637,12 +642,8 @@ function SettingsPageContent() {
     setUserSettings(settings.settings ?? null);
     setSettingsTags(tagsData.tags ?? []);
 
-    // Build balance map
-    const balanceMap = new Map<string, number>();
-    (bal.accounts ?? []).forEach((a: AccountBalance) => {
-      balanceMap.set(a.id, a.balance);
-    });
-    setAccountBalances(balanceMap);
+    // Build balance maps (converted + native)
+    updateBalanceMaps(bal.accounts ?? []);
 
     // Refresh budgets based on current view
     const defaultsRes = await fetch('/api/budgets/defaults');
@@ -660,17 +661,24 @@ function SettingsPageContent() {
 
   // ── Targeted refresh helpers (avoid refetching all 9-11 endpoints) ──
 
+  const updateBalanceMaps = (balanceAccounts: AccountBalance[]) => {
+    const balanceMap = new Map<string, number>();
+    const nativeMap = new Map<string, { balance: number; currency: string }>();
+    balanceAccounts.forEach((a) => {
+      balanceMap.set(a.id, a.balance);
+      nativeMap.set(a.id, { balance: a.nativeBalance, currency: a.currency });
+    });
+    setAccountBalances(balanceMap);
+    setAccountNativeBalances(nativeMap);
+  };
+
   const refreshAccounts = async () => {
     const [acc, bal] = await Promise.all([
       fetch('/api/accounts').then((r) => r.json()),
       fetch('/api/accounts/balances').then((r) => r.json()),
     ]);
     setAccounts(acc.accounts ?? []);
-    const balanceMap = new Map<string, number>();
-    (bal.accounts ?? []).forEach((a: AccountBalance) => {
-      balanceMap.set(a.id, a.balance);
-    });
-    setAccountBalances(balanceMap);
+    updateBalanceMaps(bal.accounts ?? []);
   };
 
   const refreshCategories = async () => {
@@ -728,23 +736,22 @@ function SettingsPageContent() {
     setAccountModalOpen(true);
     setReconcileTarget('');
 
-    // Get transaction count and balance for this account
+    // Get transaction count for this account (use preset=custom with wide range to get ALL transactions)
     try {
-      const response = await fetch(`/api/transactions?account=${account.id}`);
+      const response = await fetch(
+        `/api/transactions?account=${account.id}&preset=custom&startDate=1970-01-01`
+      );
       const data = await response.json();
       setAccountTransactionCount(data.transactions?.length || 0);
-
-      // Calculate balance from transactions
-      const balance = (data.transactions || []).reduce(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (sum: number, tx: any) => sum + tx.amount,
-        0
-      );
-      setModalAccountBalance(balance);
     } catch (_error) {
       setAccountTransactionCount(0);
-      setModalAccountBalance(0);
     }
+
+    // Use the already-computed balance from the balances API (sums ALL transactions)
+    setModalAccountBalance(accountBalances.get(account.id) ?? 0);
+    const native = accountNativeBalances.get(account.id);
+    setModalNativeBalance(native?.balance ?? accountBalances.get(account.id) ?? 0);
+    setModalAccountCurrency(native?.currency ?? account.currency ?? 'USD');
   };
 
   const closeAccountModal = () => {
@@ -752,6 +759,8 @@ function SettingsPageContent() {
     setModalAccount(null);
     setAccountTransactionCount(0);
     setModalAccountBalance(0);
+    setModalNativeBalance(0);
+    setModalAccountCurrency('USD');
     setReconcileTarget('');
     setSyncResult(null);
   };
@@ -837,25 +846,22 @@ function SettingsPageContent() {
         removed: data.removed,
         skippedOld: data.skippedOld,
       });
-      await refreshAccounts();
+      // Refresh accounts + balances, then update modal with fresh data
+      const [acc, bal] = await Promise.all([
+        fetch('/api/accounts').then((r) => r.json()),
+        fetch('/api/accounts/balances').then((r) => r.json()),
+      ]);
+      setAccounts(acc.accounts ?? []);
+      const balAccounts: AccountBalance[] = bal.accounts ?? [];
+      updateBalanceMaps(balAccounts);
 
-      // Re-open modal with updated account
-      const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
-      const updatedAccount = updatedAccounts.accounts?.find(
-        (a: Account) => a.id === modalAccount.id
-      );
+      const updatedAccount = (acc.accounts ?? []).find((a: Account) => a.id === modalAccount.id);
       if (updatedAccount) {
         setModalAccount(updatedAccount);
-        // Update balance
-        const txRes = await fetch(`/api/transactions?account=${modalAccount.id}`);
-        const txData = await txRes.json();
-        const balance = (txData.transactions || []).reduce(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (sum: number, tx: any) => sum + tx.amount,
-          0
-        );
-        setModalAccountBalance(balance);
-        setAccountTransactionCount(txData.transactions?.length || 0);
+        const native = balAccounts.find((a) => a.id === modalAccount.id);
+        setModalAccountBalance(native?.balance ?? 0);
+        setModalNativeBalance(native?.nativeBalance ?? 0);
+        setModalAccountCurrency(native?.currency ?? 'USD');
       }
     } catch (_error) {
       alert('Failed to sync transactions');
@@ -1070,25 +1076,22 @@ function SettingsPageContent() {
         merged: data.merged,
         skippedOld: data.skippedPending,
       });
-      await refreshAccounts();
+      // Refresh accounts + balances, then update modal with fresh data
+      const [acc, bal] = await Promise.all([
+        fetch('/api/accounts').then((r) => r.json()),
+        fetch('/api/accounts/balances').then((r) => r.json()),
+      ]);
+      setAccounts(acc.accounts ?? []);
+      const balAccounts: AccountBalance[] = bal.accounts ?? [];
+      updateBalanceMaps(balAccounts);
 
-      // Re-open modal with updated account
-      const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
-      const updatedAccount = updatedAccounts.accounts?.find(
-        (a: Account) => a.id === modalAccount.id
-      );
+      const updatedAccount = (acc.accounts ?? []).find((a: Account) => a.id === modalAccount.id);
       if (updatedAccount) {
         setModalAccount(updatedAccount);
-        // Update balance
-        const txRes = await fetch(`/api/transactions?account=${modalAccount.id}`);
-        const txData = await txRes.json();
-        const balance = (txData.transactions || []).reduce(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (sum: number, tx: any) => sum + tx.amount,
-          0
-        );
-        setModalAccountBalance(balance);
-        setAccountTransactionCount(txData.transactions?.length || 0);
+        const native = balAccounts.find((a) => a.id === modalAccount.id);
+        setModalAccountBalance(native?.balance ?? 0);
+        setModalNativeBalance(native?.nativeBalance ?? 0);
+        setModalAccountCurrency(native?.currency ?? 'USD');
       }
     } catch (_error) {
       alert('Failed to sync transactions');
@@ -1436,12 +1439,13 @@ function SettingsPageContent() {
       return;
     }
 
-    const difference = targetBalance - modalAccountBalance;
+    const difference = targetBalance - modalNativeBalance;
     if (Math.abs(difference) < 0.01) {
       alert('Balance is already correct!');
       return;
     }
 
+    const cur = modalAccountCurrency;
     try {
       const response = await fetch('/api/transactions/adjustment', {
         method: 'POST',
@@ -1449,7 +1453,7 @@ function SettingsPageContent() {
         body: JSON.stringify({
           accountId: modalAccount.id,
           amount: difference,
-          note: `Balance adjustment: ${formatCurrency(modalAccountBalance)} → ${formatCurrency(targetBalance)}`,
+          note: `Balance adjustment: ${formatCurrency(modalNativeBalance, cur)} → ${formatCurrency(targetBalance, cur)}`,
         }),
       });
 
@@ -1460,7 +1464,7 @@ function SettingsPageContent() {
       }
 
       // Update the modal balance and clear input
-      setModalAccountBalance(targetBalance);
+      setModalNativeBalance(targetBalance);
       setReconcileTarget('');
       setAccountTransactionCount(accountTransactionCount + 1);
       refreshAccounts();
@@ -2708,8 +2712,25 @@ function SettingsPageContent() {
                 <div>
                   <strong>Status:</strong> {modalAccount.isActive === false ? 'Archived' : 'Active'}
                 </div>
+                {modalAccountCurrency !== (userSettings?.baseCurrency || 'USD') && (
+                  <div>
+                    <strong>Native Balance ({modalAccountCurrency}):</strong>{' '}
+                    <span
+                      className={
+                        modalNativeBalance >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'
+                      }
+                    >
+                      {formatCurrency(modalNativeBalance, modalAccountCurrency)}
+                    </span>
+                  </div>
+                )}
                 <div>
-                  <strong>Current Balance:</strong>{' '}
+                  <strong>
+                    {modalAccountCurrency !== (userSettings?.baseCurrency || 'USD')
+                      ? `Converted Balance (${userSettings?.baseCurrency || 'USD'})`
+                      : 'Current Balance'}
+                    :
+                  </strong>{' '}
                   <span
                     className={
                       modalAccountBalance >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'
@@ -2727,23 +2748,29 @@ function SettingsPageContent() {
               <div className={`text-sm ${ds.text.secondary} mb-3`}>
                 Enter the actual balance from your bank statement to create an adjustment
                 transaction.
+                {modalAccountCurrency !== (userSettings?.baseCurrency || 'USD') && (
+                  <span className={ds.text.muted}>
+                    {' '}
+                    Values are in {modalAccountCurrency} (account currency).
+                  </span>
+                )}
               </div>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="flex-1">
                     <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
-                      Current
+                      Current ({modalAccountCurrency})
                     </label>
                     <div
-                      className={`text-lg font-bold ${modalAccountBalance >= 0 ? ds.text.primary : 'text-[var(--red)]'}`}
+                      className={`text-lg font-bold ${modalNativeBalance >= 0 ? ds.text.primary : 'text-[var(--red)]'}`}
                     >
-                      {formatCurrency(modalAccountBalance)}
+                      {formatCurrency(modalNativeBalance, modalAccountCurrency)}
                     </div>
                   </div>
                   <div className={ds.text.muted}>→</div>
                   <div className="flex-1">
                     <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
-                      Actual Balance
+                      Actual Balance ({modalAccountCurrency})
                     </label>
                     <Input
                       className="w-full"
@@ -2759,10 +2786,13 @@ function SettingsPageContent() {
                   <div className={`${ds.bg.primary} rounded p-2 text-sm`}>
                     <span className={ds.text.secondary}>Adjustment needed: </span>
                     <span
-                      className={`font-semibold ${parseFloat(reconcileTarget) - modalAccountBalance >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
+                      className={`font-semibold ${parseFloat(reconcileTarget) - modalNativeBalance >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
                     >
-                      {parseFloat(reconcileTarget) - modalAccountBalance >= 0 ? '+' : ''}
-                      {formatCurrency(parseFloat(reconcileTarget) - modalAccountBalance)}
+                      {parseFloat(reconcileTarget) - modalNativeBalance >= 0 ? '+' : ''}
+                      {formatCurrency(
+                        parseFloat(reconcileTarget) - modalNativeBalance,
+                        modalAccountCurrency
+                      )}
                     </span>
                   </div>
                 )}
@@ -2771,7 +2801,7 @@ function SettingsPageContent() {
                   disabled={
                     !reconcileTarget ||
                     isNaN(parseFloat(reconcileTarget)) ||
-                    Math.abs(parseFloat(reconcileTarget) - modalAccountBalance) < 0.01
+                    Math.abs(parseFloat(reconcileTarget) - modalNativeBalance) < 0.01
                   }
                   onClick={reconcileBalance}
                 >
