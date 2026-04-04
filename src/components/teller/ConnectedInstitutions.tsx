@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { ds } from '@/lib/design-system';
 import { TellerInstitutionConnect } from './TellerInstitutionConnect';
 import { TellerReconnectButton } from './TellerReconnectButton';
@@ -103,6 +104,7 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [expandedEnrollment, setExpandedEnrollment] = useState<string | null>(null);
   const [showConnectMenu, setShowConnectMenu] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -220,22 +222,25 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
     setExpandedEnrollment(expandedEnrollment === enrollmentId ? null : enrollmentId);
   };
 
-  if (loading) {
-    return (
-      <div className={`${ds.bg.secondary} rounded-lg p-6 border ${ds.border.default}`}>
-        <h3 className={`text-lg font-semibold ${ds.text.primary} mb-4`}>Connected Institutions</h3>
-        <p className={ds.text.muted}>Loading...</p>
-      </div>
-    );
-  }
-
   const totalConnections = tellerEnrollments.length + plaidEnrollments.length;
 
   return (
-    <div className={`${ds.bg.secondary} rounded-lg p-6 border ${ds.border.default}`}>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className={`text-lg font-semibold ${ds.text.primary}`}>Connected Institutions</h3>
-        <div ref={menuRef} className="relative">
+    <Card>
+      <CardHeader className="cursor-pointer select-none" onClick={() => setCollapsed(!collapsed)}>
+        <div className="flex items-center gap-3">
+          <span
+            className={`text-sm ${ds.text.muted} transition-transform ${collapsed ? '' : 'rotate-90'}`}
+          >
+            ▶
+          </span>
+          <div className={`text-sm font-semibold ${ds.text.primary}`}>Connected Institutions</div>
+          {!loading && (
+            <span className={`text-xs ${ds.text.muted}`}>
+              {totalConnections === 0 ? 'None' : `${totalConnections} connected`}
+            </span>
+          )}
+        </div>
+        <div ref={menuRef} className="relative" onClick={(e) => e.stopPropagation()}>
           <Button onClick={() => setShowConnectMenu(!showConnectMenu)}>
             Connect New Institution
           </Button>
@@ -269,82 +274,235 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
             </div>
           )}
         </div>
-      </div>
+      </CardHeader>
 
-      {totalConnections === 0 ? (
-        <div className={`text-center py-8 ${ds.text.muted}`}>
-          <p className="mb-2">No institutions connected yet.</p>
-          <p className="text-sm">Connect to a bank to enable automatic transaction imports.</p>
-        </div>
+      {collapsed ? null : loading ? (
+        <CardContent>
+          <p className={ds.text.muted}>Loading...</p>
+        </CardContent>
+      ) : totalConnections === 0 ? (
+        <CardContent>
+          <div className={`text-center py-8 ${ds.text.muted}`}>
+            <p className="mb-2">No institutions connected yet.</p>
+            <p className="text-sm">Connect to a bank to enable automatic transaction imports.</p>
+          </div>
+        </CardContent>
       ) : (
-        <div className="space-y-3">
-          {/* Teller Enrollments */}
-          {tellerEnrollments.map((enrollment) => {
-            const isExpanded = expandedEnrollment === `teller-${enrollment.id}`;
-            const linkedCount = enrollment.connections.length;
-            const totalCount =
-              enrollment.totalAccountCount ?? enrollment.availableAccounts?.length ?? 0;
+        <CardContent>
+          <div className="space-y-3">
+            {/* Teller Enrollments */}
+            {tellerEnrollments.map((enrollment) => {
+              const isExpanded = expandedEnrollment === `teller-${enrollment.id}`;
+              const linkedCount = enrollment.connections.length;
+              const totalCount =
+                enrollment.totalAccountCount ?? enrollment.availableAccounts?.length ?? 0;
 
-            return (
-              <div
-                key={`teller-${enrollment.id}`}
-                className={`border ${ds.border.default} rounded-lg overflow-hidden`}
-              >
-                {/* Header */}
+              return (
                 <div
-                  className={`${ds.bg.tertiary} p-4 cursor-pointer hover:${ds.bg.hover}`}
-                  onClick={() => toggleExpanded(`teller-${enrollment.id}`)}
+                  key={`teller-${enrollment.id}`}
+                  className={`border ${ds.border.default} rounded-lg overflow-hidden`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className={`font-semibold ${ds.text.primary}`}>
-                          {enrollment.institutionName}
-                        </h4>
-                        <span className="text-xs px-2 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-muted)]">
-                          Teller
-                        </span>
-                        <StatusBadge status={enrollment.status} />
+                  {/* Header */}
+                  <div
+                    className={`${ds.bg.tertiary} p-4 cursor-pointer hover:${ds.bg.hover}`}
+                    onClick={() => toggleExpanded(`teller-${enrollment.id}`)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className={`font-semibold ${ds.text.primary}`}>
+                            {enrollment.institutionName}
+                          </h4>
+                          <span className="text-xs px-2 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-muted)]">
+                            Teller
+                          </span>
+                          <StatusBadge status={enrollment.status} />
+                        </div>
+                        <p className={`text-sm ${ds.text.muted} mt-1`}>
+                          {linkedCount} of {totalCount} accounts linked
+                          {enrollment.status === 'disconnected' && (
+                            <span className="text-[var(--red)] ml-2">• Authorization expired</span>
+                          )}
+                        </p>
                       </div>
-                      <p className={`text-sm ${ds.text.muted} mt-1`}>
-                        {linkedCount} of {totalCount} accounts linked
-                        {enrollment.status === 'disconnected' && (
-                          <span className="text-[var(--red)] ml-2">• Authorization expired</span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm ${ds.text.muted}`}>{isExpanded ? '▼' : '▶'}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm ${ds.text.muted}`}>{isExpanded ? '▼' : '▶'}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Expanded Content */}
-                {isExpanded && (
-                  <div className={`p-4 border-t ${ds.border.default}`}>
-                    {/* Available Accounts */}
-                    <div className="mb-4">
-                      <h5 className={`text-sm font-semibold ${ds.text.secondary} mb-2`}>
-                        Bank Accounts
-                      </h5>
-                      {!enrollment.availableAccounts ||
-                      enrollment.availableAccounts.length === 0 ? (
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div className={`p-4 border-t ${ds.border.default}`}>
+                      {/* Available Accounts */}
+                      <div className="mb-4">
+                        <h5 className={`text-sm font-semibold ${ds.text.secondary} mb-2`}>
+                          Bank Accounts
+                        </h5>
+                        {!enrollment.availableAccounts ||
+                        enrollment.availableAccounts.length === 0 ? (
+                          enrollment.connections.length === 0 ? (
+                            <p className={`text-sm ${ds.text.muted}`}>No accounts found</p>
+                          ) : null
+                        ) : (
+                          <div className="space-y-2">
+                            {enrollment.availableAccounts.map((account) => {
+                              const isLinked = enrollment.connections.some(
+                                (conn) => conn.tellerAccountId === account.id
+                              );
+                              const linkedTo = enrollment.connections.find(
+                                (conn) => conn.tellerAccountId === account.id
+                              );
+
+                              return (
+                                <div
+                                  key={account.id}
+                                  className={`p-3 rounded border ${ds.border.default} ${ds.bg.primary}`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <span className={`text-sm font-medium ${ds.text.primary}`}>
+                                          {account.name}
+                                        </span>
+                                        <span className={`text-xs ${ds.text.muted}`}>
+                                          •••• {account.last_four}
+                                        </span>
+                                      </div>
+                                      {isLinked && linkedTo && (
+                                        <p className={`text-xs ${ds.text.muted} mt-1`}>
+                                          Linked to: {linkedTo.account.name}
+                                        </p>
+                                      )}
+                                    </div>
+                                    {isLinked && (
+                                      <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">
+                                        Linked
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {/* Show linked accounts if no available accounts */}
+                        {(!enrollment.availableAccounts ||
+                          enrollment.availableAccounts.length === 0) &&
+                          enrollment.connections.length > 0 && (
+                            <div className="space-y-2">
+                              {enrollment.connections.map((conn) => (
+                                <div
+                                  key={conn.id}
+                                  className={`p-3 rounded border ${ds.border.default} ${ds.bg.primary}`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <span className={`text-sm font-medium ${ds.text.primary}`}>
+                                        {conn.tellerAccountName || 'Unknown Account'}
+                                      </span>
+                                      <p className={`text-xs ${ds.text.muted} mt-1`}>
+                                        Linked to: {conn.account.name}
+                                      </p>
+                                    </div>
+                                    <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">
+                                      Linked
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2 pt-3 border-t">
+                        {(enrollment.status === 'disconnected' ||
+                          enrollment.status === 'needs_reauth') && (
+                          <TellerReconnectButton
+                            enrollmentId={enrollment.enrollmentId}
+                            institutionName={enrollment.institutionName}
+                            onSuccess={() => {
+                              fetchEnrollments();
+                              if (onRefresh) onRefresh();
+                            }}
+                          />
+                        )}
+                        <Button
+                          disabled={disconnecting === enrollment.id}
+                          variant="destructive"
+                          onClick={() =>
+                            handleTellerDisconnect(enrollment.id, enrollment.institutionName)
+                          }
+                        >
+                          {disconnecting === enrollment.id ? 'Disconnecting...' : 'Disconnect'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Plaid Enrollments */}
+            {plaidEnrollments.map((enrollment) => {
+              const isExpanded = expandedEnrollment === `plaid-${enrollment.id}`;
+              const linkedCount = enrollment.connections.length;
+              const availableCount = enrollment.availableAccounts?.length || 0;
+
+              return (
+                <div
+                  key={`plaid-${enrollment.id}`}
+                  className={`border ${ds.border.default} rounded-lg overflow-hidden`}
+                >
+                  {/* Header */}
+                  <div
+                    className={`${ds.bg.tertiary} p-4 cursor-pointer hover:${ds.bg.hover}`}
+                    onClick={() => toggleExpanded(`plaid-${enrollment.id}`)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className={`font-semibold ${ds.text.primary}`}>
+                            {enrollment.institutionName}
+                          </h4>
+                          <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">
+                            Plaid
+                          </span>
+                          <StatusBadge status={enrollment.status} />
+                        </div>
+                        <p className={`text-sm ${ds.text.muted} mt-1`}>
+                          {linkedCount} of {linkedCount + availableCount} accounts linked
+                          {(enrollment.status === 'error' ||
+                            enrollment.status === 'needs_reauth') && (
+                            <span className="text-[var(--red)] ml-2">• Authorization expired</span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm ${ds.text.muted}`}>{isExpanded ? '▼' : '▶'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div className={`p-4 border-t ${ds.border.default}`}>
+                      {/* Bank Accounts */}
+                      <div className="mb-4">
+                        <h5 className={`text-sm font-semibold ${ds.text.secondary} mb-2`}>
+                          Bank Accounts
+                        </h5>
+                        {(!enrollment.availableAccounts ||
+                          enrollment.availableAccounts.length === 0) &&
                         enrollment.connections.length === 0 ? (
                           <p className={`text-sm ${ds.text.muted}`}>No accounts found</p>
-                        ) : null
-                      ) : (
-                        <div className="space-y-2">
-                          {enrollment.availableAccounts.map((account) => {
-                            const isLinked = enrollment.connections.some(
-                              (conn) => conn.tellerAccountId === account.id
-                            );
-                            const linkedTo = enrollment.connections.find(
-                              (conn) => conn.tellerAccountId === account.id
-                            );
-
-                            return (
+                        ) : (
+                          <div className="space-y-2">
+                            {/* Available (unlinked) accounts */}
+                            {enrollment.availableAccounts?.map((account) => (
                               <div
-                                key={account.id}
+                                key={account.account_id}
                                 className={`p-3 rounded border ${ds.border.default} ${ds.bg.primary}`}
                               >
                                 <div className="flex items-center justify-between">
@@ -354,31 +512,18 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                                         {account.name}
                                       </span>
                                       <span className={`text-xs ${ds.text.muted}`}>
-                                        •••• {account.last_four}
+                                        •••• {account.mask}
                                       </span>
                                     </div>
-                                    {isLinked && linkedTo && (
-                                      <p className={`text-xs ${ds.text.muted} mt-1`}>
-                                        Linked to: {linkedTo.account.name}
-                                      </p>
-                                    )}
+                                    <p className={`text-xs ${ds.text.muted} mt-1`}>
+                                      {account.subtype}
+                                    </p>
                                   </div>
-                                  {isLinked && (
-                                    <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">
-                                      Linked
-                                    </span>
-                                  )}
+                                  <span className={`text-xs ${ds.text.muted}`}>Not linked</span>
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                      {/* Show linked accounts if no available accounts */}
-                      {(!enrollment.availableAccounts ||
-                        enrollment.availableAccounts.length === 0) &&
-                        enrollment.connections.length > 0 && (
-                          <div className="space-y-2">
+                            ))}
+                            {/* Linked accounts */}
                             {enrollment.connections.map((conn) => (
                               <div
                                 key={conn.id}
@@ -387,7 +532,7 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                                 <div className="flex items-center justify-between">
                                   <div>
                                     <span className={`text-sm font-medium ${ds.text.primary}`}>
-                                      {conn.tellerAccountName || 'Unknown Account'}
+                                      {conn.plaidAccountName || 'Unknown Account'}
                                     </span>
                                     <p className={`text-xs ${ds.text.muted} mt-1`}>
                                       Linked to: {conn.account.name}
@@ -401,169 +546,38 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                             ))}
                           </div>
                         )}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2 pt-3 border-t">
-                      {(enrollment.status === 'disconnected' ||
-                        enrollment.status === 'needs_reauth') && (
-                        <TellerReconnectButton
-                          enrollmentId={enrollment.enrollmentId}
-                          institutionName={enrollment.institutionName}
-                          onSuccess={() => {
-                            fetchEnrollments();
-                            if (onRefresh) onRefresh();
-                          }}
-                        />
-                      )}
-                      <Button
-                        disabled={disconnecting === enrollment.id}
-                        variant="destructive"
-                        onClick={() =>
-                          handleTellerDisconnect(enrollment.id, enrollment.institutionName)
-                        }
-                      >
-                        {disconnecting === enrollment.id ? 'Disconnecting...' : 'Disconnect'}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Plaid Enrollments */}
-          {plaidEnrollments.map((enrollment) => {
-            const isExpanded = expandedEnrollment === `plaid-${enrollment.id}`;
-            const linkedCount = enrollment.connections.length;
-            const availableCount = enrollment.availableAccounts?.length || 0;
-
-            return (
-              <div
-                key={`plaid-${enrollment.id}`}
-                className={`border ${ds.border.default} rounded-lg overflow-hidden`}
-              >
-                {/* Header */}
-                <div
-                  className={`${ds.bg.tertiary} p-4 cursor-pointer hover:${ds.bg.hover}`}
-                  onClick={() => toggleExpanded(`plaid-${enrollment.id}`)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className={`font-semibold ${ds.text.primary}`}>
-                          {enrollment.institutionName}
-                        </h4>
-                        <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">
-                          Plaid
-                        </span>
-                        <StatusBadge status={enrollment.status} />
                       </div>
-                      <p className={`text-sm ${ds.text.muted} mt-1`}>
-                        {linkedCount} of {linkedCount + availableCount} accounts linked
+
+                      {/* Actions */}
+                      <div className="flex gap-2 pt-3 border-t">
                         {(enrollment.status === 'error' ||
                           enrollment.status === 'needs_reauth') && (
-                          <span className="text-[var(--red)] ml-2">• Authorization expired</span>
+                          <PlaidReconnectButton
+                            enrollmentId={enrollment.id}
+                            onSuccess={() => {
+                              fetchEnrollments();
+                              if (onRefresh) onRefresh();
+                            }}
+                          />
                         )}
-                      </p>
+                        <Button
+                          disabled={disconnecting === enrollment.id}
+                          variant="destructive"
+                          onClick={() =>
+                            handlePlaidDisconnect(enrollment.id, enrollment.institutionName)
+                          }
+                        >
+                          {disconnecting === enrollment.id ? 'Disconnecting...' : 'Disconnect'}
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm ${ds.text.muted}`}>{isExpanded ? '▼' : '▶'}</span>
-                    </div>
-                  </div>
+                  )}
                 </div>
-
-                {/* Expanded Content */}
-                {isExpanded && (
-                  <div className={`p-4 border-t ${ds.border.default}`}>
-                    {/* Bank Accounts */}
-                    <div className="mb-4">
-                      <h5 className={`text-sm font-semibold ${ds.text.secondary} mb-2`}>
-                        Bank Accounts
-                      </h5>
-                      {(!enrollment.availableAccounts ||
-                        enrollment.availableAccounts.length === 0) &&
-                      enrollment.connections.length === 0 ? (
-                        <p className={`text-sm ${ds.text.muted}`}>No accounts found</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {/* Available (unlinked) accounts */}
-                          {enrollment.availableAccounts?.map((account) => (
-                            <div
-                              key={account.account_id}
-                              className={`p-3 rounded border ${ds.border.default} ${ds.bg.primary}`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-sm font-medium ${ds.text.primary}`}>
-                                      {account.name}
-                                    </span>
-                                    <span className={`text-xs ${ds.text.muted}`}>
-                                      •••• {account.mask}
-                                    </span>
-                                  </div>
-                                  <p className={`text-xs ${ds.text.muted} mt-1`}>
-                                    {account.subtype}
-                                  </p>
-                                </div>
-                                <span className={`text-xs ${ds.text.muted}`}>Not linked</span>
-                              </div>
-                            </div>
-                          ))}
-                          {/* Linked accounts */}
-                          {enrollment.connections.map((conn) => (
-                            <div
-                              key={conn.id}
-                              className={`p-3 rounded border ${ds.border.default} ${ds.bg.primary}`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <span className={`text-sm font-medium ${ds.text.primary}`}>
-                                    {conn.plaidAccountName || 'Unknown Account'}
-                                  </span>
-                                  <p className={`text-xs ${ds.text.muted} mt-1`}>
-                                    Linked to: {conn.account.name}
-                                  </p>
-                                </div>
-                                <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">
-                                  Linked
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2 pt-3 border-t">
-                      {(enrollment.status === 'error' || enrollment.status === 'needs_reauth') && (
-                        <PlaidReconnectButton
-                          enrollmentId={enrollment.id}
-                          onSuccess={() => {
-                            fetchEnrollments();
-                            if (onRefresh) onRefresh();
-                          }}
-                        />
-                      )}
-                      <Button
-                        disabled={disconnecting === enrollment.id}
-                        variant="destructive"
-                        onClick={() =>
-                          handlePlaidDisconnect(enrollment.id, enrollment.institutionName)
-                        }
-                      >
-                        {disconnecting === enrollment.id ? 'Disconnecting...' : 'Disconnect'}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </CardContent>
       )}
-    </div>
+    </Card>
   );
 }
