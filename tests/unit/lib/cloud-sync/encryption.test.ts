@@ -9,7 +9,7 @@ import {
 import type { SyncPayload } from '@/lib/cloud-sync/types';
 
 // Generate a test key and set it in the env before each test
-const TEST_KEY = 'dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleTA='; // 32 bytes base64
+const TEST_KEY = 'YV10ZXN0LWtleS10aGF0LWlzLWV4YWN0bHktMzItYiE='; // 32 bytes base64
 
 function setTestKey(key?: string): void {
   process.env.SYNC_ENCRYPTION_KEY = key ?? TEST_KEY;
