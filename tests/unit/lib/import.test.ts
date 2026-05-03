@@ -323,6 +323,60 @@ ${dateStr},TRANSFER FROM CHECKING,500.00`;
 
       expect(result.crossAccount).toBeGreaterThanOrEqual(1);
     });
+
+    it('does not pair a credit card charge with its payment when the payment has a cross-account match', async () => {
+      // Bilt rent scenario: a rent charge (-$5390) on the credit card and a
+      // payment-received (+$5390) on the same card on the same date should NOT
+      // be paired as a same-account transfer, because the payment-received has
+      // a real cross-account counterpart on the funding checking account.
+      const biltAccount = createAccountData({
+        id: 'bilt-account',
+        name: 'Bilt',
+        type: 'credit',
+      });
+      const checkingAccount = createAccountData({
+        id: 'checking-account',
+        name: 'Checking',
+        type: 'checking',
+      });
+      await prisma.account.create({ data: biltAccount });
+      await prisma.account.create({ data: checkingAccount });
+
+      const today = new Date();
+      const dateStr = today.toISOString().split('T')[0];
+
+      // 1. Rent charge on Bilt
+      const csvBilt = `Date,Description,Amount
+${dateStr},Bilt Housing Payment,-5390.00
+${dateStr},Payment - Bilt Housing,5390.00`;
+      await importCsv(prisma, csvBilt, defaultMapping, biltAccount.id!);
+
+      // 2. Payment leaving Checking
+      const csvChecking = `Date,Description,Amount
+${dateStr},BILT,-5390.00`;
+      await importCsv(prisma, csvChecking, defaultMapping, checkingAccount.id!);
+
+      const all = await prisma.transaction.findMany({
+        where: { accountId: { in: [biltAccount.id!, checkingAccount.id!] } },
+        orderBy: { merchant: 'asc' },
+      });
+
+      const rentCharge = all.find((t) => t.merchant === 'Bilt Housing Payment');
+      const paymentReceived = all.find((t) => t.merchant === 'Payment - Bilt Housing');
+      const paymentSent = all.find(
+        (t) => t.merchant === 'BILT' && t.accountId === checkingAccount.id
+      );
+
+      // The rent charge is a real expense, not a transfer
+      expect(rentCharge?.isTransfer).toBe(false);
+      expect(rentCharge?.transferGroupId).toBeNull();
+
+      // The payment-received and payment-sent form the actual transfer pair
+      expect(paymentReceived?.isTransfer).toBe(true);
+      expect(paymentSent?.isTransfer).toBe(true);
+      expect(paymentReceived?.transferGroupId).toBe(paymentSent?.transferGroupId);
+      expect(paymentReceived?.transferGroupId).not.toBeNull();
+    });
   });
 
   describe('import from CSV files', () => {
