@@ -27,6 +27,24 @@ function convertTransactionAmount(
   return convertAmount(amount, accountCurrency, baseCurrency, rateMap);
 }
 
+/**
+ * Decide whether a transaction belongs to the income or spending totals.
+ *
+ * Category type drives the bucket when set, so a positive amount categorized
+ * as Rent (a roommate reimbursement, refund, cashback, etc.) reduces rent
+ * spending rather than appearing as a separate income line. For uncategorized
+ * transactions, we fall back to sign so that an unsorted paycheck still feels
+ * like income on the dashboard until the user categorizes it.
+ */
+function bucketForTransaction(
+  amount: number,
+  categoryType: string | null | undefined
+): 'income' | 'spending' {
+  if (categoryType === 'income') return 'income';
+  if (categoryType === 'expense') return 'spending';
+  return amount >= 0 ? 'income' : 'spending';
+}
+
 export function buildWhere(filters: FilterParams, startDate: Date, endDate: Date) {
   const where: any = {
     date: { gte: startDate, lte: endDate },
@@ -139,11 +157,17 @@ export async function dashboardAnalytics(
       rateMap
     );
 
-    if (amount > 0) {
+    const bucket = bucketForTransaction(amount, tx.category?.type);
+    if (bucket === 'income') {
+      // Signed contribution so a refunded paycheck (negative amount in income
+      // category) reduces income instead of being counted as spending.
       income += convertedAmount;
-    } else {
-      // Apply returns to reduce spending
+    } else if (amount < 0) {
+      // Negative in expense/uncategorized: counts as spending, less linked returns
       spending += Math.abs(convertedAmount) - convertedReturnAmount;
+    } else {
+      // Positive in expense category: a credit that reduces spending
+      spending -= convertedAmount;
     }
   });
 
@@ -235,10 +259,13 @@ export async function dashboardAnalytics(
       rateMap
     );
 
-    if (amount > 0) {
+    const bucket = bucketForTransaction(amount, tx.category?.type);
+    if (bucket === 'income') {
       prevIncome += convertedAmount;
-    } else {
+    } else if (amount < 0) {
       prevSpending += Math.abs(convertedAmount) - convertedReturnAmount;
+    } else {
+      prevSpending -= convertedAmount;
     }
   });
 
@@ -247,19 +274,25 @@ export async function dashboardAnalytics(
     { amount: number; type: string | null; txCount: number; returnAmount: number }
   > = {};
   for (const tx of transactions) {
+    const txAmount = Number(tx.amount);
+    const categoryType = tx.category?.type ?? null;
+
+    // Uncategorized positives are routed to income (per bucketForTransaction),
+    // so they should not reduce the Uncategorized spending line.
+    if (categoryType === null && txAmount >= 0) continue;
+
     const key = tx.category?.name ?? 'Uncategorized';
     const accountCurrency = tx.account?.currency || 'USD';
     const returnAmount = returnAmounts.get(tx.id) || 0;
 
     categoryTotals[key] = categoryTotals[key] ?? {
       amount: 0,
-      type: tx.category?.type ?? null,
+      type: categoryType,
       txCount: 0,
       returnAmount: 0,
     };
 
     // Add all transactions (positive and negative) to get net amount per category
-    const txAmount = Number(tx.amount);
     const convertedAmount = convertTransactionAmount(
       txAmount,
       accountCurrency,
@@ -278,7 +311,8 @@ export async function dashboardAnalytics(
       categoryTotals[key].amount += Math.abs(convertedAmount) - convertedReturnAmount;
       categoryTotals[key].returnAmount += convertedReturnAmount;
     } else {
-      // For income/credits, subtract from the category total (reduces net spending)
+      // Positive in an expense or income category — net against the category total
+      // (e.g., a roommate Zelle on the Rent line reduces rent spending).
       categoryTotals[key].amount -= convertedAmount;
     }
 
@@ -288,9 +322,15 @@ export async function dashboardAnalytics(
   // Previous period category totals for comparison (with returns applied and converted)
   const prevCategoryTotals: Record<string, number> = {};
   for (const tx of prevTransactions) {
+    const amount = Number(tx.amount);
+    const categoryType = tx.category?.type ?? null;
+
+    // Mirror current-period logic: skip uncategorized positives so they don't
+    // reduce the Uncategorized spending baseline used for month-over-month.
+    if (categoryType === null && amount >= 0) continue;
+
     const key = tx.category?.name ?? 'Uncategorized';
     const accountCurrency = tx.account?.currency || 'USD';
-    const amount = Number(tx.amount);
     const returnAmount = prevReturnAmounts.get(tx.id) || 0;
 
     prevCategoryTotals[key] = prevCategoryTotals[key] ?? 0;
@@ -399,19 +439,21 @@ export async function dashboardAnalytics(
     monthBuckets[month] = monthBuckets[month] ?? { income: 0, spending: 0 };
 
     const accountCurrency = tx.account?.currency || 'USD';
+    const amount = Number(tx.amount);
     const returnAmount = returnAmounts.get(tx.id) || 0;
+    const convertedAmount = convertTransactionAmount(
+      amount,
+      accountCurrency,
+      baseCurrency,
+      rateMap
+    );
+    const bucket = bucketForTransaction(amount, tx.category?.type);
 
-    if (Number(tx.amount) > 0) {
-      const convertedAmount = convertTransactionAmount(
-        Number(tx.amount),
-        accountCurrency,
-        baseCurrency,
-        rateMap
-      );
+    if (bucket === 'income') {
       monthBuckets[month].income += convertedAmount;
-    } else {
+    } else if (amount < 0) {
       // Apply returns to reduce spending (converted)
-      const netSpending = Math.abs(Number(tx.amount)) - returnAmount;
+      const netSpending = Math.abs(amount) - returnAmount;
       const convertedNetSpending = convertTransactionAmount(
         netSpending,
         accountCurrency,
@@ -419,6 +461,9 @@ export async function dashboardAnalytics(
         rateMap
       );
       monthBuckets[month].spending += convertedNetSpending;
+    } else {
+      // Positive in an expense category — reduces that month's spending
+      monthBuckets[month].spending -= convertedAmount;
     }
   }
   const incomeVsSpending = Object.entries(monthBuckets)
@@ -521,16 +566,22 @@ export async function monthlySnapshot(prisma: PrismaClient, month: string) {
     select: {
       amount: true,
       merchant: true,
-      category: { select: { name: true } },
+      category: { select: { name: true, type: true } },
     },
   });
 
-  const income = transactions
-    .filter((t) => Number(t.amount) > 0)
-    .reduce((acc, t) => acc + Number(t.amount), 0);
-  const spending = transactions
-    .filter((t) => Number(t.amount) < 0)
-    .reduce((acc, t) => acc + Number(t.amount), 0);
+  let income = 0;
+  let spending = 0;
+  for (const tx of transactions) {
+    const amount = Number(tx.amount);
+    const bucket = bucketForTransaction(amount, tx.category?.type);
+    if (bucket === 'income') {
+      income += amount;
+    } else {
+      // Spending kept as a negative number to preserve `savings = income + spending`
+      spending += amount < 0 ? amount : -amount;
+    }
+  }
   const savings = income + spending;
   const savingsRatePct = income > 0 ? (savings / income) * 100 : 0;
 

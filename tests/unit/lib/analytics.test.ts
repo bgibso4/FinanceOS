@@ -238,6 +238,75 @@ describe('analytics', () => {
       expect(result.netCashflow.spending).toBe(0);
     });
 
+    it('treats a positive amount in an expense category as a spending offset, not income', async () => {
+      // Real-world case: roommate Zelle reimbursement categorized as Rent.
+      // The Dashboard should NOT count it as income; it should reduce rent spending.
+      await prisma.category.create({
+        data: createCategoryData({ id: 'cat-rent', name: 'Rent', type: 'expense' }),
+      });
+
+      const now = new Date();
+      const startDate = startOfMonth(now);
+      const endDate = endOfMonth(now);
+
+      await prisma.transaction.createMany({
+        data: [
+          createTransactionData('test-account', {
+            date: now,
+            amount: -5390,
+            merchant: 'Bilt Housing Payment',
+            categoryId: 'cat-rent',
+          }),
+          createTransactionData('test-account', {
+            date: now,
+            amount: 2695,
+            merchant: 'Zelle from Amelia',
+            categoryId: 'cat-rent',
+          }),
+        ],
+      });
+
+      const result = await dashboardAnalytics(prisma, {}, startDate, endDate);
+
+      expect(result.netCashflow.income).toBe(0);
+      expect(result.netCashflow.spending).toBe(2695); // 5390 - 2695
+
+      const rentRow = result.spendByCategory.find((c) => c.category === 'Rent');
+      expect(rentRow?.amount).toBe(2695);
+    });
+
+    it('keeps an uncategorized positive amount as income (sign-based fallback)', async () => {
+      const now = new Date();
+      const startDate = startOfMonth(now);
+      const endDate = endOfMonth(now);
+
+      await prisma.transaction.createMany({
+        data: [
+          createTransactionData('test-account', {
+            date: now,
+            amount: 500, // No categoryId — Uncategorized
+            merchant: 'UNKNOWN INCOMING',
+          }),
+          createTransactionData('test-account', {
+            date: now,
+            amount: -100,
+            merchant: 'STORE',
+            categoryId: 'cat-groceries',
+          }),
+        ],
+      });
+
+      const result = await dashboardAnalytics(prisma, {}, startDate, endDate);
+
+      expect(result.netCashflow.income).toBe(500);
+      expect(result.netCashflow.spending).toBe(100);
+
+      // Uncategorized line should not exist (no negatives) — only the
+      // positive uncategorized was filtered out of spending categories.
+      const uncategorized = result.spendByCategory.find((c) => c.category === 'Uncategorized');
+      expect(uncategorized).toBeUndefined();
+    });
+
     it('calculates top merchants ordered by spend', async () => {
       const now = new Date();
       const startDate = startOfMonth(now);
