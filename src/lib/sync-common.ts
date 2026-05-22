@@ -1,7 +1,26 @@
+import crypto from 'crypto';
 import { prisma as defaultPrisma } from '@/lib/prisma';
 import { normalizeMerchant } from '@/lib/categorization';
 import { v4 as uuid } from 'uuid';
 import type { PrismaClient } from '@prisma/client';
+
+/**
+ * SHA256 hash of (accountId, dateOnly, amount, merchantNormalized). Stable across
+ * provider re-enrollments (Teller/Plaid mint new externalIds, but importHash stays).
+ * Used as a 3rd-tier dedup check after externalId and merge-candidate matches.
+ */
+export function createImportHash(
+  accountId: string,
+  date: Date,
+  amount: number,
+  merchantNormalized: string
+): string {
+  const dateStr = date.toISOString().split('T')[0];
+  return crypto
+    .createHash('sha256')
+    .update(`${accountId}|${dateStr}|${amount}|${merchantNormalized}`)
+    .digest('hex');
+}
 
 // ─── Retry with Exponential Backoff ─────────────────────────────────────────
 
@@ -192,6 +211,36 @@ export type MappedTransaction = {
   merchantNormalized: string;
   accountId: string;
 };
+
+/**
+ * Find an existing transaction with the same importHash but a stale (or missing)
+ * externalId. Catches duplicates introduced when a Teller/Plaid enrollment is
+ * re-linked: the underlying bank transaction is the same, but the new external IDs
+ * don't match anything, so externalId-based dedup misses them. Returns the existing
+ * row so the caller can update its externalId in place instead of creating a new row.
+ */
+export async function findImportHashMatch(
+  accountId: string,
+  importHash: string,
+  newExternalId: string
+): Promise<{
+  id: string;
+  externalId: string | null;
+  categoryId: string | null;
+  confidenceScore: number;
+} | null> {
+  const match = await defaultPrisma.transaction.findFirst({
+    where: {
+      accountId,
+      importHash,
+      // Skip rows that already have THIS externalId (would be exact dup, caught earlier);
+      // include rows with null or a different externalId (stale from prior enrollment).
+      NOT: { externalId: newExternalId },
+    },
+    select: { id: true, externalId: true, categoryId: true, confidenceScore: true },
+  });
+  return match;
+}
 
 /**
  * Find a transaction that matches by date (±3 days) + amount + similar merchant but has no externalId.
