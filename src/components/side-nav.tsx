@@ -83,16 +83,12 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
   const searchParams = useSearchParams();
   const currentTab = searchParams.get('tab') || 'general';
 
-  const [isExpanded, setIsExpanded] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('sidebar-expanded') === 'true';
-    }
-    return false;
-  });
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
+    setIsExpanded(localStorage.getItem('sidebar-expanded') === 'true');
     setIsDark(document.documentElement.classList.contains('dark'));
   }, []);
 
