@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { syncTellerTransactions } from '@/lib/teller-sync';
 import { withSyncLock } from '@/lib/sync-common';
+import { classifyTellerError } from '@/lib/bank-errors';
 
 const schema = z.object({
   accountId: z.string(),
@@ -64,19 +65,14 @@ export async function POST(req: NextRequest) {
       ...result,
     });
   } catch (error: unknown) {
-    console.error('Error syncing Teller transactions:', error);
+    // Detect errors that require re-authentication through Teller Connect
+    // (e.g. Teller's verbatim "Enrollment is not healthy" when a bank session
+    // is invalidated by a password change, MFA expiry, or OAuth revoke).
+    const { needsReauth, reason } = classifyTellerError(error);
 
-    // Detect errors that require user re-authentication through Teller Connect.
-    // Teller returns "Enrollment is not healthy" verbatim when the bank session
-    // has been invalidated (password change, MFA expiry, bank-side OAuth revoke).
-    const errorMessage = error instanceof Error ? error.message : '';
-    const lowerMessage = errorMessage.toLowerCase();
-    const needsReauth =
-      errorMessage.includes('401') ||
-      lowerMessage.includes('unauthorized') ||
-      lowerMessage.includes('authentication') ||
-      lowerMessage.includes('enrollment') ||
-      lowerMessage.includes('not healthy');
+    if (!needsReauth) {
+      console.error('Error syncing Teller transactions:', error);
+    }
 
     if (needsReauth && accountId) {
       try {
@@ -86,7 +82,7 @@ export async function POST(req: NextRequest) {
           data: {
             status: 'disconnected',
             lastSyncStatus: 'error',
-            lastSyncError: errorMessage || 'Reconnection required.',
+            lastSyncError: reason || 'Reconnection required.',
           },
         });
 
@@ -104,7 +100,7 @@ export async function POST(req: NextRequest) {
       }
 
       return NextResponse.json(
-        { error: errorMessage || 'Reconnection required.', code: 'AUTH_EXPIRED' },
+        { error: reason || 'Reconnection required.', code: 'AUTH_EXPIRED' },
         { status: 400 }
       );
     }
