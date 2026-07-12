@@ -417,74 +417,95 @@ export async function detectTransfers(
 ): Promise<TransferDetectionResult> {
   console.log('🔄 Starting transfer detection for account:', accountId);
 
-  // First: detect same-account transfers (e.g., internal moves)
-  // Look at last 90 days to catch all recent transfers
-  const ninetyDaysAgo = new Date();
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
-  const recent = await prismaClient.transaction.findMany({
-    where: {
-      accountId,
-      date: { gte: ninetyDaysAgo },
-    },
-    orderBy: { date: 'desc' },
-  });
-
-  console.log(`  Found ${recent.length} transactions in last 90 days for this account`);
-
-  const byDate: Record<string, typeof recent> = {};
-  recent.forEach((tx) => {
-    const key = tx.date.toISOString().split('T')[0];
-    byDate[key] = byDate[key] ?? [];
-    byDate[key].push(tx);
-  });
-
-  let sameAccountMatches = 0;
-  const sameAccountTransfers: SameAccountTransfer[] = [];
-
-  for (const group of Object.values(byDate)) {
-    for (const tx of group) {
-      if (tx.isTransfer) continue;
-      const match = group.find(
-        (other) =>
-          other.id !== tx.id &&
-          other.isTransfer === false &&
-          Math.abs(Number(other.amount) + Number(tx.amount)) < 0.01
-      );
-      if (match) {
-        const transferGroupId = uuid();
-        await prismaClient.transaction.updateMany({
-          where: { id: { in: [tx.id, match.id] } },
-          data: { isTransfer: true, transferGroupId },
-        });
-
-        // Only report if one of the transactions is newly imported
-        if (newTransactionIds.has(tx.id) || newTransactionIds.has(match.id)) {
-          sameAccountMatches++;
-          sameAccountTransfers.push({
-            merchant1: tx.merchant,
-            amount1: Number(tx.amount),
-            merchant2: match.merchant,
-            amount2: Number(match.amount),
-            date: tx.date.toISOString().split('T')[0],
-          });
-          console.log(
-            `  ✓ Same-account transfer: ${tx.merchant} $${tx.amount} + ${match.merchant} $${match.amount}`
-          );
-        }
-      }
-    }
-  }
-
-  console.log(
-    `  Found ${sameAccountMatches} same-account transfer pairs involving new transactions`
-  );
-
-  // Second: detect cross-account transfers (e.g., credit card payments)
+  // Run cross-account detection FIRST. Cross-account matches use stronger signals
+  // (different accounts, transfer keywords, date proximity) and should win over
+  // same-account matches when both could apply — for example, a credit card
+  // payment received (+$X) on the card has a same-day, opposite-amount charge
+  // on the same card (a coincidence), but its true counterpart is the debit
+  // on the funding checking account.
   const { crossAccountMatches, crossAccountTransfers } = await detectCrossAccountTransfers(
     newTransactionIds,
     prismaClient
   );
+
+  // Same-account transfers don't conceptually exist on credit/loan accounts —
+  // any opposite-sign pair is a charge↔refund (handled by linkedTransactionId)
+  // or a coincidental purchase↔payment (which is a bug, not a transfer).
+  const account = await prismaClient.account.findUnique({
+    where: { id: accountId },
+    select: { type: true },
+  });
+  const skipSameAccount = account?.type === 'credit' || account?.type === 'loan';
+
+  let sameAccountMatches = 0;
+  const sameAccountTransfers: SameAccountTransfer[] = [];
+
+  if (!skipSameAccount) {
+    // Look at last 90 days to catch all recent transfers
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    // Re-fetch after cross-account detection so isTransfer flags are current
+    const recent = await prismaClient.transaction.findMany({
+      where: {
+        accountId,
+        date: { gte: ninetyDaysAgo },
+      },
+      orderBy: { date: 'desc' },
+    });
+
+    console.log(`  Found ${recent.length} transactions in last 90 days for this account`);
+
+    const byDate: Record<string, typeof recent> = {};
+    recent.forEach((tx) => {
+      const key = tx.date.toISOString().split('T')[0];
+      byDate[key] = byDate[key] ?? [];
+      byDate[key].push(tx);
+    });
+
+    for (const group of Object.values(byDate)) {
+      for (const tx of group) {
+        if (tx.isTransfer) continue;
+        const match = group.find(
+          (other) =>
+            other.id !== tx.id &&
+            other.isTransfer === false &&
+            Math.abs(Number(other.amount) + Number(tx.amount)) < 0.01
+        );
+        if (match) {
+          const transferGroupId = uuid();
+          await prismaClient.transaction.updateMany({
+            where: { id: { in: [tx.id, match.id] } },
+            data: { isTransfer: true, transferGroupId },
+          });
+          // Mutate in-memory copies so the next iteration's filter sees them as paired
+          tx.isTransfer = true;
+          match.isTransfer = true;
+
+          // Only report if one of the transactions is newly imported
+          if (newTransactionIds.has(tx.id) || newTransactionIds.has(match.id)) {
+            sameAccountMatches++;
+            sameAccountTransfers.push({
+              merchant1: tx.merchant,
+              amount1: Number(tx.amount),
+              merchant2: match.merchant,
+              amount2: Number(match.amount),
+              date: tx.date.toISOString().split('T')[0],
+            });
+            console.log(
+              `  ✓ Same-account transfer: ${tx.merchant} $${tx.amount} + ${match.merchant} $${match.amount}`
+            );
+          }
+        }
+      }
+    }
+
+    console.log(
+      `  Found ${sameAccountMatches} same-account transfer pairs involving new transactions`
+    );
+  } else {
+    console.log(`  Skipping same-account detection for ${account?.type} account (not applicable)`);
+  }
 
   return {
     transfersDetected: sameAccountMatches + crossAccountMatches,
@@ -588,6 +609,25 @@ export async function detectCrossAccountTransfers(
 
     if (match) {
       const transferGroupId = uuid();
+
+      // If either transaction was already in a transfer group, the other members
+      // of that old group are now orphans — reset them. This handles the case
+      // where same-account detection ran first (perhaps in a previous sync) and
+      // mistakenly paired a credit card charge with its payment-received before
+      // the cross-account counterpart was known.
+      const oldGroupIds = [tx.transferGroupId, match.transferGroupId].filter(
+        (g): g is string => typeof g === 'string' && g.length > 0
+      );
+      if (oldGroupIds.length > 0) {
+        await prismaClient.transaction.updateMany({
+          where: {
+            transferGroupId: { in: oldGroupIds },
+            id: { notIn: [tx.id, match.id] },
+          },
+          data: { isTransfer: false, transferGroupId: null },
+        });
+      }
+
       // Mark BOTH transactions as transfers, even if one already is
       await prismaClient.transaction.updateMany({
         where: { id: { in: [tx.id, match.id] } },
