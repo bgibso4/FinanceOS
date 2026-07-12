@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { isMerchantSimilar } from '@/lib/sync-common';
+import { Prisma } from '@prisma/client';
+import { isMerchantSimilar, withSyncLock, isUniqueConstraintError } from '@/lib/sync-common';
 
 describe('sync-common', () => {
   describe('isMerchantSimilar', () => {
@@ -120,6 +121,83 @@ describe('sync-common', () => {
         expect(isMerchantSimilar('chase', 'chases')).toBe(true); // one contains the other
         expect(isMerchantSimilar('uber', 'uber1')).toBe(true);
       });
+    });
+  });
+
+  describe('withSyncLock', () => {
+    it('runs operations with the same key one at a time', async () => {
+      let active = 0;
+      let maxActive = 0;
+      const op = async () => {
+        active++;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        active--;
+        return 'done';
+      };
+
+      await Promise.all([
+        withSyncLock('acct-1', op),
+        withSyncLock('acct-1', op),
+        withSyncLock('acct-1', op),
+      ]);
+
+      expect(maxActive).toBe(1);
+    });
+
+    it('runs operations with different keys concurrently', async () => {
+      let active = 0;
+      let maxActive = 0;
+      const op = async () => {
+        active++;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        active--;
+      };
+
+      await Promise.all([withSyncLock('acct-1', op), withSyncLock('acct-2', op)]);
+
+      expect(maxActive).toBe(2);
+    });
+
+    it('releases the lock when an operation throws so later operations still run', async () => {
+      await expect(
+        withSyncLock('acct-err', async () => {
+          throw new Error('boom');
+        })
+      ).rejects.toThrow('boom');
+
+      const result = await withSyncLock('acct-err', async () => 'recovered');
+      expect(result).toBe('recovered');
+    });
+
+    it('returns the operation result', async () => {
+      const result = await withSyncLock('acct-result', async () => 42);
+      expect(result).toBe(42);
+    });
+  });
+
+  describe('isUniqueConstraintError', () => {
+    it('returns true for Prisma P2002 unique-constraint errors', () => {
+      const err = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: 'test',
+      });
+      expect(isUniqueConstraintError(err)).toBe(true);
+    });
+
+    it('returns false for other Prisma error codes', () => {
+      const err = new Prisma.PrismaClientKnownRequestError('Record not found', {
+        code: 'P2025',
+        clientVersion: 'test',
+      });
+      expect(isUniqueConstraintError(err)).toBe(false);
+    });
+
+    it('returns false for generic errors and non-errors', () => {
+      expect(isUniqueConstraintError(new Error('boom'))).toBe(false);
+      expect(isUniqueConstraintError('nope')).toBe(false);
+      expect(isUniqueConstraintError(null)).toBe(false);
     });
   });
 });

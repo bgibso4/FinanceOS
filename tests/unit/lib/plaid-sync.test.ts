@@ -22,9 +22,17 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
+// Keep sync-common real, but allow spying on individual exports (e.g. to
+// simulate a concurrent sync writing between the dedup checks and create()).
+vi.mock('@/lib/sync-common', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/lib/sync-common')>();
+  return { ...original };
+});
+
 // Import after mocking
 import { syncPlaidTransactions, type SyncResult, type DryRunResult } from '@/lib/plaid-sync';
 import { getPlaidClient } from '@/lib/plaid';
+import * as syncCommon from '@/lib/sync-common';
 
 describe('plaid-sync', () => {
   let prisma: PrismaClient;
@@ -180,6 +188,67 @@ describe('plaid-sync', () => {
         where: { accountId: testAccountId },
       });
       expect(transactions).toHaveLength(2);
+    });
+
+    it('skips instead of crashing when a concurrent sync claims the externalId mid-write', async () => {
+      // Reproduce the re-enrollment race: a second sync inserts the same
+      // transaction between this run's dedup checks and its create(). We simulate
+      // the concurrent writer inside findImportHashMatch (which runs after the
+      // externalId check but before create) so create() hits the
+      // (accountId, externalId) unique constraint.
+      const spy = vi
+        .spyOn(syncCommon, 'findImportHashMatch')
+        .mockImplementationOnce(async (accountId, importHash, newExternalId) => {
+          await prisma.transaction.create({
+            data: {
+              accountId,
+              externalId: newExternalId,
+              date: new Date(),
+              amount: -5.5,
+              merchant: 'Coffee Shop',
+              merchantNormalized: 'coffee shop',
+              importHash,
+              tags: '[]',
+            },
+          });
+          return null; // pretend no hash match so the caller proceeds to create()
+        });
+
+      const mockPlaidClient = {
+        transactionsSync: vi.fn().mockResolvedValue({
+          data: {
+            added: [
+              createMockPlaidTransaction({
+                transaction_id: 'race-tx-1',
+                merchant_name: 'Coffee Shop',
+                amount: 5.5,
+              }),
+            ],
+            modified: [],
+            removed: [],
+            next_cursor: 'cursor-123',
+            has_more: false,
+          },
+        }),
+      };
+
+      vi.mocked(getPlaidClient).mockReturnValue(
+        mockPlaidClient as unknown as ReturnType<typeof getPlaidClient>
+      );
+
+      const connection = createMockPlaidConnection(testAccountId);
+      const result = (await syncPlaidTransactions(connection)) as SyncResult;
+
+      // The conflicting row already exists, so this run skips rather than throws.
+      expect(result.skippedDuplicates).toBe(1);
+      expect(result.added).toBe(0);
+
+      const transactions = await prisma.transaction.findMany({
+        where: { accountId: testAccountId },
+      });
+      expect(transactions).toHaveLength(1);
+
+      spy.mockRestore();
     });
 
     it('auto-categorizes transactions using rules', async () => {

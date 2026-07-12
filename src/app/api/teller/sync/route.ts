@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { syncTellerTransactions } from '@/lib/teller-sync';
+import { withSyncLock } from '@/lib/sync-common';
 
 const schema = z.object({
   accountId: z.string(),
@@ -43,11 +44,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await syncTellerTransactions(connection, {
-      daysToSync: parsed.daysToSync,
-      includePending: parsed.includePending,
-      dryRun: parsed.dryRun,
-    });
+    const runSync = () =>
+      syncTellerTransactions(connection, {
+        daysToSync: parsed.daysToSync,
+        includePending: parsed.includePending,
+        dryRun: parsed.dryRun,
+      });
+
+    // Serialize real syncs of the same account so two concurrent runs can't
+    // interleave their dedup checks and writes. Dry runs are read-only, so they
+    // don't need the lock.
+    const result = parsed.dryRun
+      ? await runSync()
+      : await withSyncLock(`teller:${accountId}`, runSync);
 
     return NextResponse.json({
       success: true,
