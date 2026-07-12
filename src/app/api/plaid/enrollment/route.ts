@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { getPlaidClient } from '@/lib/plaid';
 import { encryptAccessToken, decryptAccessToken } from '@/lib/encryption';
+import { classifyPlaidError } from '@/lib/bank-errors';
 
 const createSchema = z.object({
   publicToken: z.string(),
@@ -68,14 +69,38 @@ export async function GET() {
             availableAccounts,
           };
         } catch (error) {
-          console.error(`Error fetching accounts for enrollment ${enrollment.id}:`, error);
+          const { needsReauth, reason } = classifyPlaidError(error);
+
+          if (needsReauth) {
+            // Stale bank session — expected lifecycle state. Log concisely (the
+            // raw AxiosError is a multi-KB object) and persist so Settings shows
+            // "Needs Reconnection" plus the Reconnect button on load. Plaid uses
+            // 'needs_reauth' (matching the connection-level status the sync route
+            // sets, and the value the UI's PlaidReconnectButton keys off).
+            console.warn(
+              `Plaid enrollment "${enrollment.institutionName}" needs reconnection: ${reason}`
+            );
+            if (enrollment.status !== 'needs_reauth') {
+              await prisma.plaidEnrollment
+                .update({
+                  where: { id: enrollment.id },
+                  data: { status: 'needs_reauth' },
+                })
+                .catch((e) => console.error('Failed to update Plaid enrollment status:', e));
+            }
+          } else {
+            console.error(
+              `Error fetching accounts for Plaid enrollment "${enrollment.institutionName}": ${reason}`
+            );
+          }
+
           // Return enrollment without available accounts if fetch fails
           return {
             id: enrollment.id,
             plaidItemId: enrollment.plaidItemId,
             institutionId: enrollment.institutionId,
             institutionName: enrollment.institutionName,
-            status: 'error',
+            status: needsReauth ? 'needs_reauth' : 'error',
             lastSyncAt: enrollment.lastSyncAt,
             connections: enrollment.connections.map((c) => ({
               id: c.id,

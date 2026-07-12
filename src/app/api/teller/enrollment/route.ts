@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { encryptAccessToken } from '@/lib/encryption';
 import { tellerFetch, TellerAccountsResponse } from '@/lib/teller';
+import { classifyTellerError } from '@/lib/bank-errors';
 
 const createEnrollmentSchema = z.object({
   accessToken: z.string(),
@@ -43,23 +44,26 @@ export async function GET() {
             totalAccountCount: accounts.length,
           };
         } catch (error) {
-          console.error(`Error fetching accounts for enrollment ${enrollment.id}:`, error);
+          const { needsReauth, reason } = classifyTellerError(error);
 
-          // Check if this is an auth error and update the enrollment status
-          const errorMessage = error instanceof Error ? error.message : '';
-          const isAuthError =
-            errorMessage.includes('401') ||
-            errorMessage.toLowerCase().includes('unauthorized') ||
-            errorMessage.toLowerCase().includes('authentication');
+          if (needsReauth) {
+            // Expected lifecycle state (stale bank session), not a crash. Log
+            // concisely and persist so Settings shows "Needs Reconnection" on
+            // load — previously "Enrollment is not healthy" slipped past the
+            // narrow 401/unauthorized matcher and the bank kept showing as
+            // Connected until a sync was manually triggered.
+            console.warn(
+              `Teller enrollment "${enrollment.institutionName}" needs reconnection: ${reason}`
+            );
 
-          if (isAuthError && enrollment.status !== 'disconnected') {
-            // Update status in background (don't await to keep response fast)
-            prisma.tellerEnrollment
-              .update({
-                where: { id: enrollment.id },
-                data: { status: 'disconnected' },
-              })
-              .catch((e) => console.error('Failed to update enrollment status:', e));
+            if (enrollment.status !== 'disconnected') {
+              await prisma.tellerEnrollment
+                .update({
+                  where: { id: enrollment.id },
+                  data: { status: 'disconnected' },
+                })
+                .catch((e) => console.error('Failed to update enrollment status:', e));
+            }
 
             return {
               ...enrollment,
@@ -68,6 +72,9 @@ export async function GET() {
             };
           }
 
+          console.error(
+            `Error fetching accounts for Teller enrollment "${enrollment.institutionName}": ${reason}`
+          );
           return {
             ...enrollment,
             availableAccounts: [],

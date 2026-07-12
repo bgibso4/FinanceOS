@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { syncPlaidTransactions } from '@/lib/plaid-sync';
 import { withSyncLock } from '@/lib/sync-common';
+import { classifyPlaidError } from '@/lib/bank-errors';
 
 const schema = z.object({
   accountId: z.string(),
@@ -11,9 +12,15 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  // Hoisted so the catch block can persist re-auth status. The old code
+  // re-read `await req.json()` in the catch, but the body stream was already
+  // consumed, so it silently resolved to `{}` and never marked the connection.
+  let accountId: string | undefined;
   try {
     const body = await req.json();
-    const { accountId, daysToSync, dryRun } = schema.parse(body);
+    const parsed = schema.parse(body);
+    accountId = parsed.accountId;
+    const { daysToSync, dryRun } = parsed;
 
     const connection = await prisma.plaidConnection.findUnique({
       where: { accountId },
@@ -52,20 +59,20 @@ export async function POST(req: NextRequest) {
       ...result,
     });
   } catch (error: unknown) {
-    console.error('Error syncing transactions:', error);
+    const { needsReauth, code, reason } = classifyPlaidError(error);
 
-    // Try to extract error code for Plaid errors
-    const plaidError = error as { response?: { data?: { error_code?: string } } };
-    const errorCode = plaidError.response?.data?.error_code;
-
-    if (errorCode === 'ITEM_LOGIN_REQUIRED') {
-      // Update connection status
-      const body = await req.json().catch(() => ({}));
-      if (body.accountId) {
-        await prisma.plaidConnection.update({
-          where: { accountId: body.accountId },
-          data: { status: 'needs_reauth' },
-        });
+    if (needsReauth) {
+      // Expected lifecycle state (stale bank session) — log concisely rather
+      // than dumping the multi-KB AxiosError, and persist so the account shows
+      // "Needs Reconnection".
+      console.warn(`Plaid sync needs reconnection${code ? ` (${code})` : ''}: ${reason}`);
+      if (accountId) {
+        await prisma.plaidConnection
+          .update({
+            where: { accountId },
+            data: { status: 'needs_reauth', lastSyncStatus: 'error', lastSyncError: reason },
+          })
+          .catch((e) => console.error('Failed to update connection status:', e));
       }
       return NextResponse.json(
         { error: 'Bank login required', code: 'NEEDS_REAUTH' },
@@ -73,6 +80,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    console.error('Error syncing transactions:', error);
     const message = error instanceof Error ? error.message : 'Failed to sync transactions';
     return NextResponse.json({ error: message }, { status: 500 });
   }
