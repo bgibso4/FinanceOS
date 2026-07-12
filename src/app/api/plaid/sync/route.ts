@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { syncPlaidTransactions } from '@/lib/plaid-sync';
+import { withSyncLock } from '@/lib/sync-common';
 
 const schema = z.object({
   accountId: z.string(),
@@ -36,7 +37,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await syncPlaidTransactions(connection, { daysToSync, dryRun });
+    // Serialize real syncs by enrollment: Plaid's transactionsSync cursor is
+    // shared across all sibling accounts under one item, so two concurrent runs
+    // of any account in the item must not overlap. Dry runs are read-only.
+    const result = dryRun
+      ? await syncPlaidTransactions(connection, { daysToSync, dryRun })
+      : await withSyncLock(`plaid:${connection.plaidEnrollment.id}`, () =>
+          syncPlaidTransactions(connection, { daysToSync, dryRun })
+        );
 
     return NextResponse.json({
       success: true,

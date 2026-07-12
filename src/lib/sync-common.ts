@@ -2,7 +2,52 @@ import crypto from 'crypto';
 import { prisma as defaultPrisma } from '@/lib/prisma';
 import { normalizeMerchant } from '@/lib/categorization';
 import { v4 as uuid } from 'uuid';
-import type { PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
+
+/**
+ * True if `err` is Prisma's P2002 unique-constraint violation. Sync uses a
+ * check-then-write sequence (findFirst → create/update); a concurrent sync of the
+ * same account can insert a row in that gap, so the write throws P2002. Callers
+ * treat that as "already handled by the other run" rather than crashing.
+ */
+export function isUniqueConstraintError(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
+}
+
+/**
+ * In-process mutex keyed by an arbitrary string. Serializes async operations that
+ * share a key so two syncs of the same account (or Plaid enrollment) can't
+ * interleave their dedup checks and writes. Operations with different keys run
+ * concurrently. This guards against races within a single Node process;
+ * isUniqueConstraintError handling is the cross-process backstop.
+ */
+const syncLocks = new Map<string, Promise<unknown>>();
+
+export function withSyncLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const prev = syncLocks.get(key) ?? Promise.resolve();
+
+  // Chain our run after the previous holder settles (success or failure).
+  const run = prev.then(
+    () => fn(),
+    () => fn()
+  );
+
+  // The next caller waits on a promise that settles when our run finishes.
+  const settled = run.then(
+    () => {},
+    () => {}
+  );
+  syncLocks.set(key, settled);
+
+  // Drop the key once we're the last holder, so the map doesn't grow unbounded.
+  settled.then(() => {
+    if (syncLocks.get(key) === settled) {
+      syncLocks.delete(key);
+    }
+  });
+
+  return run;
+}
 
 /**
  * SHA256 hash of (accountId, dateOnly, amount, merchantNormalized). Stable across

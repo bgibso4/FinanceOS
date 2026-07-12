@@ -26,9 +26,17 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
+// Keep sync-common real, but allow spying on individual exports (e.g. to
+// simulate a concurrent sync writing between the dedup checks and create()).
+vi.mock('@/lib/sync-common', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/lib/sync-common')>();
+  return { ...original };
+});
+
 // Import after mocking
 import { syncTellerTransactions, type SyncResult, type DryRunResult } from '@/lib/teller-sync';
 import { tellerFetch } from '@/lib/teller';
+import * as syncCommon from '@/lib/sync-common';
 
 describe('teller-sync', () => {
   let prisma: PrismaClient;
@@ -193,6 +201,99 @@ describe('teller-sync', () => {
         where: { accountId: testAccountId },
       });
       expect(transactions).toHaveLength(2);
+    });
+
+    it('skips instead of crashing when a concurrent sync claims the externalId mid-write', async () => {
+      // Reproduce the re-enrollment race: a second sync inserts the same
+      // transaction between this run's dedup checks and its create(). We simulate
+      // the concurrent writer inside findImportHashMatch (which runs after the
+      // externalId check but before create) so create() hits the
+      // (accountId, externalId) unique constraint.
+      const spy = vi
+        .spyOn(syncCommon, 'findImportHashMatch')
+        .mockImplementationOnce(async (accountId, importHash, newExternalId) => {
+          await prisma.transaction.create({
+            data: {
+              accountId,
+              externalId: newExternalId,
+              date: new Date(),
+              amount: 5.5,
+              merchant: 'Coffee Shop',
+              merchantNormalized: 'coffee shop',
+              importHash,
+              tags: '[]',
+            },
+          });
+          return null; // pretend no hash match so the caller proceeds to create()
+        });
+
+      vi.mocked(tellerFetch).mockResolvedValue([
+        createMockTellerTransaction({
+          id: 'race-tx-1',
+          description: 'Coffee Shop',
+          amount: '-5.50',
+          details: {
+            category: 'food_and_drink',
+            counterparty: { name: 'Coffee Shop', type: 'merchant' },
+            processing_status: 'complete',
+          },
+        }),
+      ]);
+
+      await createTellerDbRecords(testAccountId);
+      const connection = createMockTellerConnection(testAccountId);
+
+      const result = (await syncTellerTransactions(connection)) as SyncResult;
+
+      // The conflicting row already exists, so this run skips rather than throws.
+      expect(result.skippedDuplicates).toBe(1);
+      expect(result.added).toBe(0);
+
+      const transactions = await prisma.transaction.findMany({
+        where: { accountId: testAccountId },
+      });
+      expect(transactions).toHaveLength(1);
+
+      spy.mockRestore();
+    });
+
+    it('two genuinely concurrent syncs of the same account never crash and create one row', async () => {
+      // No spy here — this runs the real code path twice concurrently against the
+      // shared test DB, exercising the actual check-then-write race end to end.
+      vi.mocked(tellerFetch).mockResolvedValue([
+        createMockTellerTransaction({
+          id: 'concurrent-tx-1',
+          description: 'Coffee Shop',
+          amount: '-5.50',
+          details: {
+            category: 'food_and_drink',
+            counterparty: { name: 'Coffee Shop', type: 'merchant' },
+            processing_status: 'complete',
+          },
+        }),
+      ]);
+
+      await createTellerDbRecords(testAccountId);
+      const connection = createMockTellerConnection(testAccountId);
+
+      // Run twice over to give the race a chance to surface across timings.
+      for (let i = 0; i < 10; i++) {
+        await prisma.transaction.deleteMany({ where: { accountId: testAccountId } });
+
+        const [a, b] = (await Promise.all([
+          syncTellerTransactions(connection),
+          syncTellerTransactions(connection),
+        ])) as SyncResult[];
+
+        // Exactly one row exists, and the two runs together account for it as
+        // one added + one skipped (never two creates, never a crash).
+        const transactions = await prisma.transaction.findMany({
+          where: { accountId: testAccountId },
+        });
+        expect(transactions).toHaveLength(1);
+        expect(a.added + b.added).toBe(1);
+        expect(a.skippedDuplicates + b.skippedDuplicates).toBe(1);
+      }
     });
 
     it('maps Teller categories to FinanceOS categories', async () => {

@@ -12,6 +12,7 @@ import {
   cleanupTransferPair,
   convertBankAmount,
   retryWithBackoff,
+  isUniqueConstraintError,
   RateLimitError,
   type MappedTransaction,
   type RetryOptions,
@@ -563,11 +564,18 @@ async function processPlaidTransaction(
     // transaction IDs for the same underlying bank transactions.
     const hashMatch = await findImportHashMatch(accountId, mapped.importHash, mapped.externalId);
     if (hashMatch) {
-      await prisma.transaction.update({
-        where: { id: hashMatch.id },
-        data: { externalId: mapped.externalId },
-      });
-      return { status: 'merged' };
+      try {
+        await prisma.transaction.update({
+          where: { id: hashMatch.id },
+          data: { externalId: mapped.externalId },
+        });
+        return { status: 'merged' };
+      } catch (err) {
+        // A concurrent sync already claimed this externalId between our check and
+        // this update — it's handled, so skip rather than crash.
+        if (isUniqueConstraintError(err)) return { status: 'skipped' };
+        throw err;
+      }
     }
 
     // Check for merge candidate (manual import that matches)
@@ -575,21 +583,26 @@ async function processPlaidTransaction(
     if (mergeCandidate) {
       // Merge: update the existing transaction with the externalId
       // Also fix the amount sign if it was inverted (credit card convention difference)
-      await prisma.transaction.update({
-        where: { id: mergeCandidate.id },
-        data: {
-          externalId: mapped.externalId,
-          importHash: mapped.importHash,
-          // Correct the amount to match bank's convention
-          amount: mapped.amount,
-          // Update merchant if the Plaid one looks cleaner
-          ...(shouldUpdateMerchant(mergeCandidate.merchant, mapped.merchant) && {
-            merchant: mapped.merchant,
-            merchantNormalized: mapped.merchantNormalized,
-          }),
-        },
-      });
-      return { status: 'merged' };
+      try {
+        await prisma.transaction.update({
+          where: { id: mergeCandidate.id },
+          data: {
+            externalId: mapped.externalId,
+            importHash: mapped.importHash,
+            // Correct the amount to match bank's convention
+            amount: mapped.amount,
+            // Update merchant if the Plaid one looks cleaner
+            ...(shouldUpdateMerchant(mergeCandidate.merchant, mapped.merchant) && {
+              merchant: mapped.merchant,
+              merchantNormalized: mapped.merchantNormalized,
+            }),
+          },
+        });
+        return { status: 'merged' };
+      } catch (err) {
+        if (isUniqueConstraintError(err)) return { status: 'skipped' };
+        throw err;
+      }
     }
 
     // Auto-categorize and check for merchant rename
@@ -607,20 +620,27 @@ async function processPlaidTransaction(
       ? normalizeMerchant(categorization.renameTo)
       : mapped.merchantNormalized;
 
-    const created = await prisma.transaction.create({
-      data: {
-        ...mapped,
-        merchant: finalMerchant,
-        merchantNormalized: finalMerchantNormalized,
-        categoryId: categorization.categoryId,
-        confidenceScore: categorization.confidence,
-      },
-    });
+    try {
+      const created = await prisma.transaction.create({
+        data: {
+          ...mapped,
+          merchant: finalMerchant,
+          merchantNormalized: finalMerchantNormalized,
+          categoryId: categorization.categoryId,
+          confidenceScore: categorization.confidence,
+        },
+      });
 
-    return {
-      status: categorization.categoryId ? 'categorized' : 'created',
-      transactionId: created.id,
-    };
+      return {
+        status: categorization.categoryId ? 'categorized' : 'created',
+        transactionId: created.id,
+      };
+    } catch (err) {
+      // A concurrent sync inserted this externalId between our dedup checks and
+      // this create — treat as an already-handled duplicate instead of crashing.
+      if (isUniqueConstraintError(err)) return { status: 'skipped' };
+      throw err;
+    }
   } else {
     // Modify existing transaction
     await prisma.transaction.updateMany({
