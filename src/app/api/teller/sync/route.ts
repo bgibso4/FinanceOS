@@ -57,14 +57,19 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     console.error('Error syncing Teller transactions:', error);
 
-    // Update connection and enrollment status if there's an auth error
+    // Detect errors that require user re-authentication through Teller Connect.
+    // Teller returns "Enrollment is not healthy" verbatim when the bank session
+    // has been invalidated (password change, MFA expiry, bank-side OAuth revoke).
     const errorMessage = error instanceof Error ? error.message : '';
-    const isAuthError =
+    const lowerMessage = errorMessage.toLowerCase();
+    const needsReauth =
       errorMessage.includes('401') ||
-      errorMessage.toLowerCase().includes('unauthorized') ||
-      errorMessage.toLowerCase().includes('authentication');
+      lowerMessage.includes('unauthorized') ||
+      lowerMessage.includes('authentication') ||
+      lowerMessage.includes('enrollment') ||
+      lowerMessage.includes('not healthy');
 
-    if (isAuthError && accountId) {
+    if (needsReauth && accountId) {
       try {
         // Update the connection status
         await prisma.tellerConnection.update({
@@ -72,7 +77,7 @@ export async function POST(req: NextRequest) {
           data: {
             status: 'disconnected',
             lastSyncStatus: 'error',
-            lastSyncError: 'Authorization expired. Please reconnect.',
+            lastSyncError: errorMessage || 'Reconnection required.',
           },
         });
 
@@ -90,7 +95,7 @@ export async function POST(req: NextRequest) {
       }
 
       return NextResponse.json(
-        { error: 'Authorization expired. Please reconnect.', code: 'AUTH_EXPIRED' },
+        { error: errorMessage || 'Reconnection required.', code: 'AUTH_EXPIRED' },
         { status: 400 }
       );
     }

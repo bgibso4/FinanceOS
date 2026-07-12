@@ -5,6 +5,8 @@ import { decryptAccessToken } from '@/lib/encryption';
 import { autoCategorize, normalizeMerchant } from '@/lib/categorization';
 import {
   findMergeCandidate as findMergeCandidateCommon,
+  findImportHashMatch,
+  createImportHash,
   shouldUpdateMerchant,
   detectTransfers,
   cleanupTransferPair,
@@ -373,6 +375,12 @@ async function previewPlaidTransaction(
       return createSkippedPreview(plaidTx, action, 'Already exists (duplicate externalId)');
     }
 
+    // Check importHash: catches re-enrollment duplicates
+    const hashMatch = await findImportHashMatch(accountId, mapped.importHash, mapped.externalId);
+    if (hashMatch) {
+      return createMergePreview(plaidTx, action, hashMatch.id);
+    }
+
     // Check for merge candidate (manual import that matches)
     const mergeCandidate = await findMergeCandidate(accountId, mapped);
     if (mergeCandidate) {
@@ -551,6 +559,17 @@ async function processPlaidTransaction(
 
     if (existing) return { status: 'skipped' };
 
+    // Check importHash: catches re-enrollment duplicates where Plaid minted new
+    // transaction IDs for the same underlying bank transactions.
+    const hashMatch = await findImportHashMatch(accountId, mapped.importHash, mapped.externalId);
+    if (hashMatch) {
+      await prisma.transaction.update({
+        where: { id: hashMatch.id },
+        data: { externalId: mapped.externalId },
+      });
+      return { status: 'merged' };
+    }
+
     // Check for merge candidate (manual import that matches)
     const mergeCandidate = await findMergeCandidate(accountId, mapped);
     if (mergeCandidate) {
@@ -560,6 +579,7 @@ async function processPlaidTransaction(
         where: { id: mergeCandidate.id },
         data: {
           externalId: mapped.externalId,
+          importHash: mapped.importHash,
           // Correct the amount to match bank's convention
           amount: mapped.amount,
           // Update merchant if the Plaid one looks cleaner
@@ -627,6 +647,8 @@ function mapPlaidTransaction(
   const amount = convertBankAmount(plaidTx.amount, invertAmounts);
 
   const merchant = plaidTx.merchant_name || plaidTx.name || 'Unknown';
+  const merchantNormalized = normalizeMerchant(merchant);
+  const date = new Date(plaidTx.date);
 
   const isTransfer =
     plaidTx.personal_finance_category?.primary === 'TRANSFER_IN' ||
@@ -634,14 +656,15 @@ function mapPlaidTransaction(
 
   return {
     externalId: plaidTx.transaction_id,
-    date: new Date(plaidTx.date),
+    date,
     amount,
     merchant,
-    merchantNormalized: normalizeMerchant(merchant),
+    merchantNormalized,
     accountId,
     isTransfer,
     note: null,
     tags: '[]',
+    importHash: createImportHash(accountId, date, amount, merchantNormalized),
   };
 }
 

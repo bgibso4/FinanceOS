@@ -349,6 +349,10 @@ describe('teller-sync', () => {
     });
 
     it('handles pagination when more than 250 transactions', async () => {
+      // Each mock tx needs unique (date, amount, merchantNormalized) — the sync
+      // pipeline dedups on importHash, and normalizeMerchant strips short digit
+      // suffixes so 'Store 1'/'Store 2'/... all collapse to 'store'. Vary the
+      // amount per index to keep each hash unique.
       vi.mocked(tellerFetch)
         .mockResolvedValueOnce(
           // First page: 250 transactions
@@ -356,7 +360,12 @@ describe('teller-sync', () => {
             createMockTellerTransaction({
               id: `page1-tx-${i}`,
               description: `Store ${i}`,
-              amount: '-10.00',
+              amount: `-${(10 + i * 0.01).toFixed(2)}`,
+              details: {
+                category: 'shopping',
+                counterparty: { name: `Store ${i}`, type: 'merchant' },
+                processing_status: 'complete',
+              },
             })
           )
         )
@@ -365,7 +374,12 @@ describe('teller-sync', () => {
           createMockTellerTransaction({
             id: 'page2-tx-1',
             description: 'Last Store',
-            amount: '-10.00',
+            amount: '-999.99',
+            details: {
+              category: 'shopping',
+              counterparty: { name: 'Last Store', type: 'merchant' },
+              processing_status: 'complete',
+            },
           }),
         ]);
 

@@ -4,6 +4,8 @@ import { decryptAccessToken } from '@/lib/encryption';
 import { autoCategorize, normalizeMerchant, resolveCategoryId } from '@/lib/categorization';
 import {
   findMergeCandidate as findMergeCandidateCommon,
+  findImportHashMatch,
+  createImportHash,
   shouldUpdateMerchant,
   detectTransfers,
   convertBankAmount,
@@ -274,6 +276,12 @@ async function previewTellerTransaction(
     return createTransactionPreview(tellerTx, accountId, 'duplicate', null);
   }
 
+  // Check importHash: catches re-enrollment duplicates
+  const hashMatch = await findImportHashMatch(accountId, mapped.importHash, mapped.externalId);
+  if (hashMatch) {
+    return createTransactionPreview(tellerTx, accountId, 'merge', hashMatch.id);
+  }
+
   // Check for merge candidate: same date + amount + similar merchant (but no externalId)
   const mergeCandidate = await findMergeCandidate(accountId, mapped);
   if (mergeCandidate) {
@@ -404,6 +412,17 @@ async function processTellerTransaction(
 
   if (existingByExternalId) return { status: 'skipped' };
 
+  // Check importHash: catches re-enrollment duplicates where Teller minted new
+  // transaction IDs for the same underlying bank transactions.
+  const hashMatch = await findImportHashMatch(accountId, mapped.importHash, mapped.externalId);
+  if (hashMatch) {
+    await prisma.transaction.update({
+      where: { id: hashMatch.id },
+      data: { externalId: mapped.externalId },
+    });
+    return { status: 'merged' };
+  }
+
   // Check for merge candidate (manual import that matches)
   const mergeCandidate = await findMergeCandidate(accountId, mapped);
   if (mergeCandidate) {
@@ -413,6 +432,7 @@ async function processTellerTransaction(
       where: { id: mergeCandidate.id },
       data: {
         externalId: mapped.externalId,
+        importHash: mapped.importHash,
         // Correct the amount to match bank's convention
         amount: mapped.amount,
         // Update merchant if the Teller one looks cleaner (no quotes, etc.)
@@ -487,17 +507,20 @@ function mapTellerTransaction(
 
   // Prefer counterparty name, fall back to description
   const merchant = tellerTx.details?.counterparty?.name || tellerTx.description || 'Unknown';
+  const merchantNormalized = normalizeMerchant(merchant);
+  const date = new Date(tellerTx.date);
 
   return {
     externalId: tellerTx.id,
-    date: new Date(tellerTx.date),
+    date,
     amount,
     merchant,
-    merchantNormalized: normalizeMerchant(merchant),
+    merchantNormalized,
     accountId,
     isTransfer: false,
     note: null,
     tags: '[]',
+    importHash: createImportHash(accountId, date, amount, merchantNormalized),
   };
 }
 

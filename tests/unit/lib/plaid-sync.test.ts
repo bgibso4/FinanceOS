@@ -410,7 +410,8 @@ describe('plaid-sync', () => {
               added: [
                 createMockPlaidTransaction({
                   transaction_id: 'page1-tx-1',
-                  merchant_name: 'Store 1',
+                  merchant_name: 'Coffee Shop',
+                  amount: 5.5,
                 }),
               ],
               modified: [],
@@ -424,7 +425,8 @@ describe('plaid-sync', () => {
               added: [
                 createMockPlaidTransaction({
                   transaction_id: 'page2-tx-1',
-                  merchant_name: 'Store 2',
+                  merchant_name: 'Gas Station',
+                  amount: 42.0,
                 }),
               ],
               modified: [],
