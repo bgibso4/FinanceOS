@@ -145,7 +145,13 @@ describe('teller enrollment update API', () => {
       }),
     ]);
 
-    const res = await POST(updateRequest({ enrollmentId: 'enr_new', accessToken: 'fresh-token' }));
+    const res = await POST(
+      updateRequest({
+        enrollmentId: 'enr_new',
+        accessToken: 'fresh-token',
+        priorEnrollmentId: stale.id,
+      })
+    );
     const body = await res.json();
 
     expect(body.merged).toBe(true);
@@ -181,7 +187,13 @@ describe('teller enrollment update API', () => {
       tellerAccount({ id: 'acc_fresh_checking', last_four: '3857' }),
     ]);
 
-    const res = await POST(updateRequest({ enrollmentId: 'enr_new', accessToken: 'fresh-token' }));
+    const res = await POST(
+      updateRequest({
+        enrollmentId: 'enr_new',
+        accessToken: 'fresh-token',
+        priorEnrollmentId: stale.id,
+      })
+    );
     const body = await res.json();
 
     expect(body.reconnected).toBe(1);
@@ -198,6 +210,12 @@ describe('teller enrollment update API', () => {
 
     const movedChecking = await prisma.tellerConnection.findUnique({ where: { id: checking.id } });
     expect(movedChecking?.tellerEnrollmentId).toBe(body.enrollmentId);
+
+    // The orphan must still be exactly where it started — pointed at the stale
+    // enrollment and untouched — not silently re-pointed or its status changed.
+    const orphanAfter = await prisma.tellerConnection.findUnique({ where: { id: orphan.id } });
+    expect(orphanAfter?.tellerEnrollmentId).toBe(stale.id);
+    expect(orphanAfter?.status).toBe('connected');
   });
 
   it('creates a plain new enrollment when the institution is not already connected', async () => {
@@ -224,9 +242,16 @@ describe('teller enrollment update API', () => {
       tellerAccount({ id: 'acc_fresh_checking', last_four: '3857' }),
     ]);
 
-    const first = await POST(updateRequest({ enrollmentId: 'enr_new', accessToken: 'token' }));
+    const first = await POST(
+      updateRequest({ enrollmentId: 'enr_new', accessToken: 'token', priorEnrollmentId: stale.id })
+    );
     const firstBody = await first.json();
-    const second = await POST(updateRequest({ enrollmentId: 'enr_new', accessToken: 'token' }));
+    // Replayed with the same priorEnrollmentId, which the first call already deleted.
+    // A not-found prior must be treated as "nothing left to adopt", not an error —
+    // otherwise a simple retry of an already-successful call would break.
+    const second = await POST(
+      updateRequest({ enrollmentId: 'enr_new', accessToken: 'token', priorEnrollmentId: stale.id })
+    );
     const secondBody = await second.json();
 
     expect(secondBody.enrollmentId).toBe(firstBody.enrollmentId);
@@ -235,7 +260,74 @@ describe('teller enrollment update API', () => {
     expect(await prisma.tellerConnection.count()).toBe(1);
   });
 
-  it('returns 404 when the token resolves to no accounts and no institution is known', async () => {
+  it('deletes an empty prior enrollment named explicitly, with nothing to adopt', async () => {
+    const stale = await seedEnrollment('enr_old');
+    // No connections seeded under `stale` — it is a dangling, empty enrollment row.
+
+    vi.mocked(tellerFetch).mockResolvedValue([tellerAccount({ id: 'acc_a', last_four: '1111' })]);
+
+    const res = await POST(
+      updateRequest({ enrollmentId: 'enr_new', accessToken: 'token', priorEnrollmentId: stale.id })
+    );
+    const body = await res.json();
+
+    expect(body.merged).toBe(false);
+    expect(body.reconnected).toBe(0);
+    expect(body.discovered).toHaveLength(1);
+    expect(body.discovered[0].externalId).toBe('acc_a');
+
+    // The empty stale row is gone; only the newly created enrollment remains.
+    expect(await prisma.tellerEnrollment.count()).toBe(1);
+    const remaining = await prisma.tellerEnrollment.findUnique({
+      where: { id: body.enrollmentId },
+    });
+    expect(remaining?.enrollmentId).toBe('enr_new');
+  });
+
+  it('rejects a priorEnrollmentId that belongs to a different institution', async () => {
+    const otherBank = await prisma.tellerEnrollment.create({
+      data: {
+        enrollmentId: 'enr_wells',
+        institutionId: 'wells',
+        institutionName: 'Wells Fargo',
+        accessTokenEncrypted: 'wells-enc',
+        accessTokenIv: 'wells-iv',
+        status: 'connected',
+      },
+    });
+    const wellsConnection = await seedConnection(otherBank.id, {
+      tellerAccountId: 'acc_wells_checking',
+      lastFour: '9999',
+      name: 'Wells Checking',
+    });
+
+    // tellerAccount() defaults to institution "chase" — a mismatch against `otherBank`.
+    vi.mocked(tellerFetch).mockResolvedValue([tellerAccount({ id: 'acc_a', last_four: '1111' })]);
+
+    const res = await POST(
+      updateRequest({
+        enrollmentId: 'enr_new_bank',
+        accessToken: 'token',
+        priorEnrollmentId: otherBank.id,
+      })
+    );
+
+    expect(res.status).toBe(400);
+
+    // Nothing was written: no new enrollment created, the other bank's row and its
+    // connection are untouched.
+    expect(await prisma.tellerEnrollment.count()).toBe(1);
+    const otherBankAfter = await prisma.tellerEnrollment.findUnique({
+      where: { id: otherBank.id },
+    });
+    expect(otherBankAfter?.status).toBe('connected');
+    const wellsConnectionAfter = await prisma.tellerConnection.findUnique({
+      where: { id: wellsConnection.id },
+    });
+    expect(wellsConnectionAfter?.tellerEnrollmentId).toBe(otherBank.id);
+  });
+
+  it('returns 400 when the token resolves to no accounts and no institution is known', async () => {
     vi.mocked(tellerFetch).mockResolvedValue([]);
 
     const res = await POST(updateRequest({ enrollmentId: 'enr_empty', accessToken: 'token' }));
