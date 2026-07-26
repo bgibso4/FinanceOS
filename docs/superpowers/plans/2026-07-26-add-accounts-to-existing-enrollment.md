@@ -1433,12 +1433,15 @@ git commit -m "feat: return unlinked-only bank accounts with ignores applied"
 
 **Files:**
 
+- Create: `src/lib/account-defaults.ts`
+- Modify: `src/app/api/accounts/route.ts:5-9` (import the extracted helper instead of declaring it)
 - Create: `src/app/api/bank-accounts/adopt/route.ts`
 - Test: `tests/integration/api/bank-accounts-adopt.test.ts`
 
 **Interfaces:**
 
 - Consumes: `mapBankAccountType` from Task 1.
+- Produces: `getDefaultTrackingMode(type: string): 'cash_flow' | 'balance_only'` and `BALANCE_ONLY_TYPES: string[]` from `src/lib/account-defaults.ts`.
 - Produces: `POST /api/bank-accounts/adopt` body:
   ```typescript
   {
@@ -1626,7 +1629,30 @@ describe('bank-accounts adopt API', () => {
 Run: `npm run test:integration -- bank-accounts-adopt`
 Expected: FAIL — `Failed to resolve import "@/app/api/bank-accounts/adopt/route"`.
 
-- [ ] **Step 3: Write the implementation**
+- [ ] **Step 3: Extract the tracking-mode default into a shared module**
+
+`getDefaultTrackingMode` currently lives unexported in `src/app/api/accounts/route.ts:5-9`. Two routes now need it, and a copy would silently drift — a new balance-only type added to one list would leave the other creating `cash_flow` accounts. Move it.
+
+Create `src/lib/account-defaults.ts`:
+
+```typescript
+/** Account types tracked by balance snapshots rather than individual transactions. */
+export const BALANCE_ONLY_TYPES = ['brokerage', 'retirement', 'crypto', 'loan'];
+
+export function getDefaultTrackingMode(type: string): 'cash_flow' | 'balance_only' {
+  return BALANCE_ONLY_TYPES.includes(type) ? 'balance_only' : 'cash_flow';
+}
+```
+
+In `src/app/api/accounts/route.ts`, delete the local `getDefaultTrackingMode` declaration and its comment, and import instead:
+
+```typescript
+import { getDefaultTrackingMode } from '@/lib/account-defaults';
+```
+
+The existing call site in `POST` is unchanged.
+
+- [ ] **Step 4: Write the implementation**
 
 Create `src/app/api/bank-accounts/adopt/route.ts`:
 
@@ -1634,6 +1660,7 @@ Create `src/app/api/bank-accounts/adopt/route.ts`:
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
+import { getDefaultTrackingMode } from '@/lib/account-defaults';
 
 const schema = z.object({
   provider: z.enum(['teller', 'plaid']),
@@ -1645,13 +1672,6 @@ const schema = z.object({
   subtype: z.string().optional(),
   lastFour: z.string().optional(),
 });
-
-// Mirrors getDefaultTrackingMode in src/app/api/accounts/route.ts.
-const BALANCE_ONLY_TYPES = ['brokerage', 'retirement', 'crypto', 'loan'];
-
-function getDefaultTrackingMode(type: string): 'cash_flow' | 'balance_only' {
-  return BALANCE_ONLY_TYPES.includes(type) ? 'balance_only' : 'cash_flow';
-}
 
 /**
  * Turn a bank account the provider already exposes into a tracked FinanceOS account.
@@ -1742,17 +1762,20 @@ export async function POST(req: NextRequest) {
 
 If `PlaidConnection` requires fields beyond those listed, read `prisma/schema.prisma:48-70` and supply them; do not make fields optional to work around a compile error.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 5: Run tests to verify they pass**
 
 Run: `npm run test:integration -- bank-accounts-adopt`
 Expected: PASS — 5 tests.
 
-- [ ] **Step 5: Lint and commit**
+Run: `npm run test:integration -- accounts`
+Expected: PASS — the extraction in Step 3 must not change existing account-creation behavior.
+
+- [ ] **Step 6: Lint and commit**
 
 ```bash
 npm run lint:fix
 npx tsc --noEmit
-git add src/app/api/bank-accounts/adopt tests/integration/api/bank-accounts-adopt.test.ts
+git add src/lib/account-defaults.ts src/app/api/accounts/route.ts src/app/api/bank-accounts/adopt tests/integration/api/bank-accounts-adopt.test.ts
 git commit -m "feat: add endpoint to adopt a discovered bank account"
 ```
 
@@ -1767,6 +1790,7 @@ Make the provider buttons usable from a healthy enrollment, and let Plaid's upda
 - Modify: `src/app/api/plaid/link-token/route.ts:35-41`
 - Modify: `src/components/teller/TellerReconnectButton.tsx`
 - Modify: `src/components/plaid/PlaidReconnectButton.tsx`
+- Delete: `src/app/api/teller/enrollment/reconnect/route.ts`
 - Test: `tests/unit/components/bank-update-buttons.test.tsx`
 
 **Interfaces:**
@@ -1983,7 +2007,15 @@ Add `mode` and `onResult` to the setup `useEffect` dependency array. Replace the
       : 'Reconnect'}
 ```
 
-The old `/api/teller/enrollment/reconnect` route stays in place — no caller is left, but removing it is out of scope for this plan.
+Then delete `src/app/api/teller/enrollment/reconnect/route.ts`. The new update route strictly supersedes it: for a returning enrollment id it does everything the old route did (re-encrypt the token, set the enrollment and its connections back to `connected`, clear `lastSyncError`), and it additionally handles the new-enrollment-id case. Leaving it would strand a second, subtly weaker code path that a future caller could wire up by mistake.
+
+Confirm nothing else references it before deleting:
+
+```bash
+grep -rn "enrollment/reconnect" src tests
+```
+
+Expected: only Plaid's `/api/plaid/enrollment/reconnect` hits remain (a different route, still in use).
 
 - [ ] **Step 6: Update `PlaidReconnectButton`**
 
@@ -2027,6 +2059,7 @@ Expected: PASS — 3 tests.
 npm run lint:fix
 npx tsc --noEmit
 git add src/app/api/plaid/link-token/route.ts src/components/teller/TellerReconnectButton.tsx src/components/plaid/PlaidReconnectButton.tsx src/components/institutions/types.ts tests/unit/components/bank-update-buttons.test.tsx
+git rm src/app/api/teller/enrollment/reconnect/route.ts
 git commit -m "feat: allow update-mode Connect and Link from healthy enrollments"
 ```
 
