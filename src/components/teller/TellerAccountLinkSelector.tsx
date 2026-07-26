@@ -6,12 +6,11 @@ import { Select } from '@/components/ui/select';
 import { ds } from '@/lib/design-system';
 
 type TellerAccount = {
-  id: string;
+  externalId: string;
   name: string;
   type: string;
   subtype: string;
-  last_four: string;
-  status: string;
+  lastFour: string;
 };
 
 type TellerEnrollment = {
@@ -71,7 +70,9 @@ export function TellerAccountLinkSelector({
     try {
       // Find the selected account details
       const enrollment = enrollments.find((e) => e.id === selectedEnrollmentId);
-      const account = enrollment?.availableAccounts?.find((a) => a.id === selectedAccountId);
+      const account = enrollment?.availableAccounts?.find(
+        (a) => a.externalId === selectedAccountId
+      );
 
       if (!account) {
         alert('Account not found');
@@ -84,11 +85,11 @@ export function TellerAccountLinkSelector({
         body: JSON.stringify({
           accountId,
           tellerEnrollmentId: selectedEnrollmentId,
-          tellerAccountId: account.id,
+          tellerAccountId: account.externalId,
           tellerAccountName: account.name,
           tellerAccountType: account.type,
           tellerAccountSubtype: account.subtype,
-          tellerAccountLastFour: account.last_four,
+          tellerAccountLastFour: account.lastFour,
         }),
       });
 
@@ -155,7 +156,7 @@ export function TellerAccountLinkSelector({
           const accountId = e.target.value;
           setSelectedAccountId(accountId);
           // Find which enrollment this account belongs to
-          const account = availableAccounts.find((a) => a.id === accountId);
+          const account = availableAccounts.find((a) => a.externalId === accountId);
           if (account) {
             setSelectedEnrollmentId(account.enrollmentId);
           }
@@ -165,8 +166,8 @@ export function TellerAccountLinkSelector({
         {enrollments.map((enrollment) => (
           <optgroup key={enrollment.id} label={enrollment.institutionName}>
             {(enrollment.availableAccounts || []).map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name} (••••{account.last_four}) - {account.subtype}
+              <option key={account.externalId} value={account.externalId}>
+                {account.name} (••••{account.lastFour}) - {account.subtype}
               </option>
             ))}
           </optgroup>

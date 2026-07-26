@@ -6,11 +6,11 @@ import { Select } from '@/components/ui/select';
 import { ds } from '@/lib/design-system';
 
 type PlaidAccount = {
-  account_id: string;
+  externalId: string;
   name: string;
   type: string;
   subtype: string;
-  mask: string;
+  lastFour: string;
 };
 
 type PlaidEnrollment = {
@@ -71,7 +71,7 @@ export function PlaidAccountLinkSelector({
       // Find the selected account details
       const enrollment = enrollments.find((e) => e.id === selectedEnrollmentId);
       const plaidAccount = enrollment?.availableAccounts?.find(
-        (a) => a.account_id === selectedAccountId
+        (a) => a.externalId === selectedAccountId
       );
 
       if (!plaidAccount) {
@@ -85,11 +85,11 @@ export function PlaidAccountLinkSelector({
         body: JSON.stringify({
           accountId,
           plaidEnrollmentId: selectedEnrollmentId,
-          plaidAccountId: plaidAccount.account_id,
+          plaidAccountId: plaidAccount.externalId,
           plaidAccountName: plaidAccount.name,
           plaidAccountType: plaidAccount.type,
           plaidAccountSubtype: plaidAccount.subtype,
-          plaidAccountMask: plaidAccount.mask,
+          plaidAccountMask: plaidAccount.lastFour,
         }),
       });
 
@@ -156,7 +156,7 @@ export function PlaidAccountLinkSelector({
           const plaidAccountId = e.target.value;
           setSelectedAccountId(plaidAccountId);
           // Find which enrollment this account belongs to
-          const account = availableAccounts.find((a) => a.account_id === plaidAccountId);
+          const account = availableAccounts.find((a) => a.externalId === plaidAccountId);
           if (account) {
             setSelectedEnrollmentId(account.enrollmentId);
           }
@@ -166,8 +166,8 @@ export function PlaidAccountLinkSelector({
         {enrollments.map((enrollment) => (
           <optgroup key={enrollment.id} label={enrollment.institutionName}>
             {(enrollment.availableAccounts || []).map((account) => (
-              <option key={account.account_id} value={account.account_id}>
-                {account.name} (••••{account.mask}) - {account.subtype}
+              <option key={account.externalId} value={account.externalId}>
+                {account.name} (••••{account.lastFour}) - {account.subtype}
               </option>
             ))}
           </optgroup>

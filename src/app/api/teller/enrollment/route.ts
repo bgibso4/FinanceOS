@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { encryptAccessToken } from '@/lib/encryption';
 import { tellerFetch, TellerAccountsResponse } from '@/lib/teller';
 import { classifyTellerError } from '@/lib/bank-errors';
+import { isAccountIgnored, type ProviderAccount } from '@/lib/bank-account-matching';
 
 const createEnrollmentSchema = z.object({
   accessToken: z.string(),
@@ -26,6 +27,8 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
     });
 
+    const ignored = await prisma.ignoredBankAccount.findMany({ where: { provider: 'teller' } });
+
     // For each enrollment, fetch available accounts from Teller
     const enrollmentsWithAccounts = await Promise.all(
       enrollments.map(async (enrollment) => {
@@ -38,9 +41,26 @@ export async function GET() {
 
           const accounts = await tellerFetch<TellerAccountsResponse>('/accounts', accessToken);
 
+          const linkedIds = new Set(enrollment.connections.map((c) => c.tellerAccountId));
+          const unlinked: ProviderAccount[] = accounts
+            .filter((a) => !linkedIds.has(a.id))
+            .map((a) => ({
+              externalId: a.id,
+              name: a.name,
+              type: a.type,
+              subtype: a.subtype,
+              lastFour: a.last_four,
+            }));
+
           return {
             ...enrollment,
-            availableAccounts: accounts,
+            // Unlinked only — the UI renders linked accounts from `connections`.
+            availableAccounts: unlinked.filter(
+              (a) => !isAccountIgnored(a, enrollment.institutionId, ignored)
+            ),
+            hiddenAccounts: unlinked.filter((a) =>
+              isAccountIgnored(a, enrollment.institutionId, ignored)
+            ),
             totalAccountCount: accounts.length,
           };
         } catch (error) {
@@ -69,6 +89,8 @@ export async function GET() {
               ...enrollment,
               status: 'disconnected', // Return updated status immediately
               availableAccounts: [],
+              hiddenAccounts: [],
+              totalAccountCount: enrollment.connections.length,
             };
           }
 
@@ -78,6 +100,8 @@ export async function GET() {
           return {
             ...enrollment,
             availableAccounts: [],
+            hiddenAccounts: [],
+            totalAccountCount: enrollment.connections.length,
           };
         }
       })

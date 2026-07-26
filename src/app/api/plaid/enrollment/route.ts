@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { getPlaidClient } from '@/lib/plaid';
 import { encryptAccessToken, decryptAccessToken } from '@/lib/encryption';
 import { classifyPlaidError } from '@/lib/bank-errors';
+import { isAccountIgnored, type ProviderAccount } from '@/lib/bank-account-matching';
 
 const createSchema = z.object({
   publicToken: z.string(),
@@ -29,6 +30,7 @@ export async function GET() {
 
     // Fetch available accounts for each enrollment
     const plaid = getPlaidClient();
+    const ignored = await prisma.ignoredBankAccount.findMany({ where: { provider: 'plaid' } });
     const enrollmentsWithAccounts = await Promise.all(
       enrollments.map(async (enrollment) => {
         try {
@@ -41,16 +43,20 @@ export async function GET() {
           const allAccounts = response.data.accounts;
 
           // Filter out already-linked accounts
-          const linkedPlaidAccountIds = enrollment.connections.map((c) => c.plaidAccountId);
-          const availableAccounts = allAccounts
-            .filter((acc) => !linkedPlaidAccountIds.includes(acc.account_id))
+          const linkedPlaidAccountIds = new Set(
+            enrollment.connections.map((c) => c.plaidAccountId)
+          );
+          const unlinked: ProviderAccount[] = allAccounts
+            .filter((acc) => !linkedPlaidAccountIds.has(acc.account_id))
             .map((acc) => ({
-              account_id: acc.account_id,
+              externalId: acc.account_id,
               name: acc.name,
               type: acc.type,
               subtype: acc.subtype || '',
-              mask: acc.mask || '',
+              lastFour: acc.mask || '',
             }));
+
+          const institutionKey = enrollment.institutionId ?? '';
 
           return {
             id: enrollment.id,
@@ -66,7 +72,11 @@ export async function GET() {
               account: c.account,
               status: c.status,
             })),
-            availableAccounts,
+            availableAccounts: unlinked.filter(
+              (a) => !isAccountIgnored(a, institutionKey, ignored)
+            ),
+            hiddenAccounts: unlinked.filter((a) => isAccountIgnored(a, institutionKey, ignored)),
+            totalAccountCount: allAccounts.length,
           };
         } catch (error) {
           const { needsReauth, reason } = classifyPlaidError(error);
@@ -110,6 +120,8 @@ export async function GET() {
               status: c.status,
             })),
             availableAccounts: [],
+            hiddenAccounts: [],
+            totalAccountCount: enrollment.connections.length,
           };
         }
       })

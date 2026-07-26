@@ -9,13 +9,12 @@ import { TellerReconnectButton } from './TellerReconnectButton';
 import { PlaidInstitutionConnect } from '@/components/plaid/PlaidInstitutionConnect';
 import { PlaidReconnectButton } from '@/components/plaid/PlaidReconnectButton';
 
-type TellerAccount = {
-  id: string;
+type DiscoveredAccount = {
+  externalId: string;
   name: string;
   type: string;
   subtype: string;
-  last_four: string;
-  status: string;
+  lastFour: string;
 };
 
 type TellerConnection = {
@@ -37,16 +36,8 @@ type TellerEnrollment = {
   status: string;
   createdAt: string;
   connections: TellerConnection[];
-  availableAccounts?: TellerAccount[];
+  availableAccounts?: DiscoveredAccount[];
   totalAccountCount?: number;
-};
-
-type PlaidAccount = {
-  account_id: string;
-  name: string;
-  type: string;
-  subtype: string;
-  mask: string;
 };
 
 type PlaidConnection = {
@@ -67,7 +58,8 @@ type PlaidEnrollment = {
   institutionName: string;
   status: string;
   connections: PlaidConnection[];
-  availableAccounts?: PlaidAccount[];
+  availableAccounts?: DiscoveredAccount[];
+  totalAccountCount?: number;
 };
 
 // Status badge component for enrollment/connection status
@@ -348,15 +340,15 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                           <div className="space-y-2">
                             {enrollment.availableAccounts.map((account) => {
                               const isLinked = enrollment.connections.some(
-                                (conn) => conn.tellerAccountId === account.id
+                                (conn) => conn.tellerAccountId === account.externalId
                               );
                               const linkedTo = enrollment.connections.find(
-                                (conn) => conn.tellerAccountId === account.id
+                                (conn) => conn.tellerAccountId === account.externalId
                               );
 
                               return (
                                 <div
-                                  key={account.id}
+                                  key={account.externalId}
                                   className={`p-3 rounded border ${ds.border.default} ${ds.bg.primary}`}
                                 >
                                   <div className="flex items-center justify-between">
@@ -366,7 +358,7 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                                           {account.name}
                                         </span>
                                         <span className={`text-xs ${ds.text.muted}`}>
-                                          •••• {account.last_four}
+                                          •••• {account.lastFour}
                                         </span>
                                       </div>
                                       {isLinked && linkedTo && (
@@ -448,7 +440,6 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
             {plaidEnrollments.map((enrollment) => {
               const isExpanded = expandedEnrollment === `plaid-${enrollment.id}`;
               const linkedCount = enrollment.connections.length;
-              const availableCount = enrollment.availableAccounts?.length || 0;
 
               return (
                 <div
@@ -472,7 +463,8 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                           <StatusBadge status={enrollment.status} />
                         </div>
                         <p className={`text-sm ${ds.text.muted} mt-1`}>
-                          {linkedCount} of {linkedCount + availableCount} accounts linked
+                          {linkedCount} of {enrollment.totalAccountCount ?? linkedCount} accounts
+                          linked
                           {(enrollment.status === 'error' ||
                             enrollment.status === 'needs_reauth') && (
                             <span className="text-[var(--red)] ml-2">• Authorization expired</span>
@@ -502,7 +494,7 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                             {/* Available (unlinked) accounts */}
                             {enrollment.availableAccounts?.map((account) => (
                               <div
-                                key={account.account_id}
+                                key={account.externalId}
                                 className={`p-3 rounded border ${ds.border.default} ${ds.bg.primary}`}
                               >
                                 <div className="flex items-center justify-between">
@@ -512,7 +504,7 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                                         {account.name}
                                       </span>
                                       <span className={`text-xs ${ds.text.muted}`}>
-                                        •••• {account.mask}
+                                        •••• {account.lastFour}
                                       </span>
                                     </div>
                                     <p className={`text-xs ${ds.text.muted} mt-1`}>
