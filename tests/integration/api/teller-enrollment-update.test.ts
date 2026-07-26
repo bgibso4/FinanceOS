@@ -335,4 +335,188 @@ describe('teller enrollment update API', () => {
     expect(res.status).toBe(400);
     expect(await prisma.tellerEnrollment.count()).toBe(0);
   });
+
+  it('leaves the stored token and status untouched when the fresh token fails to validate', async () => {
+    const enrollment = await prisma.tellerEnrollment.create({
+      data: {
+        enrollmentId: 'enr_broken',
+        institutionId: 'chase',
+        institutionName: 'Chase',
+        accessTokenEncrypted: 'old-enc',
+        accessTokenIv: 'old-iv',
+        status: 'disconnected',
+      },
+    });
+
+    vi.mocked(tellerFetch).mockRejectedValue(new Error('Teller API error: 401'));
+
+    const res = await POST(updateRequest({ enrollmentId: 'enr_broken', accessToken: 'bad-token' }));
+
+    expect(res.status).toBe(500);
+
+    // A rejected tellerFetch must not have touched the stored token or status — if it
+    // had, the working token would be gone for good with no way to recover it.
+    const after = await prisma.tellerEnrollment.findUnique({ where: { id: enrollment.id } });
+    expect(after?.accessTokenEncrypted).toBe('old-enc');
+    expect(after?.accessTokenIv).toBe('old-iv');
+    expect(after?.status).toBe('disconnected');
+  });
+
+  it('adopts a separately-named prior enrollment onto an existing live enrollment', async () => {
+    const live = await seedEnrollment('enr_live');
+    const stale = await seedEnrollment('enr_old');
+    const checking = await seedConnection(stale.id, {
+      tellerAccountId: 'acc_old_checking',
+      lastFour: '3857',
+      name: 'Personal Checking',
+    });
+
+    vi.mocked(tellerFetch).mockResolvedValue([
+      tellerAccount({ id: 'acc_fresh_checking', last_four: '3857' }),
+    ]);
+
+    const res = await POST(
+      updateRequest({
+        enrollmentId: 'enr_live',
+        accessToken: 'fresh-token',
+        priorEnrollmentId: stale.id,
+      })
+    );
+    const body = await res.json();
+
+    expect(body.enrollmentId).toBe(live.id);
+    expect(body.merged).toBe(true);
+    expect(body.reconnected).toBe(1);
+    expect(body.unmatched).toHaveLength(0);
+
+    // The prior's connection is re-pointed onto the live enrollment, and the fully
+    // adopted stale row is deleted.
+    const moved = await prisma.tellerConnection.findUnique({ where: { id: checking.id } });
+    expect(moved?.tellerEnrollmentId).toBe(live.id);
+    expect(moved?.tellerAccountId).toBe('acc_fresh_checking');
+    expect(moved?.status).toBe('connected');
+    expect(await prisma.tellerEnrollment.count()).toBe(1);
+    expect(await prisma.tellerEnrollment.findUnique({ where: { id: stale.id } })).toBeNull();
+
+    // The live enrollment's own token was refreshed too.
+    const liveAfter = await prisma.tellerEnrollment.findUnique({ where: { id: live.id } });
+    expect(liveAfter?.accessTokenEncrypted).toBe('enc');
+    expect(liveAfter?.status).toBe('connected');
+  });
+
+  it('does not duplicate a tellerAccountId when a retry re-processes a still-unmatched connection', async () => {
+    const stale = await seedEnrollment('enr_old');
+    // Two prior connections share a last four but differ in subtype, so only one of
+    // them is an unambiguous match against the single fresh account below.
+    const checking = await seedConnection(stale.id, {
+      tellerAccountId: 'acc_old_checking',
+      lastFour: '3857',
+      name: 'Personal Checking',
+      subtype: 'checking',
+    });
+    const savings = await seedConnection(stale.id, {
+      tellerAccountId: 'acc_old_savings',
+      lastFour: '3857',
+      name: 'Old Savings',
+      subtype: 'savings',
+    });
+
+    vi.mocked(tellerFetch).mockResolvedValue([
+      tellerAccount({ id: 'acc_fresh_checking', last_four: '3857', subtype: 'checking' }),
+    ]);
+
+    // First call: `checking` matches unambiguously at the lastFour+subtype tier and
+    // moves onto the newly created enrollment. `savings` has no candidate at all in
+    // this call (subtype mismatch, and its only lastFour match is already claimed by
+    // `checking` within the same match pass), so it is correctly left on `stale`.
+    const first = await POST(
+      updateRequest({ enrollmentId: 'enr_new', accessToken: 'token', priorEnrollmentId: stale.id })
+    );
+    const firstBody = await first.json();
+    expect(firstBody.reconnected).toBe(1);
+    expect(firstBody.unmatched).toHaveLength(1);
+    expect(firstBody.unmatched[0].connectionId).toBe(savings.id);
+
+    // Second call: same request replayed. Without excluding accounts `live` already
+    // holds from the match pool, `savings` would now be the sole remaining prior
+    // connection and the single fetched account its sole remaining candidate at the
+    // lastFour-only tier — an incorrect match, since that account is already claimed by
+    // `checking`. It must stay unmatched instead of creating a duplicate.
+    const second = await POST(
+      updateRequest({ enrollmentId: 'enr_new', accessToken: 'token', priorEnrollmentId: stale.id })
+    );
+    const secondBody = await second.json();
+
+    expect(secondBody.reconnected).toBe(1);
+    expect(secondBody.unmatched).toHaveLength(1);
+    expect(secondBody.unmatched[0].connectionId).toBe(savings.id);
+
+    const liveConnections = await prisma.tellerConnection.findMany({
+      where: { tellerEnrollmentId: secondBody.enrollmentId },
+    });
+    expect(liveConnections).toHaveLength(1);
+    expect(liveConnections[0].id).toBe(checking.id);
+
+    const tellerAccountIds = liveConnections.map((c) => c.tellerAccountId);
+    expect(new Set(tellerAccountIds).size).toBe(tellerAccountIds.length);
+
+    // `savings` is still exactly where it started: parked on the stale, disconnected
+    // enrollment, not silently re-pointed onto an account another connection already
+    // claimed.
+    const savingsAfter = await prisma.tellerConnection.findUnique({ where: { id: savings.id } });
+    expect(savingsAfter?.tellerEnrollmentId).toBe(stale.id);
+  });
+
+  it('reports a live connection Teller no longer returns as unmatched, not reconnected, even when adoption runs', async () => {
+    const live = await seedEnrollment('enr_live');
+    const closed = await seedConnection(live.id, {
+      tellerAccountId: 'acc_closed',
+      lastFour: '0000',
+      name: 'Closed Account',
+    });
+    // Mark it broken up front so the test can prove reconciliation left it alone
+    // instead of merely happening to already read "connected".
+    await prisma.tellerConnection.update({
+      where: { id: closed.id },
+      data: { status: 'disconnected', lastSyncError: 'account closed' },
+    });
+
+    const stale = await seedEnrollment('enr_old');
+    const checking = await seedConnection(stale.id, {
+      tellerAccountId: 'acc_old_checking',
+      lastFour: '3857',
+      name: 'Personal Checking',
+    });
+
+    // Teller no longer returns the account behind `closed` at all.
+    vi.mocked(tellerFetch).mockResolvedValue([
+      tellerAccount({ id: 'acc_fresh_checking', last_four: '3857' }),
+    ]);
+
+    const res = await POST(
+      updateRequest({
+        enrollmentId: 'enr_live',
+        accessToken: 'fresh-token',
+        priorEnrollmentId: stale.id,
+      })
+    );
+    const body = await res.json();
+
+    // Only the adopted connection counts as reconnected; the pre-existing closed one
+    // must land in unmatched instead of being silently counted as reconnected.
+    expect(body.reconnected).toBe(1);
+    expect(body.unmatched).toHaveLength(1);
+    expect(body.unmatched[0].connectionId).toBe(closed.id);
+
+    const movedChecking = await prisma.tellerConnection.findUnique({ where: { id: checking.id } });
+    expect(movedChecking?.tellerEnrollmentId).toBe(live.id);
+    expect(movedChecking?.status).toBe('connected');
+
+    // The closed connection is left exactly as it was — not reset to `connected`, which
+    // would erase the evidence that it is broken.
+    const closedAfter = await prisma.tellerConnection.findUnique({ where: { id: closed.id } });
+    expect(closedAfter?.tellerEnrollmentId).toBe(live.id);
+    expect(closedAfter?.status).toBe('disconnected');
+    expect(closedAfter?.lastSyncError).toBe('account closed');
+  });
 });

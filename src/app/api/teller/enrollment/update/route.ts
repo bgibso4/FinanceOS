@@ -25,26 +25,33 @@ function toProviderAccount(account: TellerAccount): ProviderAccount {
   };
 }
 
+type UnmatchedEntry = { connectionId: string; name: string | null; lastFour: string | null };
+
 type ResponseBody = {
   success: true;
   enrollmentId: string;
+  // True only when at least one connection is actually confirmed live under this
+  // enrollment as a result of this call — either freshly reconnected in place or
+  // adopted from a prior enrollment. A prior named but contributing nothing (already
+  // fully adopted, or empty) yields `merged: false`, even though adoption code ran.
   merged: boolean;
   reconnected: number;
   discovered: ProviderAccount[];
-  unmatched: Array<{ connectionId: string; name: string | null; lastFour: string | null }>;
+  unmatched: UnmatchedEntry[];
 };
 
 /**
- * Refresh a live enrollment's own connections against the fresh account list, with no
- * adoption from another enrollment involved. A connection only gets marked `connected`
- * (and has `lastSyncError` cleared) when Teller actually still returns its account —
- * blanket-resetting every connection would erase evidence that a closed account's
- * connection is broken.
+ * Intersect an enrollment's stored connections against the accounts Teller actually
+ * returned this call. A connection only gets marked `connected` (and has
+ * `lastSyncError` cleared) when Teller still reports its account — blanket-resetting
+ * every connection would erase evidence that a closed account's connection is broken.
+ * Used by both the plain refresh path and the adoption path so `reconnected`/`unmatched`
+ * mean the same thing regardless of which path produced them.
  */
-async function refreshLiveEnrollment(
+async function reconcileLiveConnections(
   live: { id: string },
   accounts: TellerAccountsResponse
-): Promise<ResponseBody> {
+): Promise<{ reconnectedCount: number; linkedIds: Set<string>; unmatched: UnmatchedEntry[] }> {
   const connections = await prisma.tellerConnection.findMany({
     where: { tellerEnrollmentId: live.id },
   });
@@ -60,19 +67,34 @@ async function refreshLiveEnrollment(
     });
   }
 
-  const linkedIds = new Set(connections.map((c) => c.tellerAccountId));
-
   return {
-    success: true,
-    enrollmentId: live.id,
-    merged: false,
-    reconnected: stillLinked.length,
-    discovered: accounts.filter((a) => !linkedIds.has(a.id)).map(toProviderAccount),
+    reconnectedCount: stillLinked.length,
+    linkedIds: new Set(connections.map((c) => c.tellerAccountId)),
     unmatched: droppedByProvider.map((c) => ({
       connectionId: c.id,
       name: c.tellerAccountName,
       lastFour: c.tellerAccountLastFour,
     })),
+  };
+}
+
+/**
+ * Refresh a live enrollment's own connections against the fresh account list, with no
+ * adoption from another enrollment involved.
+ */
+async function refreshLiveEnrollment(
+  live: { id: string },
+  accounts: TellerAccountsResponse
+): Promise<ResponseBody> {
+  const { reconnectedCount, linkedIds, unmatched } = await reconcileLiveConnections(live, accounts);
+
+  return {
+    success: true,
+    enrollmentId: live.id,
+    merged: false,
+    reconnected: reconnectedCount,
+    discovered: accounts.filter((a) => !linkedIds.has(a.id)).map(toProviderAccount),
+    unmatched,
   };
 }
 
@@ -87,15 +109,25 @@ async function refreshLiveEnrollment(
  * away unexamined, and so a retry after a partial run only has to move the stragglers
  * still sitting on `prior` (the ones already moved in an earlier attempt are no longer
  * there to re-match).
+ *
+ * Accounts already claimed by `live`'s OWN connections are excluded from the match pool
+ * before matching `prior`'s leftovers. Without this, a retry can re-match a still-
+ * unmatched prior connection onto an account another prior connection already claimed
+ * on `live` in an earlier attempt — `tellerAccountId` has no unique constraint, so that
+ * would silently create two connections pointing at the same bank account.
  */
 async function adoptPriorEnrollment(
   live: { id: string },
   prior: { id: string },
   accounts: TellerAccountsResponse
 ): Promise<ResponseBody> {
-  const priorConnections = await prisma.tellerConnection.findMany({
-    where: { tellerEnrollmentId: prior.id },
-  });
+  const [priorConnections, liveConnectionsBefore] = await Promise.all([
+    prisma.tellerConnection.findMany({ where: { tellerEnrollmentId: prior.id } }),
+    prisma.tellerConnection.findMany({ where: { tellerEnrollmentId: live.id } }),
+  ]);
+
+  const alreadyClaimedIds = new Set(liveConnectionsBefore.map((c) => c.tellerAccountId));
+  const availableAccounts = accounts.filter((a) => !alreadyClaimedIds.has(a.id));
 
   const result = matchConnectionsToAccounts(
     priorConnections.map((c) => ({
@@ -106,7 +138,7 @@ async function adoptPriorEnrollment(
       subtype: c.tellerAccountSubtype,
       lastFour: c.tellerAccountLastFour,
     })),
-    accounts.map(toProviderAccount)
+    availableAccounts.map(toProviderAccount)
   );
 
   for (const { connectionId, account } of result.matched) {
@@ -148,25 +180,26 @@ async function adoptPriorEnrollment(
     });
   }
 
-  // Read the authoritative post-move state of `live` rather than trusting only this
-  // call's matches — on a retry after a crash mid-loop, connections moved in an
-  // earlier attempt are already on `live` and must not be re-reported as "discovered".
-  const liveConnections = await prisma.tellerConnection.findMany({
-    where: { tellerEnrollmentId: live.id },
-  });
-  const linkedIds = new Set(liveConnections.map((c) => c.tellerAccountId));
+  const unmatchedFromPrior: UnmatchedEntry[] = result.unmatchedConnections.map((c) => ({
+    connectionId: c.id,
+    name: c.name,
+    lastFour: c.lastFour,
+  }));
+
+  // Reconcile `live`'s full, authoritative post-move connection set the same way the
+  // plain refresh path does. This makes `reconnected`/`unmatched` mean the same thing
+  // regardless of origin: a pre-existing `live` connection for an account Teller no
+  // longer returns lands in `unmatched`, not silently in `reconnected`. It also means a
+  // retry doesn't re-report already-migrated accounts as newly "discovered".
+  const liveState = await reconcileLiveConnections(live, accounts);
 
   return {
     success: true,
     enrollmentId: live.id,
-    merged: result.matched.length > 0,
-    reconnected: liveConnections.length,
-    discovered: accounts.filter((a) => !linkedIds.has(a.id)).map(toProviderAccount),
-    unmatched: result.unmatchedConnections.map((c) => ({
-      connectionId: c.id,
-      name: c.name,
-      lastFour: c.lastFour,
-    })),
+    merged: liveState.reconnectedCount > 0,
+    reconnected: liveState.reconnectedCount,
+    discovered: accounts.filter((a) => !liveState.linkedIds.has(a.id)).map(toProviderAccount),
+    unmatched: [...unmatchedFromPrior, ...liveState.unmatched],
   };
 }
 
