@@ -395,7 +395,6 @@ git commit -m "feat: add pure matcher for reconciling bank accounts across enrol
 **Files:**
 
 - Modify: `prisma/schema.prisma` (append a new model)
-- Create: `prisma/migrations/<timestamp>_add_ignored_bank_account/migration.sql` (generated)
 - Create: `src/app/api/ignored-accounts/route.ts`
 - Test: `tests/integration/api/ignored-accounts.test.ts`
 
@@ -429,14 +428,18 @@ model IgnoredBankAccount {
 }
 ```
 
-- [ ] **Step 2: Generate the migration and client**
+- [ ] **Step 2: Apply the schema and regenerate the client**
+
+This repo's migration history has drifted — `prisma/dev.db` records two migrations whose folders were never committed, so `prisma migrate dev` fails with P3006. The project's actual workflow is `db push`; that is also how `tests/helpers/db.ts:31` builds every test database. Use it:
 
 ```bash
-npx prisma migrate dev --name add_ignored_bank_account
+npx prisma db push
 npx prisma generate
 ```
 
-Expected: a new directory under `prisma/migrations/`, and `IgnoredBankAccount` available on the Prisma client.
+Do **not** pass `--accept-data-loss`. The change is purely additive (one new table), so `db push` should report no data loss. If it warns about dropping or altering anything, STOP and report BLOCKED — `prisma/dev.db` holds the user's real financial data.
+
+Expected: `IgnoredBankAccount` available on the Prisma client as `prisma.ignoredBankAccount`. No migration folder is created, consistent with the repo's recent schema changes.
 
 - [ ] **Step 3: Write the failing test**
 
@@ -649,7 +652,7 @@ Expected: PASS — 5 tests.
 ```bash
 npm run lint:fix
 npx tsc --noEmit
-git add prisma/schema.prisma prisma/migrations src/app/api/ignored-accounts/route.ts tests/integration/api/ignored-accounts.test.ts
+git add prisma/schema.prisma src/app/api/ignored-accounts/route.ts tests/integration/api/ignored-accounts.test.ts
 git commit -m "feat: add IgnoredBankAccount model and API"
 ```
 
