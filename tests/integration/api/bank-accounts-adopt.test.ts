@@ -157,4 +157,39 @@ describe('bank-accounts adopt API', () => {
     });
     expect(connection?.plaidAccountId).toBe('plaid_acc_1');
   });
+
+  it('returns 404 for an unknown enrollment (plaid)', async () => {
+    const res = await POST(
+      adoptRequest({
+        provider: 'plaid',
+        enrollmentId: 'does-not-exist',
+        externalAccountId: 'plaid_acc_x',
+        name: 'Ghost',
+        type: 'credit',
+      })
+    );
+
+    expect(res.status).toBe(404);
+    expect(await prisma.account.count()).toBe(0);
+  });
+
+  it('rejects a concurrent double-adopt of the same bank account with only one winner', async () => {
+    const enrollment = await seedTellerEnrollment();
+    const payload = {
+      provider: 'teller',
+      enrollmentId: enrollment.id,
+      externalAccountId: 'acc_race',
+      name: 'Race Card',
+      type: 'credit',
+    };
+
+    const [resA, resB] = await Promise.all([
+      POST(adoptRequest(payload)),
+      POST(adoptRequest(payload)),
+    ]);
+
+    const statuses = [resA.status, resB.status].sort();
+    expect(statuses).toEqual([200, 409]);
+    expect(await prisma.account.count()).toBe(1);
+  });
 });

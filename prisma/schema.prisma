@@ -63,6 +63,7 @@ model PlaidConnection {
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
+  @@unique([plaidEnrollmentId, plaidAccountId])
   @@index([plaidEnrollmentId])
   @@index([status])
 }
@@ -104,6 +105,7 @@ model TellerConnection {
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
 
+  @@unique([tellerEnrollmentId, tellerAccountId])
   @@index([tellerEnrollmentId])
   @@index([status])
 }

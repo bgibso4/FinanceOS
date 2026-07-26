@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { getDefaultTrackingMode } from '@/lib/account-defaults';
+import { isUniqueConstraintError } from '@/lib/sync-common';
 
 const schema = z.object({
   provider: z.enum(['teller', 'plaid']),
@@ -91,6 +92,15 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, account });
   } catch (error: unknown) {
+    // The findFirst check above gives a clean 409 for the common sequential case,
+    // but it isn't atomic with the create. If two adopts of the same bank account
+    // race, the loser's create trips the @@unique constraint on
+    // (tellerEnrollmentId, tellerAccountId) / (plaidEnrollmentId, plaidAccountId)
+    // instead — treat that the same way rather than surfacing a raw 500.
+    if (isUniqueConstraintError(error)) {
+      return NextResponse.json({ error: 'This bank account is already linked' }, { status: 409 });
+    }
+
     console.error('[Adopt Bank Account API] ERROR:', error);
     const message = error instanceof Error ? error.message : 'Failed to adopt account';
     return NextResponse.json({ error: message }, { status: 500 });
