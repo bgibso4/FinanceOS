@@ -1957,6 +1957,12 @@ import type { UpdateResult } from '@/components/institutions/types';
 interface TellerReconnectButtonProps {
   enrollmentId: string;
   institutionName: string;
+  /**
+   * Our DB id for the enrollment the user is acting on. Sent to the update route so it
+   * adopts exactly this enrollment's connections when Teller mints a new enrollment id,
+   * instead of guessing by institution — two logins at one bank would otherwise collide.
+   */
+  priorEnrollmentId?: string;
   /** 'reconnect' repairs a dead enrollment; 'add-accounts' re-runs Connect on a healthy one. */
   mode?: 'reconnect' | 'add-accounts';
   onSuccess: () => void;
@@ -1967,7 +1973,7 @@ interface TellerReconnectButtonProps {
 }
 ```
 
-Destructure `mode = 'reconnect'` and `onResult` alongside the existing props. Replace the body of the Teller `onSuccess` handler's fetch with the update route, which handles both the same-id and new-id cases:
+Destructure `mode = 'reconnect'`, `priorEnrollmentId`, and `onResult` alongside the existing props, and add `priorEnrollmentId` to the setup `useEffect` dependency array along with `mode` and `onResult`. Replace the body of the Teller `onSuccess` handler's fetch with the update route, which handles both the same-id and new-id cases:
 
 ```typescript
 const response = await fetch('/api/teller/enrollment/update', {
@@ -1976,6 +1982,7 @@ const response = await fetch('/api/teller/enrollment/update', {
   body: JSON.stringify({
     enrollmentId: payload.enrollment.id,
     accessToken: payload.accessToken,
+    ...(priorEnrollmentId ? { priorEnrollmentId } : {}),
   }),
 });
 
@@ -2380,7 +2387,9 @@ interface InstitutionCardProps {
 }
 ```
 
-Render the provider chip from `view.provider` (`'Teller'` / `'Plaid'`) and pick the reconnect button by provider: `TellerReconnectButton` with `enrollmentId={view.updateTargetId}` and `institutionName={view.institutionName}`, or `PlaidReconnectButton` with `enrollmentId={view.updateTargetId}`.
+Render the provider chip from `view.provider` (`'Teller'` / `'Plaid'`) and pick the reconnect button by provider: `TellerReconnectButton` with `enrollmentId={view.updateTargetId}`, `institutionName={view.institutionName}`, and `priorEnrollmentId={view.id}`, or `PlaidReconnectButton` with `enrollmentId={view.updateTargetId}`.
+
+`priorEnrollmentId` matters on the reconnect path too: repairing a dead Teller enrollment can also come back with a new enrollment id, and that is exactly when the connections need adopting onto the right row.
 
 - [ ] **Step 7: Rewrite `ConnectedInstitutions` as a list container**
 
@@ -2822,6 +2831,7 @@ In the action row, render an update-mode button for every enrollment regardless 
   <TellerReconnectButton
     enrollmentId={view.updateTargetId}
     institutionName={view.institutionName}
+    priorEnrollmentId={view.id}
     mode="add-accounts"
     variant="outline"
     onResult={setLastResult}
