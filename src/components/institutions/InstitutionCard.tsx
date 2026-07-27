@@ -1,11 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ds } from '@/lib/design-system';
 import { PlaidReconnectButton } from '@/components/plaid/PlaidReconnectButton';
 import { TellerReconnectButton } from '@/components/teller/TellerReconnectButton';
+import { AdoptAccountModal } from './AdoptAccountModal';
 import { BankAccountRow } from './BankAccountRow';
-import type { InstitutionView } from './types';
+import { DiscoveredAccountRow } from './DiscoveredAccountRow';
+import type { DiscoveredAccount, InstitutionView, Provider } from './types';
 
 // Status badge component for enrollment/connection status
 export function StatusBadge({ status }: { status: string }) {
@@ -30,6 +33,15 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
+type IgnoredAccountRecord = {
+  id: string;
+  provider: Provider;
+  institutionId: string;
+  externalAccountId: string;
+  lastFour: string | null;
+  name: string | null;
+};
+
 interface InstitutionCardProps {
   view: InstitutionView;
   isExpanded: boolean;
@@ -48,6 +60,10 @@ export function InstitutionCard({
   onRefresh,
 }: InstitutionCardProps) {
   const isTeller = view.provider === 'teller';
+  const [adopting, setAdopting] = useState<DiscoveredAccount | null>(null);
+  const [hiddenExpanded, setHiddenExpanded] = useState(false);
+  const [ignoredRecords, setIgnoredRecords] = useState<IgnoredAccountRecord[] | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   // Teller only flags the "Authorization expired" note (and only offers Reconnect)
   // for `disconnected`/`needs_reauth`; Plaid's enrollment GET route never persists
@@ -60,6 +76,56 @@ export function InstitutionCard({
   const showReconnect = isTeller
     ? view.status === 'disconnected' || view.status === 'needs_reauth'
     : view.status === 'error' || view.status === 'needs_reauth';
+
+  // The enrollment GET returns hidden accounts without their ignore-record id, so
+  // matching to a deletable record has to happen client-side using the same
+  // externalId-first, institution+lastFour-fallback pairing as isAccountIgnored.
+  const findIgnoredRecord = (account: DiscoveredAccount): IgnoredAccountRecord | null => {
+    if (!ignoredRecords) return null;
+    const byExternalId = ignoredRecords.find((r) => r.externalAccountId === account.externalId);
+    if (byExternalId) return byExternalId;
+    return (
+      ignoredRecords.find(
+        (r) =>
+          r.institutionId === view.institutionId && !!r.lastFour && r.lastFour === account.lastFour
+      ) ?? null
+    );
+  };
+
+  const handleToggleHidden = async () => {
+    const next = !hiddenExpanded;
+    setHiddenExpanded(next);
+    if (next && ignoredRecords === null) {
+      try {
+        const res = await fetch('/api/ignored-accounts');
+        const data = await res.json();
+        setIgnoredRecords(data.ignored || []);
+      } catch (error) {
+        console.error('Exception fetching ignored accounts:', error);
+        setIgnoredRecords([]);
+      }
+    }
+  };
+
+  const handleRestore = async (account: DiscoveredAccount) => {
+    const record = findIgnoredRecord(account);
+    if (!record) return;
+    setRestoringId(record.id);
+    try {
+      const res = await fetch(`/api/ignored-accounts?id=${record.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.error) {
+        console.error('Failed to restore account:', data.error);
+        return;
+      }
+      setIgnoredRecords((prev) => prev?.filter((r) => r.id !== record.id) ?? null);
+      onRefresh();
+    } catch (error) {
+      console.error('Exception restoring account:', error);
+    } finally {
+      setRestoringId(null);
+    }
+  };
 
   return (
     <div className={`border ${ds.border.default} rounded-lg overflow-hidden`}>
@@ -82,6 +148,12 @@ export function InstitutionCard({
                 </span>
               )}
               <StatusBadge status={view.status} />
+              {view.discovered.length > 0 && (
+                <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">
+                  {view.discovered.length} new{' '}
+                  {view.discovered.length === 1 ? 'account' : 'accounts'}
+                </span>
+              )}
             </div>
             <p className={`text-sm ${ds.text.muted} mt-1`}>
               {view.linked.length} of {view.totalAccountCount} accounts linked
@@ -99,95 +171,83 @@ export function InstitutionCard({
       {/* Expanded Content */}
       {isExpanded && (
         <div className={`p-4 border-t ${ds.border.default}`}>
-          {/* Bank Accounts */}
+          {/* New accounts discovered on the provider but not yet tracked */}
+          {view.discovered.length > 0 && (
+            <div className="mb-4">
+              <h5 className={`text-sm font-semibold ${ds.text.secondary} mb-2`}>New accounts</h5>
+              <div className="space-y-2">
+                {view.discovered.map((account) => (
+                  <DiscoveredAccountRow
+                    key={account.externalId}
+                    account={account}
+                    institutionId={view.institutionId}
+                    provider={view.provider}
+                    onAdopt={setAdopting}
+                    onChanged={onRefresh}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Linked accounts */}
           <div className="mb-4">
             <h5 className={`text-sm font-semibold ${ds.text.secondary} mb-2`}>Bank Accounts</h5>
-            {isTeller ? (
-              <>
-                {view.discovered.length === 0 ? (
-                  view.linked.length === 0 ? (
-                    <p className={`text-sm ${ds.text.muted}`}>No accounts found</p>
-                  ) : null
-                ) : (
-                  <div className="space-y-2">
-                    {view.discovered.map((account) => {
-                      const linkedTo = view.linked.find((l) => l.externalId === account.externalId);
-                      const isLinked = Boolean(linkedTo);
-
-                      return (
-                        <div
-                          key={account.externalId}
-                          className={`p-3 rounded border ${ds.border.default} ${ds.bg.primary}`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className={`text-sm font-medium ${ds.text.primary}`}>
-                                  {account.name}
-                                </span>
-                                <span className={`text-xs ${ds.text.muted}`}>
-                                  •••• {account.lastFour}
-                                </span>
-                              </div>
-                              {isLinked && linkedTo && (
-                                <p className={`text-xs ${ds.text.muted} mt-1`}>
-                                  Linked to: {linkedTo.linkedAccountName}
-                                </p>
-                              )}
-                            </div>
-                            {isLinked && (
-                              <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">
-                                Linked
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {/* Show linked accounts if no discovered accounts */}
-                {view.discovered.length === 0 && view.linked.length > 0 && (
-                  <div className="space-y-2">
-                    {view.linked.map((account) => (
-                      <BankAccountRow key={account.connectionId} account={account} />
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : view.discovered.length === 0 && view.linked.length === 0 ? (
+            {view.linked.length === 0 ? (
               <p className={`text-sm ${ds.text.muted}`}>No accounts found</p>
             ) : (
               <div className="space-y-2">
-                {/* Available (unlinked) accounts */}
-                {view.discovered.map((account) => (
-                  <div
-                    key={account.externalId}
-                    className={`p-3 rounded border ${ds.border.default} ${ds.bg.primary}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-sm font-medium ${ds.text.primary}`}>
-                            {account.name}
-                          </span>
-                          <span className={`text-xs ${ds.text.muted}`}>
-                            •••• {account.lastFour}
-                          </span>
-                        </div>
-                        <p className={`text-xs ${ds.text.muted} mt-1`}>{account.subtype}</p>
-                      </div>
-                      <span className={`text-xs ${ds.text.muted}`}>Not linked</span>
-                    </div>
-                  </div>
-                ))}
-                {/* Linked accounts */}
                 {view.linked.map((account) => (
                   <BankAccountRow key={account.connectionId} account={account} />
                 ))}
               </div>
             )}
           </div>
+
+          {/* Hidden (ignored) accounts */}
+          {view.hidden.length > 0 && (
+            <div className="mb-4">
+              <button
+                className={`text-sm font-semibold ${ds.text.secondary} mb-2 flex items-center gap-1`}
+                type="button"
+                onClick={handleToggleHidden}
+              >
+                <span>{hiddenExpanded ? '▼' : '▶'}</span>
+                Hidden ({view.hidden.length})
+              </button>
+              {hiddenExpanded && (
+                <div className="space-y-2">
+                  {view.hidden.map((account) => {
+                    const record = findIgnoredRecord(account);
+                    return (
+                      <div
+                        key={account.externalId}
+                        className={`p-3 rounded border ${ds.border.default} ${ds.bg.primary}`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-medium ${ds.text.primary}`}>
+                              {account.name}
+                            </span>
+                            <span className={`text-xs ${ds.text.muted}`}>
+                              •••• {account.lastFour}
+                            </span>
+                          </div>
+                          <Button
+                            disabled={!record || restoringId === record.id}
+                            variant="ghost"
+                            onClick={() => handleRestore(account)}
+                          >
+                            Restore
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-2 pt-3 border-t">
@@ -208,6 +268,15 @@ export function InstitutionCard({
           </div>
         </div>
       )}
+
+      <AdoptAccountModal
+        account={adopting}
+        enrollmentId={view.id}
+        institutionName={view.institutionName}
+        provider={view.provider}
+        onAdopted={onRefresh}
+        onClose={() => setAdopting(null)}
+      />
     </div>
   );
 }
