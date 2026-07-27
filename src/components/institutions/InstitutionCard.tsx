@@ -64,6 +64,7 @@ export function InstitutionCard({
   const [hiddenExpanded, setHiddenExpanded] = useState(false);
   const [ignoredRecords, setIgnoredRecords] = useState<IgnoredAccountRecord[] | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
 
   // Teller only flags the "Authorization expired" note (and only offers Reconnect)
   // for `disconnected`/`needs_reauth`; Plaid's enrollment GET route never persists
@@ -111,17 +112,20 @@ export function InstitutionCard({
     const record = findIgnoredRecord(account);
     if (!record) return;
     setRestoringId(record.id);
+    setRestoreError(null);
     try {
       const res = await fetch(`/api/ignored-accounts?id=${record.id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.error) {
         console.error('Failed to restore account:', data.error);
+        setRestoreError(data.error);
         return;
       }
       setIgnoredRecords((prev) => prev?.filter((r) => r.id !== record.id) ?? null);
       onRefresh();
     } catch (error) {
       console.error('Exception restoring account:', error);
+      setRestoreError('Failed to restore account');
     } finally {
       setRestoringId(null);
     }
@@ -215,6 +219,9 @@ export function InstitutionCard({
                 <span>{hiddenExpanded ? '▼' : '▶'}</span>
                 Hidden ({view.hidden.length})
               </button>
+              {restoreError && (
+                <p className={`text-xs ${ds.status.error.text} mb-2`}>{restoreError}</p>
+              )}
               {hiddenExpanded && (
                 <div className="space-y-2">
                   {view.hidden.map((account) => {
