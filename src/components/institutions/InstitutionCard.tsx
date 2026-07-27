@@ -11,7 +11,7 @@ import { DiscoveredAccountRow } from './DiscoveredAccountRow';
 import type { DiscoveredAccount, InstitutionView, Provider, UpdateResult } from './types';
 
 // Status badge component for enrollment/connection status
-export function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status }: { status: string }) {
   if (status === 'connected') {
     return (
       <span className="text-xs px-2 py-0.5 rounded bg-[var(--green)]/15 text-[var(--green)]">
@@ -84,12 +84,17 @@ export function InstitutionCard({
   // externalId-first, institution+lastFour-fallback pairing as isAccountIgnored.
   const findIgnoredRecord = (account: DiscoveredAccount): IgnoredAccountRecord | null => {
     if (!ignoredRecords) return null;
-    const byExternalId = ignoredRecords.find((r) => r.externalAccountId === account.externalId);
+    const byExternalId = ignoredRecords.find(
+      (r) => r.provider === view.provider && r.externalAccountId === account.externalId
+    );
     if (byExternalId) return byExternalId;
     return (
       ignoredRecords.find(
         (r) =>
-          r.institutionId === view.institutionId && !!r.lastFour && r.lastFour === account.lastFour
+          r.provider === view.provider &&
+          r.institutionId === view.institutionId &&
+          !!r.lastFour &&
+          r.lastFour === account.lastFour
       ) ?? null
     );
   };
@@ -190,8 +195,13 @@ export function InstitutionCard({
               </div>
               {lastResult.unmatched.length > 0 && (
                 <div className={`mt-2 ${ds.status.warning.text}`}>
-                  Could not match: {lastResult.unmatched.map((u) => u.name ?? 'Unknown').join(', ')}
-                  . Link these from the account&apos;s settings.
+                  Could not match:{' '}
+                  {lastResult.unmatched
+                    .map((u) => `${u.name ?? 'Unknown'}${u.lastFour ? ` (••••${u.lastFour})` : ''}`)
+                    .join(', ')}
+                  . Do not use the Add button below for these accounts — that creates a second,
+                  duplicate account and double-counts its balance and transactions. Link them from
+                  the account&apos;s own settings instead.
                 </div>
               )}
             </div>

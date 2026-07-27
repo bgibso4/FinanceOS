@@ -13,6 +13,14 @@ const schema = z.object({
   currency: z.string().default('USD'),
   subtype: z.string().optional(),
   lastFour: z.string().optional(),
+  // Raw provider-vocabulary values (e.g. Teller/Plaid's 'depository'/'credit' and the
+  // bank's own display name), distinct from `name`/`type` above which are the
+  // user-editable FinanceOS values from the adopt modal. Every other writer of the
+  // provider connection columns stores the raw provider values, so the matching tiers
+  // in bank-account-matching.ts can compare like against like on a future re-adopt.
+  // Optional so older callers keep working; the route falls back to `name`/`type`.
+  providerType: z.string().optional(),
+  providerName: z.string().optional(),
 });
 
 /**
@@ -68,8 +76,8 @@ export async function POST(req: NextRequest) {
             accountId: created.id,
             tellerEnrollmentId: enrollment.id,
             tellerAccountId: parsed.externalAccountId,
-            tellerAccountName: parsed.name,
-            tellerAccountType: parsed.type,
+            tellerAccountName: parsed.providerName ?? parsed.name,
+            tellerAccountType: parsed.providerType ?? parsed.type,
             tellerAccountSubtype: parsed.subtype ?? null,
             tellerAccountLastFour: parsed.lastFour ?? null,
             status: 'connected',
@@ -81,7 +89,10 @@ export async function POST(req: NextRequest) {
             accountId: created.id,
             plaidEnrollmentId: enrollment.id,
             plaidAccountId: parsed.externalAccountId,
-            plaidAccountName: parsed.name,
+            plaidAccountName: parsed.providerName ?? parsed.name,
+            plaidAccountType: parsed.providerType ?? parsed.type,
+            plaidAccountSubtype: parsed.subtype ?? null,
+            plaidAccountMask: parsed.lastFour ?? null,
             status: 'connected',
           },
         });

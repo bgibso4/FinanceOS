@@ -115,7 +115,6 @@ describe('teller enrollment update API', () => {
     const res = await POST(updateRequest({ enrollmentId: 'enr_same', accessToken: 'fresh-token' }));
     const body = await res.json();
 
-    expect(body.merged).toBe(false);
     expect(body.reconnected).toBe(1);
     expect(body.discovered).toHaveLength(1);
     expect(body.discovered[0].externalId).toBe('acc_new_card');
@@ -154,7 +153,6 @@ describe('teller enrollment update API', () => {
     );
     const body = await res.json();
 
-    expect(body.merged).toBe(true);
     expect(body.reconnected).toBe(1);
     expect(body.unmatched).toHaveLength(0);
     expect(body.discovered.map((a: { externalId: string }) => a.externalId)).toEqual([
@@ -224,7 +222,6 @@ describe('teller enrollment update API', () => {
     const res = await POST(updateRequest({ enrollmentId: 'enr_first', accessToken: 'token' }));
     const body = await res.json();
 
-    expect(body.merged).toBe(false);
     expect(body.reconnected).toBe(0);
     expect(body.discovered).toHaveLength(1);
     expect(await prisma.tellerEnrollment.count()).toBe(1);
@@ -271,7 +268,6 @@ describe('teller enrollment update API', () => {
     );
     const body = await res.json();
 
-    expect(body.merged).toBe(false);
     expect(body.reconnected).toBe(0);
     expect(body.discovered).toHaveLength(1);
     expect(body.discovered[0].externalId).toBe('acc_a');
@@ -385,7 +381,6 @@ describe('teller enrollment update API', () => {
     const body = await res.json();
 
     expect(body.enrollmentId).toBe(live.id);
-    expect(body.merged).toBe(true);
     expect(body.reconnected).toBe(1);
     expect(body.unmatched).toHaveLength(0);
 

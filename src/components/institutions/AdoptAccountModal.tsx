@@ -64,6 +64,11 @@ export function AdoptAccountModal({
           type,
           subtype: account.subtype,
           lastFour: account.lastFour,
+          // Raw provider values (bank's own name/type), independent of the
+          // user-editable `name`/`type` above — see adopt route for why these
+          // must stay in the provider's own vocabulary.
+          providerName: account.name,
+          providerType: account.type,
         }),
       });
       const data = await res.json();

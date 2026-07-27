@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { encryptAccessToken } from '@/lib/encryption';
 import { tellerFetch, type TellerAccount, type TellerAccountsResponse } from '@/lib/teller';
 import { matchConnectionsToAccounts, type ProviderAccount } from '@/lib/bank-account-matching';
+import { isUniqueConstraintError } from '@/lib/sync-common';
 
 const schema = z.object({
   enrollmentId: z.string(),
@@ -30,11 +31,6 @@ type UnmatchedEntry = { connectionId: string; name: string | null; lastFour: str
 type ResponseBody = {
   success: true;
   enrollmentId: string;
-  // True only when at least one connection is actually confirmed live under this
-  // enrollment as a result of this call — either freshly reconnected in place or
-  // adopted from a prior enrollment. A prior named but contributing nothing (already
-  // fully adopted, or empty) yields `merged: false`, even though adoption code ran.
-  merged: boolean;
   reconnected: number;
   discovered: ProviderAccount[];
   unmatched: UnmatchedEntry[];
@@ -91,7 +87,6 @@ async function refreshLiveEnrollment(
   return {
     success: true,
     enrollmentId: live.id,
-    merged: false,
     reconnected: reconnectedCount,
     discovered: accounts.filter((a) => !linkedIds.has(a.id)).map(toProviderAccount),
     unmatched,
@@ -196,7 +191,6 @@ async function adoptPriorEnrollment(
   return {
     success: true,
     enrollmentId: live.id,
-    merged: liveState.reconnectedCount > 0,
     reconnected: liveState.reconnectedCount,
     discovered: accounts.filter((a) => !liveState.linkedIds.has(a.id)).map(toProviderAccount),
     unmatched: [...unmatchedFromPrior, ...liveState.unmatched],
@@ -301,7 +295,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         enrollmentId: created.id,
-        merged: false,
         reconnected: 0,
         discovered: accounts.map(toProviderAccount),
         unmatched: [],
@@ -310,6 +303,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(await adoptPriorEnrollment(created, prior, accounts));
   } catch (error: unknown) {
+    // The reconciliation writes above (moving a prior connection's tellerEnrollmentId /
+    // tellerAccountId onto `live`) can trip the (tellerEnrollmentId, tellerAccountId)
+    // unique constraint if a concurrent run already claimed the same pairing. Treat
+    // that the same way the adopt route does rather than surfacing a raw 500.
+    if (isUniqueConstraintError(error)) {
+      return NextResponse.json({ error: 'This bank account is already linked' }, { status: 409 });
+    }
+
     console.error('[Teller Enrollment Update API] ERROR:', error);
     const message = error instanceof Error ? error.message : 'Failed to update enrollment';
     return NextResponse.json({ error: message }, { status: 500 });

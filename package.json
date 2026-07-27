@@ -106,6 +106,6 @@
     "seed": "node prisma/seed.js"
   },
   "engines": {
-    "node": ">=18.18.0"
+    "node": ">=22"
   }
 }
