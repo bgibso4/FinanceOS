@@ -4,11 +4,12 @@ import userEvent from '@testing-library/user-event';
 import { InstitutionCard } from '@/components/institutions/InstitutionCard';
 import type { InstitutionView } from '@/components/institutions/types';
 
-// `status: 'connected'` keeps `showReconnect` false for both providers, so neither
-// TellerReconnectButton (which loads an external script and needs window.TellerConnect)
-// nor PlaidReconnectButton (which calls the real `usePlaidLink` hook) ever mounts. That
-// lets this test stay focused on the account-list regression it exists to guard, instead
-// of stubbing two unrelated third-party widgets.
+// The Add accounts button renders unconditionally (regardless of `view.status`), so
+// TellerReconnectButton and PlaidReconnectButton always mount here even though
+// `status: 'connected'` keeps the separately-gated Reconnect button off. Teller's
+// widget needs `window.TellerConnect` stubbed below so its script-loading effect
+// resolves instead of hanging; Plaid's `usePlaidLink` tolerates a null token fine
+// without any stub.
 function buildView(overrides: Partial<InstitutionView> = {}): InstitutionView {
   return {
     key: 'teller-enr_1',
@@ -59,6 +60,11 @@ function buildView(overrides: Partial<InstitutionView> = {}): InstitutionView {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Stub the Teller Connect script's global so TellerReconnectButton's loadScript()
+  // resolves immediately instead of waiting on a real (jsdom-inert) <script> tag.
+  window.TellerConnect = {
+    setup: () => ({ open: vi.fn() }),
+  } as unknown as Window['TellerConnect'];
   global.fetch = vi.fn(async (url: string | URL | Request) => {
     if (String(url).includes('/api/ignored-accounts')) {
       return {
@@ -74,6 +80,11 @@ beforeEach(() => {
             },
           ],
         }),
+      } as Response;
+    }
+    if (String(url).includes('/api/teller/config')) {
+      return {
+        json: async () => ({ applicationId: 'app_test', environment: 'sandbox' }),
       } as Response;
     }
     return { json: async () => ({ success: true }) } as Response;
@@ -157,5 +168,29 @@ describe('InstitutionCard', () => {
 
     await waitFor(() => expect(screen.getByText('Old Business Card')).toBeInTheDocument());
     expect(screen.getByText(/1000/)).toBeInTheDocument();
+  });
+
+  it('renders the Add accounts button for a healthy institution, where previously no provider button appeared', async () => {
+    const view = buildView(); // status: 'connected'
+
+    render(
+      <InstitutionCard
+        isExpanded
+        disconnecting={false}
+        view={view}
+        onDisconnect={noop}
+        onRefresh={noop}
+        onToggle={noop}
+      />
+    );
+
+    // Before this task, a healthy (`connected`) institution rendered no Teller/Plaid
+    // button at all — Reconnect was gated on broken statuses and there was no other
+    // provider entry point. Add accounts is unconditional, so it must show up here.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Add accounts' })).toBeInTheDocument()
+    );
+    // Reconnect stays gated on broken statuses, so it must not also render.
+    expect(screen.queryByRole('button', { name: 'Reconnect' })).not.toBeInTheDocument();
   });
 });

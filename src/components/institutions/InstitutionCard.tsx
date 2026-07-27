@@ -8,7 +8,7 @@ import { TellerReconnectButton } from '@/components/teller/TellerReconnectButton
 import { AdoptAccountModal } from './AdoptAccountModal';
 import { BankAccountRow } from './BankAccountRow';
 import { DiscoveredAccountRow } from './DiscoveredAccountRow';
-import type { DiscoveredAccount, InstitutionView, Provider } from './types';
+import type { DiscoveredAccount, InstitutionView, Provider, UpdateResult } from './types';
 
 // Status badge component for enrollment/connection status
 export function StatusBadge({ status }: { status: string }) {
@@ -65,6 +65,7 @@ export function InstitutionCard({
   const [ignoredRecords, setIgnoredRecords] = useState<IgnoredAccountRecord[] | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [lastResult, setLastResult] = useState<UpdateResult | null>(null);
 
   // Teller only flags the "Authorization expired" note (and only offers Reconnect)
   // for `disconnected`/`needs_reauth`; Plaid's enrollment GET route never persists
@@ -175,6 +176,27 @@ export function InstitutionCard({
       {/* Expanded Content */}
       {isExpanded && (
         <div className={`p-4 border-t ${ds.border.default}`}>
+          {/* Result summary from the most recent Add accounts run */}
+          {lastResult && (
+            <div
+              className={`mb-4 p-3 rounded ${ds.status.success.bg} ${ds.status.success.text} text-sm`}
+            >
+              <div>
+                {lastResult.reconnected} {lastResult.reconnected === 1 ? 'account' : 'accounts'}{' '}
+                reconnected
+                {' · '}
+                {lastResult.discovered.length} new{' '}
+                {lastResult.discovered.length === 1 ? 'account' : 'accounts'} found
+              </div>
+              {lastResult.unmatched.length > 0 && (
+                <div className={`mt-2 ${ds.status.warning.text}`}>
+                  Could not match: {lastResult.unmatched.map((u) => u.name ?? 'Unknown').join(', ')}
+                  . Link these from the account&apos;s settings.
+                </div>
+              )}
+            </div>
+          )}
+
           {/* New accounts discovered on the provider but not yet tracked */}
           {view.discovered.length > 0 && (
             <div className="mb-4">
@@ -269,6 +291,23 @@ export function InstitutionCard({
               ) : (
                 <PlaidReconnectButton enrollmentId={view.updateTargetId} onSuccess={onRefresh} />
               ))}
+            {isTeller ? (
+              <TellerReconnectButton
+                enrollmentId={view.updateTargetId}
+                institutionName={view.institutionName}
+                mode="add-accounts"
+                priorEnrollmentId={view.id}
+                variant="outline"
+                onResult={setLastResult}
+                onSuccess={onRefresh}
+              />
+            ) : (
+              <PlaidReconnectButton
+                enrollmentId={view.updateTargetId}
+                mode="add-accounts"
+                onSuccess={onRefresh}
+              />
+            )}
             <Button disabled={disconnecting} variant="destructive" onClick={onDisconnect}>
               {disconnecting ? 'Disconnecting...' : 'Disconnect'}
             </Button>
