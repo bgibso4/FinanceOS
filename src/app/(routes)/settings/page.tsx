@@ -31,7 +31,7 @@ import { ds } from '@/lib/design-system';
 import { getCurrencyFlag } from '@/lib/currency';
 import { SyncStatusBadge } from '@/components/plaid/SyncStatusBadge'; // Used for both Plaid and Teller
 import { triggerSync } from '@/lib/cloud-sync';
-import { ConnectedInstitutions } from '@/components/teller/ConnectedInstitutions';
+import { ConnectedInstitutions } from '@/components/institutions/ConnectedInstitutions';
 import { TellerAccountLinkSelector } from '@/components/teller/TellerAccountLinkSelector';
 import { PlaidAccountLinkSelector } from '@/components/plaid/PlaidAccountLinkSelector';
 import { PlaidReconnectButton } from '@/components/plaid/PlaidReconnectButton';
