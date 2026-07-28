@@ -37,7 +37,7 @@ import { TellerReconnectButton } from '@/components/teller/TellerReconnectButton
 describe('TellerReconnectButton', () => {
   it('renders Reconnect in the default mode', async () => {
     render(
-      <TellerReconnectButton enrollmentId="enr_1" institutionName="Chase" onSuccess={vi.fn()} />
+      <TellerReconnectButton institutionId="chase" institutionName="Chase" onSuccess={vi.fn()} />
     );
 
     await waitFor(() => expect(screen.getByRole('button')).toBeEnabled());
@@ -47,7 +47,7 @@ describe('TellerReconnectButton', () => {
   it('renders Add accounts in add-accounts mode', async () => {
     render(
       <TellerReconnectButton
-        enrollmentId="enr_1"
+        institutionId="chase"
         institutionName="Chase"
         mode="add-accounts"
         onSuccess={vi.fn()}
@@ -58,15 +58,36 @@ describe('TellerReconnectButton', () => {
     expect(screen.getByRole('button')).toHaveTextContent('Add accounts');
   });
 
+  it('scopes Connect to the institution and never uses enrollmentId update mode', async () => {
+    render(
+      <TellerReconnectButton
+        institutionId="chase"
+        institutionName="Chase"
+        mode="add-accounts"
+        priorEnrollmentId="db-uuid-1"
+        onSuccess={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByRole('button')).toBeEnabled());
+
+    // Teller rejects `enrollmentId` update mode with "an enrollment with that id
+    // could not be found" even for enrollments its own API reports as healthy, so
+    // Connect must open a fresh flow scoped by institution instead.
+    expect(capturedSetup.institution).toBe('chase');
+    expect(capturedSetup.enrollmentId).toBeUndefined();
+  });
+
   it('posts to the update route and reports the result', async () => {
     const onResult = vi.fn();
     const onSuccess = vi.fn();
 
     render(
       <TellerReconnectButton
-        enrollmentId="enr_1"
+        institutionId="chase"
         institutionName="Chase"
         mode="add-accounts"
+        priorEnrollmentId="db-uuid-1"
         onResult={onResult}
         onSuccess={onSuccess}
       />
@@ -91,5 +112,17 @@ describe('TellerReconnectButton', () => {
     ).toBe(true);
     expect(onResult.mock.calls[0][0].discovered).toHaveLength(1);
     expect(onSuccess).toHaveBeenCalled();
+
+    // The enrollment id in the body is the NEW one Teller just minted; priorEnrollmentId
+    // is our DB id, and is what tells the route which connections to adopt.
+    const updateCall = vi
+      .mocked(global.fetch)
+      .mock.calls.find(([url]) => String(url).includes('/api/teller/enrollment/update'));
+    const body = JSON.parse((updateCall?.[1] as RequestInit).body as string);
+    expect(body).toMatchObject({
+      enrollmentId: 'enr_new',
+      accessToken: 'fresh',
+      priorEnrollmentId: 'db-uuid-1',
+    });
   });
 });

@@ -293,9 +293,10 @@ export function InstitutionCard({
             {showReconnect &&
               (isTeller ? (
                 <TellerReconnectButton
-                  enrollmentId={view.updateTargetId}
+                  institutionId={view.institutionId}
                   institutionName={view.institutionName}
                   priorEnrollmentId={view.id}
+                  onResult={setLastResult}
                   onSuccess={onRefresh}
                 />
               ) : (
@@ -303,7 +304,7 @@ export function InstitutionCard({
               ))}
             {isTeller ? (
               <TellerReconnectButton
-                enrollmentId={view.updateTargetId}
+                institutionId={view.institutionId}
                 institutionName={view.institutionName}
                 mode="add-accounts"
                 priorEnrollmentId={view.id}

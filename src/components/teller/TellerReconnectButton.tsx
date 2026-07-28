@@ -7,7 +7,19 @@ import './types'; // Import for side-effect (global Window declaration)
 import type { UpdateResult } from '@/components/institutions/types';
 
 interface TellerReconnectButtonProps {
-  enrollmentId: string;
+  /**
+   * Teller's institution id (e.g. "chase"). Passed to Connect so it skips the
+   * institution picker and opens straight into this bank's auth flow.
+   *
+   * We deliberately do NOT use Connect's `enrollmentId` update mode here. Teller
+   * rejects it with "an enrollment with that id could not be found" even for
+   * enrollments its own API reports as live and healthy — verified against both a
+   * connected and a disconnected enrollment, with the application id matching the
+   * client certificate's CN. A fresh Connect scoped to the institution reaches the
+   * same place: Teller mints a new enrollment id, and the update route adopts this
+   * enrollment's existing connections onto the new token.
+   */
+  institutionId: string;
   institutionName: string;
   /**
    * Our DB id for the enrollment the user is acting on. Sent to the update route so it
@@ -15,7 +27,7 @@ interface TellerReconnectButtonProps {
    * instead of guessing by institution — two logins at one bank would otherwise collide.
    */
   priorEnrollmentId?: string;
-  /** 'reconnect' repairs a dead enrollment; 'add-accounts' re-runs Connect on a healthy one. */
+  /** 'reconnect' repairs a dead enrollment; 'add-accounts' picks up newly opened accounts. */
   mode?: 'reconnect' | 'add-accounts';
   onSuccess: () => void;
   onResult?: (result: UpdateResult) => void;
@@ -25,7 +37,7 @@ interface TellerReconnectButtonProps {
 }
 
 export function TellerReconnectButton({
-  enrollmentId,
+  institutionId,
   institutionName: _institutionName,
   priorEnrollmentId,
   mode = 'reconnect',
@@ -101,7 +113,7 @@ export function TellerReconnectButton({
     const setupOptions: TellerConnectOptions = {
       applicationId: config.applicationId,
       environment: config.environment as 'sandbox' | 'development' | 'production',
-      enrollmentId: enrollmentId, // Pass enrollmentId for re-auth
+      institution: institutionId, // Skip the picker; see the prop's doc comment
       products: ['transactions'],
       onSuccess: async (payload: TellerConnectSuccessPayload) => {
         console.log('[TellerReconnect] onSuccess - re-authentication complete');
@@ -154,7 +166,7 @@ export function TellerReconnectButton({
     const tc = window.TellerConnect.setup(setupOptions);
 
     setTellerConnect(tc);
-  }, [ready, config, enrollmentId, priorEnrollmentId, mode, onResult, onSuccess, onExit]);
+  }, [ready, config, institutionId, priorEnrollmentId, mode, onResult, onSuccess, onExit]);
 
   const handleClick = useCallback(() => {
     if (tellerConnect) {
