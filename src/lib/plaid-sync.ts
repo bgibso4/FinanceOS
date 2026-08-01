@@ -82,6 +82,14 @@ export type SyncResult = {
 
 // Preview transaction for dry-run mode
 export type TransactionPreview = {
+  /**
+   * Which FinanceOS account this transaction belongs to. Plaid's cursor is shared
+   * across every account in an item, so a "preview" triggered from one account
+   * legitimately returns rows for all of its siblings — without this, the list and
+   * the totals look wildly wrong for the account the user clicked.
+   */
+  accountId: string;
+  accountName: string;
   externalId: string;
   date: string;
   amount: number;
@@ -139,11 +147,12 @@ export async function syncPlaidTransactions(
 
   const accountMap = new Map<
     string,
-    { accountId: string; invertAmounts: boolean; connectionId: string }
+    { accountId: string; accountName: string; invertAmounts: boolean; connectionId: string }
   >();
   for (const sibling of siblingConnections) {
     accountMap.set(sibling.plaidAccountId, {
       accountId: sibling.accountId,
+      accountName: sibling.account.name,
       invertAmounts: sibling.account.invertAmounts,
       connectionId: sibling.id,
     });
@@ -203,7 +212,13 @@ export async function syncPlaidTransactions(
         stats.skippedOld++;
         if (dryRun) {
           transactionPreviews.push(
-            createSkippedPreview(plaidTx, 'add', 'Transaction older than sync window')
+            createSkippedPreview(
+              plaidTx,
+              target.accountId,
+              target.accountName,
+              'add',
+              'Transaction older than sync window'
+            )
           );
         }
         continue;
@@ -213,6 +228,7 @@ export async function syncPlaidTransactions(
         const preview = await previewPlaidTransaction(
           plaidTx,
           target.accountId,
+          target.accountName,
           'add',
           target.invertAmounts
         );
@@ -269,6 +285,7 @@ export async function syncPlaidTransactions(
         const preview = await previewPlaidTransaction(
           plaidTx,
           target.accountId,
+          target.accountName,
           'modify',
           target.invertAmounts
         );
@@ -292,9 +309,14 @@ export async function syncPlaidTransactions(
       // Plaid RemovedTransaction has account_id — use it to route to the correct account
       const target = removedTx.account_id ? accountMap.get(removedTx.account_id) : null;
       const targetAccountId = target?.accountId ?? connection.accountId;
+      const targetAccountName = target?.accountName ?? connection.account.name;
 
       if (dryRun) {
-        const preview = await previewRemovedTransaction(removedTx, targetAccountId);
+        const preview = await previewRemovedTransaction(
+          removedTx,
+          targetAccountId,
+          targetAccountName
+        );
         transactionPreviews.push(preview);
         if (preview.wouldCreate) {
           stats.removed++;
@@ -361,6 +383,7 @@ export async function syncPlaidTransactions(
 async function previewPlaidTransaction(
   plaidTx: PlaidTransaction,
   accountId: string,
+  accountName: string,
   action: 'add' | 'modify',
   invertAmounts: boolean = false
 ): Promise<TransactionPreview> {
@@ -373,19 +396,25 @@ async function previewPlaidTransaction(
     });
 
     if (existing) {
-      return createSkippedPreview(plaidTx, action, 'Already exists (duplicate externalId)');
+      return createSkippedPreview(
+        plaidTx,
+        accountId,
+        accountName,
+        action,
+        'Already exists (duplicate externalId)'
+      );
     }
 
     // Check importHash: catches re-enrollment duplicates
     const hashMatch = await findImportHashMatch(accountId, mapped.importHash, mapped.externalId);
     if (hashMatch) {
-      return createMergePreview(plaidTx, action, hashMatch.id);
+      return createMergePreview(plaidTx, accountId, accountName, action, hashMatch.id);
     }
 
     // Check for merge candidate (manual import that matches)
     const mergeCandidate = await findMergeCandidate(accountId, mapped);
     if (mergeCandidate) {
-      return createMergePreview(plaidTx, action, mergeCandidate.id);
+      return createMergePreview(plaidTx, accountId, accountName, action, mergeCandidate.id);
     }
 
     // Try to categorize and check for merchant rename
@@ -412,6 +441,8 @@ async function previewPlaidTransaction(
       : mapped.merchantNormalized;
 
     return {
+      accountId,
+      accountName,
       externalId: plaidTx.transaction_id,
       date: plaidTx.date,
       amount: mapped.amount,
@@ -434,6 +465,8 @@ async function previewPlaidTransaction(
     });
 
     return {
+      accountId,
+      accountName,
       externalId: plaidTx.transaction_id,
       date: plaidTx.date,
       amount: mapped.amount,
@@ -455,13 +488,16 @@ async function previewPlaidTransaction(
 // Preview a removed transaction
 async function previewRemovedTransaction(
   removedTx: RemovedTransaction,
-  accountId: string
+  accountId: string,
+  accountName: string
 ): Promise<TransactionPreview> {
   const existing = await prisma.transaction.findFirst({
     where: { accountId, externalId: removedTx.transaction_id },
   });
 
   return {
+    accountId,
+    accountName,
     externalId: removedTx.transaction_id,
     date: '',
     amount: existing?.amount || 0,
@@ -482,6 +518,8 @@ async function previewRemovedTransaction(
 // Helper to create preview for merge candidates
 function createMergePreview(
   plaidTx: PlaidTransaction,
+  accountId: string,
+  accountName: string,
   action: 'add' | 'modify',
   existingTransactionId: string
 ): TransactionPreview {
@@ -492,6 +530,8 @@ function createMergePreview(
     plaidTx.personal_finance_category?.primary === 'TRANSFER_OUT';
 
   return {
+    accountId,
+    accountName,
     externalId: plaidTx.transaction_id,
     date: plaidTx.date,
     amount,
@@ -512,6 +552,8 @@ function createMergePreview(
 // Helper to create preview for skipped transactions
 function createSkippedPreview(
   plaidTx: PlaidTransaction,
+  accountId: string,
+  accountName: string,
   action: 'add' | 'modify',
   skipReason: string
 ): TransactionPreview {
@@ -522,6 +564,8 @@ function createSkippedPreview(
     plaidTx.personal_finance_category?.primary === 'TRANSFER_OUT';
 
   return {
+    accountId,
+    accountName,
     externalId: plaidTx.transaction_id,
     date: plaidTx.date,
     amount,

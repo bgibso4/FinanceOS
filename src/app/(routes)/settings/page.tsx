@@ -506,6 +506,12 @@ function SettingsPageContent() {
 
   // Dry-run preview state
   type TransactionPreview = {
+    /**
+     * Only Plaid previews carry this. Plaid's sync is item-scoped — one shared cursor
+     * across every account in a connection — so a preview started from one account
+     * includes its siblings. Teller previews are per-account and omit it.
+     */
+    accountName?: string;
     externalId: string;
     date: string;
     amount: number;
@@ -525,6 +531,14 @@ function SettingsPageContent() {
     totalFetched: number;
   } | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+
+  // Distinct accounts represented in the preview. Plaid's transactionsSync cursor is
+  // shared across every account in an item, so previewing from one account returns its
+  // siblings too and the totals are institution-wide. Surfacing this stops a count like
+  // "115 new" reading as 115 for the one account the user clicked.
+  const previewAccountNames = Array.from(
+    new Set((previewResult?.transactions ?? []).map((t) => t.accountName).filter(Boolean))
+  );
 
   // Sync All state
   const [showSyncAllModal, setShowSyncAllModal] = useState(false);
@@ -3345,6 +3359,14 @@ function SettingsPageContent() {
               <div className={`text-xs ${ds.text.muted} text-center mt-2`}>
                 Date range: {previewResult.dateRange.from} to {previewResult.dateRange.to}
               </div>
+              {previewAccountNames.length > 1 && (
+                <div className={`text-xs ${ds.status.warning.text} text-center mt-2`}>
+                  These totals cover all {previewAccountNames.length} accounts at this institution (
+                  {previewAccountNames.join(', ')}), not just {modalAccount?.name}. Plaid shares one
+                  transaction cursor across every account in a connection, so a sync started from
+                  one account necessarily covers its siblings.
+                </div>
+              )}
             </div>
 
             {/* Transaction List */}
@@ -3353,6 +3375,9 @@ function SettingsPageContent() {
                 <thead className={`${ds.bg.tertiary} sticky top-0`}>
                   <tr>
                     <th className={`text-left p-2 ${ds.text.secondary}`}>Date</th>
+                    {previewAccountNames.length > 1 && (
+                      <th className={`text-left p-2 ${ds.text.secondary}`}>Account</th>
+                    )}
                     <th className={`text-left p-2 ${ds.text.secondary}`}>Merchant</th>
                     <th className={`text-right p-2 ${ds.text.secondary}`}>Amount</th>
                     <th className={`text-left p-2 ${ds.text.secondary}`}>Category</th>
@@ -3373,6 +3398,13 @@ function SettingsPageContent() {
                           day: 'numeric',
                         })}
                       </td>
+                      {previewAccountNames.length > 1 && (
+                        <td className={`p-2 ${ds.text.muted}`}>
+                          <div className="truncate max-w-[120px]" title={tx.accountName}>
+                            {tx.accountName}
+                          </div>
+                        </td>
+                      )}
                       <td className={`p-2 ${ds.text.primary}`}>
                         <div className="truncate max-w-[150px]" title={tx.merchant}>
                           {tx.merchant}
