@@ -127,6 +127,33 @@ describe('teller enrollment GET discovery', () => {
     expect(enrollment.hiddenAccounts).toHaveLength(0);
   });
 
+  it('never ships access token material or cache internals to the client', async () => {
+    await seed();
+    vi.mocked(tellerFetch).mockResolvedValue([
+      tellerAccount('acc_linked', '3857', 'Personal Checking'),
+    ]);
+
+    const body = await (
+      await GET(enrollmentRequest('http://localhost/api/teller/enrollment'))
+    ).json();
+    const enrollment = body.enrollments[0];
+
+    // Ciphertext is not a live credential, but it has no reason to leave the server
+    // and is decryptable by anyone who obtains the encryption key.
+    expect(enrollment).not.toHaveProperty('accessTokenEncrypted');
+    expect(enrollment).not.toHaveProperty('accessTokenIv');
+    expect(enrollment).not.toHaveProperty('cachedAccounts');
+    expect(enrollment).not.toHaveProperty('accountsCachedAt');
+
+    // The fields the UI actually consumes must survive.
+    expect(enrollment.id).toBeTruthy();
+    expect(enrollment.enrollmentId).toBe('enr_1');
+    expect(enrollment.institutionId).toBe('chase');
+    expect(enrollment.institutionName).toBe('Chase');
+    expect(enrollment.status).toBe('connected');
+    expect(enrollment.connections).toHaveLength(1);
+  });
+
   it('moves ignored accounts into hiddenAccounts', async () => {
     await seed();
     await prisma.ignoredBankAccount.create({

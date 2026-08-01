@@ -33,6 +33,26 @@ export async function GET(req: NextRequest) {
 
     const ignored = await prisma.ignoredBankAccount.findMany({ where: { provider: 'teller' } });
 
+    /**
+     * Everything the client is allowed to see. Built explicitly rather than by
+     * spreading the row: `accessTokenEncrypted` and `accessTokenIv` were reaching the
+     * browser on every Settings load. It is ciphertext rather than a live credential,
+     * but it has no business leaving the server — and it is decryptable by anyone who
+     * ever obtains SYNC_ENCRYPTION_KEY. The cache columns are server-side bookkeeping
+     * and are omitted for the same reason.
+     */
+    const publicFields = (e: (typeof enrollments)[number]) => ({
+      id: e.id,
+      enrollmentId: e.enrollmentId,
+      institutionId: e.institutionId,
+      institutionName: e.institutionName,
+      status: e.status,
+      lastSyncAt: e.lastSyncAt,
+      createdAt: e.createdAt,
+      updatedAt: e.updatedAt,
+      connections: e.connections,
+    });
+
     // For each enrollment, fetch available accounts from Teller
     const enrollmentsWithAccounts = await Promise.all(
       enrollments.map(async (enrollment) => {
@@ -76,7 +96,7 @@ export async function GET(req: NextRequest) {
             }));
 
           return {
-            ...enrollment,
+            ...publicFields(enrollment),
             // Unlinked only — the UI renders linked accounts from `connections`.
             availableAccounts: unlinked.filter(
               (a) => !isAccountIgnored(a, enrollment.institutionId, ignored)
@@ -109,7 +129,7 @@ export async function GET(req: NextRequest) {
             }
 
             return {
-              ...enrollment,
+              ...publicFields(enrollment),
               status: 'disconnected', // Return updated status immediately
               availableAccounts: [],
               hiddenAccounts: [],
@@ -121,7 +141,7 @@ export async function GET(req: NextRequest) {
             `Error fetching accounts for Teller enrollment "${enrollment.institutionName}": ${reason}`
           );
           return {
-            ...enrollment,
+            ...publicFields(enrollment),
             availableAccounts: [],
             hiddenAccounts: [],
             totalAccountCount: enrollment.connections.length,
