@@ -36,6 +36,23 @@ export async function GET(req: NextRequest) {
     // Fetch available accounts for each enrollment
     const plaid = getPlaidClient();
     const ignored = await prisma.ignoredBankAccount.findMany({ where: { provider: 'plaid' } });
+
+    /**
+     * Write the provider's account list to the cache, swallowing any failure. Isolated
+     * from the fetch on purpose: caching is an optimization, and a write error inside
+     * the try below is classified as a bank auth failure, which flips a live enrollment
+     * to needs_reauth.
+     */
+    const cacheAccounts = async (id: string, accounts: AccountBase[]) => {
+      try {
+        await prisma.plaidEnrollment.update({
+          where: { id },
+          data: { cachedAccounts: JSON.stringify(accounts), accountsCachedAt: new Date() },
+        });
+      } catch (e) {
+        console.error('Failed to cache Plaid accounts (non-fatal):', e);
+      }
+    };
     const enrollmentsWithAccounts = await Promise.all(
       enrollments.map(async (enrollment) => {
         try {
@@ -57,13 +74,7 @@ export async function GET(req: NextRequest) {
             const response = await plaid.accountsGet({ access_token: accessToken });
             allAccounts = response.data.accounts;
 
-            await prisma.plaidEnrollment.update({
-              where: { id: enrollment.id },
-              data: {
-                cachedAccounts: JSON.stringify(allAccounts),
-                accountsCachedAt: new Date(),
-              },
-            });
+            await cacheAccounts(enrollment.id, allAccounts);
           }
 
           // Filter out already-linked accounts

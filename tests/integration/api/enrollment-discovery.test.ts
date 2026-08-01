@@ -127,6 +127,54 @@ describe('teller enrollment GET discovery', () => {
     expect(enrollment.hiddenAccounts).toHaveLength(0);
   });
 
+  it('survives a failing cache write without marking the enrollment disconnected', async () => {
+    const enrollment = await seed();
+    vi.mocked(tellerFetch).mockResolvedValue([
+      tellerAccount('acc_linked', '3857', 'Personal Checking'),
+      tellerAccount('acc_new', '4242', 'Amazon Card'),
+    ]);
+
+    // A DB write failure must not reach the reauth classifier. Prisma error text
+    // mentions `tellerEnrollment.update()`, which matches that classifier's
+    // "enrollment" test — this previously flipped a live Chase connection to
+    // disconnected on every page load while its token was perfectly healthy.
+    //
+    // Prisma's model methods are proxied getters, so vi.spyOn cannot attach. Swap the
+    // injected client for one that rejects exactly that call and delegates the rest.
+    const realPrisma = testPrisma;
+    testPrisma = new Proxy(realPrisma, {
+      get(target, prop, receiver) {
+        if (prop !== 'tellerEnrollment') return Reflect.get(target, prop, receiver);
+        const model = Reflect.get(target, prop, receiver);
+        return new Proxy(model, {
+          get(m, p, r) {
+            if (p !== 'update') return Reflect.get(m, p, r);
+            return () =>
+              Promise.reject(
+                new Error('Unknown argument `cachedAccounts` on tellerEnrollment.update()')
+              );
+          },
+        });
+      },
+    }) as PrismaClient;
+
+    try {
+      const body = await (
+        await GET(enrollmentRequest('http://localhost/api/teller/enrollment'))
+      ).json();
+      const returned = body.enrollments[0];
+
+      expect(returned.status).toBe('connected');
+      expect(returned.availableAccounts).toHaveLength(1);
+      expect(returned.totalAccountCount).toBe(2);
+    } finally {
+      testPrisma = realPrisma;
+    }
+
+    const persisted = await prisma.tellerEnrollment.findUnique({ where: { id: enrollment.id } });
+    expect(persisted?.status).toBe('connected');
+  });
+
   it('never ships access token material or cache internals to the client', async () => {
     await seed();
     vi.mocked(tellerFetch).mockResolvedValue([

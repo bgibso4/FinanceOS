@@ -34,6 +34,23 @@ export async function GET(req: NextRequest) {
     const ignored = await prisma.ignoredBankAccount.findMany({ where: { provider: 'teller' } });
 
     /**
+     * Write the provider's account list to the cache, swallowing any failure.
+     * Deliberately isolated from the fetch: caching is an optimization, and a write
+     * error here previously propagated into the reauth classifier and flipped a live
+     * enrollment to `disconnected`.
+     */
+    const cacheAccounts = async (id: string, accounts: TellerAccountsResponse) => {
+      try {
+        await prisma.tellerEnrollment.update({
+          where: { id },
+          data: { cachedAccounts: JSON.stringify(accounts), accountsCachedAt: new Date() },
+        });
+      } catch (e) {
+        console.error('Failed to cache Teller accounts (non-fatal):', e);
+      }
+    };
+
+    /**
      * Everything the client is allowed to see. Built explicitly rather than by
      * spreading the row: `accessTokenEncrypted` and `accessTokenIv` were reaching the
      * browser on every Settings load. It is ciphertext rather than a live credential,
@@ -75,13 +92,12 @@ export async function GET(req: NextRequest) {
 
             accounts = await tellerFetch<TellerAccountsResponse>('/accounts', accessToken);
 
-            await prisma.tellerEnrollment.update({
-              where: { id: enrollment.id },
-              data: {
-                cachedAccounts: JSON.stringify(accounts),
-                accountsCachedAt: new Date(),
-              },
-            });
+            // Caching is an optimization: a failed write must never fail the request.
+            // It also must not reach the catch below, which classifies errors as bank
+            // auth failures — a Prisma message mentioning `tellerEnrollment.update()`
+            // matches that classifier's "enrollment" test and would mark a perfectly
+            // healthy institution as disconnected.
+            await cacheAccounts(enrollment.id, accounts);
           }
 
           const linkedIds = new Set(enrollment.connections.map((c) => c.tellerAccountId));
