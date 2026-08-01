@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import type { AccountBase } from 'plaid';
 import { prisma } from '@/lib/prisma';
 import { getPlaidClient } from '@/lib/plaid';
 import { encryptAccessToken, decryptAccessToken } from '@/lib/encryption';
 import { classifyPlaidError } from '@/lib/bank-errors';
 import { isAccountIgnored, type ProviderAccount } from '@/lib/bank-account-matching';
+import { isAccountsCacheFresh, parseCachedAccounts } from '@/lib/enrollment-cache';
 
 const createSchema = z.object({
   publicToken: z.string(),
@@ -13,8 +15,11 @@ const createSchema = z.object({
 });
 
 // GET: List all Plaid enrollments with available accounts
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url);
+    const forceRefresh = searchParams.get('refresh') === '1';
+
     const enrollments = await prisma.plaidEnrollment.findMany({
       include: {
         connections: {
@@ -34,13 +39,32 @@ export async function GET() {
     const enrollmentsWithAccounts = await Promise.all(
       enrollments.map(async (enrollment) => {
         try {
-          const accessToken = decryptAccessToken(
-            enrollment.accessTokenEncrypted,
-            enrollment.accessTokenIv
-          );
+          const cached = forceRefresh
+            ? null
+            : isAccountsCacheFresh(enrollment.accountsCachedAt, new Date())
+              ? parseCachedAccounts<AccountBase>(enrollment.cachedAccounts)
+              : null;
 
-          const response = await plaid.accountsGet({ access_token: accessToken });
-          const allAccounts = response.data.accounts;
+          let allAccounts: AccountBase[];
+          if (cached) {
+            allAccounts = cached;
+          } else {
+            const accessToken = decryptAccessToken(
+              enrollment.accessTokenEncrypted,
+              enrollment.accessTokenIv
+            );
+
+            const response = await plaid.accountsGet({ access_token: accessToken });
+            allAccounts = response.data.accounts;
+
+            await prisma.plaidEnrollment.update({
+              where: { id: enrollment.id },
+              data: {
+                cachedAccounts: JSON.stringify(allAccounts),
+                accountsCachedAt: new Date(),
+              },
+            });
+          }
 
           // Filter out already-linked accounts
           const linkedPlaidAccountIds = new Set(

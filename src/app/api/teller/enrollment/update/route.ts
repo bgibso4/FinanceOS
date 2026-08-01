@@ -258,6 +258,14 @@ export async function POST(req: NextRequest) {
 
     const { encrypted, iv } = encryptAccessToken(parsed.accessToken);
 
+    // The account list we just fetched to validate the token is already the freshest
+    // possible read — persist it as the cache immediately so the next Settings page
+    // load (GET /api/teller/enrollment) doesn't turn right around and re-fetch it live.
+    const accountsCache = {
+      cachedAccounts: JSON.stringify(accounts),
+      accountsCachedAt: new Date(),
+    };
+
     const existing = await prisma.tellerEnrollment.findUnique({
       where: { enrollmentId: parsed.enrollmentId },
     });
@@ -266,7 +274,12 @@ export async function POST(req: NextRequest) {
     if (existing) {
       await prisma.tellerEnrollment.update({
         where: { id: existing.id },
-        data: { accessTokenEncrypted: encrypted, accessTokenIv: iv, status: 'connected' },
+        data: {
+          accessTokenEncrypted: encrypted,
+          accessTokenIv: iv,
+          status: 'connected',
+          ...accountsCache,
+        },
       });
 
       if (prior && prior.id !== existing.id) {
@@ -288,6 +301,7 @@ export async function POST(req: NextRequest) {
         accessTokenEncrypted: encrypted,
         accessTokenIv: iv,
         status: 'connected',
+        ...accountsCache,
       },
     });
 

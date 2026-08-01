@@ -37,6 +37,8 @@ model PlaidEnrollment {
   transactionCursor    String?           // Sync cursor (shared across all connections)
   status               String            @default("connected")
   lastSyncAt           DateTime?
+  cachedAccounts       String?           // JSON array of the provider's raw account list
+  accountsCachedAt     DateTime?
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
   connections          PlaidConnection[] // Links to FinanceOS accounts
@@ -78,6 +80,8 @@ model TellerEnrollment {
   accessTokenIv        String              // IV for decryption
   status               String              @default("connected")
   lastSyncAt           DateTime?
+  cachedAccounts       String?             // JSON array of the provider's raw account list
+  accountsCachedAt     DateTime?
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
   connections          TellerConnection[]  // Links to FinanceOS accounts

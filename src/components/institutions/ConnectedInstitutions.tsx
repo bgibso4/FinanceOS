@@ -81,14 +81,19 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const fetchEnrollments = async () => {
+  // `force` bypasses the server-side provider account cache (?refresh=1) — used after
+  // an action that can actually change the account list (connect, adopt, disconnect).
+  // The initial mount load leaves it off so opening Settings doesn't burn a live
+  // provider call every time.
+  const fetchEnrollments = async (force = false) => {
     try {
       setLoading(true);
 
+      const query = force ? '?refresh=1' : '';
       // Fetch both Teller and Plaid enrollments in parallel
       const [tellerRes, plaidRes] = await Promise.all([
-        fetch('/api/teller/enrollment'),
-        fetch('/api/plaid/enrollment'),
+        fetch(`/api/teller/enrollment${query}`),
+        fetch(`/api/plaid/enrollment${query}`),
       ]);
 
       const tellerData = await tellerRes.json();
@@ -146,7 +151,7 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
       }
 
       // Refresh list
-      await fetchEnrollments();
+      await fetchEnrollments(true);
       if (onRefresh) onRefresh();
     } catch (error) {
       console.error(
@@ -162,12 +167,12 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
   const handleConnect = async () => {
     // Refresh enrollments after connection
     setShowConnectMenu(false);
-    await fetchEnrollments();
+    await fetchEnrollments(true);
     if (onRefresh) onRefresh();
   };
 
   const handleCardRefresh = () => {
-    fetchEnrollments();
+    fetchEnrollments(true);
     if (onRefresh) onRefresh();
   };
 

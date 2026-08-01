@@ -2,6 +2,11 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import { setupTestDb, teardownTestDb, resetTestDb } from '../../helpers/db';
 import { createAccountData } from '../../helpers/factories';
 import type { PrismaClient } from '@prisma/client';
+import type { NextRequest } from 'next/server';
+
+function enrollmentRequest(url: string): NextRequest {
+  return new Request(url) as unknown as NextRequest;
+}
 
 let testPrisma: PrismaClient;
 
@@ -111,7 +116,9 @@ describe('teller enrollment GET discovery', () => {
       tellerAccount('acc_new', '4242', 'Amazon Card'),
     ]);
 
-    const body = await (await GET()).json();
+    const body = await (
+      await GET(enrollmentRequest('http://localhost/api/teller/enrollment'))
+    ).json();
     const enrollment = body.enrollments[0];
 
     expect(enrollment.totalAccountCount).toBe(2);
@@ -135,7 +142,9 @@ describe('teller enrollment GET discovery', () => {
       tellerAccount('acc_new', '4242', 'Amazon Card'),
     ]);
 
-    const body = await (await GET()).json();
+    const body = await (
+      await GET(enrollmentRequest('http://localhost/api/teller/enrollment'))
+    ).json();
     const enrollment = body.enrollments[0];
 
     expect(enrollment.availableAccounts).toHaveLength(0);
@@ -158,7 +167,9 @@ describe('teller enrollment GET discovery', () => {
       tellerAccount('acc_reissued', '4242', 'Amazon Card'),
     ]);
 
-    const body = await (await GET()).json();
+    const body = await (
+      await GET(enrollmentRequest('http://localhost/api/teller/enrollment'))
+    ).json();
 
     expect(body.enrollments[0].availableAccounts).toHaveLength(0);
     expect(body.enrollments[0].hiddenAccounts).toHaveLength(1);
@@ -216,7 +227,9 @@ describe('plaid enrollment GET discovery', () => {
       plaidAccount('acc_new', '4242', 'Amazon Card'),
     ]);
 
-    const body = await (await plaidGET()).json();
+    const body = await (
+      await plaidGET(enrollmentRequest('http://localhost/api/plaid/enrollment'))
+    ).json();
     const enrollment = body.enrollments[0];
 
     expect(enrollment.totalAccountCount).toBe(2);
@@ -240,7 +253,9 @@ describe('plaid enrollment GET discovery', () => {
       plaidAccount('acc_new', '4242', 'Amazon Card'),
     ]);
 
-    const body = await (await plaidGET()).json();
+    const body = await (
+      await plaidGET(enrollmentRequest('http://localhost/api/plaid/enrollment'))
+    ).json();
     const enrollment = body.enrollments[0];
 
     expect(enrollment.availableAccounts).toHaveLength(0);
@@ -261,7 +276,9 @@ describe('plaid enrollment GET discovery', () => {
     });
     mockPlaidAccountsGet([plaidAccount('acc_reissued', '4242', 'Amazon Card')]);
 
-    const body = await (await plaidGET()).json();
+    const body = await (
+      await plaidGET(enrollmentRequest('http://localhost/api/plaid/enrollment'))
+    ).json();
     const enrollment = body.enrollments[0];
 
     expect(enrollment.availableAccounts).toHaveLength(0);
@@ -284,7 +301,9 @@ describe('plaid enrollment GET discovery', () => {
     });
     mockPlaidAccountsGet([plaidAccount('acc_new', '9999', 'Untitled Account')]);
 
-    const body = await (await plaidGET()).json();
+    const body = await (
+      await plaidGET(enrollmentRequest('http://localhost/api/plaid/enrollment'))
+    ).json();
     const enrollment = body.enrollments[0];
 
     expect(enrollment.institutionId).toBeNull();
@@ -299,11 +318,116 @@ describe('plaid enrollment GET discovery', () => {
       accountsGet: vi.fn().mockRejectedValue(new Error('boom')),
     } as unknown as ReturnType<typeof getPlaidClient>);
 
-    const body = await (await plaidGET()).json();
+    const body = await (
+      await plaidGET(enrollmentRequest('http://localhost/api/plaid/enrollment'))
+    ).json();
     const enrollment = body.enrollments[0];
 
     expect(enrollment.availableAccounts).toEqual([]);
     expect(enrollment.hiddenAccounts).toEqual([]);
     expect(enrollment.totalAccountCount).toBe(1);
+  });
+});
+
+describe('teller enrollment GET accounts cache', () => {
+  let prisma: PrismaClient;
+
+  beforeAll(async () => {
+    prisma = await setupTestDb();
+    testPrisma = prisma;
+  });
+
+  afterAll(async () => {
+    await teardownTestDb();
+  });
+
+  beforeEach(async () => {
+    await resetTestDb();
+    vi.clearAllMocks();
+  });
+
+  async function seed(overrides: {
+    cachedAccounts?: string | null;
+    accountsCachedAt?: Date | null;
+  }) {
+    return prisma.tellerEnrollment.create({
+      data: {
+        enrollmentId: 'enr_1',
+        institutionId: 'chase',
+        institutionName: 'Chase',
+        accessTokenEncrypted: 'enc',
+        accessTokenIv: 'iv',
+        status: 'connected',
+        cachedAccounts: overrides.cachedAccounts ?? null,
+        accountsCachedAt: overrides.accountsCachedAt ?? null,
+      },
+    });
+  }
+
+  it('skips the live tellerFetch call entirely when a fresh cache is present', async () => {
+    const cachedAt = new Date();
+    const enrollment = await seed({
+      cachedAccounts: JSON.stringify([tellerAccount('acc_new', '4242', 'Amazon Card')]),
+      accountsCachedAt: cachedAt,
+    });
+
+    const body = await (
+      await GET(enrollmentRequest('http://localhost/api/teller/enrollment'))
+    ).json();
+
+    expect(tellerFetch).toHaveBeenCalledTimes(0);
+    expect(body.enrollments[0].availableAccounts).toHaveLength(1);
+    expect(body.enrollments[0].availableAccounts[0].externalId).toBe('acc_new');
+
+    // A cached read must not write anything either — the stored cache timestamp
+    // stays exactly what it was.
+    const unchanged = await prisma.tellerEnrollment.findUniqueOrThrow({
+      where: { id: enrollment.id },
+    });
+    expect(unchanged.accountsCachedAt?.getTime()).toBe(cachedAt.getTime());
+  });
+
+  it('falls back to a live tellerFetch call once the cache has expired', async () => {
+    const staleCachedAt = new Date(Date.now() - 7 * 60 * 60 * 1000); // 7h ago, past the 6h TTL
+    await seed({
+      cachedAccounts: JSON.stringify([tellerAccount('acc_stale', '1111', 'Stale Cached Account')]),
+      accountsCachedAt: staleCachedAt,
+    });
+    vi.mocked(tellerFetch).mockResolvedValue([tellerAccount('acc_new', '4242', 'Amazon Card')]);
+
+    const body = await (
+      await GET(enrollmentRequest('http://localhost/api/teller/enrollment'))
+    ).json();
+
+    expect(tellerFetch).toHaveBeenCalledTimes(1);
+    expect(body.enrollments[0].availableAccounts[0].externalId).toBe('acc_new');
+  });
+
+  it('forces a live tellerFetch call when ?refresh=1 is passed, even with a fresh cache', async () => {
+    await seed({
+      cachedAccounts: JSON.stringify([tellerAccount('acc_stale', '1111', 'Stale Cached Account')]),
+      accountsCachedAt: new Date(),
+    });
+    vi.mocked(tellerFetch).mockResolvedValue([tellerAccount('acc_new', '4242', 'Amazon Card')]);
+
+    const body = await (
+      await GET(enrollmentRequest('http://localhost/api/teller/enrollment?refresh=1'))
+    ).json();
+
+    expect(tellerFetch).toHaveBeenCalledTimes(1);
+    expect(body.enrollments[0].availableAccounts[0].externalId).toBe('acc_new');
+  });
+
+  it('persists a live fetch result back onto the cache columns', async () => {
+    const enrollment = await seed({ cachedAccounts: null, accountsCachedAt: null });
+    vi.mocked(tellerFetch).mockResolvedValue([tellerAccount('acc_new', '4242', 'Amazon Card')]);
+
+    await GET(enrollmentRequest('http://localhost/api/teller/enrollment'));
+
+    const updated = await prisma.tellerEnrollment.findUniqueOrThrow({
+      where: { id: enrollment.id },
+    });
+    expect(updated.cachedAccounts).toContain('acc_new');
+    expect(updated.accountsCachedAt).not.toBeNull();
   });
 });
