@@ -69,6 +69,16 @@ type PlaidConnectionWithEnrollment = {
   };
 };
 
+export type PerAccountStats = {
+  accountId: string;
+  accountName: string;
+  added: number;
+  merged: number;
+  modified: number;
+  removed: number;
+  skippedDuplicates: number;
+};
+
 export type SyncResult = {
   added: number;
   modified: number;
@@ -78,6 +88,14 @@ export type SyncResult = {
   autoCategorized: number;
   merged: number;
   transfersDetected: number;
+  /**
+   * Per-account breakdown of the totals above. Plaid's cursor is shared across every
+   * account in an item, so one sync necessarily covers all siblings and the top-level
+   * numbers are item-wide. Callers that display results per account — the Sync All
+   * modal especially — must read this instead, or they show every account the item's
+   * total and then sum it, reporting 5x the real figure.
+   */
+  byAccount: PerAccountStats[];
 };
 
 // Preview transaction for dry-run mode
@@ -177,6 +195,30 @@ export async function syncPlaidTransactions(
     autoCategorized: 0,
     merged: 0,
     transfersDetected: 0,
+    byAccount: [],
+  };
+
+  // Seeded from the routing map so every linked account under this item appears in the
+  // breakdown, including ones with no activity — a caller rendering a row per account
+  // needs a zero, not a missing entry.
+  const perAccount = new Map<string, PerAccountStats>();
+  for (const [, target] of accountMap) {
+    perAccount.set(target.accountId, {
+      accountId: target.accountId,
+      accountName: target.accountName,
+      added: 0,
+      merged: 0,
+      modified: 0,
+      removed: 0,
+      skippedDuplicates: 0,
+    });
+  }
+  const bump = (
+    accountId: string,
+    field: keyof Omit<PerAccountStats, 'accountId' | 'accountName'>
+  ) => {
+    const row = perAccount.get(accountId);
+    if (row) row[field] += 1;
   };
 
   // Track newly created transaction IDs per account for transfer detection
@@ -236,13 +278,17 @@ export async function syncPlaidTransactions(
 
         if (!preview.wouldCreate && !preview.wouldMerge) {
           stats.skippedDuplicates++;
+          bump(target.accountId, 'skippedDuplicates');
         } else if (preview.wouldMerge) {
           stats.merged++;
+          bump(target.accountId, 'merged');
         } else if (preview.category) {
           stats.added++;
+          bump(target.accountId, 'added');
           stats.autoCategorized++;
         } else {
           stats.added++;
+          bump(target.accountId, 'added');
         }
       } else {
         const result = await processPlaidTransaction(
@@ -253,6 +299,7 @@ export async function syncPlaidTransactions(
         );
         if (result.status === 'created' || result.status === 'categorized') {
           stats.added++;
+          bump(target.accountId, 'added');
           if (result.status === 'categorized') stats.autoCategorized++;
           if (result.transactionId) {
             let ids = newTransactionIdsByAccount.get(target.accountId);
@@ -264,8 +311,10 @@ export async function syncPlaidTransactions(
           }
         } else if (result.status === 'skipped') {
           stats.skippedDuplicates++;
+          bump(target.accountId, 'skippedDuplicates');
         } else if (result.status === 'merged') {
           stats.merged++;
+          bump(target.accountId, 'merged');
         }
       }
     }
@@ -292,6 +341,7 @@ export async function syncPlaidTransactions(
         transactionPreviews.push(preview);
         if (preview.wouldCreate) {
           stats.modified++;
+          bump(target.accountId, 'modified');
         }
       } else {
         const result = await processPlaidTransaction(
@@ -300,7 +350,10 @@ export async function syncPlaidTransactions(
           'modify',
           target.invertAmounts
         );
-        if (result.status === 'modified') stats.modified++;
+        if (result.status === 'modified') {
+          stats.modified++;
+          bump(target.accountId, 'modified');
+        }
       }
     }
 
@@ -320,10 +373,14 @@ export async function syncPlaidTransactions(
         transactionPreviews.push(preview);
         if (preview.wouldCreate) {
           stats.removed++;
+          bump(targetAccountId, 'removed');
         }
       } else {
         const result = await removeTransaction(removedTx.transaction_id, targetAccountId);
-        if (result) stats.removed++;
+        if (result) {
+          stats.removed++;
+          bump(targetAccountId, 'removed');
+        }
       }
     }
 
@@ -355,6 +412,8 @@ export async function syncPlaidTransactions(
       },
     });
   }
+
+  stats.byAccount = Array.from(perAccount.values());
 
   if (dryRun) {
     return {
