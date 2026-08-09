@@ -37,6 +37,8 @@ model PlaidEnrollment {
   transactionCursor    String?           // Sync cursor (shared across all connections)
   status               String            @default("connected")
   lastSyncAt           DateTime?
+  cachedAccounts       String?           // JSON array of the provider's raw account list
+  accountsCachedAt     DateTime?
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
   connections          PlaidConnection[] // Links to FinanceOS accounts
@@ -63,6 +65,7 @@ model PlaidConnection {
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
+  @@unique([plaidEnrollmentId, plaidAccountId])
   @@index([plaidEnrollmentId])
   @@index([status])
 }
@@ -77,6 +80,8 @@ model TellerEnrollment {
   accessTokenIv        String              // IV for decryption
   status               String              @default("connected")
   lastSyncAt           DateTime?
+  cachedAccounts       String?             // JSON array of the provider's raw account list
+  accountsCachedAt     DateTime?
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
   connections          TellerConnection[]  // Links to FinanceOS accounts
@@ -104,6 +109,7 @@ model TellerConnection {
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
 
+  @@unique([tellerEnrollmentId, tellerAccountId])
   @@index([tellerEnrollmentId])
   @@index([status])
 }
@@ -307,4 +313,20 @@ model RecurringTransaction {
   @@index([merchantPattern])
   @@index([accountId])
   @@index([status])
+}
+
+// A bank account the user explicitly declined to track. Keyed loosely on purpose:
+// provider account ids are not stable across re-enrollments, so the (institutionId,
+// lastFour) pair is the durable identity and externalAccountId is the fast path.
+model IgnoredBankAccount {
+  id                String   @id @default(uuid())
+  provider          String // 'teller' | 'plaid'
+  institutionId     String
+  externalAccountId String
+  lastFour          String?
+  name              String? // display name captured at ignore time, for the Hidden list
+  createdAt         DateTime @default(now())
+
+  @@unique([provider, externalAccountId])
+  @@index([provider, institutionId])
 }

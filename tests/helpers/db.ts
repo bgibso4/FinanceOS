@@ -90,6 +90,7 @@ export async function resetTestDb(): Promise<void> {
   await prisma.exchangeRate.deleteMany();
   await prisma.inflationRate.deleteMany();
   await prisma.userSettings.deleteMany();
+  await prisma.ignoredBankAccount.deleteMany();
 }
 
 /**

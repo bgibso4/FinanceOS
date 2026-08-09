@@ -28,10 +28,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { ds } from '@/lib/design-system';
+import { syncUnits, statsForAccount } from '@/lib/sync-grouping';
 import { getCurrencyFlag } from '@/lib/currency';
 import { SyncStatusBadge } from '@/components/plaid/SyncStatusBadge'; // Used for both Plaid and Teller
 import { triggerSync } from '@/lib/cloud-sync';
-import { ConnectedInstitutions } from '@/components/teller/ConnectedInstitutions';
+import { ConnectedInstitutions } from '@/components/institutions/ConnectedInstitutions';
 import { TellerAccountLinkSelector } from '@/components/teller/TellerAccountLinkSelector';
 import { PlaidAccountLinkSelector } from '@/components/plaid/PlaidAccountLinkSelector';
 import { PlaidReconnectButton } from '@/components/plaid/PlaidReconnectButton';
@@ -506,6 +507,12 @@ function SettingsPageContent() {
 
   // Dry-run preview state
   type TransactionPreview = {
+    /**
+     * Only Plaid previews carry this. Plaid's sync is item-scoped — one shared cursor
+     * across every account in a connection — so a preview started from one account
+     * includes its siblings. Teller previews are per-account and omit it.
+     */
+    accountName?: string;
     externalId: string;
     date: string;
     amount: number;
@@ -525,6 +532,14 @@ function SettingsPageContent() {
     totalFetched: number;
   } | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+
+  // Distinct accounts represented in the preview. Plaid's transactionsSync cursor is
+  // shared across every account in an item, so previewing from one account returns its
+  // siblings too and the totals are institution-wide. Surfacing this stops a count like
+  // "115 new" reading as 115 for the one account the user clicked.
+  const previewAccountNames = Array.from(
+    new Set((previewResult?.transactions ?? []).map((t) => t.accountName).filter(Boolean))
+  );
 
   // Sync All state
   const [showSyncAllModal, setShowSyncAllModal] = useState(false);
@@ -1154,16 +1169,24 @@ function SettingsPageContent() {
     }
     setSyncAllResults(new Map(initialResults));
 
-    const promises = syncableAccounts.map(async (account) => {
-      const connectionType = account.tellerConnection ? 'teller' : 'plaid';
-      const endpoint = connectionType === 'teller' ? '/api/teller/sync' : '/api/plaid/sync';
+    const promises = syncUnits(syncableAccounts).map(async (unit) => {
+      const endpoint = unit.provider === 'teller' ? '/api/teller/sync' : '/api/plaid/sync';
+      const markAllError = (error: string) =>
+        setSyncAllResults((prev) => {
+          const next = new Map(prev);
+          for (const id of unit.accountIds) {
+            const existing = next.get(id);
+            if (existing) next.set(id, { ...existing, status: 'error', error });
+          }
+          return next;
+        });
 
       try {
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            accountId: account.id,
+            accountId: unit.entryAccountId,
             daysToSync: syncAllDays,
             dryRun: true,
           }),
@@ -1172,24 +1195,20 @@ function SettingsPageContent() {
         const data = await res.json();
 
         if (data.error) {
-          setSyncAllResults((prev) => {
-            const next = new Map(prev);
-            const existing = next.get(account.id);
-            if (existing) next.set(account.id, { ...existing, status: 'error', error: data.error });
-            return next;
-          });
+          markAllError(data.error);
           return;
         }
 
         setSyncAllResults((prev) => {
           const next = new Map(prev);
-          const existing = next.get(account.id);
-          if (existing) {
-            next.set(account.id, {
+          for (const id of unit.accountIds) {
+            const existing = next.get(id);
+            if (!existing) continue;
+            next.set(id, {
               ...existing,
               status: 'preview_done',
               preview: {
-                stats: data.stats,
+                stats: statsForAccount(data.stats, id, unit.accountIds.length),
                 dateRange: data.dateRange,
                 totalFetched: data.totalFetched,
               },
@@ -1198,13 +1217,7 @@ function SettingsPageContent() {
           return next;
         });
       } catch (_error) {
-        setSyncAllResults((prev) => {
-          const next = new Map(prev);
-          const existing = next.get(account.id);
-          if (existing)
-            next.set(account.id, { ...existing, status: 'error', error: 'Network error' });
-          return next;
-        });
+        markAllError('Network error');
       }
     });
 
@@ -1231,16 +1244,33 @@ function SettingsPageContent() {
       return next;
     });
 
-    const promises = accountsToSync.map(async (accountResult) => {
-      const endpoint =
-        accountResult.connectionType === 'teller' ? '/api/teller/sync' : '/api/plaid/sync';
+    // Group again for the real run. Firing one sync per account in a Plaid item would
+    // advance the shared cursor on the first call and leave the rest importing nothing,
+    // while still spending an API call each.
+    const toSyncIds = new Set(accountsToSync.map((a) => a.accountId));
+    const units = syncUnits(syncableAccounts.filter((a) => toSyncIds.has(a.id))).map((u) => ({
+      ...u,
+      accountIds: u.accountIds.filter((id) => toSyncIds.has(id)),
+    }));
+
+    const promises = units.map(async (unit) => {
+      const endpoint = unit.provider === 'teller' ? '/api/teller/sync' : '/api/plaid/sync';
+      const markAllError = (error: string) =>
+        setSyncAllResults((prev) => {
+          const next = new Map(prev);
+          for (const id of unit.accountIds) {
+            const existing = next.get(id);
+            if (existing) next.set(id, { ...existing, status: 'error', error });
+          }
+          return next;
+        });
 
       try {
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            accountId: accountResult.accountId,
+            accountId: unit.entryAccountId,
             daysToSync: syncAllDays,
           }),
         });
@@ -1248,32 +1278,26 @@ function SettingsPageContent() {
         const data = await res.json();
 
         if (data.error) {
-          setSyncAllResults((prev) => {
-            const next = new Map(prev);
-            const existing = next.get(accountResult.accountId);
-            if (existing)
-              next.set(accountResult.accountId, {
-                ...existing,
-                status: 'error',
-                error: data.error,
-              });
-            return next;
-          });
+          markAllError(data.error);
           return;
         }
 
         setSyncAllResults((prev) => {
           const next = new Map(prev);
-          const existing = next.get(accountResult.accountId);
-          if (existing) {
-            next.set(accountResult.accountId, {
+          for (const id of unit.accountIds) {
+            const existing = next.get(id);
+            if (!existing) continue;
+            const row = data.byAccount?.find((b: { accountId: string }) => b.accountId === id) as
+              | { added: number; merged: number; modified: number; removed: number }
+              | undefined;
+            next.set(id, {
               ...existing,
               status: 'synced',
               syncResult: {
-                added: data.added,
-                modified: data.modified,
-                removed: data.removed,
-                merged: data.merged,
+                added: row ? row.added : unit.accountIds.length === 1 ? data.added : 0,
+                modified: row ? row.modified : unit.accountIds.length === 1 ? data.modified : 0,
+                removed: row ? row.removed : unit.accountIds.length === 1 ? data.removed : 0,
+                merged: row ? row.merged : unit.accountIds.length === 1 ? data.merged : 0,
                 skippedOld: data.skippedOld ?? data.skippedPending,
               },
             });
@@ -1281,17 +1305,7 @@ function SettingsPageContent() {
           return next;
         });
       } catch (_error) {
-        setSyncAllResults((prev) => {
-          const next = new Map(prev);
-          const existing = next.get(accountResult.accountId);
-          if (existing)
-            next.set(accountResult.accountId, {
-              ...existing,
-              status: 'error',
-              error: 'Network error',
-            });
-          return next;
-        });
+        markAllError('Network error');
       }
     });
 
@@ -3345,6 +3359,14 @@ function SettingsPageContent() {
               <div className={`text-xs ${ds.text.muted} text-center mt-2`}>
                 Date range: {previewResult.dateRange.from} to {previewResult.dateRange.to}
               </div>
+              {previewAccountNames.length > 1 && (
+                <div className={`text-xs ${ds.status.warning.text} text-center mt-2`}>
+                  These totals cover all {previewAccountNames.length} accounts at this institution (
+                  {previewAccountNames.join(', ')}), not just {modalAccount?.name}. Plaid shares one
+                  transaction cursor across every account in a connection, so a sync started from
+                  one account necessarily covers its siblings.
+                </div>
+              )}
             </div>
 
             {/* Transaction List */}
@@ -3353,6 +3375,9 @@ function SettingsPageContent() {
                 <thead className={`${ds.bg.tertiary} sticky top-0`}>
                   <tr>
                     <th className={`text-left p-2 ${ds.text.secondary}`}>Date</th>
+                    {previewAccountNames.length > 1 && (
+                      <th className={`text-left p-2 ${ds.text.secondary}`}>Account</th>
+                    )}
                     <th className={`text-left p-2 ${ds.text.secondary}`}>Merchant</th>
                     <th className={`text-right p-2 ${ds.text.secondary}`}>Amount</th>
                     <th className={`text-left p-2 ${ds.text.secondary}`}>Category</th>
@@ -3373,6 +3398,13 @@ function SettingsPageContent() {
                           day: 'numeric',
                         })}
                       </td>
+                      {previewAccountNames.length > 1 && (
+                        <td className={`p-2 ${ds.text.muted}`}>
+                          <div className="truncate max-w-[120px]" title={tx.accountName}>
+                            {tx.accountName}
+                          </div>
+                        </td>
+                      )}
                       <td className={`p-2 ${ds.text.primary}`}>
                         <div className="truncate max-w-[150px]" title={tx.merchant}>
                           {tx.merchant}

@@ -94,6 +94,32 @@ export function TellerInstitutionConnect({
         console.log('[TellerInstitutionConnect] onSuccess called with payload:', payload);
 
         try {
+          // This menu creates a *new* institution connection. If the user picked a bank
+          // they already have, creating a second enrollment leaves their existing account
+          // links pinned to the old token — the exact mess "Add accounts" avoids by
+          // adopting them. We can't infer which enrollment to adopt from here (two logins
+          // at one bank are legitimate), so warn and let the user decide.
+          const existingRes = await fetch('/api/teller/enrollment');
+          const existingData = await existingRes.json();
+          const duplicate = (existingData.enrollments ?? []).find(
+            (e: { institutionId: string; enrollmentId: string }) =>
+              e.institutionId === payload.enrollment.institution.id &&
+              e.enrollmentId !== payload.enrollment.id
+          );
+
+          if (
+            duplicate &&
+            !confirm(
+              `You already have ${payload.enrollment.institution.name} connected.\n\n` +
+                'Adding it again creates a separate connection and will NOT move your ' +
+                'existing linked accounts across. To pick up a newly opened account, ' +
+                'cancel and use "Add accounts" on the existing card instead.\n\n' +
+                'Connect anyway?'
+            )
+          ) {
+            return;
+          }
+
           // Create enrollment in our database
           console.log('[TellerInstitutionConnect] Creating enrollment...');
           const response = await fetch('/api/teller/enrollment', {

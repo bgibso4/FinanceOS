@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
+import { isUniqueConstraintError } from '@/lib/sync-common';
 
 const schema = z.object({
   accountId: z.string(),
@@ -74,6 +75,14 @@ export async function POST(req: NextRequest) {
       connectionId: connection.id,
     });
   } catch (error: unknown) {
+    // The upsert is keyed on `accountId` only, so it doesn't protect against the
+    // (tellerEnrollmentId, tellerAccountId) unique constraint — that bank account may
+    // already be linked to a DIFFERENT FinanceOS account. Surface that as a clean 409
+    // rather than a raw 500.
+    if (isUniqueConstraintError(error)) {
+      return NextResponse.json({ error: 'This bank account is already linked' }, { status: 409 });
+    }
+
     console.error('[Teller Connect API] ERROR:', error);
     if (error instanceof Error) {
       console.error('[Teller Connect API] Error message:', error.message);

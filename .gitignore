@@ -69,3 +69,5 @@ update-*.js
 
 # Agent
 docs
+# Local database backups
+prisma/*.db.bak-*

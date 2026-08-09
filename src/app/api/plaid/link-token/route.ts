@@ -38,6 +38,9 @@ export async function POST(req: NextRequest) {
         country_codes: [CountryCode.Us, CountryCode.Ca],
         language: 'en',
         access_token: accessToken,
+        // Lets the user add or remove accounts on the existing Item instead of
+        // forcing a disconnect-and-relink to pick up a newly opened account.
+        update: { account_selection_enabled: true },
       });
 
       return NextResponse.json({

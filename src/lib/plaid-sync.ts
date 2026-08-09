@@ -69,6 +69,16 @@ type PlaidConnectionWithEnrollment = {
   };
 };
 
+export type PerAccountStats = {
+  accountId: string;
+  accountName: string;
+  added: number;
+  merged: number;
+  modified: number;
+  removed: number;
+  skippedDuplicates: number;
+};
+
 export type SyncResult = {
   added: number;
   modified: number;
@@ -78,10 +88,26 @@ export type SyncResult = {
   autoCategorized: number;
   merged: number;
   transfersDetected: number;
+  /**
+   * Per-account breakdown of the totals above. Plaid's cursor is shared across every
+   * account in an item, so one sync necessarily covers all siblings and the top-level
+   * numbers are item-wide. Callers that display results per account — the Sync All
+   * modal especially — must read this instead, or they show every account the item's
+   * total and then sum it, reporting 5x the real figure.
+   */
+  byAccount: PerAccountStats[];
 };
 
 // Preview transaction for dry-run mode
 export type TransactionPreview = {
+  /**
+   * Which FinanceOS account this transaction belongs to. Plaid's cursor is shared
+   * across every account in an item, so a "preview" triggered from one account
+   * legitimately returns rows for all of its siblings — without this, the list and
+   * the totals look wildly wrong for the account the user clicked.
+   */
+  accountId: string;
+  accountName: string;
   externalId: string;
   date: string;
   amount: number;
@@ -139,11 +165,12 @@ export async function syncPlaidTransactions(
 
   const accountMap = new Map<
     string,
-    { accountId: string; invertAmounts: boolean; connectionId: string }
+    { accountId: string; accountName: string; invertAmounts: boolean; connectionId: string }
   >();
   for (const sibling of siblingConnections) {
     accountMap.set(sibling.plaidAccountId, {
       accountId: sibling.accountId,
+      accountName: sibling.account.name,
       invertAmounts: sibling.account.invertAmounts,
       connectionId: sibling.id,
     });
@@ -168,6 +195,30 @@ export async function syncPlaidTransactions(
     autoCategorized: 0,
     merged: 0,
     transfersDetected: 0,
+    byAccount: [],
+  };
+
+  // Seeded from the routing map so every linked account under this item appears in the
+  // breakdown, including ones with no activity — a caller rendering a row per account
+  // needs a zero, not a missing entry.
+  const perAccount = new Map<string, PerAccountStats>();
+  for (const [, target] of accountMap) {
+    perAccount.set(target.accountId, {
+      accountId: target.accountId,
+      accountName: target.accountName,
+      added: 0,
+      merged: 0,
+      modified: 0,
+      removed: 0,
+      skippedDuplicates: 0,
+    });
+  }
+  const bump = (
+    accountId: string,
+    field: keyof Omit<PerAccountStats, 'accountId' | 'accountName'>
+  ) => {
+    const row = perAccount.get(accountId);
+    if (row) row[field] += 1;
   };
 
   // Track newly created transaction IDs per account for transfer detection
@@ -203,7 +254,13 @@ export async function syncPlaidTransactions(
         stats.skippedOld++;
         if (dryRun) {
           transactionPreviews.push(
-            createSkippedPreview(plaidTx, 'add', 'Transaction older than sync window')
+            createSkippedPreview(
+              plaidTx,
+              target.accountId,
+              target.accountName,
+              'add',
+              'Transaction older than sync window'
+            )
           );
         }
         continue;
@@ -213,6 +270,7 @@ export async function syncPlaidTransactions(
         const preview = await previewPlaidTransaction(
           plaidTx,
           target.accountId,
+          target.accountName,
           'add',
           target.invertAmounts
         );
@@ -220,13 +278,17 @@ export async function syncPlaidTransactions(
 
         if (!preview.wouldCreate && !preview.wouldMerge) {
           stats.skippedDuplicates++;
+          bump(target.accountId, 'skippedDuplicates');
         } else if (preview.wouldMerge) {
           stats.merged++;
+          bump(target.accountId, 'merged');
         } else if (preview.category) {
           stats.added++;
+          bump(target.accountId, 'added');
           stats.autoCategorized++;
         } else {
           stats.added++;
+          bump(target.accountId, 'added');
         }
       } else {
         const result = await processPlaidTransaction(
@@ -237,6 +299,7 @@ export async function syncPlaidTransactions(
         );
         if (result.status === 'created' || result.status === 'categorized') {
           stats.added++;
+          bump(target.accountId, 'added');
           if (result.status === 'categorized') stats.autoCategorized++;
           if (result.transactionId) {
             let ids = newTransactionIdsByAccount.get(target.accountId);
@@ -248,8 +311,10 @@ export async function syncPlaidTransactions(
           }
         } else if (result.status === 'skipped') {
           stats.skippedDuplicates++;
+          bump(target.accountId, 'skippedDuplicates');
         } else if (result.status === 'merged') {
           stats.merged++;
+          bump(target.accountId, 'merged');
         }
       }
     }
@@ -269,12 +334,14 @@ export async function syncPlaidTransactions(
         const preview = await previewPlaidTransaction(
           plaidTx,
           target.accountId,
+          target.accountName,
           'modify',
           target.invertAmounts
         );
         transactionPreviews.push(preview);
         if (preview.wouldCreate) {
           stats.modified++;
+          bump(target.accountId, 'modified');
         }
       } else {
         const result = await processPlaidTransaction(
@@ -283,7 +350,10 @@ export async function syncPlaidTransactions(
           'modify',
           target.invertAmounts
         );
-        if (result.status === 'modified') stats.modified++;
+        if (result.status === 'modified') {
+          stats.modified++;
+          bump(target.accountId, 'modified');
+        }
       }
     }
 
@@ -292,16 +362,25 @@ export async function syncPlaidTransactions(
       // Plaid RemovedTransaction has account_id — use it to route to the correct account
       const target = removedTx.account_id ? accountMap.get(removedTx.account_id) : null;
       const targetAccountId = target?.accountId ?? connection.accountId;
+      const targetAccountName = target?.accountName ?? connection.account.name;
 
       if (dryRun) {
-        const preview = await previewRemovedTransaction(removedTx, targetAccountId);
+        const preview = await previewRemovedTransaction(
+          removedTx,
+          targetAccountId,
+          targetAccountName
+        );
         transactionPreviews.push(preview);
         if (preview.wouldCreate) {
           stats.removed++;
+          bump(targetAccountId, 'removed');
         }
       } else {
         const result = await removeTransaction(removedTx.transaction_id, targetAccountId);
-        if (result) stats.removed++;
+        if (result) {
+          stats.removed++;
+          bump(targetAccountId, 'removed');
+        }
       }
     }
 
@@ -334,6 +413,8 @@ export async function syncPlaidTransactions(
     });
   }
 
+  stats.byAccount = Array.from(perAccount.values());
+
   if (dryRun) {
     return {
       stats,
@@ -361,6 +442,7 @@ export async function syncPlaidTransactions(
 async function previewPlaidTransaction(
   plaidTx: PlaidTransaction,
   accountId: string,
+  accountName: string,
   action: 'add' | 'modify',
   invertAmounts: boolean = false
 ): Promise<TransactionPreview> {
@@ -373,19 +455,25 @@ async function previewPlaidTransaction(
     });
 
     if (existing) {
-      return createSkippedPreview(plaidTx, action, 'Already exists (duplicate externalId)');
+      return createSkippedPreview(
+        plaidTx,
+        accountId,
+        accountName,
+        action,
+        'Already exists (duplicate externalId)'
+      );
     }
 
     // Check importHash: catches re-enrollment duplicates
     const hashMatch = await findImportHashMatch(accountId, mapped.importHash, mapped.externalId);
     if (hashMatch) {
-      return createMergePreview(plaidTx, action, hashMatch.id);
+      return createMergePreview(plaidTx, accountId, accountName, action, hashMatch.id);
     }
 
     // Check for merge candidate (manual import that matches)
     const mergeCandidate = await findMergeCandidate(accountId, mapped);
     if (mergeCandidate) {
-      return createMergePreview(plaidTx, action, mergeCandidate.id);
+      return createMergePreview(plaidTx, accountId, accountName, action, mergeCandidate.id);
     }
 
     // Try to categorize and check for merchant rename
@@ -412,6 +500,8 @@ async function previewPlaidTransaction(
       : mapped.merchantNormalized;
 
     return {
+      accountId,
+      accountName,
       externalId: plaidTx.transaction_id,
       date: plaidTx.date,
       amount: mapped.amount,
@@ -434,6 +524,8 @@ async function previewPlaidTransaction(
     });
 
     return {
+      accountId,
+      accountName,
       externalId: plaidTx.transaction_id,
       date: plaidTx.date,
       amount: mapped.amount,
@@ -455,13 +547,16 @@ async function previewPlaidTransaction(
 // Preview a removed transaction
 async function previewRemovedTransaction(
   removedTx: RemovedTransaction,
-  accountId: string
+  accountId: string,
+  accountName: string
 ): Promise<TransactionPreview> {
   const existing = await prisma.transaction.findFirst({
     where: { accountId, externalId: removedTx.transaction_id },
   });
 
   return {
+    accountId,
+    accountName,
     externalId: removedTx.transaction_id,
     date: '',
     amount: existing?.amount || 0,
@@ -482,6 +577,8 @@ async function previewRemovedTransaction(
 // Helper to create preview for merge candidates
 function createMergePreview(
   plaidTx: PlaidTransaction,
+  accountId: string,
+  accountName: string,
   action: 'add' | 'modify',
   existingTransactionId: string
 ): TransactionPreview {
@@ -492,6 +589,8 @@ function createMergePreview(
     plaidTx.personal_finance_category?.primary === 'TRANSFER_OUT';
 
   return {
+    accountId,
+    accountName,
     externalId: plaidTx.transaction_id,
     date: plaidTx.date,
     amount,
@@ -512,6 +611,8 @@ function createMergePreview(
 // Helper to create preview for skipped transactions
 function createSkippedPreview(
   plaidTx: PlaidTransaction,
+  accountId: string,
+  accountName: string,
   action: 'add' | 'modify',
   skipReason: string
 ): TransactionPreview {
@@ -522,6 +623,8 @@ function createSkippedPreview(
     plaidTx.personal_finance_category?.primary === 'TRANSFER_OUT';
 
   return {
+    accountId,
+    accountName,
     externalId: plaidTx.transaction_id,
     date: plaidTx.date,
     amount,

@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { encryptAccessToken } from '@/lib/encryption';
 import { tellerFetch, TellerAccountsResponse } from '@/lib/teller';
 import { classifyTellerError } from '@/lib/bank-errors';
+import { isAccountIgnored, type ProviderAccount } from '@/lib/bank-account-matching';
+import { isAccountsCacheFresh, parseCachedAccounts } from '@/lib/enrollment-cache';
 
 const createEnrollmentSchema = z.object({
   accessToken: z.string(),
@@ -13,8 +15,11 @@ const createEnrollmentSchema = z.object({
 });
 
 // GET: Fetch all Teller enrollments
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url);
+    const forceRefresh = searchParams.get('refresh') === '1';
+
     const enrollments = await prisma.tellerEnrollment.findMany({
       include: {
         connections: {
@@ -26,21 +31,95 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
     });
 
+    const ignored = await prisma.ignoredBankAccount.findMany({ where: { provider: 'teller' } });
+
+    /**
+     * Write the provider's account list to the cache, swallowing any failure.
+     * Deliberately isolated from the fetch: caching is an optimization, and a write
+     * error here previously propagated into the reauth classifier and flipped a live
+     * enrollment to `disconnected`.
+     */
+    const cacheAccounts = async (id: string, accounts: TellerAccountsResponse) => {
+      try {
+        await prisma.tellerEnrollment.update({
+          where: { id },
+          data: { cachedAccounts: JSON.stringify(accounts), accountsCachedAt: new Date() },
+        });
+      } catch (e) {
+        console.error('Failed to cache Teller accounts (non-fatal):', e);
+      }
+    };
+
+    /**
+     * Everything the client is allowed to see. Built explicitly rather than by
+     * spreading the row: `accessTokenEncrypted` and `accessTokenIv` were reaching the
+     * browser on every Settings load. It is ciphertext rather than a live credential,
+     * but it has no business leaving the server — and it is decryptable by anyone who
+     * ever obtains SYNC_ENCRYPTION_KEY. The cache columns are server-side bookkeeping
+     * and are omitted for the same reason.
+     */
+    const publicFields = (e: (typeof enrollments)[number]) => ({
+      id: e.id,
+      enrollmentId: e.enrollmentId,
+      institutionId: e.institutionId,
+      institutionName: e.institutionName,
+      status: e.status,
+      lastSyncAt: e.lastSyncAt,
+      createdAt: e.createdAt,
+      updatedAt: e.updatedAt,
+      connections: e.connections,
+    });
+
     // For each enrollment, fetch available accounts from Teller
     const enrollmentsWithAccounts = await Promise.all(
       enrollments.map(async (enrollment) => {
         try {
-          const { decryptAccessToken } = await import('@/lib/encryption');
-          const accessToken = decryptAccessToken(
-            enrollment.accessTokenEncrypted,
-            enrollment.accessTokenIv
-          );
+          const cached = forceRefresh
+            ? null
+            : isAccountsCacheFresh(enrollment.accountsCachedAt, new Date())
+              ? parseCachedAccounts<TellerAccountsResponse[number]>(enrollment.cachedAccounts)
+              : null;
 
-          const accounts = await tellerFetch<TellerAccountsResponse>('/accounts', accessToken);
+          let accounts: TellerAccountsResponse;
+          if (cached) {
+            accounts = cached;
+          } else {
+            const { decryptAccessToken } = await import('@/lib/encryption');
+            const accessToken = decryptAccessToken(
+              enrollment.accessTokenEncrypted,
+              enrollment.accessTokenIv
+            );
+
+            accounts = await tellerFetch<TellerAccountsResponse>('/accounts', accessToken);
+
+            // Caching is an optimization: a failed write must never fail the request.
+            // It also must not reach the catch below, which classifies errors as bank
+            // auth failures — a Prisma message mentioning `tellerEnrollment.update()`
+            // matches that classifier's "enrollment" test and would mark a perfectly
+            // healthy institution as disconnected.
+            await cacheAccounts(enrollment.id, accounts);
+          }
+
+          const linkedIds = new Set(enrollment.connections.map((c) => c.tellerAccountId));
+          const unlinked: ProviderAccount[] = accounts
+            .filter((a) => !linkedIds.has(a.id))
+            .map((a) => ({
+              externalId: a.id,
+              name: a.name,
+              type: a.type,
+              subtype: a.subtype,
+              lastFour: a.last_four,
+            }));
 
           return {
-            ...enrollment,
-            availableAccounts: accounts,
+            ...publicFields(enrollment),
+            // Unlinked only — the UI renders linked accounts from `connections`.
+            availableAccounts: unlinked.filter(
+              (a) => !isAccountIgnored(a, enrollment.institutionId, ignored)
+            ),
+            hiddenAccounts: unlinked.filter((a) =>
+              isAccountIgnored(a, enrollment.institutionId, ignored)
+            ),
             totalAccountCount: accounts.length,
           };
         } catch (error) {
@@ -66,9 +145,11 @@ export async function GET() {
             }
 
             return {
-              ...enrollment,
+              ...publicFields(enrollment),
               status: 'disconnected', // Return updated status immediately
               availableAccounts: [],
+              hiddenAccounts: [],
+              totalAccountCount: enrollment.connections.length,
             };
           }
 
@@ -76,8 +157,10 @@ export async function GET() {
             `Error fetching accounts for Teller enrollment "${enrollment.institutionName}": ${reason}`
           );
           return {
-            ...enrollment,
+            ...publicFields(enrollment),
             availableAccounts: [],
+            hiddenAccounts: [],
+            totalAccountCount: enrollment.connections.length,
           };
         }
       })
