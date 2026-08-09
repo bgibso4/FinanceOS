@@ -13,6 +13,9 @@
  *   npx tsx scripts/cleanup-duplicates.ts --institution=Chase      # filter by institution
  *   npx tsx scripts/cleanup-duplicates.ts --account=<id>           # filter by account id
  *   npx tsx scripts/cleanup-duplicates.ts --institution=Chase --commit
+ *   npx tsx scripts/cleanup-duplicates.ts --institution=Chase --cross-provider
+ *     ^ also pairs Teller rows against Plaid rows within +/-3 days (--window-days=N),
+ *       for institutions migrated from one provider to the other.
  */
 
 import crypto from 'crypto';
@@ -23,12 +26,17 @@ type Args = {
   institution?: string;
   accountId?: string;
   commit: boolean;
+  crossProvider: boolean;
+  windowDays: number;
 };
 
 function parseArgs(): Args {
-  const args: Args = { commit: false };
+  const args: Args = { commit: false, crossProvider: false, windowDays: 3 };
   for (const arg of process.argv.slice(2)) {
     if (arg === '--commit') args.commit = true;
+    else if (arg === '--cross-provider') args.crossProvider = true;
+    else if (arg.startsWith('--window-days='))
+      args.windowDays = Number(arg.slice('--window-days='.length));
     else if (arg.startsWith('--institution='))
       args.institution = arg.slice('--institution='.length);
     else if (arg.startsWith('--account=')) args.accountId = arg.slice('--account='.length);
@@ -118,12 +126,30 @@ async function processAccount(
 
     const dateStr = group.date.toISOString().slice(0, 10);
     const label = `${dateStr} amt=${group.amount}`;
+    await collapseGroup(accountId, rows, label, commit, stats);
+  }
 
+  return stats;
+}
+
+/**
+ * Collapse one set of rows known to describe the same real transaction into a single
+ * row, folding the others' categorisation, notes, tags and transfer flags into the
+ * survivor and re-pointing anything that linked to them. Shared by both passes.
+ */
+async function collapseGroup(
+  accountId: string,
+  rows: TxRow[],
+  label: string,
+  commit: boolean,
+  stats: GroupStats
+): Promise<void> {
+  {
     // Safety: skip groups touching splits — Cascade delete would nuke split parts
     if (rows.some((r) => r.isSplitParent || r.parentTransactionId)) {
       console.warn(`    SKIP ${label}: involves split parent/parts`);
       stats.groupsSkipped++;
-      continue;
+      return;
     }
 
     // Safety: skip if merchants are clearly different (legitimate same-day same-amount tx)
@@ -140,7 +166,7 @@ async function processAccount(
         `    SKIP ${label}: merchants differ: ${rows.map((r) => `'${r.merchant}'`).join(' vs ')}`
       );
       stats.groupsSkipped++;
-      continue;
+      return;
     }
 
     // Safety: same externalId shouldn't happen (unique constraint) but guard anyway
@@ -282,6 +308,93 @@ async function processAccount(
     stats.groupsCollapsed++;
     stats.rowsDeleted += losers.length;
   }
+}
+
+/**
+ * Cross-provider pass.
+ *
+ * When an institution is moved from one provider to another, the same purchase arrives
+ * twice under different external ids AND often on a different date — Teller posts a
+ * Venice cafe charge on Jul 2, Plaid reports it on Jul 3. The (date, amount) pass above
+ * cannot see those: the two rows never land in the same group.
+ *
+ * So pair across providers instead: same amount, within `windowDays`, merchant names
+ * similar, one row carrying a Teller external id and the other not. A Teller row is
+ * matched only when EXACTLY ONE candidate qualifies — two identical-amount charges on
+ * the same day (a cafe and a bar, both 10.29) must not be paired by guesswork. The
+ * merchant-similarity gate is what disambiguates them.
+ */
+async function processAccountCrossProvider(
+  accountId: string,
+  accountName: string,
+  windowDays: number,
+  commit: boolean
+): Promise<GroupStats> {
+  const stats: GroupStats = {
+    totalGroups: 0,
+    groupsCollapsed: 0,
+    groupsSkipped: 0,
+    rowsDeleted: 0,
+  };
+
+  const rows = (await prisma.transaction.findMany({
+    where: { accountId, externalId: { not: null } },
+    orderBy: { date: 'asc' },
+  })) as TxRow[];
+
+  // Teller mints ids prefixed `txn_`; Plaid's are opaque base62. That prefix is the only
+  // provenance we have — the connection rows say what an account syncs through *now*,
+  // not what wrote a given transaction.
+  const isTeller = (r: TxRow) => !!r.externalId?.startsWith('txn_');
+  const tellerRows = rows.filter(isTeller);
+  const otherRows = rows.filter((r) => !isTeller(r));
+
+  if (tellerRows.length === 0 || otherRows.length === 0) {
+    console.warn(`  [${accountName}] no cross-provider overlap`);
+    return stats;
+  }
+
+  const windowMs = windowDays * 24 * 60 * 60 * 1000;
+  const claimed = new Set<string>();
+
+  for (const tellerRow of tellerRows) {
+    const candidates = otherRows.filter(
+      (o) =>
+        !claimed.has(o.id) &&
+        o.amount === tellerRow.amount &&
+        Math.abs(o.date.getTime() - tellerRow.date.getTime()) <= windowMs &&
+        isMerchantSimilar(tellerRow.merchantNormalized, o.merchantNormalized)
+    );
+
+    if (candidates.length === 0) continue;
+
+    stats.totalGroups++;
+
+    if (candidates.length > 1) {
+      console.warn(
+        `    SKIP ${tellerRow.date.toISOString().slice(0, 10)} amt=${tellerRow.amount}: ` +
+          `'${tellerRow.merchant}' matches ${candidates.length} rows ` +
+          `(${candidates.map((c) => `'${c.merchant}'`).join(', ')}) — too ambiguous to pair`
+      );
+      stats.groupsSkipped++;
+      continue;
+    }
+
+    const match = candidates[0];
+    claimed.add(match.id);
+
+    const label =
+      `${tellerRow.date.toISOString().slice(0, 10)}->${match.date.toISOString().slice(0, 10)} ` +
+      `amt=${tellerRow.amount}`;
+
+    // Newest createdAt wins in collapseGroup, which is the newly synced provider row —
+    // exactly what we want, so future syncs match on its external id.
+    await collapseGroup(accountId, [match, tellerRow], label, commit, stats);
+  }
+
+  if (stats.totalGroups === 0) {
+    console.warn(`  [${accountName}] no cross-provider duplicates found`);
+  }
 
   return stats;
 }
@@ -318,14 +431,23 @@ async function main() {
     rowsDeleted: 0,
   };
 
-  for (const acct of accounts) {
-    const label = `${acct.name} (${acct.institution})`;
-    console.warn(`\n${label}`);
-    const stats = await processAccount(acct.id, label, args.commit);
+  const add = (stats: GroupStats) => {
     totals.totalGroups += stats.totalGroups;
     totals.groupsCollapsed += stats.groupsCollapsed;
     totals.groupsSkipped += stats.groupsSkipped;
     totals.rowsDeleted += stats.rowsDeleted;
+  };
+
+  for (const acct of accounts) {
+    const label = `${acct.name} (${acct.institution})`;
+    console.warn(`\n${label}`);
+    add(await processAccount(acct.id, label, args.commit));
+
+    // Runs second on purpose: the exact-match pass collapses the unambiguous cases
+    // first, so the cross-provider pass sees fewer rows and fewer chances to mispair.
+    if (args.crossProvider) {
+      add(await processAccountCrossProvider(acct.id, label, args.windowDays, args.commit));
+    }
   }
 
   console.warn(`\n=== Summary ===`);
