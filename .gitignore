@@ -71,3 +71,7 @@ update-*.js
 docs
 # Local database backups
 prisma/*.db.bak-*
+
+# Local agent tooling state
+.claude-flow/
+.superpowers/
