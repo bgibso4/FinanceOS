@@ -56,6 +56,10 @@ export async function POST(req: NextRequest) {
       products: [Products.Transactions],
       country_codes: [CountryCode.Us, CountryCode.Ca],
       language: 'en',
+      // Plaid defaults to 90 days and the value is fixed once the Item exists, so the
+      // sync window selector's 6 month / 1 year / 2 year options would silently stop at
+      // ~90 days. 730 is Plaid's maximum and matches the largest selector option.
+      transactions: { days_requested: 730 },
     };
 
     const response = await plaid.linkTokenCreate(request);

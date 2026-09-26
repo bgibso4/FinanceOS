@@ -1,4 +1,8 @@
-import { Transaction as PlaidTransaction, RemovedTransaction } from 'plaid';
+import {
+  Transaction as PlaidTransaction,
+  RemovedTransaction,
+  TransactionsUpdateStatus,
+} from 'plaid';
 import { prisma } from '@/lib/prisma';
 import { getPlaidClient } from '@/lib/plaid';
 import { decryptAccessToken } from '@/lib/encryption';
@@ -96,6 +100,14 @@ export type SyncResult = {
    * total and then sum it, reporting 5x the real figure.
    */
   byAccount: PerAccountStats[];
+  /**
+   * False while Plaid is still backfilling this item's history (it sends recent
+   * transactions first, older ones minutes to hours later). Until then a preview or
+   * sync only reaches as far back as Plaid has loaded, whatever window was asked for.
+   */
+  historyComplete: boolean;
+  /** Oldest date among the transactions Plaid returned, to show how far back it reached. */
+  oldestTransactionDate: string | null;
 };
 
 // Preview transaction for dry-run mode
@@ -178,6 +190,7 @@ export async function syncPlaidTransactions(
 
   let cursor = plaidEnrollment.transactionCursor || undefined;
   let hasMore = true;
+  let updateStatus: TransactionsUpdateStatus | undefined;
 
   // Calculate cutoff date for filtering
   const cutoffDate = new Date();
@@ -196,6 +209,8 @@ export async function syncPlaidTransactions(
     merged: 0,
     transfersDetected: 0,
     byAccount: [],
+    historyComplete: true,
+    oldestTransactionDate: null,
   };
 
   // Seeded from the routing map so every linked account under this item appears in the
@@ -241,12 +256,17 @@ export async function syncPlaidTransactions(
     );
 
     const { added, modified, removed, next_cursor, has_more } = response.data;
+    updateStatus = response.data.transactions_update_status;
     totalFetched += added.length + modified.length + removed.length;
 
     // Process added transactions
     for (const plaidTx of added) {
       const target = accountMap.get(plaidTx.account_id);
       if (!target) continue; // Transaction for an unlinked Plaid account
+
+      if (!stats.oldestTransactionDate || plaidTx.date < stats.oldestTransactionDate) {
+        stats.oldestTransactionDate = plaidTx.date;
+      }
 
       // Filter out transactions older than cutoff date
       const txDate = new Date(plaidTx.date);
@@ -388,13 +408,21 @@ export async function syncPlaidTransactions(
     hasMore = has_more;
   }
 
+  // A missing status (older API responses) counts as complete, so the cursor behaves as before.
+  stats.historyComplete =
+    updateStatus !== TransactionsUpdateStatus.NotReady &&
+    updateStatus !== TransactionsUpdateStatus.InitialUpdateComplete;
+
   // Don't update connection/enrollment status in dry-run mode
   if (!dryRun) {
-    // Update enrollment cursor (shared across all connections)
+    // Update enrollment cursor (shared across all connections). While Plaid is still
+    // backfilling, keep the old cursor: older transactions arrive on later pages of this
+    // cursor, and a later short-window sync would discard them as out of window and never
+    // see them again. Re-reading is safe — already-imported externalIds are skipped.
     await prisma.plaidEnrollment.update({
       where: { id: plaidEnrollment.id },
       data: {
-        transactionCursor: cursor,
+        ...(stats.historyComplete && { transactionCursor: cursor }),
         lastSyncAt: new Date(),
       },
     });

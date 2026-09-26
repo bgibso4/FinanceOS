@@ -1091,4 +1091,81 @@ describe('plaid-sync', () => {
       expect(result.totalFetched).toBe(4); // 2 added + 1 modified + 1 removed
     });
   });
+  describe('historical backfill', () => {
+    function mockSyncResponse(data: Record<string, unknown>) {
+      const mockPlaidClient = {
+        transactionsSync: vi.fn().mockResolvedValue({
+          data: { added: [], modified: [], removed: [], has_more: false, ...data },
+        }),
+      };
+      vi.mocked(getPlaidClient).mockReturnValue(
+        mockPlaidClient as unknown as ReturnType<typeof getPlaidClient>
+      );
+    }
+
+    it('imports what Plaid has but holds the cursor while history is still loading', async () => {
+      mockSyncResponse({
+        added: [createMockPlaidTransaction({ transaction_id: 'recent-tx' })],
+        next_cursor: 'partial-cursor',
+        transactions_update_status: 'INITIAL_UPDATE_COMPLETE',
+      });
+
+      const result = (await syncPlaidTransactions(createMockPlaidConnection(testAccountId), {
+        daysToSync: 365,
+      })) as SyncResult;
+
+      expect(result.added).toBe(1);
+      expect(result.historyComplete).toBe(false);
+
+      // Older transactions arrive on a later sync; if the cursor advanced now, a later
+      // short-window sync would drop them as "older than sync window" and never see them again.
+      const enrollment = await prisma.plaidEnrollment.findUnique({
+        where: { id: 'plaid-enroll-1' },
+      });
+      expect(enrollment?.transactionCursor).toBeNull();
+    });
+
+    it('saves the cursor once Plaid reports the historical update complete', async () => {
+      mockSyncResponse({
+        next_cursor: 'full-cursor',
+        transactions_update_status: 'HISTORICAL_UPDATE_COMPLETE',
+      });
+
+      const result = (await syncPlaidTransactions(
+        createMockPlaidConnection(testAccountId)
+      )) as SyncResult;
+
+      expect(result.historyComplete).toBe(true);
+      const enrollment = await prisma.plaidEnrollment.findUnique({
+        where: { id: 'plaid-enroll-1' },
+      });
+      expect(enrollment?.transactionCursor).toBe('full-cursor');
+    });
+
+    it('reports history status and the oldest date Plaid returned in a preview', async () => {
+      const today = new Date();
+      const daysAgo = (n: number) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() - n);
+        return d.toISOString().split('T')[0];
+      };
+      mockSyncResponse({
+        added: [
+          createMockPlaidTransaction({ transaction_id: 'a', date: daysAgo(5) }),
+          createMockPlaidTransaction({ transaction_id: 'b', date: daysAgo(75) }),
+          createMockPlaidTransaction({ transaction_id: 'c', date: daysAgo(40) }),
+        ],
+        next_cursor: 'c1',
+        transactions_update_status: 'INITIAL_UPDATE_COMPLETE',
+      });
+
+      const result = (await syncPlaidTransactions(createMockPlaidConnection(testAccountId), {
+        daysToSync: 365,
+        dryRun: true,
+      })) as DryRunResult;
+
+      expect(result.stats.historyComplete).toBe(false);
+      expect(result.stats.oldestTransactionDate).toBe(daysAgo(75));
+    });
+  });
 });

@@ -526,7 +526,15 @@ function SettingsPageContent() {
   };
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewResult, setPreviewResult] = useState<{
-    stats: { added: number; skippedDuplicates: number; skippedPending: number; merged: number };
+    stats: {
+      added: number;
+      skippedDuplicates: number;
+      skippedPending: number;
+      merged: number;
+      // Plaid only — Teller returns its full requested range in one call.
+      historyComplete?: boolean;
+      oldestTransactionDate?: string | null;
+    };
     transactions: TransactionPreview[];
     dateRange: { from: string; to: string };
     totalFetched: number;
@@ -3359,6 +3367,16 @@ function SettingsPageContent() {
               <div className={`text-xs ${ds.text.muted} text-center mt-2`}>
                 Date range: {previewResult.dateRange.from} to {previewResult.dateRange.to}
               </div>
+              {previewResult.stats.historyComplete === false && (
+                <div className={`text-xs ${ds.status.warning.text} text-center mt-2`}>
+                  Plaid is still loading this connection&apos;s history
+                  {previewResult.stats.oldestTransactionDate
+                    ? ` — so far it only reaches back to ${previewResult.stats.oldestTransactionDate}`
+                    : ''}
+                  . Older transactions usually arrive within a few hours. Syncing now is safe, but
+                  sync again with this same range once it finishes to pull in the rest.
+                </div>
+              )}
               {previewAccountNames.length > 1 && (
                 <div className={`text-xs ${ds.status.warning.text} text-center mt-2`}>
                   These totals cover all {previewAccountNames.length} accounts at this institution (
