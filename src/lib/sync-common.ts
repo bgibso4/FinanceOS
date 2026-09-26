@@ -503,6 +503,173 @@ export function amountsCancel(a: number, b: number): boolean {
   return Math.round(a * 100) + Math.round(b * 100) === 0;
 }
 
+// --- Venmo pass-throughs -------------------------------------------------------
+//
+// In a Venmo account, payments to and from people are real income/spending, and only
+// cash-outs, top-ups and balance adjustments move money between accounts. When the
+// Venmo balance can't cover a payment, Venmo pulls it from the bank: the bank shows
+// "VENMO -X" and the Venmo feed shows only the "-X" payment — Plaid never sends the
+// intermediate "+X" top-up. We add that top-up ourselves and pair it with the bank row
+// as a transfer, so the payment counts once (in Venmo, where the person and note are)
+// and both balances stay right.
+
+const VENMO_PATTERN = /venmo/i;
+const VENMO_MOVEMENT_PATTERN =
+  /^(standard transfer|instant transfer|top-up from |balance adjustment)/i;
+const TOP_UP_PREFIX = 'Top-up from ';
+const PASS_THROUGH_DAYS = 4; // the bank row posts 0–4 days after the Venmo payment
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function isVenmoAccount(account: { name: string; institution: string | null }): boolean {
+  return VENMO_PATTERN.test(account.institution ?? '') || VENMO_PATTERN.test(account.name);
+}
+
+/** A payment to or from a person in a Venmo account: real money, never a transfer leg. */
+function isVenmoPersonPayment(tx: { merchant: string }): boolean {
+  return !VENMO_MOVEMENT_PATTERN.test(tx.merchant.trim());
+}
+
+async function getVenmoAccountIds(prismaClient: PrismaClient): Promise<Set<string>> {
+  const accounts = await prismaClient.account.findMany({
+    where: { isActive: true },
+    select: { id: true, name: true, institution: true },
+  });
+  return new Set(accounts.filter(isVenmoAccount).map((a) => a.id));
+}
+
+/**
+ * Add the missing top-up for bank-funded Venmo payments among `newTransactionIds`
+ * (either side may be the new one, since Venmo and the bank sync separately), and
+ * clear the transfer flag Plaid puts on Venmo payments to people. Idempotent: a bank
+ * row is claimed once it has a transfer group, and a payment is covered once a top-up
+ * exists for it. Returns the number of top-ups created.
+ */
+export async function reconcileVenmoPassThroughs(
+  newTransactionIds: Set<string>,
+  prismaClient: PrismaClient = defaultPrisma
+): Promise<number> {
+  const venmoIds = await getVenmoAccountIds(prismaClient);
+  if (venmoIds.size === 0 || newTransactionIds.size === 0) return 0;
+
+  const newTxs = await prismaClient.transaction.findMany({
+    where: { id: { in: [...newTransactionIds] } },
+  });
+
+  // Plaid categorizes person-to-person payments as TRANSFER_IN/OUT.
+  const flaggedPayments = newTxs.filter(
+    (tx) =>
+      venmoIds.has(tx.accountId) && tx.isTransfer && !tx.transferGroupId && isVenmoPersonPayment(tx)
+  );
+  if (flaggedPayments.length > 0) {
+    await prismaClient.transaction.updateMany({
+      where: { id: { in: flaggedPayments.map((tx) => tx.id) } },
+      data: { isTransfer: false },
+    });
+  }
+
+  const isBankVenmoDebit = (tx: (typeof newTxs)[number]) =>
+    !venmoIds.has(tx.accountId) &&
+    VENMO_PATTERN.test(tx.merchant) &&
+    Number(tx.amount) < 0 &&
+    !tx.transferGroupId;
+
+  // Bank rows to try: new ones, plus the bank twins of new Venmo payments.
+  const bankRowIds = new Set(newTxs.filter(isBankVenmoDebit).map((tx) => tx.id));
+  for (const payment of newTxs) {
+    if (!venmoIds.has(payment.accountId) || Number(payment.amount) >= 0) continue;
+    if (!isVenmoPersonPayment(payment)) continue;
+    const twins = await prismaClient.transaction.findMany({
+      where: {
+        accountId: { notIn: [...venmoIds] },
+        amount: payment.amount,
+        transferGroupId: null,
+        date: {
+          gte: payment.date,
+          lte: new Date(payment.date.getTime() + PASS_THROUGH_DAYS * DAY_MS),
+        },
+      },
+    });
+    twins.filter(isBankVenmoDebit).forEach((tx) => bankRowIds.add(tx.id));
+  }
+
+  const bankRows = await prismaClient.transaction.findMany({
+    where: { id: { in: [...bankRowIds] } },
+    include: { account: { select: { name: true } } },
+    orderBy: { date: 'asc' },
+  });
+
+  let created = 0;
+  for (const bank of bankRows) {
+    const payments = await prismaClient.transaction.findMany({
+      where: {
+        accountId: { in: [...venmoIds] },
+        amount: bank.amount,
+        date: { gte: new Date(bank.date.getTime() - PASS_THROUGH_DAYS * DAY_MS), lte: bank.date },
+      },
+      orderBy: { date: 'desc' }, // closest to the bank row first
+    });
+
+    let target: (typeof payments)[number] | undefined;
+    for (const payment of payments.filter(isVenmoPersonPayment)) {
+      // Several same-day, same-amount payments are possible; each needs its own top-up.
+      const sameDaySameAmount = payments.filter(
+        (p) =>
+          isVenmoPersonPayment(p) &&
+          p.accountId === payment.accountId &&
+          p.date.getTime() === payment.date.getTime()
+      ).length;
+      const existingTopUps = await prismaClient.transaction.count({
+        where: {
+          accountId: payment.accountId,
+          date: payment.date,
+          amount: -Number(payment.amount),
+          merchant: { startsWith: TOP_UP_PREFIX },
+        },
+      });
+      if (existingTopUps < sameDaySameAmount) {
+        target = payment;
+        break;
+      }
+    }
+    if (!target) continue;
+
+    const transferGroupId = uuid();
+    const merchant = `${TOP_UP_PREFIX}${bank.account.name}`;
+    await prismaClient.transaction.create({
+      data: {
+        date: target.date,
+        amount: -Number(target.amount),
+        accountId: target.accountId,
+        merchant,
+        merchantNormalized: merchant.toLowerCase(),
+        tags: '[]',
+        note: `Venmo pulled this payment from ${bank.account.name}`,
+        isTransfer: true,
+        transferGroupId,
+        confidenceScore: 1,
+      },
+    });
+    await prismaClient.transaction.update({
+      where: { id: bank.id },
+      data: { isTransfer: true, transferGroupId, categoryId: null },
+    });
+    // Anything you'd already put on the bank row (category, note) belongs to the payment now.
+    if (!target.categoryId && bank.categoryId) {
+      await prismaClient.transaction.update({
+        where: { id: target.id },
+        data: {
+          categoryId: bank.categoryId,
+          confidenceScore: bank.confidenceScore,
+          ...(!target.note && bank.note && { note: bank.note }),
+        },
+      });
+    }
+    created++;
+  }
+
+  return created;
+}
+
 /**
  * Detect and link transfer transactions.
  * This finds matching opposite-amount transactions and marks them as transfers
@@ -520,6 +687,10 @@ export async function detectTransfers(
 ): Promise<TransferDetectionResult> {
   console.log('🔄 Starting transfer detection for account:', accountId);
 
+  // Pair bank-funded Venmo payments with their bank rows before generic matching can
+  // pair those bank rows with something unrelated.
+  await reconcileVenmoPassThroughs(newTransactionIds, prismaClient);
+
   // Run cross-account detection FIRST. Cross-account matches use stronger signals
   // (different accounts, transfer keywords, date proximity) and should win over
   // same-account matches when both could apply — for example, a credit card
@@ -536,9 +707,14 @@ export async function detectTransfers(
   // or a coincidental purchase↔payment (which is a bug, not a transfer).
   const account = await prismaClient.account.findUnique({
     where: { id: accountId },
-    select: { type: true },
+    select: { type: true, name: true, institution: true },
   });
-  const skipSameAccount = account?.type === 'credit' || account?.type === 'loan';
+  // In Venmo, a same-day +X/-X is two different people (or a payment and its top-up),
+  // never money moving within the account.
+  const skipSameAccount =
+    account?.type === 'credit' ||
+    account?.type === 'loan' ||
+    (!!account && isVenmoAccount(account));
 
   let sameAccountMatches = 0;
   const sameAccountTransfers: SameAccountTransfer[] = [];
@@ -633,13 +809,26 @@ export async function detectCrossAccountTransfers(
   const ninetyDaysAgo = new Date();
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-  const allRecent = await prismaClient.transaction.findMany({
+  const recentWithVenmo = await prismaClient.transaction.findMany({
     where: {
       date: { gte: ninetyDaysAgo },
     },
     include: { account: true },
     orderBy: { date: 'desc' },
   });
+
+  // Venmo payments to people are never transfer legs, and a bank row paired with a
+  // Venmo top-up is already settled — re-pairing it could steal an unrelated +X.
+  const topUpGroups = new Set(
+    recentWithVenmo
+      .filter((tx) => tx.merchant.startsWith(TOP_UP_PREFIX) && tx.transferGroupId)
+      .map((tx) => tx.transferGroupId)
+  );
+  const allRecent = recentWithVenmo.filter(
+    (tx) =>
+      !(isVenmoAccount(tx.account) && isVenmoPersonPayment(tx)) &&
+      !(tx.transferGroupId && topUpGroups.has(tx.transferGroupId))
+  );
 
   console.log(`  Checking ${allRecent.length} transactions across all accounts (last 90 days)`);
 
