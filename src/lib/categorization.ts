@@ -12,7 +12,6 @@ const keywordCatalog: Record<string, string[]> = {
   whole: ['grocer'],
   kroger: ['grocer'],
   costco: ['grocer'],
-  aldi: ['grocer'],
   publix: ['grocer'],
   wegmans: ['grocer'],
   heb: ['grocer'],

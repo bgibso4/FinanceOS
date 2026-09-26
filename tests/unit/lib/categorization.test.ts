@@ -395,6 +395,11 @@ describe('categorization', () => {
       expect(result.confidence).toBe(0.72);
     });
 
+    it('does not tag a Venmo payment from "Valdivia" as groceries via "aldi"', async () => {
+      const result = await autoCategorize(prisma, 'Fernando Valdivia "Feast"', null);
+      expect(result.categoryId).toBeNull();
+    });
+
     it('returns null with confidence 0.3 when no match found', async () => {
       const result = await autoCategorize(prisma, 'UNKNOWN MERCHANT XYZ', null);
       expect(result.categoryId).toBeNull();
