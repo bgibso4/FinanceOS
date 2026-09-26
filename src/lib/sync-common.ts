@@ -495,6 +495,15 @@ export type CrossAccountTransfer = {
 };
 
 /**
+ * True when two amounts are exact opposites to the cent. Compared in integer cents
+ * because float subtraction lets a one-cent gap through a `< 0.01` check
+ * (35 - 34.99 === 0.00999…), which paired a Venmo receipt with an unrelated charge.
+ */
+export function amountsCancel(a: number, b: number): boolean {
+  return Math.round(a * 100) + Math.round(b * 100) === 0;
+}
+
+/**
  * Detect and link transfer transactions.
  * This finds matching opposite-amount transactions and marks them as transfers
  * with a shared transferGroupId.
@@ -564,7 +573,7 @@ export async function detectTransfers(
           (other) =>
             other.id !== tx.id &&
             other.isTransfer === false &&
-            Math.abs(Number(other.amount) + Number(tx.amount)) < 0.01
+            amountsCancel(Number(other.amount), Number(tx.amount))
         );
         if (match) {
           const transferGroupId = uuid();
@@ -640,7 +649,7 @@ export async function detectCrossAccountTransfers(
       (other) =>
         other.id !== tx.id &&
         other.accountId !== tx.accountId &&
-        Math.abs(Number(other.amount) + Number(tx.amount)) < 0.01
+        amountsCancel(Number(other.amount), Number(tx.amount))
     );
     return hasOpposite;
   });
@@ -673,7 +682,7 @@ export async function detectCrossAccountTransfers(
       if (processed.has(other.id)) return false;
 
       // Check if amounts are opposite (one positive, one negative)
-      const amountsMatch = Math.abs(Number(other.amount) + Number(tx.amount)) < 0.01;
+      const amountsMatch = amountsCancel(Number(other.amount), Number(tx.amount));
       if (!amountsMatch) return false;
 
       // Check if dates are within 3 days

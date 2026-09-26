@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { Prisma } from '@prisma/client';
-import { isMerchantSimilar, withSyncLock, isUniqueConstraintError } from '@/lib/sync-common';
+import {
+  isMerchantSimilar,
+  withSyncLock,
+  isUniqueConstraintError,
+  amountsCancel,
+} from '@/lib/sync-common';
 
 describe('sync-common', () => {
   describe('isMerchantSimilar', () => {
@@ -198,6 +203,26 @@ describe('sync-common', () => {
       expect(isUniqueConstraintError(new Error('boom'))).toBe(false);
       expect(isUniqueConstraintError('nope')).toBe(false);
       expect(isUniqueConstraintError(null)).toBe(false);
+    });
+  });
+
+  describe('amountsCancel', () => {
+    it('matches exact opposite amounts', () => {
+      expect(amountsCancel(35, -35)).toBe(true);
+      expect(amountsCancel(-1045.88, 1045.88)).toBe(true);
+      // Float noise from arithmetic on stored amounts still counts as exact
+      expect(amountsCancel(0.1 + 0.2, -0.3)).toBe(true);
+    });
+
+    it('rejects amounts a cent apart', () => {
+      // A +35.00 Venmo receipt was paired with a -34.99 CVS charge: 35 - 34.99 is
+      // 0.00999… in floating point, which slipped under the old `< 0.01` check.
+      expect(amountsCancel(35, -34.99)).toBe(false);
+      expect(amountsCancel(-120.65, 120.64)).toBe(false);
+    });
+
+    it('rejects same-sign amounts', () => {
+      expect(amountsCancel(35, 35)).toBe(false);
     });
   });
 });
