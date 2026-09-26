@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 
 interface PlaidReconnectButtonProps {
   enrollmentId: string;
+  mode?: 'reconnect' | 'add-accounts';
   onSuccess: () => void;
   onExit?: () => void;
   className?: string;
@@ -14,6 +15,7 @@ interface PlaidReconnectButtonProps {
 
 export function PlaidReconnectButton({
   enrollmentId,
+  mode = 'reconnect',
   onSuccess,
   onExit,
   className,
@@ -100,7 +102,7 @@ export function PlaidReconnectButton({
   if (error) {
     return (
       <Button disabled className={className} variant="destructive">
-        Reconnect Error
+        {mode === 'add-accounts' ? 'Add Accounts Error' : 'Reconnect Error'}
       </Button>
     );
   }
@@ -112,7 +114,11 @@ export function PlaidReconnectButton({
       variant="outline"
       onClick={() => open()}
     >
-      {loading ? 'Loading...' : reconnecting ? 'Reconnecting...' : buttonText || 'Reconnect'}
+      {loading
+        ? 'Loading...'
+        : reconnecting
+          ? 'Working...'
+          : (buttonText ?? (mode === 'add-accounts' ? 'Add accounts' : 'Reconnect'))}
     </Button>
   );
 }

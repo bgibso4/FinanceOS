@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-
-// Default tracking mode based on account type
-function getDefaultTrackingMode(type: string): 'cash_flow' | 'balance_only' {
-  const balanceOnlyTypes = ['brokerage', 'retirement', 'crypto', 'loan'];
-  return balanceOnlyTypes.includes(type) ? 'balance_only' : 'cash_flow';
-}
+import { getDefaultTrackingMode } from '@/lib/account-defaults';
 
 const accountSchema = z.object({
   name: z.string().min(1),

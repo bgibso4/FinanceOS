@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { getPlaidClient } from '@/lib/plaid';
 import { encryptAccessToken } from '@/lib/encryption';
+import { isUniqueConstraintError } from '@/lib/sync-common';
 
 const schema = z.object({
   publicToken: z.string(),
@@ -114,6 +115,13 @@ export async function POST(req: NextRequest) {
       enrollmentId: enrollment.id,
     });
   } catch (error: unknown) {
+    // Bare create — the (plaidEnrollmentId, plaidAccountId) unique constraint can still
+    // trip if this bank account got linked elsewhere between the check above and this
+    // write. Surface that as a clean 409 rather than a raw 500.
+    if (isUniqueConstraintError(error)) {
+      return NextResponse.json({ error: 'This bank account is already linked' }, { status: 409 });
+    }
+
     console.error('Error exchanging token:', error);
     const message = error instanceof Error ? error.message : 'Failed to exchange token';
     return NextResponse.json({ error: message }, { status: 500 });

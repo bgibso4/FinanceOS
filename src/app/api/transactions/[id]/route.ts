@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { cleanupTransferPair } from '@/lib/sync-common';
+import { cleanupTransferPair, createImportHash } from '@/lib/sync-common';
+import { normalizeMerchant } from '@/lib/categorization';
 
 const updateSchema = z.object({
   date: z
@@ -72,6 +73,31 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // If categoryId is being set and confidence isn't explicitly provided, set to 1.0
   if (parsed.categoryId !== undefined && parsed.confidenceScore === undefined) {
     updateData.confidenceScore = 1.0;
+  }
+
+  // importHash is derived from (accountId, date, amount, merchantNormalized). Editing any
+  // of those without recomputing leaves a hash describing the row's OLD values, which
+  // silently defeats the importHash dedup tier — a later sync of the same transaction
+  // computes the correct hash, matches nothing, and inserts a duplicate.
+  const editsHashInputs =
+    parsed.date !== undefined || parsed.amount !== undefined || parsed.merchant !== undefined;
+
+  if (editsHashInputs) {
+    const current = await prisma.transaction.findUniqueOrThrow({
+      where: { id },
+      select: { accountId: true, date: true, amount: true, merchant: true },
+    });
+
+    const nextMerchant = parsed.merchant ?? current.merchant;
+    const nextMerchantNormalized = normalizeMerchant(nextMerchant);
+
+    updateData.merchantNormalized = nextMerchantNormalized;
+    updateData.importHash = createImportHash(
+      current.accountId,
+      parsed.date ?? current.date,
+      parsed.amount ?? current.amount,
+      nextMerchantNormalized
+    );
   }
 
   const tx = await prisma.transaction.update({

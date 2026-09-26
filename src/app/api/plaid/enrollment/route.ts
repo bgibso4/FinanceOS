@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import type { AccountBase } from 'plaid';
 import { prisma } from '@/lib/prisma';
 import { getPlaidClient } from '@/lib/plaid';
 import { encryptAccessToken, decryptAccessToken } from '@/lib/encryption';
 import { classifyPlaidError } from '@/lib/bank-errors';
+import { isAccountIgnored, type ProviderAccount } from '@/lib/bank-account-matching';
+import { isAccountsCacheFresh, parseCachedAccounts } from '@/lib/enrollment-cache';
 
 const createSchema = z.object({
   publicToken: z.string(),
@@ -12,8 +15,11 @@ const createSchema = z.object({
 });
 
 // GET: List all Plaid enrollments with available accounts
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url);
+    const forceRefresh = searchParams.get('refresh') === '1';
+
     const enrollments = await prisma.plaidEnrollment.findMany({
       include: {
         connections: {
@@ -29,28 +35,63 @@ export async function GET() {
 
     // Fetch available accounts for each enrollment
     const plaid = getPlaidClient();
+    const ignored = await prisma.ignoredBankAccount.findMany({ where: { provider: 'plaid' } });
+
+    /**
+     * Write the provider's account list to the cache, swallowing any failure. Isolated
+     * from the fetch on purpose: caching is an optimization, and a write error inside
+     * the try below is classified as a bank auth failure, which flips a live enrollment
+     * to needs_reauth.
+     */
+    const cacheAccounts = async (id: string, accounts: AccountBase[]) => {
+      try {
+        await prisma.plaidEnrollment.update({
+          where: { id },
+          data: { cachedAccounts: JSON.stringify(accounts), accountsCachedAt: new Date() },
+        });
+      } catch (e) {
+        console.error('Failed to cache Plaid accounts (non-fatal):', e);
+      }
+    };
     const enrollmentsWithAccounts = await Promise.all(
       enrollments.map(async (enrollment) => {
         try {
-          const accessToken = decryptAccessToken(
-            enrollment.accessTokenEncrypted,
-            enrollment.accessTokenIv
-          );
+          const cached = forceRefresh
+            ? null
+            : isAccountsCacheFresh(enrollment.accountsCachedAt, new Date())
+              ? parseCachedAccounts<AccountBase>(enrollment.cachedAccounts)
+              : null;
 
-          const response = await plaid.accountsGet({ access_token: accessToken });
-          const allAccounts = response.data.accounts;
+          let allAccounts: AccountBase[];
+          if (cached) {
+            allAccounts = cached;
+          } else {
+            const accessToken = decryptAccessToken(
+              enrollment.accessTokenEncrypted,
+              enrollment.accessTokenIv
+            );
+
+            const response = await plaid.accountsGet({ access_token: accessToken });
+            allAccounts = response.data.accounts;
+
+            await cacheAccounts(enrollment.id, allAccounts);
+          }
 
           // Filter out already-linked accounts
-          const linkedPlaidAccountIds = enrollment.connections.map((c) => c.plaidAccountId);
-          const availableAccounts = allAccounts
-            .filter((acc) => !linkedPlaidAccountIds.includes(acc.account_id))
+          const linkedPlaidAccountIds = new Set(
+            enrollment.connections.map((c) => c.plaidAccountId)
+          );
+          const unlinked: ProviderAccount[] = allAccounts
+            .filter((acc) => !linkedPlaidAccountIds.has(acc.account_id))
             .map((acc) => ({
-              account_id: acc.account_id,
+              externalId: acc.account_id,
               name: acc.name,
               type: acc.type,
               subtype: acc.subtype || '',
-              mask: acc.mask || '',
+              lastFour: acc.mask || '',
             }));
+
+          const institutionKey = enrollment.institutionId ?? '';
 
           return {
             id: enrollment.id,
@@ -66,7 +107,11 @@ export async function GET() {
               account: c.account,
               status: c.status,
             })),
-            availableAccounts,
+            availableAccounts: unlinked.filter(
+              (a) => !isAccountIgnored(a, institutionKey, ignored)
+            ),
+            hiddenAccounts: unlinked.filter((a) => isAccountIgnored(a, institutionKey, ignored)),
+            totalAccountCount: allAccounts.length,
           };
         } catch (error) {
           const { needsReauth, reason } = classifyPlaidError(error);
@@ -110,6 +155,8 @@ export async function GET() {
               status: c.status,
             })),
             availableAccounts: [],
+            hiddenAccounts: [],
+            totalAccountCount: enrollment.connections.length,
           };
         }
       })
