@@ -28,7 +28,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { ds } from '@/lib/design-system';
-import { syncUnits, statsForAccount } from '@/lib/sync-grouping';
+import { syncUnits, statsForAccount, isSyncAllCandidate } from '@/lib/sync-grouping';
+import { investmentSyncStatus } from '@/lib/investments/sync-status';
+import type { InvestmentSyncResult } from '@/lib/investments/plaid-investment-sync';
 import { getCurrencyFlag } from '@/lib/currency';
 import { SyncStatusBadge } from '@/components/plaid/SyncStatusBadge'; // Used for both Plaid and Teller
 import { triggerSync } from '@/lib/cloud-sync';
@@ -119,6 +121,8 @@ type SyncAllAccountResult = {
   accountName: string;
   connectionType: 'plaid' | 'teller';
   status: SyncAllAccountStatus;
+  /** Investment-mode account: no transaction preview, always synced on confirm. */
+  investment?: boolean;
   error?: string;
   preview?: {
     stats: { added: number; skippedDuplicates: number; skippedPending: number; merged: number };
@@ -1207,16 +1211,23 @@ function SettingsPageContent() {
           return;
         }
 
+        const investmentIds = new Set<string>(data.investmentAccountIds ?? []);
         setSyncAllResults((prev) => {
           const next = new Map(prev);
           for (const id of unit.accountIds) {
             const existing = next.get(id);
             if (!existing) continue;
+            const investment = investmentIds.has(id);
             next.set(id, {
               ...existing,
               status: 'preview_done',
+              investment,
               preview: {
-                stats: statsForAccount(data.stats, id, unit.accountIds.length),
+                stats: statsForAccount(
+                  investment ? undefined : data.stats,
+                  id,
+                  unit.accountIds.length
+                ),
                 dateRange: data.dateRange,
                 totalFetched: data.totalFetched,
               },
@@ -1236,12 +1247,7 @@ function SettingsPageContent() {
   const handleSyncAllConfirm = async () => {
     setSyncAllPhase('syncing');
 
-    const accountsToSync = Array.from(syncAllResults.values()).filter(
-      (r) =>
-        r.status === 'preview_done' &&
-        r.preview &&
-        (r.preview.stats.added > 0 || r.preview.stats.merged > 0)
-    );
+    const accountsToSync = Array.from(syncAllResults.values()).filter(isSyncAllCandidate);
 
     setSyncAllResults((prev) => {
       const next = new Map(prev);
@@ -1295,6 +1301,19 @@ function SettingsPageContent() {
           for (const id of unit.accountIds) {
             const existing = next.get(id);
             if (!existing) continue;
+            if (existing.investment) {
+              const inv = (data.investments as InvestmentSyncResult[] | undefined)?.find(
+                (r) => r.accountId === id
+              );
+              const outcome = inv ? investmentSyncStatus(inv) : null;
+              next.set(
+                id,
+                outcome?.lastSyncStatus === 'error'
+                  ? { ...existing, status: 'error', error: outcome.lastSyncError ?? undefined }
+                  : { ...existing, status: 'synced' }
+              );
+              continue;
+            }
             const row = data.byAccount?.find((b: { accountId: string }) => b.accountId === id) as
               | { added: number; merged: number; modified: number; removed: number }
               | undefined;
@@ -3750,14 +3769,7 @@ function SettingsPageContent() {
                     </Button>
                     <Button
                       className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent)]"
-                      disabled={
-                        !Array.from(syncAllResults.values()).some(
-                          (r) =>
-                            r.status === 'preview_done' &&
-                            r.preview &&
-                            (r.preview.stats.added > 0 || r.preview.stats.merged > 0)
-                        )
-                      }
+                      disabled={!Array.from(syncAllResults.values()).some(isSyncAllCandidate)}
                       onClick={handleSyncAllConfirm}
                     >
                       Sync{' '}
@@ -3767,6 +3779,14 @@ function SettingsPageContent() {
                         0
                       )}{' '}
                       Transactions
+                      {(() => {
+                        const investments = Array.from(syncAllResults.values()).filter(
+                          (r) => r.investment && isSyncAllCandidate(r)
+                        ).length;
+                        return investments
+                          ? ` + ${investments} Investment Account${investments === 1 ? '' : 's'}`
+                          : '';
+                      })()}
                     </Button>
                   </>
                 )}

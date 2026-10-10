@@ -18,6 +18,7 @@ import {
   type PlaidAccountRef,
 } from '../src/lib/investments/migration';
 import { syncPlaidInvestments } from '../src/lib/investments/plaid-investment-sync';
+import { recordInvestmentSyncStatus } from '../src/lib/investments/sync-status';
 
 const APPLY = process.argv.includes('--apply');
 
@@ -100,6 +101,7 @@ async function main() {
   for (const conn of connections) {
     try {
       const r = await syncPlaidInvestments(conn);
+      await recordInvestmentSyncStatus(prisma, r);
       console.warn(
         `  synced ${conn.account.name}: ${JSON.stringify(r.steps)} ${JSON.stringify(r.counts)}`
       );

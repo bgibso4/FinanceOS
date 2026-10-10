@@ -73,13 +73,15 @@ export type AccountStats = {
  * Falls back to the item totals ONLY when the unit covers a single account, where the
  * two are the same thing. For a multi-account unit with no breakdown available, returns
  * zeros rather than attributing the item's totals to one account — overstating is what
- * produced the 5x bug, and a zero is honest about not knowing.
+ * produced the 5x bug, and a zero is honest about not knowing. A response with no stats at all
+ * also yields zeros.
  */
 export function statsForAccount(
-  stats: ItemStats,
+  stats: ItemStats | undefined,
   accountId: string,
   unitSize: number
 ): AccountStats {
+  if (!stats) return { added: 0, merged: 0, skippedDuplicates: 0, skippedPending: 0 };
   const row = stats.byAccount?.find((b) => b.accountId === accountId);
   if (row) {
     return {
@@ -100,4 +102,18 @@ export function statsForAccount(
   }
 
   return { added: 0, merged: 0, skippedDuplicates: 0, skippedPending: 0 };
+}
+
+/**
+ * Whether Sync All's confirm step should sync this account. Cash-flow accounts sync when their
+ * preview found something to import; investment accounts have no transaction preview, so they
+ * always sync once their item previewed without error.
+ */
+export function isSyncAllCandidate(r: {
+  status: string;
+  investment?: boolean;
+  preview?: { stats: { added: number; merged: number } };
+}): boolean {
+  if (r.status !== 'preview_done' || !r.preview) return false;
+  return !!r.investment || r.preview.stats.added > 0 || r.preview.stats.merged > 0;
 }

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { syncPlaidTransactions } from '@/lib/plaid-sync';
-import { syncPlaidInvestments } from '@/lib/investments/plaid-investment-sync';
+import { syncPlaidTransactions, type SyncResult, type DryRunResult } from '@/lib/plaid-sync';
+import {
+  syncPlaidInvestments,
+  type InvestmentSyncResult,
+} from '@/lib/investments/plaid-investment-sync';
+import { recordInvestmentSyncStatus } from '@/lib/investments/sync-status';
 import { withSyncLock } from '@/lib/sync-common';
 import { classifyPlaidError } from '@/lib/bank-errors';
 
@@ -45,44 +49,61 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (connection.account.trackingMode === 'investment') {
-      if (dryRun) {
-        return NextResponse.json({ success: true, dryRun: true, investment: true, skipped: true });
-      }
-      // Same per-enrollment lock key as the transaction path. Re-auth errors are
-      // rethrown by syncPlaidInvestments and handled by the catch below.
-      const result = await withSyncLock(`plaid:${connection.plaidEnrollment.id}`, () =>
-        syncPlaidInvestments(connection)
-      );
-      // 'pending' steps are not failures; only 'error' steps fail the sync.
-      const failed = Object.entries(result.errors).filter(
-        ([step]) => result.steps[step as keyof typeof result.steps] === 'error'
-      );
-      await prisma.plaidConnection.update({
-        where: { accountId },
-        data: {
-          lastSyncAt: new Date(),
-          lastSyncStatus: failed.length ? 'error' : 'success',
-          lastSyncError: failed.length ? failed.map(([s, m]) => `${s}: ${m}`).join('; ') : null,
-        },
-      });
-      return NextResponse.json({ success: true, investment: true, ...result });
-    }
+    // One Plaid item can hold both kinds of account. Investment-mode connections each run the
+    // investment sync; the item's cash-flow connections share one transaction sync, run only
+    // when the item has any (Plaid's cursor covers them all whichever account is asked for).
+    const itemConnections = await prisma.plaidConnection.findMany({
+      where: {
+        plaidEnrollmentId: connection.plaidEnrollmentId,
+        OR: [{ status: 'connected' }, { id: connection.id }],
+      },
+      include: { account: true, plaidEnrollment: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    const isInvestment = (c: { account: { trackingMode: string } }) =>
+      c.account.trackingMode === 'investment';
+    const investmentConnections = itemConnections.filter(isInvestment);
+    const investmentAccountIds = investmentConnections.map((c) => c.accountId);
+    const cashFlowConnection = isInvestment(connection)
+      ? itemConnections.find((c) => !isInvestment(c))
+      : connection;
 
-    // Serialize real syncs by enrollment: Plaid's transactionsSync cursor is
-    // shared across all sibling accounts under one item, so two concurrent runs
-    // of any account in the item must not overlap. Dry runs are read-only.
-    const result = dryRun
-      ? await syncPlaidTransactions(connection, { daysToSync, dryRun })
-      : await withSyncLock(`plaid:${connection.plaidEnrollment.id}`, () =>
-          syncPlaidTransactions(connection, { daysToSync, dryRun })
-        );
-
-    return NextResponse.json({
+    const base = {
       success: true,
       dryRun,
-      ...result,
-    });
+      investment: isInvestment(connection),
+      investmentAccountIds,
+    };
+
+    if (dryRun) {
+      // Dry runs are read-only, so no lock. Investment syncs have no preview; Sync All treats
+      // the listed investment accounts as always syncable.
+      const result = cashFlowConnection
+        ? await syncPlaidTransactions(cashFlowConnection, { daysToSync, dryRun })
+        : emptyPreview(investmentConnections, daysToSync);
+      return NextResponse.json({ ...base, ...result });
+    }
+
+    // Serialize real syncs by enrollment: Plaid's transactionsSync cursor is shared across all
+    // sibling accounts under one item, and the investment sync uses the same item token.
+    // Re-auth errors propagate to the catch below.
+    const { result, investments } = await withSyncLock(
+      `plaid:${connection.plaidEnrollment.id}`,
+      async () => {
+        const result = cashFlowConnection
+          ? await syncPlaidTransactions(cashFlowConnection, { daysToSync })
+          : emptyStats();
+        const investments: InvestmentSyncResult[] = [];
+        for (const c of investmentConnections) {
+          const r = await syncPlaidInvestments(c);
+          await recordInvestmentSyncStatus(prisma, r);
+          investments.push(r);
+        }
+        return { result, investments };
+      }
+    );
+
+    return NextResponse.json({ ...base, ...result, investments });
   } catch (error: unknown) {
     const { needsReauth, code, reason } = classifyPlaidError(error);
 
@@ -109,4 +130,43 @@ export async function POST(req: NextRequest) {
     const message = error instanceof Error ? error.message : 'Failed to sync transactions';
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+function emptyStats(accounts: { accountId: string; account: { name: string } }[] = []): SyncResult {
+  return {
+    added: 0,
+    modified: 0,
+    removed: 0,
+    skippedDuplicates: 0,
+    skippedOld: 0,
+    autoCategorized: 0,
+    merged: 0,
+    transfersDetected: 0,
+    byAccount: accounts.map((c) => ({
+      accountId: c.accountId,
+      accountName: c.account.name,
+      added: 0,
+      merged: 0,
+      modified: 0,
+      removed: 0,
+      skippedDuplicates: 0,
+    })),
+    historyComplete: true,
+    oldestTransactionDate: null,
+  };
+}
+
+/** Preview for an item with only investment accounts: nothing to import as transactions. */
+function emptyPreview(
+  accounts: { accountId: string; account: { name: string } }[],
+  daysToSync: number
+): DryRunResult {
+  const to = new Date();
+  const from = new Date(to.getTime() - daysToSync * 24 * 60 * 60 * 1000);
+  return {
+    stats: emptyStats(accounts),
+    transactions: [],
+    dateRange: { from: from.toISOString().split('T')[0], to: to.toISOString().split('T')[0] },
+    totalFetched: 0,
+  };
 }
