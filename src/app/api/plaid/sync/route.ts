@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { syncPlaidTransactions } from '@/lib/plaid-sync';
+import { syncPlaidInvestments } from '@/lib/investments/plaid-investment-sync';
 import { withSyncLock } from '@/lib/sync-common';
 import { classifyPlaidError } from '@/lib/bank-errors';
 
@@ -42,6 +43,30 @@ export async function POST(req: NextRequest) {
         { error: 'Account requires re-authentication', code: 'NEEDS_REAUTH' },
         { status: 400 }
       );
+    }
+
+    if (connection.account.trackingMode === 'investment') {
+      if (dryRun) {
+        return NextResponse.json({ success: true, dryRun: true, investment: true, skipped: true });
+      }
+      // Same per-enrollment lock key as the transaction path. Re-auth errors are
+      // rethrown by syncPlaidInvestments and handled by the catch below.
+      const result = await withSyncLock(`plaid:${connection.plaidEnrollment.id}`, () =>
+        syncPlaidInvestments(connection)
+      );
+      // 'pending' steps are not failures; only 'error' steps fail the sync.
+      const failed = Object.entries(result.errors).filter(
+        ([step]) => result.steps[step as keyof typeof result.steps] === 'error'
+      );
+      await prisma.plaidConnection.update({
+        where: { accountId },
+        data: {
+          lastSyncAt: new Date(),
+          lastSyncStatus: failed.length ? 'error' : 'success',
+          lastSyncError: failed.length ? failed.map(([s, m]) => `${s}: ${m}`).join('; ') : null,
+        },
+      });
+      return NextResponse.json({ success: true, investment: true, ...result });
     }
 
     // Serialize real syncs by enrollment: Plaid's transactionsSync cursor is
