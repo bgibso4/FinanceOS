@@ -21,6 +21,7 @@ import {
   type MappedTransaction,
   type RetryOptions,
 } from '@/lib/sync-common';
+import { relinkInvestmentTransfers } from '@/lib/investments/transfer-linking';
 
 /**
  * Wrap a Plaid SDK call with retry/backoff/timeout.
@@ -167,10 +168,13 @@ export async function syncPlaidTransactions(
   // Build routing map for ALL connections under this enrollment.
   // Plaid returns transactions for all accounts in an item, but the cursor is shared.
   // We must process transactions for all sibling accounts to avoid silently dropping them.
+  // Investment-mode accounts are excluded: they never hold Transaction rows (the investment
+  // sync owns them), so their rows fall through the `!target` checks below.
   const siblingConnections = await prisma.plaidConnection.findMany({
     where: {
       plaidEnrollmentId: plaidEnrollment.id,
       status: 'connected',
+      account: { trackingMode: { not: 'investment' } },
     },
     include: { account: true },
   });
@@ -462,6 +466,8 @@ export async function syncPlaidTransactions(
       stats.transfersDetected += transferResult.transfersDetected;
     }
   }
+  // Spec §4.5: retry investment linking from the bank side too, now that new rows exist.
+  if (newTransactionIdsByAccount.size > 0) await relinkInvestmentTransfers(prisma);
 
   return stats;
 }

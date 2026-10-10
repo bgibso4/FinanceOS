@@ -1216,4 +1216,44 @@ describe('teller-sync', () => {
       expect(transactions).toHaveLength(3);
     });
   });
+  describe('investment transfer linking', () => {
+    it('links a pre-existing unlinked investment deposit to a newly synced bank row', async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const brokerage = await prisma.account.create({
+        data: {
+          ...createAccountData({ name: 'Brokerage', type: 'brokerage' }),
+          trackingMode: 'investment',
+          balanceSource: 'provider',
+        },
+      });
+      const deposit = await prisma.investmentTransaction.create({
+        data: {
+          accountId: brokerage.id,
+          externalId: 'inv-deposit',
+          date: new Date(`${today}T00:00:00.000Z`),
+          type: 'cash',
+          subtype: 'deposit',
+          name: 'Deposit',
+          amount: -500,
+          currency: 'USD',
+          source: 'plaid',
+        },
+      });
+      vi.mocked(tellerFetch).mockResolvedValueOnce([
+        createMockTellerTransaction({ id: 'bank-dep', amount: '500.00', date: today }),
+      ]);
+      await createTellerDbRecords(testAccountId);
+
+      await syncTellerTransactions(createMockTellerConnection(testAccountId));
+
+      const bankRow = await prisma.transaction.findFirstOrThrow({
+        where: { accountId: testAccountId, externalId: 'bank-dep' },
+      });
+      const linked = await prisma.investmentTransaction.findUniqueOrThrow({
+        where: { id: deposit.id },
+      });
+      expect(linked.linkedTransactionId).toBe(bankRow.id);
+      expect(bankRow.isTransfer).toBe(true);
+    });
+  });
 });
