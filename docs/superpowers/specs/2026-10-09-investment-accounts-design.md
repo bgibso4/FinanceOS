@@ -180,8 +180,10 @@ These rows are exact (quantities only change on edit).
 
 ### Manual accounts (`balanceSource = manual`)
 
-User records a balance (amount + date) → `AccountBalance` (`source: manual`). Optionally units +
-unit price for a single fund.
+User records a balance (amount + date) → `AccountBalance` (`source: manual`). The account's
+single holding (e.g. a group fund with no public ticker) is kept as one `HoldingSnapshot` whose
+value equals the recorded balance, so it appears in holdings and allocation; no units/price entry
+in stage 1.
 
 ### Derived history for provider accounts (read-time, not stored)
 
