@@ -195,7 +195,8 @@ describe('syncPlaidInvestments', () => {
     plaidMock({
       investmentsHoldingsGet: vi.fn(async () => ({ data: { holdings: [], securities: [] } })),
     });
-    await syncPlaidInvestments(conn, { now: NOW });
+    const r = await syncPlaidInvestments(conn, { now: NOW });
+    expect(r.steps.holdings).toBe('ok');
     expect(await testPrisma.holdingSnapshot.count()).toBe(0);
   });
 
@@ -234,6 +235,17 @@ describe('syncPlaidInvestments', () => {
       include: { security: true },
     });
     expect(sold.security?.ticker).toBe('TOLD');
+  });
+
+  it('marks holdings pending on an empty first extraction and keeps the balance', async () => {
+    plaidMock({
+      investmentsHoldingsGet: vi.fn(async () => ({ data: { holdings: [], securities: [] } })),
+    });
+    const r = await syncPlaidInvestments(conn, { now: NOW });
+    expect(r.steps.holdings).toBe('pending');
+    expect(r.errors.holdings).toBeTruthy();
+    expect(r.steps.balance).toBe('ok');
+    expect(await testPrisma.holdingSnapshot.count()).toBe(0);
   });
 
   it('marks cancelled transactions', async () => {

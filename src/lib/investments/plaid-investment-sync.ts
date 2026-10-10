@@ -170,10 +170,9 @@ export async function syncPlaidInvestments(
     counts: { holdings: 0, transactions: 0, cancelled: 0, linked: 0 },
   };
 
-  async function runStep(step: InvestmentStep, fn: () => Promise<void>) {
+  async function runStep(step: InvestmentStep, fn: () => Promise<void | 'pending'>) {
     try {
-      await fn();
-      result.steps[step] = 'ok';
+      result.steps[step] = (await fn()) ?? 'ok';
     } catch (error) {
       const { needsReauth, code, reason } = classifyPlaidError(error);
       if (needsReauth) throw error;
@@ -211,6 +210,14 @@ export async function syncPlaidInvestments(
       const holdings = res.data.holdings
         .filter((h) => h.account_id === conn.plaidAccountId)
         .map(mapHolding);
+      if (!holdings.length) {
+        // Empty first extraction: keep prior data and wait for the institution to report.
+        const prior = await prisma.holdingSnapshot.count({ where: { accountId, source: 'plaid' } });
+        if (!prior) {
+          result.errors.holdings = 'No holdings reported yet (institution extraction pending)';
+          return 'pending';
+        }
+      }
       const securityIds = await upsertSecurities(res.data.securities);
       await prisma.$transaction([
         prisma.holdingSnapshot.deleteMany({ where: { accountId, date: today } }),
