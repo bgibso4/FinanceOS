@@ -5,6 +5,7 @@ import { decryptAccessToken } from '@/lib/encryption';
 import { classifyPlaidError } from '@/lib/bank-errors';
 import { retryWithBackoff, RateLimitError } from '@/lib/sync-common';
 import { utcDay, addDays, isoDay } from './dates';
+import { linkInvestmentTransfers } from './transfer-linking';
 import {
   mapSecurity,
   mapHolding,
@@ -301,7 +302,6 @@ export async function syncPlaidInvestments(
   });
 
   await runStep('linking', async () => {
-    const { linkInvestmentTransfers } = await import('./transfer-linking');
     result.counts.linked = await linkInvestmentTransfers(prisma, [accountId]);
   });
 
