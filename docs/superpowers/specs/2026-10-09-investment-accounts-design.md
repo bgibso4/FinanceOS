@@ -1,7 +1,7 @@
 # Investment Accounts (Stage 1) — Design
 
 **Date:** 2026-10-09
-**Status:** Design approved in chat; awaiting high-fidelity mock approval (see §9)
+**Status:** Design and high-fidelity mocks approved (2026-10-10); awaiting final spec review
 **Branch:** `feat/plaid-investments-link`
 
 ## 1. Goal
@@ -29,6 +29,8 @@ gains). Stage 1's data model is designed so stage 2 builds on it without restruc
 ### Out of scope (stage 2 or later)
 
 - Importing the Sheets Trade Log; reconstructing pre-go-live holdings from trades
+- Per-purchase lots / tax lots, realized gains (issue #30). Stage 1 displays holdings at the
+  position level only (per account, and aggregated per security across accounts)
 - Categories, targets, Re-Balancing, performance/benchmark dashboards, realized gains
 - Auto-sync / background sync for any account (separate future effort)
 - Automatic FX rates (existing manual `ExchangeRate` stays)
@@ -222,36 +224,88 @@ goals stay valid):
 
 Left unlinked: Fidelity unvested RSU account; closed Schwab Contributory IRA.
 
-## 8. UI (minimal; final visuals per approved mocks)
+## 8. UI (per approved mocks, §9)
 
-- **`/investments` page** (new route + side-nav entry): portfolio total; per-account rows with
-  balance, source badge (Plaid / Valued / Manual), "as of" date, estimated/stale indicators;
-  expand → latest holdings table (security, quantity, price, value, cost basis, unrealized gain
-  where known) and investment activity list.
-- **Settings → account modal (investment accounts):** balance-source selector; manual →
-  "Record balance" (amount + date) replacing adjustment-based reconcile; valuation → holdings
-  editor (security search/add, quantity) with price-symbol override.
-- **Settings → Plaid account mapping:** investment-type Plaid accounts default to investment
-  mode; option to treat a depository account as investment.
-- **Transactions list:** bank transactions linked to an investment transfer show
-  "→ <investment account>" and remain excluded as transfers.
-- **States to design:** stale prices ("Prices as of …"), estimated history, Plaid pending
-  ("Waiting on institution"), needs-reauth, `pricing = none` securities.
+Principle: start minimal and add later. "Balance change" is never labelled "return" (contributions
+are not separated for every account in stage 1).
 
-## 9. Mock-driven design gate
+### `/investments` page (new route + side-nav entry)
 
-Before the implementation plan is written, high-fidelity HTML mocks (Friedrik design system,
-realistic data) are produced and **approved by the user**. Mocks live in
-`~/Documents/FinanceOS-design-archive/design-mocks/investments/`. Screens:
+Inside the standard app container (max-width 1400px), two cards side by side:
 
-1. `/investments` — overview (all accounts)
-2. `/investments` — expanded account (holdings + activity)
-3. `/investments` — states: stale prices, estimated history, waiting on institution, needs reauth
-4. Settings modal — provider / valuation (holdings editor) / manual (record balance)
-5. Settings — Plaid mapping for investment accounts
-6. Transactions — linked investment-transfer row
+- **Navigator (left, ~400px, sticky):** an **All accounts** row (selected by default, portfolio
+  total), then accounts grouped **Retirement / Taxable / Crypto** (derived from account type:
+  retirement → Retirement; brokerage and cash-management → Taxable; crypto → Crypto), each row:
+  institution mark, name, institution · wrapper, sparkline (dashed where estimated), value.
+  Status dots on rows for waiting-on-institution (accent) and needs-reauth (red).
+- **Detail (right):** everything scoped to the selection (All accounts or one account):
+  - Header: name; for an account: institution · wrapper, source pill (Plaid / Valued / Manual),
+    sync/price/entry freshness; action button — **Record balance** (manual) or
+    **Edit holdings** (valued); none for Plaid (sync stays in Settings).
+  - **Minimal headline:** value + balance change ($, %) for the selected range. No stats row.
+  - Area chart with range tabs **1M / 3M / YTD / 1Y** (tabs in the page header); estimated
+    segments dashed. Manual accounts: entry dots + dashed carry-forward, legend
+    "Entered / Carried forward", entry list under the chart.
+  - **Holdings map** (treemap: size = value, muted diverging color = range price change) and
+    **Allocation** bars (by Type / Account type / Currency for All accounts; by Type for one
+    account). Both hidden when the selection has a single position.
+  - **Holdings:** All accounts → one row per security aggregated across accounts (grouped by
+    `Security`; Plaid `security_id` is shared across institutions), with an "N accounts" tag, no
+    per-position expansion. One account → that account's positions. Columns: security,
+    value, gain (only when every underlying position has cost basis), weight.
+  - **Activity:** recent investment transactions (merged across accounts, labelled by account,
+    for All accounts). A dividend and its same-day reinvestment display as one
+    "Dividend reinvested" line.
+- **States:** stale prices (header note "Prices as of … · Retry" + notice on valued accounts);
+  waiting on institution (notice: showing holdings from <date>, balance current); needs reauth
+  (notice with **Reconnect**); `pricing = none` security flagged with **Set symbol**.
+- Header shows "Prices as of <last close>" in muted text.
 
-This spec is updated with the approved mock filenames before planning.
+### Settings → Manage account modal (investment accounts)
+
+Same modal and section order as today.
+
+- **Tracking mode** select gains **Investment — holdings & balance history**; choosing it shows a
+  **Balance source** radio group: **Synced** (Plaid; disabled without a connection) /
+  **Valued** / **Manual** (UI labels for `provider` / `valuation` / `manual`).
+- **Reconcile Balance** section is removed for investment accounts and replaced by:
+  - Synced: Bank Connection section (last sync summary incl. "trades not reported" where
+    applicable, Sync now / Disconnect) + read-only holdings with pricing source.
+  - Valued: holdings editor (security, units input, price, value, remove; "+ Add security"
+    ticker search; symbol edit / manual price for `pricing = none`); Save holdings.
+  - Manual: **Record Balance** (amount + as-of date) and a deletable **Balance History** list
+    (migrated entries labelled "migrated from adjustments").
+
+### Settings → Connected Institutions (Plaid)
+
+Discovered accounts keep Add / Ignore. **Add** for an investment-type Plaid account pre-selects
+**Investment** tracking (balance source Synced) with an explanatory note; depository accounts can
+opt in. Existing accounts are linked by the migration script, not this UI.
+
+### Transactions list
+
+A bank transaction linked to an investment deposit/withdrawal stays a Transfer row with a
+"→ <account> · <institution>" chip; hover shows the matched deposit (account, amount, date,
+Plaid description), the match rule, and **Unlink**. Unmatched transfers whose counterparty is a
+linked investment institution show a muted "Transfer · not matched" chip. Investment activity
+never appears in this list.
+
+## 9. Approved mocks
+
+High-fidelity HTML mocks (Friedrik tokens, real balances/holdings, illustrative history) approved
+by the user on 2026-10-10. Location:
+`~/Documents/FinanceOS-design-archive/design-mocks/investments/layouts/`
+
+| File | Covers |
+|---|---|
+| `a3-navigator.html` | `/investments` — navigator + scoped detail, All accounts and per-account views, all edge states (mock-state switcher) |
+| `settings-investments.html` | (1) Manage account modal: Synced / Valued / Manual; (2) Add from Plaid; (3) linked-transfer row in Transactions |
+| `shared.css`, `shared.js` | Shared tokens, mock data and chart/treemap renderers used by the above |
+
+Explored and not chosen (kept for reference): `investments-page.html` (first draft:
+institution-grouped tables), `a-split-pane.html` (full-bleed), `a2-split-contained.html`,
+`b-single-column.html`, `c-snapshot-bento.html`, `compare.html`. Design research references
+are in `../references/`.
 
 ## 10. Error handling summary
 
