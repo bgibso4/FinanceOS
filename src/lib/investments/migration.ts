@@ -87,6 +87,16 @@ export async function buildMigrationPlan(
   const config = MigrationConfigSchema.parse(input);
   const plan: MigrationPlan = { convert: [], create: [], skipped: [] };
 
+  const ids = config.accounts.map((e) => e.accountId);
+  const dupId = ids.find((id, i) => ids.indexOf(id) !== i);
+  if (dupId) throw new Error(`Account ${dupId} is listed more than once in the config`);
+  const claimed = new Set<string>();
+  const claim = (p: PlaidAccountRef, who: string) => {
+    const key = `${p.enrollmentId}:${p.accountId}`;
+    if (claimed.has(key)) throw new Error(`${who}: Plaid account already claimed by another entry`);
+    claimed.add(key);
+  };
+
   for (const entry of config.accounts) {
     const account = await prisma.account.findUniqueOrThrow({ where: { id: entry.accountId } });
     if (account.trackingMode === 'investment') {
@@ -105,6 +115,23 @@ export async function buildMigrationPlan(
         `Account ${account.id}: provider accounts need a plaid { institution, mask }`
       );
     }
+    const plaid = entry.plaid ? matchPlaid(entry.plaid, plaidAccounts) : null;
+    if (plaid) {
+      claim(plaid, `Account ${account.id}`);
+      const existing = await prisma.plaidConnection.findFirst({
+        where: {
+          OR: [
+            { accountId: account.id },
+            { plaidEnrollmentId: plaid.enrollmentId, plaidAccountId: plaid.accountId },
+          ],
+        },
+      });
+      if (existing) {
+        throw new Error(
+          `Account ${account.id}: Plaid connection conflict (account already has a connection, or the Plaid account is linked elsewhere)`
+        );
+      }
+    }
     plan.convert.push({
       accountId: account.id,
       accountName: account.name,
@@ -112,12 +139,13 @@ export async function buildMigrationPlan(
       currency: account.currency,
       balances: replayAdjustments(txns.map((t) => ({ date: t.date, amount: t.amount }))),
       adjustmentIds: txns.map((t) => t.id),
-      plaid: entry.plaid ? matchPlaid(entry.plaid, plaidAccounts) : null,
+      plaid,
     });
   }
 
   for (const entry of config.create) {
     const plaid = matchPlaid(entry.plaid, plaidAccounts);
+    claim(plaid, `Create "${entry.name}"`);
     const linked = await prisma.plaidConnection.findFirst({
       where: { plaidEnrollmentId: plaid.enrollmentId, plaidAccountId: plaid.accountId },
     });

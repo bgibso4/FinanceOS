@@ -8,8 +8,7 @@
  *   npx tsx --env-file=.env scripts/migrate-investment-accounts.ts <config.json>          # dry run
  *   npx tsx --env-file=.env scripts/migrate-investment-accounts.ts <config.json> --apply  # backup + write + first sync
  */
-import { copyFileSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { prisma } from '../src/lib/prisma';
 import { getPlaidClient } from '../src/lib/plaid';
 import { decryptAccessToken } from '../src/lib/encryption';
@@ -22,12 +21,18 @@ import { syncPlaidInvestments } from '../src/lib/investments/plaid-investment-sy
 
 const APPLY = process.argv.includes('--apply');
 
-function dbFilePath(): string {
-  const url = process.env.DATABASE_URL ?? 'file:./prisma/dev.db';
-  const file = url.replace(/^file:/, '').split('?')[0];
-  return resolve(
-    file.startsWith('./') && !file.startsWith('./prisma') ? `prisma/${file.slice(2)}` : file
-  );
+/** Backs up the live database via the open connection; returns the backup path. */
+async function backupDatabase(): Promise<string> {
+  const rows =
+    await prisma.$queryRawUnsafe<{ name: string; file: string }[]>('PRAGMA database_list');
+  const file = rows.find((r) => r.name === 'main')?.file;
+  if (!file) throw new Error('Could not determine the main database file; aborting');
+  const backup = `${file}.backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+  await prisma.$executeRawUnsafe(`VACUUM INTO '${backup.replace(/'/g, "''")}'`);
+  if (!existsSync(backup) || statSync(backup).size === 0) {
+    throw new Error(`Backup ${backup} is missing or empty; aborting before any write`);
+  }
+  return backup;
 }
 
 async function loadPlaidAccounts(): Promise<PlaidAccountRef[]> {
@@ -81,9 +86,7 @@ async function main() {
     return;
   }
 
-  const db = dbFilePath();
-  const backup = `${db}.backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-  copyFileSync(db, backup);
+  const backup = await backupDatabase();
   console.warn(`\nBacked up database to ${backup}`);
 
   const { convertedAccountIds, createdAccountIds } = await applyMigrationPlan(prisma, plan);
@@ -93,11 +96,23 @@ async function main() {
     where: { accountId: { in: [...convertedAccountIds, ...createdAccountIds] } },
     include: { account: true, plaidEnrollment: true },
   });
+  let failed = 0;
   for (const conn of connections) {
-    const r = await syncPlaidInvestments(conn);
-    console.warn(
-      `  synced ${conn.account.name}: ${JSON.stringify(r.steps)} ${JSON.stringify(r.counts)}`
-    );
+    try {
+      const r = await syncPlaidInvestments(conn);
+      console.warn(
+        `  synced ${conn.account.name}: ${JSON.stringify(r.steps)} ${JSON.stringify(r.counts)}`
+      );
+    } catch (error) {
+      failed++;
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`  sync FAILED for ${conn.account.name}: ${message}`);
+    }
+  }
+  console.warn(`First sync: ${connections.length - failed} ok, ${failed} failed.`);
+  if (failed) {
+    console.warn('The regular Settings sync will retry the failed accounts.');
+    process.exitCode = 1;
   }
 }
 

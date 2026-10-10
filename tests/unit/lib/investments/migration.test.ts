@@ -248,4 +248,97 @@ describe('buildMigrationPlan / applyMigrationPlan', () => {
     const again = await buildMigrationPlan(prisma, config, plaidAccounts());
     expect(again.create).toHaveLength(0);
   });
+
+  describe('conflict detection', () => {
+    const provider = (accountId: string, mask: string) => ({
+      accountId,
+      balanceSource: 'provider' as const,
+      plaid: { institution: 'Test Brokerage', mask },
+    });
+
+    it('rejects an account listed twice', async () => {
+      const a = await legacyAccount();
+      await expect(
+        buildMigrationPlan(
+          prisma,
+          {
+            accounts: [
+              { accountId: a.id, balanceSource: 'manual' },
+              { accountId: a.id, balanceSource: 'manual' },
+            ],
+            create: [],
+          },
+          []
+        )
+      ).rejects.toThrow(/more than once/);
+    });
+
+    it('rejects an account that already has a Plaid connection', async () => {
+      const a = await legacyAccount();
+      await prisma.plaidConnection.create({
+        data: {
+          accountId: a.id,
+          plaidEnrollmentId: enrollmentId,
+          plaidAccountId: 'other',
+          status: 'connected',
+        },
+      });
+      await expect(
+        buildMigrationPlan(
+          prisma,
+          { accounts: [provider(a.id, '1111')], create: [] },
+          plaidAccounts()
+        )
+      ).rejects.toThrow(/conflict/);
+    });
+
+    it('rejects a Plaid account already linked to a different account', async () => {
+      const a = await legacyAccount();
+      const b = await legacyAccount();
+      await prisma.plaidConnection.create({
+        data: {
+          accountId: b.id,
+          plaidEnrollmentId: enrollmentId,
+          plaidAccountId: 'pa-1',
+          status: 'connected',
+        },
+      });
+      await expect(
+        buildMigrationPlan(
+          prisma,
+          { accounts: [provider(a.id, '1111')], create: [] },
+          plaidAccounts()
+        )
+      ).rejects.toThrow(/conflict/);
+    });
+
+    it('rejects two entries resolving to the same Plaid account', async () => {
+      const a = await legacyAccount();
+      const b = await legacyAccount();
+      await expect(
+        buildMigrationPlan(
+          prisma,
+          { accounts: [provider(a.id, '1111'), provider(b.id, '1111')], create: [] },
+          plaidAccounts()
+        )
+      ).rejects.toThrow(/already claimed/);
+      await expect(
+        buildMigrationPlan(
+          prisma,
+          {
+            accounts: [provider(a.id, '1111')],
+            create: [
+              {
+                name: 'X',
+                type: 'brokerage',
+                currency: 'USD',
+                plaid: { institution: 'Test Brokerage', mask: '1111' },
+              },
+            ],
+          },
+          plaidAccounts()
+        )
+      ).rejects.toThrow(/already claimed/);
+    });
+  });
 });
