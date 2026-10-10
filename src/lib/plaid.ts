@@ -1,4 +1,4 @@
-import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid';
+import { Configuration, PlaidApi, PlaidEnvironments, Products } from 'plaid';
 
 let plaidClient: PlaidApi | null = null;
 
@@ -23,4 +23,21 @@ export function getPlaidClient(): PlaidApi {
 
   plaidClient = new PlaidApi(configuration);
   return plaidClient;
+}
+
+export type PlaidLinkKind = 'banking' | 'investments';
+
+/**
+ * Product arrays for a new-connection link token. Plaid hides accounts that don't support
+ * every product in `products`, so brokerage/IRA/401k/HSA accounts need Investments there,
+ * with Transactions optional to still pick up any cash activity the institution exposes.
+ */
+export function linkProductsFor(kind: PlaidLinkKind): {
+  products: Products[];
+  optional_products?: Products[];
+} {
+  if (kind === 'investments') {
+    return { products: [Products.Investments], optional_products: [Products.Transactions] };
+  }
+  return { products: [Products.Transactions] };
 }

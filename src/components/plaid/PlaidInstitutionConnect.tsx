@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { usePlaidLink, PlaidLinkOptions, PlaidLinkOnSuccess } from 'react-plaid-link';
 import { Button } from '@/components/ui/button';
+import type { PlaidLinkKind } from '@/lib/plaid';
 
 interface PlaidInstitutionConnectProps {
   onSuccess: () => void;
   onExit?: () => void;
   className?: string;
   buttonText?: string;
+  kind?: PlaidLinkKind;
 }
 
 export function PlaidInstitutionConnect({
@@ -16,6 +18,7 @@ export function PlaidInstitutionConnect({
   onExit,
   className,
   buttonText,
+  kind = 'banking',
 }: PlaidInstitutionConnectProps) {
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,7 +33,7 @@ export function PlaidInstitutionConnect({
         const res = await fetch('/api/plaid/link-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
+          body: JSON.stringify({ kind }),
         });
         const data = await res.json();
         if (data.error) {
@@ -45,7 +48,7 @@ export function PlaidInstitutionConnect({
     };
 
     fetchLinkToken();
-  }, []);
+  }, [kind]);
 
   const handleSuccess: PlaidLinkOnSuccess = useCallback(
     async (publicToken, metadata) => {
