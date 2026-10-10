@@ -3,6 +3,7 @@ import { tool } from 'ai';
 import { subMonths } from 'date-fns';
 import type { PrismaClient } from '@prisma/client';
 import type { ChartSpec } from '@/lib/types';
+import { getAccountBalances } from '@/lib/balances';
 
 // ---------------------------------------------------------------------------
 // 1. executeGetCategories
@@ -119,22 +120,22 @@ export async function executeGetAccountBalances(
   const accounts = await prisma.account.findMany({
     where: { isActive: true },
     select: {
+      id: true,
       name: true,
       type: true,
       institution: true,
       currency: true,
-      transactions: {
-        select: { amount: true },
-      },
+      trackingMode: true,
     },
   });
+  const resolved = await getAccountBalances(prisma, accounts);
 
   return accounts.map((a) => ({
     name: a.name,
     type: a.type,
     institution: a.institution,
     currency: a.currency,
-    balance: a.transactions.reduce((sum, t) => sum + t.amount, 0),
+    balance: resolved.get(a.id)?.balance ?? 0,
   }));
 }
 
