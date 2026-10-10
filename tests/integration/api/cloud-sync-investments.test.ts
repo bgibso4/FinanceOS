@@ -2,8 +2,10 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { setupTestDb, teardownTestDb, resetTestDb } from '../../helpers/db';
 import { createAccountData } from '../../helpers/factories';
+import type { SyncPayload } from '@/lib/cloud-sync/types';
 import {
   exportDatabase,
+  generateChecksum,
   importDatabase,
   setPrismaClient,
   resetPrismaClient,
@@ -106,9 +108,13 @@ describe('cloud sync — investment data', () => {
     expect(inv.linkedTransactionId).toBe(bankTx.id);
   });
 
-  it('imports payloads from before investment support', async () => {
+  async function legacyPayload() {
+    await prisma.account.create({ data: createAccountData() });
     const payload = await exportDatabase();
-    const legacy = structuredClone(payload) as unknown as { data: Record<string, unknown> };
+    const legacy = structuredClone(payload) as unknown as {
+      data: Record<string, unknown> & { accounts: Record<string, unknown>[] };
+      metadata: { checksum: string };
+    };
     for (const k of [
       'accountBalances',
       'securities',
@@ -118,7 +124,46 @@ describe('cloud sync — investment data', () => {
       'investmentTransactions',
     ])
       delete legacy.data[k];
-    const { validateSyncPayload } = await import('@/lib/cloud-sync/types');
-    expect(() => validateSyncPayload(legacy as never)).not.toThrow();
+    for (const a of legacy.data.accounts) delete a.balanceSource;
+    legacy.metadata.checksum = await generateChecksum(legacy.data as never);
+    return legacy as unknown as SyncPayload;
+  }
+
+  it('imports payloads from before investment support when there is no local investment data', async () => {
+    const legacy = await legacyPayload();
+    await resetTestDb();
+    await importDatabase(legacy);
+    expect(await prisma.account.count()).toBe(1);
+  });
+
+  it('refuses an old-format payload that would wipe local investment data', async () => {
+    const legacy = await legacyPayload();
+    const brokerage = await prisma.account.create({
+      data: {
+        ...createAccountData({ type: 'brokerage' }),
+        trackingMode: 'investment',
+        balanceSource: 'provider',
+      },
+    });
+    await prisma.accountBalance.create({
+      data: {
+        accountId: brokerage.id,
+        date: new Date('2026-10-09T00:00:00.000Z'),
+        balance: 100,
+        currency: 'USD',
+        source: 'plaid',
+      },
+    });
+    await expect(importDatabase(legacy)).rejects.toThrow(/older FinanceOS version/);
+    expect(await prisma.accountBalance.count()).toBe(1);
+    expect(await prisma.account.count()).toBe(2);
+  });
+
+  it('refuses an old-format payload when an investment-mode account exists with no rows yet', async () => {
+    const legacy = await legacyPayload();
+    await prisma.account.create({
+      data: { ...createAccountData({ type: 'brokerage' }), trackingMode: 'investment' },
+    });
+    await expect(importDatabase(legacy)).rejects.toThrow(/older FinanceOS version/);
   });
 });

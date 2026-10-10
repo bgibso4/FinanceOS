@@ -401,6 +401,17 @@ export async function exportDatabase(): Promise<SyncPayload> {
   return payload;
 }
 
+async function hasLocalInvestmentData(): Promise<boolean> {
+  const db = getPrisma();
+  const found = await Promise.all([
+    db.accountBalance.findFirst({ select: { id: true } }),
+    db.investmentTransaction.findFirst({ select: { id: true } }),
+    db.holdingSnapshot.findFirst({ select: { id: true } }),
+    db.account.findFirst({ where: { trackingMode: 'investment' }, select: { id: true } }),
+  ]);
+  return found.some(Boolean);
+}
+
 /**
  * Import a sync payload into the database
  * Replaces all existing data (except Plaid/Teller connections)
@@ -416,6 +427,15 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
   }
 
   const { data } = validated;
+
+  // A payload from a build without investment support has no investment arrays. Importing it
+  // would delete every local investment row and restore pre-migration accounts, so refuse it
+  // when there is investment data to lose.
+  if (data.accountBalances === undefined && (await hasLocalInvestmentData())) {
+    throw new Error(
+      'Cloud data is from an older FinanceOS version; update the other device and push again'
+    );
+  }
 
   // Use a transaction to ensure atomicity
   await getPrisma().$transaction(async (tx) => {
