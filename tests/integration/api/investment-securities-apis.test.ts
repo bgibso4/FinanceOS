@@ -23,6 +23,7 @@ vi.mock('@/lib/investments/services', async (importOriginal) => ({
 }));
 
 import { getInvestmentServices } from '@/lib/investments/services';
+import { isoDay } from '@/lib/investments/dates';
 import { GET as search } from '@/app/api/investments/securities/search/route';
 import { POST as create } from '@/app/api/investments/securities/route';
 import { PATCH as patch } from '@/app/api/investments/securities/[id]/route';
@@ -72,7 +73,7 @@ describe('investment securities APIs', () => {
     expect((await create(json('POST', { symbol: 'NOPE' }))).status).toBe(400);
   });
 
-  it('PATCH priceSymbol re-arms feed pricing and drops the old symbol prices', async () => {
+  it('PATCH priceSymbol re-arms feed pricing and reprices under the new symbol', async () => {
     const s = await seedSecurity(testPrisma, { priceSymbol: 'OLD', pricing: 'none' });
     await seedPrice(testPrisma, s.id, '2026-10-01', 1);
     await seedPrice(testPrisma, s.id, '2026-10-01', 1, 'plaid');
@@ -82,9 +83,10 @@ describe('investment securities APIs', () => {
       pricing: 'feed',
       priceSymbolOverride: true,
     });
-    expect(
-      await testPrisma.securityPrice.count({ where: { securityId: s.id, source: 'yahoo' } })
-    ).toBe(0);
+    const yahoo = await testPrisma.securityPrice.findMany({
+      where: { securityId: s.id, source: 'yahoo' },
+    });
+    expect(yahoo.map((p) => [isoDay(p.date), p.close])).toEqual([['2026-10-09', 20]]);
     expect(
       await testPrisma.securityPrice.count({ where: { securityId: s.id, source: 'plaid' } })
     ).toBe(1);

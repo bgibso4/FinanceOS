@@ -39,7 +39,7 @@ export function createInvestmentServices(deps: {
     manualHoldings,
     valuation,
     history: new ValueHistoryService(prisma),
-    refresh: new InvestmentRefreshService(prices, valuation),
+    refresh: new InvestmentRefreshService(prices, valuation, catalog),
   };
 }
 

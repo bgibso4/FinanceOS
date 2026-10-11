@@ -17,14 +17,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   );
   if ('response' in body) return body.response;
   try {
-    const { catalog, valuation } = await getInvestmentServices();
-    if ('priceSymbol' in body.data) {
-      return NextResponse.json({
-        security: await catalog.setPriceSymbol(id, body.data.priceSymbol),
-      });
-    }
-    const security = await catalog.setManualPrice(id, body.data.manualPrice);
-    await valuation.writeBalances();
+    const { refresh } = await getInvestmentServices();
+    const security =
+      'priceSymbol' in body.data
+        ? await refresh.setPriceSymbol(id, body.data.priceSymbol)
+        : await refresh.setManualPrice(id, body.data.manualPrice);
     return NextResponse.json({ security });
   } catch (error) {
     return investmentErrorResponse(error, 'Failed to update security');

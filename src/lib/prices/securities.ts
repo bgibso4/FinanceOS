@@ -49,7 +49,10 @@ export class SecurityCatalog {
     return { security, created: true };
   }
 
-  /** Point a security at a new feed symbol (validated by a quote) and drop the old symbol's data. */
+  /**
+   * Point a security at a new feed symbol (validated by a quote) and drop the old symbol's data.
+   * Callers reprice and revalue under the refresh lock (`InvestmentRefreshService.setPriceSymbol`).
+   */
   async setPriceSymbol(id: string, symbol: string): Promise<Security> {
     await this.requireSecurity(id);
     const priceSymbol = symbol.trim().toUpperCase();
@@ -65,7 +68,7 @@ export class SecurityCatalog {
     return security;
   }
 
-  /** Price a security by hand from today. Callers revalue (`valuation.writeBalances()`) after. */
+  /** Price a security by hand from today. Callers revalue (`InvestmentRefreshService.setManualPrice`). */
   async setManualPrice(id: string, price: number): Promise<Security> {
     await this.requireSecurity(id);
     const date = utcDay(this.clock.now());
