@@ -123,12 +123,15 @@ class ProviderValueDeriver {
       orderBy: { date: 'asc' },
     });
     if (!snapshots.length) return null;
+    const lastSnapshot = snapshots[snapshots.length - 1].date;
+    // Everything is read to the same horizon so a day's value never depends on the requested range.
+    const horizon = lastSnapshot > to ? lastSnapshot : to;
     const flows = await prisma.investmentTransaction.findMany({
       where: {
         accountId: account.id,
         isCancelled: false,
         type: { not: 'cancel' },
-        date: { lte: to },
+        date: { lte: horizon },
       },
       include: { security: securitySelect },
       orderBy: { date: 'asc' },
@@ -144,12 +147,7 @@ class ProviderValueDeriver {
         r.security ? [[r.security.id, r.security] as const] : []
       )
     );
-    const lastSnapshot = snapshots[snapshots.length - 1].date;
-    const book = await PriceBook.load(
-      prisma,
-      [...securities.keys()],
-      lastSnapshot > to ? lastSnapshot : to
-    );
+    const book = await PriceBook.load(prisma, [...securities.keys()], horizon);
     return new ProviderValueDeriver(
       [...setOn.keys()],
       setOn,

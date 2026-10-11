@@ -169,6 +169,30 @@ describe('ValueHistoryService', () => {
     });
   });
 
+  it('provider: a day has the same value whether or not the series extends past a later trade', async () => {
+    const a = await seedInvestmentAccount(prisma);
+    const fund = await seedSecurity(prisma, { priceSymbol: null, pricing: 'plaid' });
+    for (const [date, quantity, price] of [
+      ['2026-10-01', 100, 10],
+      ['2026-10-11', 110, 12],
+    ] as const) {
+      await seedSnapshot(prisma, { accountId: a.id, securityId: fund.id, date, quantity, price });
+      await seedPrice(prisma, fund.id, date, price, 'plaid');
+    }
+    await seedBalance(prisma, a.id, '2026-10-01', 1000);
+    await seedTrade(prisma, {
+      accountId: a.id,
+      securityId: fund.id,
+      date: '2026-10-08',
+      type: 'buy',
+      quantity: 10,
+      amount: 100,
+    });
+    const short = await series(a.id, '2026-10-06', '2026-10-06');
+    const long = await series(a.id, '2026-10-06', '2026-10-10');
+    expect(short[0]).toEqual(long[0]);
+  });
+
   it('portfolio sums accounts in the base currency and flags any estimate', async () => {
     await prisma.exchangeRate.create({
       data: { fromCurrency: 'CAD', toCurrency: 'USD', rate: 0.75 },
