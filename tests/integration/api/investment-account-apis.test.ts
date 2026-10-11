@@ -73,7 +73,10 @@ describe('investment account APIs', () => {
       params({ id: a.id })
     );
     expect(res.status).toBe(200);
-    expect((await res.json()).balance).toBeNull();
+    const body = await res.json();
+    expect(body.balance).toBeNull();
+    expect(body.prices.stopped).toBe(true);
+    expect(await testPrisma.holdingSnapshot.count({ where: { accountId: a.id } })).toBe(1);
   });
 
   it('PUT holdings validates', async () => {

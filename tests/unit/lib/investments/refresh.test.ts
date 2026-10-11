@@ -54,4 +54,22 @@ describe('InvestmentRefreshService', () => {
     await Promise.all([services.refresh.refresh(), services.refresh.refresh()]);
     expect(calls).toHaveLength(1);
   });
+
+  it('serializes saveHoldings with a concurrent refresh', async () => {
+    const a = await seedInvestmentAccount(prisma, { balanceSource: 'valuation' });
+    const s = await seedSecurity(prisma, { priceSymbol: 'AAA' });
+    await seedSnapshot(prisma, {
+      accountId: a.id,
+      securityId: s.id,
+      date: '2026-10-09',
+      quantity: 1,
+      price: 1,
+    });
+    const { services, calls } = testServices(prisma, { closes: { AAA: { '2026-10-09': 1 } } });
+    await Promise.all([
+      services.refresh.refresh(),
+      services.refresh.saveHoldings(a.id, [{ securityId: s.id, quantity: 1 }]),
+    ]);
+    expect(calls).toHaveLength(1);
+  });
 });
