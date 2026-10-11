@@ -20,8 +20,22 @@ const FileSchema = z.object({
       z.object({
         accountId: z.string().min(1),
         holdings: z
-          .array(z.object({ symbol: z.string().min(1), quantity: z.number().positive() }))
-          .min(1),
+          .array(
+            z.object({
+              symbol: z.string().trim().toUpperCase().min(1),
+              quantity: z.number().positive(),
+            })
+          )
+          .min(1)
+          .superRefine((holdings, ctx) => {
+            const seen = new Set<string>();
+            for (const h of holdings) {
+              if (seen.has(h.symbol)) {
+                ctx.addIssue({ code: 'custom', message: `Duplicate symbol ${h.symbol}` });
+              }
+              seen.add(h.symbol);
+            }
+          }),
       })
     )
     .min(1),
@@ -46,7 +60,7 @@ async function main() {
     console.warn(`\n${account.name} (${account.currency}) — current ${fmt(current.balance)}`);
     let total = 0;
     for (const h of entry.holdings) {
-      const quote = await services.quotes.get(h.symbol.toUpperCase());
+      const quote = await services.quotes.get(h.symbol);
       const value = convertAmount(
         h.quantity * quote.price,
         quote.currency,
@@ -77,7 +91,12 @@ async function main() {
       where: { id: entry.accountId },
       data: { balanceSource: 'valuation' },
     });
-    await services.refresh.saveHoldings(entry.accountId, holdings);
+    const { prices } = await services.refresh.saveHoldings(entry.accountId, holdings);
+    if (prices.stopped) {
+      console.warn(
+        `${entry.accountId}: price refresh stopped (${prices.error}); its valued balance will fill in on the next POST /api/investments/refresh`
+      );
+    }
     const after = await getAccountBalance(prisma, entry.accountId);
     console.warn(`Switched ${entry.accountId}: balance ${fmt(after.balance)} (${after.source})`);
   }
