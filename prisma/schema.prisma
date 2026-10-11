@@ -15,7 +15,8 @@ model Account {
   currency         String            @default("USD")
   isActive         Boolean           @default(true)
   notes            String?
-  trackingMode     String            @default("cash_flow")  // "cash_flow" | "balance_only"
+  trackingMode     String            @default("cash_flow")  // "cash_flow" | "balance_only" | "investment"
+  balanceSource    String?           // investment accounts only: "provider" | "valuation" | "manual"
   invertAmounts    Boolean           @default(false) // Flip amount signs during bank sync (for accounts with inverted conventions)
   sortOrder        Int               @default(0)
   createdAt        DateTime          @default(now())
@@ -24,6 +25,9 @@ model Account {
   goals                     Goal[]
   plaidConnection           PlaidConnection?
   tellerConnection          TellerConnection?
+  balances                  AccountBalance[]
+  holdingSnapshots          HoldingSnapshot[]
+  investmentTransactions    InvestmentTransaction[]
 }
 
 // Plaid Enrollment: Institution-level connection (parallels TellerEnrollment)
@@ -178,6 +182,7 @@ model Transaction {
   parentTransactionId String?
   parentTransaction   Transaction? @relation("TransactionSplit", fields: [parentTransactionId], references: [id], onDelete: Cascade)
   splitParts          Transaction[] @relation("TransactionSplit")
+  investmentLinks    InvestmentTransaction[] @relation("InvestmentTransferLink")
 
   createdAt          DateTime    @default(now())
 
@@ -329,4 +334,112 @@ model IgnoredBankAccount {
 
   @@unique([provider, externalAccountId])
   @@index([provider, institutionId])
+}
+
+// Balance history for investment accounts. One row per account per UTC day.
+model AccountBalance {
+  id        String   @id @default(uuid())
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  date      DateTime // UTC midnight
+  balance   Float
+  currency  String
+  source    String   // "plaid" | "valuation" | "manual"
+  createdAt DateTime @default(now())
+
+  @@unique([accountId, date])
+  @@index([accountId])
+}
+
+model Security {
+  id                  String                  @id @default(uuid())
+  plaidSecurityId     String?                 @unique
+  ticker              String?
+  name                String
+  type                String // "etf" | "equity" | "mutual_fund" | "money_market" | "cash" | "crypto" | "other"
+  currency            String                  @default("USD")
+  exchangeMic         String?
+  priceSymbol         String? // price-provider symbol, e.g. "VIU.TO", "BTC-CAD"
+  priceSymbolOverride Boolean                 @default(false)
+  pricing             String // "feed" | "plaid" | "fixed" | "manual" | "none"
+  fixedPrice          Float?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  prices              SecurityPrice[]
+  events              SecurityEvent[]
+  holdings            HoldingSnapshot[]
+  transactions        InvestmentTransaction[]
+
+  @@index([ticker])
+}
+
+model SecurityPrice {
+  id         String   @id @default(uuid())
+  securityId String
+  security   Security @relation(fields: [securityId], references: [id], onDelete: Cascade)
+  date       DateTime // UTC midnight
+  close      Float // raw (unadjusted) close
+  source     String // "yahoo" | "plaid" | "manual"
+  createdAt  DateTime @default(now())
+
+  @@unique([securityId, date, source])
+}
+
+model SecurityEvent {
+  id         String   @id @default(uuid())
+  securityId String
+  security   Security @relation(fields: [securityId], references: [id], onDelete: Cascade)
+  date       DateTime
+  type       String // "dividend" | "split"
+  amount     Float?
+  ratio      Float?
+  source     String
+  createdAt  DateTime @default(now())
+
+  @@unique([securityId, date, type])
+}
+
+model HoldingSnapshot {
+  id         String   @id @default(uuid())
+  accountId  String
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  securityId String
+  security   Security @relation(fields: [securityId], references: [id])
+  date       DateTime // UTC midnight
+  quantity   Float
+  price      Float
+  value      Float
+  costBasis  Float?
+  source     String // "plaid" | "manual"
+  createdAt  DateTime @default(now())
+
+  @@unique([accountId, securityId, date])
+  @@index([accountId, date])
+}
+
+model InvestmentTransaction {
+  id                  String       @id @default(uuid())
+  accountId           String
+  account             Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  securityId          String?
+  security            Security?    @relation(fields: [securityId], references: [id], onDelete: SetNull)
+  externalId          String?
+  date                DateTime // UTC midnight
+  type                String // Plaid verbatim: buy | sell | cancel | cash | fee | transfer
+  subtype             String
+  name                String
+  quantity            Float?
+  price               Float?
+  amount              Float // Plaid sign: positive = cash leaves the account
+  fees                Float?
+  currency            String
+  source              String // "plaid" | "manual" | "import"
+  isCancelled         Boolean      @default(false)
+  linkedTransactionId String?
+  linkedTransaction   Transaction? @relation("InvestmentTransferLink", fields: [linkedTransactionId], references: [id], onDelete: SetNull)
+  createdAt           DateTime     @default(now())
+
+  @@unique([accountId, externalId])
+  @@index([accountId, date])
+  @@index([linkedTransactionId])
 }

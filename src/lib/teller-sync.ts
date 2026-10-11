@@ -13,6 +13,7 @@ import {
   isUniqueConstraintError,
   type MappedTransaction,
 } from '@/lib/sync-common';
+import { relinkInvestmentTransfers } from '@/lib/investments/transfer-linking';
 
 type TellerConnectionWithAccount = {
   id: string;
@@ -255,6 +256,7 @@ export async function syncTellerTransactions(
   if (newTransactionIds.size > 0) {
     const transferResult = await detectTransfers(connection.accountId, newTransactionIds);
     stats.transfersDetected = transferResult.transfersDetected;
+    await relinkInvestmentTransfers(prisma);
   }
 
   return stats;

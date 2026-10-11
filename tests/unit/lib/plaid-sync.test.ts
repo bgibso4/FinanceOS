@@ -1168,4 +1168,88 @@ describe('plaid-sync', () => {
       expect(result.stats.oldestTransactionDate).toBe(daysAgo(75));
     });
   });
+  describe('investment-mode siblings', () => {
+    let investmentAccountId: string;
+
+    beforeEach(async () => {
+      investmentAccountId = (
+        await prisma.account.create({
+          data: {
+            ...createAccountData({ name: 'Brokerage', type: 'brokerage' }),
+            trackingMode: 'investment',
+            balanceSource: 'provider',
+          },
+        })
+      ).id;
+      await prisma.plaidConnection.create({
+        data: {
+          id: 'plaid-conn-inv',
+          accountId: investmentAccountId,
+          plaidEnrollmentId: 'plaid-enroll-1',
+          plaidAccountId: 'plaid-account-inv',
+          plaidAccountType: 'investment',
+          status: 'connected',
+        },
+      });
+    });
+
+    function mockAdded(added: ReturnType<typeof createMockPlaidTransaction>[]) {
+      vi.mocked(getPlaidClient).mockReturnValue({
+        transactionsSync: vi.fn().mockResolvedValue({
+          data: { added, modified: [], removed: [], next_cursor: 'c', has_more: false },
+        }),
+      } as unknown as ReturnType<typeof getPlaidClient>);
+    }
+
+    it('never writes Transaction rows into investment-mode accounts', async () => {
+      mockAdded([
+        createMockPlaidTransaction({ transaction_id: 'bank-1' }),
+        createMockPlaidTransaction({ transaction_id: 'inv-1', account_id: 'plaid-account-inv' }),
+      ]);
+
+      const result = (await syncPlaidTransactions(
+        createMockPlaidConnection(testAccountId)
+      )) as SyncResult;
+
+      expect(result.added).toBe(1);
+      expect(result.byAccount.map((b) => b.accountId)).toEqual([testAccountId]);
+      expect(await prisma.transaction.count({ where: { accountId: investmentAccountId } })).toBe(0);
+      const invConn = await prisma.plaidConnection.findUniqueOrThrow({
+        where: { id: 'plaid-conn-inv' },
+      });
+      expect(invConn.lastSyncStatus).toBe('never');
+      expect(invConn.lastSyncAt).toBeNull();
+    });
+
+    it('links a pre-existing unlinked investment deposit to a newly synced bank row', async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const deposit = await prisma.investmentTransaction.create({
+        data: {
+          accountId: investmentAccountId,
+          externalId: 'inv-deposit',
+          date: new Date(`${today}T00:00:00.000Z`),
+          type: 'cash',
+          subtype: 'deposit',
+          name: 'Deposit',
+          amount: -500,
+          currency: 'USD',
+          source: 'plaid',
+        },
+      });
+      mockAdded([
+        createMockPlaidTransaction({ transaction_id: 'bank-dep', amount: 500, date: today }),
+      ]);
+
+      await syncPlaidTransactions(createMockPlaidConnection(testAccountId));
+
+      const bankRow = await prisma.transaction.findFirstOrThrow({
+        where: { accountId: testAccountId, externalId: 'bank-dep' },
+      });
+      const linked = await prisma.investmentTransaction.findUniqueOrThrow({
+        where: { id: deposit.id },
+      });
+      expect(linked.linkedTransactionId).toBe(bankRow.id);
+      expect(bankRow.isTransfer).toBe(true);
+    });
+  });
 });

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getAccountBalances } from '@/lib/balances';
 import { convertAmount, parseExchangeRates } from '@/lib/currency';
 
 // Helper to get exchange rates and base currency from database
@@ -28,26 +29,15 @@ export async function GET() {
       type: true,
       institution: true,
       currency: true,
+      trackingMode: true,
     },
   });
 
-  // Use database aggregation to sum transaction amounts per account
-  // This avoids loading all transactions into memory
-  const balances = await prisma.transaction.groupBy({
-    by: ['accountId'],
-    _sum: { amount: true },
-    where: {
-      accountId: { in: accounts.map((a) => a.id) },
-      isSplitParent: false,
-    },
-  });
-
-  // Create a map for quick balance lookup
-  const balanceMap = new Map(balances.map((b) => [b.accountId, b._sum.amount ?? 0]));
+  const resolved = await getAccountBalances(prisma, accounts);
 
   // Calculate balance for each account (with currency conversion)
   const accountBalances = accounts.map((account) => {
-    const balance = balanceMap.get(account.id) ?? 0;
+    const balance = resolved.get(account.id)?.balance ?? 0;
 
     // Convert to base currency for display
     const balanceInBaseCurrency =

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getAccountBalance } from '@/lib/balances';
+import { utcDay } from '@/lib/investments/dates';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +23,24 @@ export async function POST(request: NextRequest) {
 
     if (!account) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+    }
+
+    // Investment accounts keep balances in AccountBalance, never in the transaction ledger.
+    if (account.trackingMode === 'investment') {
+      const { balance } = await getAccountBalance(prisma, accountId);
+      const date = utcDay(new Date());
+      const accountBalance = await prisma.accountBalance.upsert({
+        where: { accountId_date: { accountId, date } },
+        create: {
+          accountId,
+          date,
+          balance: balance + amount,
+          currency: account.currency,
+          source: 'manual',
+        },
+        update: { balance: balance + amount, source: 'manual' },
+      });
+      return NextResponse.json({ accountBalance });
     }
 
     // Find or create "Balance Adjustment" category

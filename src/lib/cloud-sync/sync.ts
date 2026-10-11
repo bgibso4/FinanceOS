@@ -95,6 +95,12 @@ export async function exportDatabase(): Promise<SyncPayload> {
     goals,
     recurringTransactions,
     settings,
+    accountBalances,
+    securities,
+    securityPrices,
+    securityEvents,
+    holdingSnapshots,
+    investmentTransactions,
   ] = await Promise.all([
     getPrisma().account.findMany(),
     getPrisma().transaction.findMany(),
@@ -108,6 +114,12 @@ export async function exportDatabase(): Promise<SyncPayload> {
     getPrisma().goal.findMany(),
     getPrisma().recurringTransaction.findMany(),
     getPrisma().userSettings.findFirst(),
+    getPrisma().accountBalance.findMany(),
+    getPrisma().security.findMany(),
+    getPrisma().securityPrice.findMany(),
+    getPrisma().securityEvent.findMany(),
+    getPrisma().holdingSnapshot.findMany(),
+    getPrisma().investmentTransaction.findMany(),
   ]);
 
   // Transform to export format (convert dates to ISO strings)
@@ -122,6 +134,7 @@ export async function exportDatabase(): Promise<SyncPayload> {
         isActive: a.isActive,
         notes: a.notes,
         trackingMode: a.trackingMode,
+        balanceSource: a.balanceSource,
         invertAmounts: a.invertAmounts,
         sortOrder: a.sortOrder,
         createdAt: a.createdAt.toISOString(),
@@ -277,6 +290,79 @@ export async function exportDatabase(): Promise<SyncPayload> {
           createdAt: settings.createdAt.toISOString(),
         } as UserSettingsExport)
       : null,
+    accountBalances: accountBalances.map((r) => ({
+      id: r.id,
+      accountId: r.accountId,
+      date: r.date.toISOString(),
+      balance: r.balance,
+      currency: r.currency,
+      source: r.source,
+      createdAt: r.createdAt.toISOString(),
+    })),
+    securities: securities.map((r) => ({
+      id: r.id,
+      plaidSecurityId: r.plaidSecurityId,
+      ticker: r.ticker,
+      name: r.name,
+      type: r.type,
+      currency: r.currency,
+      exchangeMic: r.exchangeMic,
+      priceSymbol: r.priceSymbol,
+      priceSymbolOverride: r.priceSymbolOverride,
+      pricing: r.pricing,
+      fixedPrice: r.fixedPrice,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+    })),
+    securityPrices: securityPrices.map((r) => ({
+      id: r.id,
+      securityId: r.securityId,
+      date: r.date.toISOString(),
+      close: r.close,
+      source: r.source,
+      createdAt: r.createdAt.toISOString(),
+    })),
+    securityEvents: securityEvents.map((r) => ({
+      id: r.id,
+      securityId: r.securityId,
+      date: r.date.toISOString(),
+      type: r.type,
+      amount: r.amount,
+      ratio: r.ratio,
+      source: r.source,
+      createdAt: r.createdAt.toISOString(),
+    })),
+    holdingSnapshots: holdingSnapshots.map((r) => ({
+      id: r.id,
+      accountId: r.accountId,
+      securityId: r.securityId,
+      date: r.date.toISOString(),
+      quantity: r.quantity,
+      price: r.price,
+      value: r.value,
+      costBasis: r.costBasis,
+      source: r.source,
+      createdAt: r.createdAt.toISOString(),
+    })),
+    investmentTransactions: investmentTransactions.map((r) => ({
+      id: r.id,
+      accountId: r.accountId,
+      securityId: r.securityId,
+      externalId: r.externalId,
+      date: r.date.toISOString(),
+      type: r.type,
+      subtype: r.subtype,
+      name: r.name,
+      quantity: r.quantity,
+      price: r.price,
+      amount: r.amount,
+      fees: r.fees,
+      currency: r.currency,
+      source: r.source,
+      isCancelled: r.isCancelled,
+      linkedTransactionId: r.linkedTransactionId,
+      createdAt: r.createdAt.toISOString(),
+    })),
   };
 
   const checksum = await generateChecksum(data);
@@ -294,6 +380,12 @@ export async function exportDatabase(): Promise<SyncPayload> {
       tags: (data.tags || []).length,
       goals: (data.goals || []).length,
       recurringTransactions: (data.recurringTransactions || []).length,
+      accountBalances: data.accountBalances?.length ?? 0,
+      securities: data.securities?.length ?? 0,
+      securityPrices: data.securityPrices?.length ?? 0,
+      securityEvents: data.securityEvents?.length ?? 0,
+      holdingSnapshots: data.holdingSnapshots?.length ?? 0,
+      investmentTransactions: data.investmentTransactions?.length ?? 0,
     },
     checksum,
   };
@@ -307,6 +399,17 @@ export async function exportDatabase(): Promise<SyncPayload> {
   };
 
   return payload;
+}
+
+async function hasLocalInvestmentData(): Promise<boolean> {
+  const db = getPrisma();
+  const found = await Promise.all([
+    db.accountBalance.findFirst({ select: { id: true } }),
+    db.investmentTransaction.findFirst({ select: { id: true } }),
+    db.holdingSnapshot.findFirst({ select: { id: true } }),
+    db.account.findFirst({ where: { trackingMode: 'investment' }, select: { id: true } }),
+  ]);
+  return found.some(Boolean);
 }
 
 /**
@@ -325,10 +428,26 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
 
   const { data } = validated;
 
+  // A payload from a build without investment support has no investment arrays. Importing it
+  // would delete every local investment row and restore pre-migration accounts, so refuse it
+  // when there is investment data to lose.
+  if (data.accountBalances === undefined && (await hasLocalInvestmentData())) {
+    throw new Error(
+      'Cloud data is from an older FinanceOS version; update the other device and push again'
+    );
+  }
+
   // Use a transaction to ensure atomicity
   await getPrisma().$transaction(async (tx) => {
     // Delete existing data (order matters due to foreign keys)
     // Keep Plaid/Teller tables untouched!
+    // Investment tables first: they reference accounts, securities and transactions
+    await tx.investmentTransaction.deleteMany();
+    await tx.holdingSnapshot.deleteMany();
+    await tx.accountBalance.deleteMany();
+    await tx.securityEvent.deleteMany();
+    await tx.securityPrice.deleteMany();
+    await tx.security.deleteMany();
     await tx.recurringTransaction.deleteMany();
     await tx.transaction.deleteMany();
     await tx.goal.deleteMany();
@@ -398,6 +517,7 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
             isActive: acc.isActive,
             notes: acc.notes,
             trackingMode: acc.trackingMode,
+            balanceSource: acc.balanceSource ?? null,
             invertAmounts: acc.invertAmounts,
             sortOrder: acc.sortOrder,
           },
@@ -414,6 +534,7 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
             isActive: acc.isActive,
             notes: acc.notes,
             trackingMode: acc.trackingMode,
+            balanceSource: acc.balanceSource ?? null,
             invertAmounts: acc.invertAmounts,
             sortOrder: acc.sortOrder,
             createdAt: new Date(acc.createdAt),
@@ -468,6 +589,38 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
           parentTransactionId: txn.parentTransactionId ?? null,
           createdAt: new Date(txn.createdAt),
         },
+      });
+    }
+
+    // Import investment data (after accounts and transactions; securities before their dependents)
+    for (const r of data.securities ?? []) {
+      await tx.security.create({
+        data: { ...r, createdAt: new Date(r.createdAt), updatedAt: new Date(r.updatedAt) },
+      });
+    }
+    for (const r of data.securityPrices ?? []) {
+      await tx.securityPrice.create({
+        data: { ...r, date: new Date(r.date), createdAt: new Date(r.createdAt) },
+      });
+    }
+    for (const r of data.securityEvents ?? []) {
+      await tx.securityEvent.create({
+        data: { ...r, date: new Date(r.date), createdAt: new Date(r.createdAt) },
+      });
+    }
+    for (const r of data.accountBalances ?? []) {
+      await tx.accountBalance.create({
+        data: { ...r, date: new Date(r.date), createdAt: new Date(r.createdAt) },
+      });
+    }
+    for (const r of data.holdingSnapshots ?? []) {
+      await tx.holdingSnapshot.create({
+        data: { ...r, date: new Date(r.date), createdAt: new Date(r.createdAt) },
+      });
+    }
+    for (const r of data.investmentTransactions ?? []) {
+      await tx.investmentTransaction.create({
+        data: { ...r, date: new Date(r.date), createdAt: new Date(r.createdAt) },
       });
     }
 
@@ -630,6 +783,12 @@ export async function getRecordCounts(): Promise<SyncMetadata['recordCounts']> {
     monthlySnapshots,
     netWorthSnapshots,
     exchangeRates,
+    accountBalances,
+    securities,
+    securityPrices,
+    securityEvents,
+    holdingSnapshots,
+    investmentTransactions,
   ] = await Promise.all([
     getPrisma().account.count(),
     getPrisma().transaction.count(),
@@ -639,6 +798,12 @@ export async function getRecordCounts(): Promise<SyncMetadata['recordCounts']> {
     getPrisma().monthlySnapshot.count(),
     getPrisma().netWorthSnapshot.count(),
     getPrisma().exchangeRate.count(),
+    getPrisma().accountBalance.count(),
+    getPrisma().security.count(),
+    getPrisma().securityPrice.count(),
+    getPrisma().securityEvent.count(),
+    getPrisma().holdingSnapshot.count(),
+    getPrisma().investmentTransaction.count(),
   ]);
 
   return {
@@ -650,5 +815,11 @@ export async function getRecordCounts(): Promise<SyncMetadata['recordCounts']> {
     monthlySnapshots,
     netWorthSnapshots,
     exchangeRates,
+    accountBalances,
+    securities,
+    securityPrices,
+    securityEvents,
+    holdingSnapshots,
+    investmentTransactions,
   };
 }

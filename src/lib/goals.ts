@@ -1,4 +1,5 @@
 import type { PrismaClient, Goal } from '@prisma/client';
+import { getAccountBalance } from '@/lib/balances';
 
 export type GoalProgress = {
   currentAmount: number;
@@ -72,13 +73,8 @@ async function calculateTagProgress(goal: Goal, prisma: PrismaClient): Promise<n
 }
 
 async function calculateAccountProgress(goal: Goal, prisma: PrismaClient): Promise<number> {
-  // Sum all transactions in the account to get current balance
-  const result = await prisma.transaction.aggregate({
-    where: { accountId: goal.accountId!, isSplitParent: false },
-    _sum: { amount: true },
-  });
-
-  return Math.abs(result._sum.amount ?? 0);
+  const { balance } = await getAccountBalance(prisma, goal.accountId!);
+  return Math.abs(balance);
 }
 
 function buildDateFilter(goal: Goal): Record<string, unknown> {

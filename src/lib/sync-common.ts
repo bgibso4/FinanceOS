@@ -455,15 +455,27 @@ export async function cleanupTransferPair(
   if (!tx?.transferGroupId) return;
 
   // Reset the paired transaction(s) in this transfer group
+  await releaseFromTransferGroups(prismaClient, {
+    transferGroupId: tx.transferGroupId,
+    id: { not: transactionId },
+  });
+}
+
+/**
+ * Remove the matching rows from their transfer groups. A row linked to an investment cash flow
+ * (a brokerage deposit/withdrawal) is still a transfer without its group, so it keeps isTransfer.
+ */
+async function releaseFromTransferGroups(
+  prismaClient: PrismaClient,
+  where: Prisma.TransactionWhereInput
+): Promise<void> {
   await prismaClient.transaction.updateMany({
-    where: {
-      transferGroupId: tx.transferGroupId,
-      id: { not: transactionId },
-    },
-    data: {
-      isTransfer: false,
-      transferGroupId: null,
-    },
+    where: { ...where, investmentLinks: { none: {} } },
+    data: { isTransfer: false, transferGroupId: null },
+  });
+  await prismaClient.transaction.updateMany({
+    where: { ...where, investmentLinks: { some: {} } },
+    data: { transferGroupId: null },
   });
 }
 
@@ -911,12 +923,9 @@ export async function detectCrossAccountTransfers(
         (g): g is string => typeof g === 'string' && g.length > 0
       );
       if (oldGroupIds.length > 0) {
-        await prismaClient.transaction.updateMany({
-          where: {
-            transferGroupId: { in: oldGroupIds },
-            id: { notIn: [tx.id, match.id] },
-          },
-          data: { isTransfer: false, transferGroupId: null },
+        await releaseFromTransferGroups(prismaClient, {
+          transferGroupId: { in: oldGroupIds },
+          id: { notIn: [tx.id, match.id] },
         });
       }
 

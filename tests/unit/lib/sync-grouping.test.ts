@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { syncUnits, statsForAccount, type GroupableAccount } from '@/lib/sync-grouping';
+import {
+  syncUnits,
+  statsForAccount,
+  isSyncAllCandidate,
+  type GroupableAccount,
+} from '@/lib/sync-grouping';
 
 const teller = (id: string): GroupableAccount => ({ id, tellerConnection: { id: `tc-${id}` } });
 const plaid = (id: string, enrollmentId: string): GroupableAccount => ({
@@ -109,5 +114,38 @@ describe('statsForAccount', () => {
 
     expect(total).toBe(42);
     expect(total).toBeLessThan(stats.added);
+  });
+
+  it('returns zeros instead of crashing when the response has no stats', () => {
+    expect(statsForAccount(undefined, 'brokerage', 1)).toEqual({
+      added: 0,
+      merged: 0,
+      skippedDuplicates: 0,
+      skippedPending: 0,
+    });
+  });
+});
+
+describe('isSyncAllCandidate', () => {
+  const zero = { stats: { added: 0, merged: 0 } };
+
+  it('syncs accounts whose preview found new or mergeable transactions', () => {
+    expect(
+      isSyncAllCandidate({ status: 'preview_done', preview: { stats: { added: 1, merged: 0 } } })
+    ).toBe(true);
+    expect(
+      isSyncAllCandidate({ status: 'preview_done', preview: { stats: { added: 0, merged: 2 } } })
+    ).toBe(true);
+    expect(isSyncAllCandidate({ status: 'preview_done', preview: zero })).toBe(false);
+  });
+
+  it('always syncs investment accounts once previewed', () => {
+    expect(isSyncAllCandidate({ status: 'preview_done', investment: true, preview: zero })).toBe(
+      true
+    );
+  });
+
+  it('never syncs accounts whose preview failed', () => {
+    expect(isSyncAllCandidate({ status: 'error', investment: true })).toBe(false);
   });
 });

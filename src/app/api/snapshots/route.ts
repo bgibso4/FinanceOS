@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
+import { getAccountBalances } from '@/lib/balances';
 import { convertAmount, parseExchangeRates } from '@/lib/currency';
 
 const createSnapshotSchema = z.object({
@@ -150,15 +151,8 @@ export async function POST(req: NextRequest) {
   // Standard mode - calculate from transaction data
   const { rateMap } = await getCurrencySettings();
 
-  // Get all active accounts with their transactions
-  const accounts = await prisma.account.findMany({
-    where: { isActive: true },
-    include: {
-      transactions: {
-        select: { amount: true },
-      },
-    },
-  });
+  const accounts = await prisma.account.findMany({ where: { isActive: true } });
+  const resolved = await getAccountBalances(prisma, accounts);
 
   // Calculate balance for each account
   const accountBalances: Record<
@@ -170,7 +164,7 @@ export async function POST(req: NextRequest) {
   let totalLiabilities = 0;
 
   for (const account of accounts) {
-    const balance = account.transactions.reduce((sum, tx) => sum + tx.amount, 0);
+    const balance = resolved.get(account.id)?.balance ?? 0;
 
     // Convert balance to base currency for net worth calculation
     const balanceInBaseCurrency =
