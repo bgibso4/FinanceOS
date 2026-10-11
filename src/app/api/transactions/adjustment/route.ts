@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAccountBalance } from '@/lib/balances';
-import { utcDay } from '@/lib/investments/dates';
+import { getInvestmentServices } from '@/lib/investments/services';
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,18 +27,18 @@ export async function POST(request: NextRequest) {
 
     // Investment accounts keep balances in AccountBalance, never in the transaction ledger.
     if (account.trackingMode === 'investment') {
+      if (account.balanceSource !== 'manual') {
+        const from = account.balanceSource === 'provider' ? 'Plaid' : 'its holdings';
+        return NextResponse.json(
+          { error: `This account's balance comes from ${from}` },
+          { status: 400 }
+        );
+      }
       const { balance } = await getAccountBalance(prisma, accountId);
-      const date = utcDay(new Date());
-      const accountBalance = await prisma.accountBalance.upsert({
-        where: { accountId_date: { accountId, date } },
-        create: {
-          accountId,
-          date,
-          balance: balance + amount,
-          currency: account.currency,
-          source: 'manual',
-        },
-        update: { balance: balance + amount, source: 'manual' },
+      const { manualHoldings } = await getInvestmentServices();
+      const accountBalance = await manualHoldings.record(accountId, {
+        date: new Date(),
+        balance: balance + amount,
       });
       return NextResponse.json({ accountBalance });
     }

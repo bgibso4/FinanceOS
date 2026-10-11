@@ -81,4 +81,32 @@ describe('adjustment route for investment accounts', () => {
     await post({ accountId: a.id, amount: 10 });
     expect(await testPrisma.transaction.count({ where: { accountId: a.id } })).toBe(1);
   });
+
+  it('mirrors a manual reconciliation into the single holding', async () => {
+    const account = await testPrisma.account.create({
+      data: {
+        ...createAccountData({ type: 'retirement' }),
+        trackingMode: 'investment',
+        balanceSource: 'manual',
+      },
+    });
+    const res = await post({ accountId: account.id, amount: 250 });
+    expect(res.status).toBe(200);
+    expect(await testPrisma.holdingSnapshot.count({ where: { accountId: account.id } })).toBe(1);
+  });
+
+  it('rejects reconciling a Plaid-synced or valued investment account', async () => {
+    for (const balanceSource of ['provider', 'valuation']) {
+      const account = await testPrisma.account.create({
+        data: {
+          ...createAccountData({ type: 'brokerage' }),
+          trackingMode: 'investment',
+          balanceSource,
+        },
+      });
+      const res = await post({ accountId: account.id, amount: 10 });
+      expect(res.status).toBe(400);
+      expect(await testPrisma.accountBalance.count({ where: { accountId: account.id } })).toBe(0);
+    }
+  });
 });

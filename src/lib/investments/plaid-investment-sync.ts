@@ -63,10 +63,13 @@ async function upsertSecurities(securities: PlaidSecurity[]): Promise<Map<string
       exchangeMic: m.exchangeMic,
     };
     if (existing) {
-      // Never clobber a user-set price symbol; pricing follows the symbol.
-      const pricingFields = existing.priceSymbolOverride
-        ? {}
-        : { priceSymbol: m.priceSymbol, pricing: m.pricing, fixedPrice: m.fixedPrice };
+      // Never clobber a user-set price symbol; pricing follows the symbol. A symbol the price
+      // feed rejected stays unpriced until Plaid reports a different one.
+      const keepUnpriced = existing.pricing === 'none' && existing.priceSymbol === m.priceSymbol;
+      const pricingFields =
+        existing.priceSymbolOverride || keepUnpriced
+          ? {}
+          : { priceSymbol: m.priceSymbol, pricing: m.pricing, fixedPrice: m.fixedPrice };
       await prisma.security.update({
         where: { id: existing.id },
         data: { ...descriptive, ...pricingFields },

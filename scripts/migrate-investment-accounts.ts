@@ -8,7 +8,7 @@
  *   npx tsx --env-file=.env scripts/migrate-investment-accounts.ts <config.json>          # dry run
  *   npx tsx --env-file=.env scripts/migrate-investment-accounts.ts <config.json> --apply  # backup + write + first sync
  */
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { prisma } from '../src/lib/prisma';
 import { getPlaidClient } from '../src/lib/plaid';
 import { decryptAccessToken } from '../src/lib/encryption';
@@ -19,22 +19,9 @@ import {
 } from '../src/lib/investments/migration';
 import { syncPlaidInvestments } from '../src/lib/investments/plaid-investment-sync';
 import { recordInvestmentSyncStatus } from '../src/lib/investments/sync-status';
+import { backupDatabase } from './lib/backup-db';
 
 const APPLY = process.argv.includes('--apply');
-
-/** Backs up the live database via the open connection; returns the backup path. */
-async function backupDatabase(): Promise<string> {
-  const rows =
-    await prisma.$queryRawUnsafe<{ name: string; file: string }[]>('PRAGMA database_list');
-  const file = rows.find((r) => r.name === 'main')?.file;
-  if (!file) throw new Error('Could not determine the main database file; aborting');
-  const backup = `${file}.backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-  await prisma.$executeRawUnsafe(`VACUUM INTO '${backup.replace(/'/g, "''")}'`);
-  if (!existsSync(backup) || statSync(backup).size === 0) {
-    throw new Error(`Backup ${backup} is missing or empty; aborting before any write`);
-  }
-  return backup;
-}
 
 async function loadPlaidAccounts(): Promise<PlaidAccountRef[]> {
   const plaid = getPlaidClient();
@@ -87,7 +74,7 @@ async function main() {
     return;
   }
 
-  const backup = await backupDatabase();
+  const backup = await backupDatabase(prisma);
   console.warn(`\nBacked up database to ${backup}`);
 
   const { convertedAccountIds, createdAccountIds } = await applyMigrationPlan(prisma, plan);
