@@ -12,6 +12,10 @@ vi.mock('@/lib/prisma', () => ({
 }));
 vi.mock('@/lib/investments/plaid-investment-sync', () => ({ syncPlaidInvestments: vi.fn() }));
 vi.mock('@/lib/plaid-sync', () => ({ syncPlaidTransactions: vi.fn() }));
+const { refreshRun } = vi.hoisted(() => ({ refreshRun: vi.fn(async () => ({})) }));
+vi.mock('@/lib/investments/services', () => ({
+  getInvestmentServices: vi.fn(async () => ({ refresh: { refresh: refreshRun } })),
+}));
 
 import { POST } from '@/app/api/plaid/sync/route';
 import { syncPlaidInvestments } from '@/lib/investments/plaid-investment-sync';
@@ -205,5 +209,28 @@ describe('POST /api/plaid/sync for investment accounts', () => {
     expect(body.stats.added).toBe(1);
     expect(body.investmentAccountIds).toEqual([accountId]);
     expect(syncPlaidInvestments).not.toHaveBeenCalled();
+  });
+
+  it('starts a price refresh after syncing investment accounts', async () => {
+    vi.mocked(syncPlaidInvestments).mockResolvedValue(okResult(accountId) as never);
+    const res = await post({ accountId });
+    expect(res.status).toBe(200);
+    await vi.waitFor(() => expect(refreshRun).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not start a price refresh for a cash-flow-only item', async () => {
+    await testPrisma.plaidConnection.deleteMany();
+    const bankId = await addAccount('cash_flow', 'pa-bank');
+    vi.mocked(syncPlaidTransactions).mockResolvedValue({ added: 1, byAccount: [] } as never);
+    const res = await post({ accountId: bankId });
+    expect(res.status).toBe(200);
+    expect(refreshRun).not.toHaveBeenCalled();
+  });
+
+  it('a failing price refresh does not fail the sync', async () => {
+    refreshRun.mockRejectedValueOnce(new Error('boom'));
+    vi.mocked(syncPlaidInvestments).mockResolvedValue(okResult(accountId) as never);
+    const res = await post({ accountId });
+    expect(res.status).toBe(200);
   });
 });

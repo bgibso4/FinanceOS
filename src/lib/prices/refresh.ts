@@ -101,6 +101,20 @@ export class PriceRefresher {
     return row?.date ?? null;
   }
 
+  /** Oldest "latest Yahoo close" across held feed securities: the honest "prices as of". */
+  async pricesAsOf(): Promise<Date | null> {
+    const securities = await this.prisma.security.findMany({
+      where: { pricing: 'feed', holdings: { some: {} } },
+      select: { id: true },
+    });
+    let oldest: Date | null = null;
+    for (const { id } of securities) {
+      const latest = await this.latestStoredClose(id);
+      if (latest && (!oldest || latest < oldest)) oldest = latest;
+    }
+    return oldest;
+  }
+
   /** First day a never-priced security needs: its earliest holding or trade, else a short lookback. */
   private async firstNeededDay(securityId: string, today: Date): Promise<Date> {
     const [snapshot, trade] = await Promise.all([

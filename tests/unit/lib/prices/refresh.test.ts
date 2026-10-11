@@ -202,4 +202,23 @@ describe('PriceRefresher', () => {
     await refresher(provider).refresh({ securityIds: [fresh.id] });
     expect(calls).toEqual([{ symbol: 'NEW', from: '2026-09-09', to: '2026-10-09' }]);
   });
+
+  it('pricesAsOf reports the oldest latest close among held feed securities', async () => {
+    const a = await seedInvestmentAccount(prisma);
+    for (const [symbol, last] of [
+      ['AAA', '2026-10-09'],
+      ['BBB', '2026-10-07'],
+    ]) {
+      const s = await seedSecurity(prisma, { priceSymbol: symbol });
+      await seedSnapshot(prisma, {
+        accountId: a.id,
+        securityId: s.id,
+        date: '2026-10-09',
+        quantity: 1,
+        price: 1,
+      });
+      await seedPrice(prisma, s.id, last, 1);
+    }
+    expect(isoDay((await refresher(fakeProvider().provider).pricesAsOf())!)).toBe('2026-10-07');
+  });
 });

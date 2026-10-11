@@ -1,7 +1,9 @@
 import type { PrismaClient } from '@prisma/client';
 import { vi } from 'vitest';
 import { createAccountData } from './factories';
+import { fixedClock } from '@/lib/clock';
 import { isoDay, utcDay } from '@/lib/investments/dates';
+import { createInvestmentServices } from '@/lib/investments/services';
 import {
   PriceProviderError,
   type PriceEvent,
@@ -175,4 +177,20 @@ export function fakeProvider(
     search: vi.fn(async (query: string) => opts.search?.[query] ?? []),
   };
   return { provider, calls };
+}
+
+/** Production wiring over the test client: fake price feed, frozen clock, no real sleeps. */
+export function testServices(
+  prisma: PrismaClient,
+  providerOpts: Parameters<typeof fakeProvider>[0] = {},
+  iso = '2026-10-09T22:00:00Z'
+) {
+  const { provider, calls } = fakeProvider(providerOpts);
+  const services = createInvestmentServices({
+    prisma,
+    provider,
+    clock: fixedClock(iso),
+    sleep: noSleep,
+  });
+  return { services, calls };
 }

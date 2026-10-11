@@ -1,3 +1,4 @@
+import { getInvestmentServices } from '@/lib/investments/services';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
@@ -102,6 +103,14 @@ export async function POST(req: NextRequest) {
         return { result, investments };
       }
     );
+
+    if (investments.length) {
+      // Pricing is one throttled Yahoo call per stale symbol: run it after responding, never
+      // failing the sync. The investments view's refresh call covers anything missed.
+      void getInvestmentServices()
+        .then(({ refresh }) => refresh.refresh())
+        .catch((error) => console.error('[investments] post-sync refresh failed:', error));
+    }
 
     return NextResponse.json({ ...base, ...result, investments });
   } catch (error: unknown) {

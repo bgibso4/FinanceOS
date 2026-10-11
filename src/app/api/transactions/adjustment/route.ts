@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAccountBalance } from '@/lib/balances';
-import { ManualHoldingService } from '@/lib/investments/manual-holding';
+import { getInvestmentServices } from '@/lib/investments/services';
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,7 +35,8 @@ export async function POST(request: NextRequest) {
         );
       }
       const { balance } = await getAccountBalance(prisma, accountId);
-      const accountBalance = await new ManualHoldingService(prisma).record(accountId, {
+      const { manualHoldings } = await getInvestmentServices();
+      const accountBalance = await manualHoldings.record(accountId, {
         date: new Date(),
         balance: balance + amount,
       });
