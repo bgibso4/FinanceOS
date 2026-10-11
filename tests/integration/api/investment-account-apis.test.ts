@@ -2,7 +2,12 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import type { PrismaClient } from '@prisma/client';
 import { NextRequest } from 'next/server';
 import { setupTestDb, teardownTestDb, resetTestDb } from '../../helpers/db';
-import { seedInvestmentAccount, seedSecurity, testServices } from '../../helpers/investments';
+import {
+  expectWarning,
+  seedInvestmentAccount,
+  seedSecurity,
+  testServices,
+} from '../../helpers/investments';
 import { PriceProviderError } from '@/lib/prices/types';
 
 let testPrisma: PrismaClient;
@@ -68,9 +73,11 @@ describe('investment account APIs', () => {
     const s = await seedSecurity(testPrisma, { priceSymbol: 'AAA' });
     const failure = () => new PriceProviderError('network', 'fetch failed');
     useServices({ errors: { AAA: [failure(), failure()] } });
-    const res = await putHoldings(
-      req('PUT', { holdings: [{ securityId: s.id, quantity: 4 }] }),
-      params({ id: a.id })
+    const res = await expectWarning('stopping price refresh', () =>
+      putHoldings(
+        req('PUT', { holdings: [{ securityId: s.id, quantity: 4 }] }),
+        params({ id: a.id })
+      )
     );
     expect(res.status).toBe(200);
     const body = await res.json();

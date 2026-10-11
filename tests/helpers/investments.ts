@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import { vi } from 'vitest';
+import { expect, vi } from 'vitest';
 import { createAccountData } from './factories';
 import { fixedClock } from '@/lib/clock';
 import { isoDay, utcDay } from '@/lib/investments/dates';
@@ -12,6 +12,21 @@ import {
 } from '@/lib/prices/types';
 
 export const day = (iso: string) => utcDay(iso);
+
+/**
+ * Run `fn` with `console.warn` silenced, assert it warned with a message containing `expected`,
+ * and return its result. For tests of expected failures, so the run output stays clean.
+ */
+export async function expectWarning<T>(expected: string, fn: () => Promise<T>): Promise<T> {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    const result = await fn();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(expected));
+    return result;
+  } finally {
+    warn.mockRestore();
+  }
+}
 
 /** Sleeper for services under test: never waits. */
 export const noSleep = async (_ms: number) => {};

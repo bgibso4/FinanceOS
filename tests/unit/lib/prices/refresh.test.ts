@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import type { PrismaClient } from '@prisma/client';
 import { setupTestDb, teardownTestDb, resetTestDb } from '../../../helpers/db';
 import {
+  expectWarning,
   fakeProvider,
   seedInvestmentAccount,
   seedPrice,
@@ -136,14 +137,8 @@ describe('PriceRefresher', () => {
       closes: { BBB: { '2026-10-09': 50 } },
       errors: { AAA: [new PriceProviderError('bad_response', 'Failed Yahoo Schema validation')] },
     });
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    try {
-      const r = await refresher(provider).refresh();
-      expect(r).toMatchObject({ fetched: 1, failedSymbols: ['AAA'], stopped: false, error: null });
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('skipping AAA'));
-    } finally {
-      warn.mockRestore();
-    }
+    const r = await expectWarning('skipping AAA', () => refresher(provider).refresh());
+    expect(r).toMatchObject({ fetched: 1, failedSymbols: ['AAA'], stopped: false, error: null });
     expect(calls.map((c) => c.symbol)).toEqual(['AAA', 'BBB']);
     expect(sleep).not.toHaveBeenCalledWith(RETRY_DELAY_MS);
     expect((await prisma.security.findUniqueOrThrow({ where: { id: a.id } })).pricing).toBe('feed');
@@ -170,7 +165,7 @@ describe('PriceRefresher', () => {
       closes: { AAA: { '2026-10-09': 10 }, CCC: { '2026-10-09': 30 } },
       errors: { BBB: [failure(), failure()] },
     });
-    const r = await refresher(provider).refresh();
+    const r = await expectWarning('stopping price refresh', () => refresher(provider).refresh());
     expect(r.stopped).toBe(true);
     expect(r.error).toContain('BBB');
     expect(calls.map((c) => c.symbol)).toEqual(['AAA', 'BBB', 'BBB']);
@@ -185,7 +180,7 @@ describe('PriceRefresher', () => {
       closes: { AAA: { '2026-10-09': 10 } },
       errors: { BBB: [failure(), failure()] },
     });
-    await refresher(first.provider).refresh();
+    await expectWarning('stopping price refresh', () => refresher(first.provider).refresh());
     const second = fakeProvider({ closes: { BBB: { '2026-10-09': 20 } } });
     const r = await refresher(second.provider).refresh();
     expect(second.calls.map((c) => c.symbol)).toEqual(['BBB']);
