@@ -4,7 +4,7 @@ import { convertAmount } from '@/lib/currency';
 import { loadFxRates, PriceBook } from '@/lib/prices/price-book';
 import { InvestmentInputError, requireInvestmentAccount } from './account-guard';
 import { addDays, lastAtOrBefore, utcDay } from './dates';
-import type { ManualHoldingService } from './manual-holding';
+import { manualHoldingSecurityId, type ManualHoldingService } from './manual-holding';
 import { roundCents } from './money';
 
 export type HoldingInput = { securityId: string; quantity: number };
@@ -89,7 +89,12 @@ export class ValuationService {
   ): Promise<number> {
     const prisma = this.prisma;
     const snapshots = await prisma.holdingSnapshot.findMany({
-      where: { accountId: account.id, date: { lte: today } },
+      // The manual-holding mirror lingers until the first valued entry; it is not a holding.
+      where: {
+        accountId: account.id,
+        date: { lte: today },
+        securityId: { not: manualHoldingSecurityId(account.id) },
+      },
       include: { security: { select: { currency: true } } },
       orderBy: { date: 'asc' },
     });

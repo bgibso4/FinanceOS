@@ -112,6 +112,20 @@ describe('ValuationService', () => {
     ]);
   });
 
+  it('does not value the manual-holding mirror before valued holdings are set', async () => {
+    const a = await seedInvestmentAccount(prisma, { balanceSource: 'manual' });
+    const { manualHoldings, valuation } = at(FRIDAY);
+    await seedBalance(prisma, a.id, '2026-07-12', 500, 'manual');
+    await seedBalance(prisma, a.id, '2026-08-20', 650, 'manual');
+    await manualHoldings.sync(a.id);
+    await prisma.account.update({ where: { id: a.id }, data: { balanceSource: 'valuation' } });
+    expect(await valuation.writeBalances()).toBe(0);
+    expect(await balances(a.id)).toEqual([
+      ['2026-07-12', 500, 'manual'],
+      ['2026-08-20', 650, 'manual'],
+    ]);
+  });
+
   it('writes one row per priced day since holdings were set, skipping weekends', async () => {
     const a = await seedInvestmentAccount(prisma, { balanceSource: 'valuation' });
     const s = await seedSecurity(prisma);
