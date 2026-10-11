@@ -1,4 +1,4 @@
-import type { Account, HoldingSnapshot, PrismaClient } from '@prisma/client';
+import type { Account, AccountBalance, HoldingSnapshot, PrismaClient } from '@prisma/client';
 import { systemClock, type Clock } from '@/lib/clock';
 import { convertAmount } from '@/lib/currency';
 import { loadFxRates, PriceBook } from '@/lib/prices/price-book';
@@ -16,6 +16,13 @@ export class ValuationService {
     private readonly manualHoldings: ManualHoldingService,
     private readonly clock: Clock = systemClock
   ) {}
+
+  latestBalance(accountId: string): Promise<AccountBalance | null> {
+    return this.prisma.accountBalance.findFirst({
+      where: { accountId, source: 'valuation' },
+      orderBy: { date: 'desc' },
+    });
+  }
 
   /** Replace today's holdings (earlier days keep the set in effect then) and revalue the account. */
   async setHoldings(accountId: string, holdings: HoldingInput[]): Promise<HoldingSnapshot[]> {
