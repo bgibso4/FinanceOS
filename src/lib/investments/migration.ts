@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { PrismaClient } from '@prisma/client';
 import { utcDay } from './dates';
+import { roundCents } from './money';
 
 export const ADJUSTMENT_MERCHANT = 'Balance Adjustment';
 
@@ -13,7 +14,7 @@ export function replayAdjustments(adjustments: Adjustment[]): { date: Date; bala
   for (const adj of sorted) {
     running += adj.amount;
     const day = utcDay(adj.date);
-    byDay.set(day.toISOString(), { date: day, balance: Math.round(running * 100) / 100 });
+    byDay.set(day.toISOString(), { date: day, balance: roundCents(running) });
   }
   return [...byDay.values()];
 }

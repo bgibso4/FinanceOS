@@ -13,3 +13,13 @@ export function isoDay(d: Date): string {
 export function addDays(d: Date, n: number): Date {
   return new Date(d.getTime() + n * DAY_MS);
 }
+
+/** Last value ≤ t in an ascending list (e.g. the holdings set in effect on a day). */
+export function lastAtOrBefore(sorted: number[], t: number): number | undefined {
+  let found: number | undefined;
+  for (const v of sorted) {
+    if (v > t) break;
+    found = v;
+  }
+  return found;
+}
