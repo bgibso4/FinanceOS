@@ -178,4 +178,19 @@ describe('ValuationService', () => {
     ]);
     expect(await balances(a.id)).toEqual([]);
   });
+
+  it('removes a stale valuation row when a day becomes incomplete', async () => {
+    const a = await seedInvestmentAccount(prisma, { balanceSource: 'valuation' });
+    const priced = await seedSecurity(prisma, { priceSymbol: 'AAA' });
+    const unpriced = await seedSecurity(prisma, { priceSymbol: 'ZZZ', pricing: 'none' });
+    await seedPrice(prisma, priced.id, '2026-10-09', 10);
+    const { valuation } = at(FRIDAY);
+    await valuation.setHoldings(a.id, [{ securityId: priced.id, quantity: 1 }]);
+    expect(await balances(a.id)).toEqual([['2026-10-09', 10, 'valuation']]);
+    await valuation.setHoldings(a.id, [
+      { securityId: priced.id, quantity: 1 },
+      { securityId: unpriced.id, quantity: 1 },
+    ]);
+    expect(await balances(a.id)).toEqual([]);
+  });
 });

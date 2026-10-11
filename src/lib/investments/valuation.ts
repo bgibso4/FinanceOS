@@ -126,9 +126,15 @@ export class ValuationService {
           rates
         );
       }
-      if (!complete) continue;
-      const balance = roundCents(value);
       const prev = existing.get(t);
+      if (!complete) {
+        // A day that can no longer be valued must not keep its earlier valuation row.
+        if (prev?.source === 'valuation') {
+          await prisma.accountBalance.delete({ where: { id: prev.id } });
+        }
+        continue;
+      }
+      const balance = roundCents(value);
       if (prev?.source === 'valuation' && prev.balance === balance) continue;
       await prisma.accountBalance.upsert({
         where: { accountId_date: { accountId: account.id, date: d } },
