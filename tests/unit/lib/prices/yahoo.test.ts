@@ -75,6 +75,19 @@ describe('yahoo price provider', () => {
     expect(classifyYahooError(new Error(message))).toBe(kind);
   });
 
+  /** Shaped like yahoo-finance2's error classes: a named Error with the library's message. */
+  const named = (name: string, message: string) => Object.assign(new Error(message), { name });
+
+  it.each([
+    [named('FailedYahooValidationError', 'Failed Yahoo Schema validation')],
+    [named('InvalidOptionsError', 'yahooFinance.chart called with invalid options.')],
+    [named('FailedYahooValidationError', 'unexpected payload')],
+    [new Error('Failed Yahoo Schema validation')],
+    [new Error('yahooFinance.chart called with invalid options.')],
+  ])('classifies %s as bad_response', (error) => {
+    expect(classifyYahooError(error)).toBe('bad_response');
+  });
+
   it('wraps client errors in PriceProviderError', async () => {
     const c = client({
       chart: vi.fn(async () => {

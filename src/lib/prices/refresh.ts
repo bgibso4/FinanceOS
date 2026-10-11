@@ -2,11 +2,18 @@ import type { PrismaClient } from '@prisma/client';
 import { systemClock, type Clock } from '@/lib/clock';
 import { addDays, utcDay } from '@/lib/investments/dates';
 import { lastCompletedTradingDay } from './trading-days';
-import { PriceProviderError, type DailyHistory, type HistorySource } from './types';
+import {
+  PriceProviderError,
+  type DailyHistory,
+  type HistorySource,
+  type PriceErrorKind,
+} from './types';
 
 export const SYMBOL_GAP_MS = 500;
 export const RETRY_DELAY_MS = 3000;
 const FIRST_FETCH_LOOKBACK_DAYS = 30;
+/** Transient failures worth one retry; anything else (unknown symbol, bad response) is final. */
+const RETRYABLE = new Set<PriceErrorKind>(['rate_limited', 'network']);
 
 export type Sleeper = (ms: number) => Promise<void>;
 
@@ -14,6 +21,8 @@ export type PriceRefreshResult = {
   fetched: number;
   upToDate: number;
   unknownSymbols: string[];
+  /** Symbols skipped this run because the provider's answer was unusable (pricing unchanged). */
+  failedSymbols: string[];
   stopped: boolean;
   error: string | null;
 };
@@ -22,7 +31,8 @@ const defaultSleep: Sleeper = (ms) => new Promise<void>((resolve) => setTimeout(
 
 /**
  * Brings stored daily closes up to the last completed trading day, one provider call per stale
- * symbol, sequentially. A second consecutive failure stops the run; saved prices are kept.
+ * symbol, sequentially. A second consecutive failure stops the run; saved prices are kept. A
+ * symbol the provider can't answer usably is skipped and the run continues.
  */
 export class PriceRefresher {
   constructor(
@@ -40,6 +50,7 @@ export class PriceRefresher {
       fetched: 0,
       upToDate: 0,
       unknownSymbols: [],
+      failedSymbols: [],
       stopped: false,
       error: null,
     };
@@ -78,6 +89,11 @@ export class PriceRefresher {
             data: { pricing: 'none' },
           });
           result.unknownSymbols.push(symbol);
+          continue;
+        }
+        if (error instanceof PriceProviderError && error.kind === 'bad_response') {
+          console.warn(`[prices] skipping ${symbol}: ${error.message}`);
+          result.failedSymbols.push(symbol);
           continue;
         }
         result.stopped = true;
@@ -138,7 +154,7 @@ export class PriceRefresher {
     try {
       return await this.provider.getDailyHistory(symbol, from, to);
     } catch (error) {
-      if (error instanceof PriceProviderError && error.kind === 'unknown_symbol') throw error;
+      if (error instanceof PriceProviderError && !RETRYABLE.has(error.kind)) throw error;
       await this.sleep(RETRY_DELAY_MS);
       return this.provider.getDailyHistory(symbol, from, to);
     }

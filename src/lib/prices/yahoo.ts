@@ -48,8 +48,13 @@ const QUOTE_TYPES: Record<string, SecurityType> = {
   MONEYMARKET: 'money_market',
 };
 
+/** yahoo-finance2 errors raised for a response or request it can't use, not for transport. */
+const BAD_RESPONSE_ERRORS = new Set(['FailedYahooValidationError', 'InvalidOptionsError']);
+
 export function classifyYahooError(error: unknown): PriceErrorKind {
   const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof Error && BAD_RESPONSE_ERRORS.has(error.name)) return 'bad_response';
+  if (/schema validation|invalid options/i.test(message)) return 'bad_response';
   if (/too many requests|\b429\b/i.test(message)) return 'rate_limited';
   if (/not found|no data found|delisted|\b404\b|invalid symbol/i.test(message)) {
     return 'unknown_symbol';

@@ -20,7 +20,8 @@ export type SymbolMatch = {
   exchange: string | null;
 };
 
-export type PriceErrorKind = 'rate_limited' | 'network' | 'unknown_symbol';
+/** `bad_response`: the provider answered but the payload or request was unusable; retrying won't help. */
+export type PriceErrorKind = 'rate_limited' | 'network' | 'unknown_symbol' | 'bad_response';
 
 export class PriceProviderError extends Error {
   readonly kind: PriceErrorKind;

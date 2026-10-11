@@ -60,7 +60,14 @@ describe('PriceRefresher', () => {
     });
     const r = await refresher(provider).refresh();
     expect(calls).toEqual([{ symbol: 'AAA', from: '2026-10-07', to: '2026-10-09' }]);
-    expect(r).toEqual({ fetched: 1, upToDate: 0, unknownSymbols: [], stopped: false, error: null });
+    expect(r).toEqual({
+      fetched: 1,
+      upToDate: 0,
+      unknownSymbols: [],
+      failedSymbols: [],
+      stopped: false,
+      error: null,
+    });
     expect(await yahooRows(security.id)).toEqual([
       ['2026-10-06', 100],
       ['2026-10-07', 101],
@@ -120,6 +127,26 @@ describe('PriceRefresher', () => {
     const r = await refresher(provider).refresh();
     expect(r).toMatchObject({ fetched: 1, unknownSymbols: ['AAA'], stopped: false });
     expect((await prisma.security.findUniqueOrThrow({ where: { id: a.id } })).pricing).toBe('none');
+  });
+
+  it('skips a symbol whose response is unusable, without retrying, and continues', async () => {
+    const { security: a } = await held('AAA');
+    await held('BBB');
+    const { provider, calls } = fakeProvider({
+      closes: { BBB: { '2026-10-09': 50 } },
+      errors: { AAA: [new PriceProviderError('bad_response', 'Failed Yahoo Schema validation')] },
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const r = await refresher(provider).refresh();
+      expect(r).toMatchObject({ fetched: 1, failedSymbols: ['AAA'], stopped: false, error: null });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('skipping AAA'));
+    } finally {
+      warn.mockRestore();
+    }
+    expect(calls.map((c) => c.symbol)).toEqual(['AAA', 'BBB']);
+    expect(sleep).not.toHaveBeenCalledWith(RETRY_DELAY_MS);
+    expect((await prisma.security.findUniqueOrThrow({ where: { id: a.id } })).pricing).toBe('feed');
   });
 
   it('retries once after a rate limit', async () => {
