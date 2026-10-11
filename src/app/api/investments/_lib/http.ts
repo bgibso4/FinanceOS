@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { isoDay, utcDay } from '@/lib/investments/dates';
 import { InvestmentInputError } from '@/lib/investments/account-guard';
 import { PriceProviderError } from '@/lib/prices/types';
 
 export const isoDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .refine((s) => !Number.isNaN(Date.parse(`${s}T00:00:00Z`)), 'Invalid date');
+  .refine((s) => isoDay(utcDay(s)) === s, 'Invalid date');
 
 export async function parseJsonBody<T>(
   request: NextRequest,

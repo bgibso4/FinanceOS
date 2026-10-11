@@ -228,9 +228,14 @@ describe('POST /api/plaid/sync for investment accounts', () => {
   });
 
   it('a failing price refresh does not fail the sync', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     refreshRun.mockRejectedValueOnce(new Error('boom'));
     vi.mocked(syncPlaidInvestments).mockResolvedValue(okResult(accountId) as never);
     const res = await post({ accountId });
     expect(res.status).toBe(200);
+    await vi.waitFor(() =>
+      expect(err).toHaveBeenCalledWith('[investments] post-sync refresh failed:', expect.any(Error))
+    );
+    err.mockRestore();
   });
 });

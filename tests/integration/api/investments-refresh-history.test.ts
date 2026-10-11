@@ -61,6 +61,7 @@ describe('investments refresh and history APIs', () => {
 
   it('GET /history validates input', async () => {
     expect((await get('from=2026-13-01')).status).toBe(400);
+    expect((await get('from=2026-02-31')).status).toBe(400);
     expect((await get('from=2026-10-05&to=2026-10-01')).status).toBe(400);
     expect((await get('accountId=missing')).status).toBe(404);
     const cash = await testPrisma.account.create({
