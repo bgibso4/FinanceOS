@@ -1,6 +1,8 @@
 import type { PrismaClient } from '@prisma/client';
 import type { Clock } from '@/lib/clock';
 import { PriceRefresher, type Sleeper } from '@/lib/prices/refresh';
+import { QuoteCache } from '@/lib/prices/quote-cache';
+import { SecurityCatalog } from '@/lib/prices/securities';
 import type { PriceProvider } from '@/lib/prices/types';
 import { ValueHistoryService } from './history';
 import { ManualHoldingService } from './manual-holding';
@@ -9,6 +11,8 @@ import { ValuationService } from './valuation';
 
 export type InvestmentServices = {
   prices: PriceRefresher;
+  quotes: QuoteCache;
+  catalog: SecurityCatalog;
   manualHoldings: ManualHoldingService;
   valuation: ValuationService;
   history: ValueHistoryService;
@@ -24,10 +28,14 @@ export function createInvestmentServices(deps: {
 }): InvestmentServices {
   const { prisma, provider, clock, sleep } = deps;
   const prices = new PriceRefresher(prisma, provider, clock, sleep);
+  const quotes = new QuoteCache(provider, clock);
+  const catalog = new SecurityCatalog(prisma, provider, quotes, clock);
   const manualHoldings = new ManualHoldingService(prisma, clock);
   const valuation = new ValuationService(prisma, manualHoldings, clock);
   return {
     prices,
+    quotes,
+    catalog,
     manualHoldings,
     valuation,
     history: new ValueHistoryService(prisma),
