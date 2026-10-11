@@ -7,7 +7,10 @@ import { PriceProviderError } from '@/lib/prices/types';
 export const isoDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .refine((s) => isoDay(utcDay(s)) === s, 'Invalid date');
+  .refine((s) => {
+    const d = utcDay(s);
+    return !Number.isNaN(d.getTime()) && isoDay(d) === s;
+  }, 'Invalid date');
 
 export async function parseJsonBody<T>(
   request: NextRequest,
