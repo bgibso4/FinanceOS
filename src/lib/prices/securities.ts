@@ -2,6 +2,7 @@ import type { PrismaClient, Security } from '@prisma/client';
 import { systemClock, type Clock } from '@/lib/clock';
 import { InvestmentInputError } from '@/lib/investments/account-guard';
 import { utcDay } from '@/lib/investments/dates';
+import { isValidCurrency } from '@/lib/currency';
 import type { QuoteCache } from './quote-cache';
 import type { SymbolLookup, SymbolMatch } from './types';
 
@@ -47,6 +48,29 @@ export class SecurityCatalog {
       },
     });
     return { security, created: true };
+  }
+
+  /** The cash security for a currency (1 unit = 1 <currency>), shared with Plaid's cash securities. */
+  async findOrCreateCash(currency: string): Promise<Security> {
+    const code = currency.trim().toUpperCase();
+    if (!isValidCurrency(code)) throw new InvestmentInputError(`Unsupported currency: ${currency}`);
+    const existing = await this.prisma.security.findFirst({
+      where: { type: 'cash', pricing: 'fixed', fixedPrice: 1, currency: code },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (existing) return existing;
+    return this.prisma.security.create({
+      data: {
+        name: `${code} cash`,
+        ticker: null,
+        type: 'cash',
+        currency: code,
+        priceSymbol: null,
+        priceSymbolOverride: true,
+        pricing: 'fixed',
+        fixedPrice: 1,
+      },
+    });
   }
 
   /**

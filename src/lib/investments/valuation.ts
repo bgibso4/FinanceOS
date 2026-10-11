@@ -95,7 +95,7 @@ export class ValuationService {
         date: { lte: today },
         securityId: { not: manualHoldingSecurityId(account.id) },
       },
-      include: { security: { select: { currency: true } } },
+      include: { security: { select: { currency: true, pricing: true } } },
       orderBy: { date: 'asc' },
     });
     if (!snapshots.length) return 0;
@@ -120,12 +120,17 @@ export class ValuationService {
     let written = 0;
     for (let d = start; d <= today; d = addDays(d, 1)) {
       const t = d.getTime();
-      if (t !== today.getTime() && !priceDays.has(t) && !setDays.includes(t)) continue;
       const setDay = lastAtOrBefore(setDays, t);
       if (setDay === undefined) continue;
+      const held = snapshots.filter((s) => s.date.getTime() === setDay);
+      // Fixed-price holdings (cash) have no price rows, so a set of only those is valued every day.
+      const needsPriceDay = held.some((h) => h.security.pricing !== 'fixed');
+      if (needsPriceDay && t !== today.getTime() && !priceDays.has(t) && !setDays.includes(t)) {
+        continue;
+      }
       let value = 0;
       let complete = true;
-      for (const h of snapshots.filter((s) => s.date.getTime() === setDay)) {
+      for (const h of held) {
         const priced = book.at(h.securityId, d);
         if (!priced) {
           complete = false;

@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { prisma } from '../src/lib/prisma';
 import { getAccountBalance } from '../src/lib/balances';
-import { convertAmount } from '../src/lib/currency';
+import { convertAmount, isValidCurrency } from '../src/lib/currency';
 import { loadFxRates } from '../src/lib/prices/price-book';
 import { YahooPriceProvider } from '../src/lib/prices/yahoo';
 import { createInvestmentServices } from '../src/lib/investments/services';
@@ -17,26 +17,40 @@ import { backupDatabase } from './lib/backup-db';
 const FileSchema = z.object({
   accounts: z
     .array(
-      z.object({
-        accountId: z.string().min(1),
-        holdings: z
-          .array(
-            z.object({
-              symbol: z.string().trim().toUpperCase().min(1),
-              quantity: z.number().positive(),
-            })
-          )
-          .min(1)
-          .superRefine((holdings, ctx) => {
-            const seen = new Set<string>();
-            for (const h of holdings) {
-              if (seen.has(h.symbol)) {
-                ctx.addIssue({ code: 'custom', message: `Duplicate symbol ${h.symbol}` });
+      z
+        .object({
+          accountId: z.string().min(1),
+          holdings: z
+            .array(
+              z.object({
+                symbol: z.string().trim().toUpperCase().min(1),
+                quantity: z.number().positive(),
+              })
+            )
+            .superRefine((holdings, ctx) => {
+              const seen = new Set<string>();
+              for (const h of holdings) {
+                if (seen.has(h.symbol)) {
+                  ctx.addIssue({ code: 'custom', message: `Duplicate symbol ${h.symbol}` });
+                }
+                seen.add(h.symbol);
               }
-              seen.add(h.symbol);
-            }
-          }),
-      })
+            })
+            .default([]),
+          cash: z
+            .record(
+              z
+                .string()
+                .trim()
+                .toUpperCase()
+                .refine(isValidCurrency, { message: 'Unsupported currency' }),
+              z.number().positive()
+            )
+            .default({}),
+        })
+        .refine((entry) => entry.holdings.length > 0 || Object.keys(entry.cash).length > 0, {
+          message: 'Each account needs at least one holding or cash amount',
+        })
     )
     .min(1),
 });
@@ -72,6 +86,11 @@ async function main() {
         `  ${h.symbol}: ${h.quantity} × ${fmt(quote.price)} ${quote.currency} = ${fmt(value)}`
       );
     }
+    for (const [currency, amount] of Object.entries(entry.cash)) {
+      const value = convertAmount(amount, currency, account.currency, rates);
+      total += value;
+      console.warn(`  ${currency} cash: ${fmt(amount)} = ${fmt(value)}`);
+    }
     console.warn(`  valued at ~${fmt(total)} (latest quotes; stored closes may differ)`);
   }
 
@@ -86,6 +105,10 @@ async function main() {
     for (const h of entry.holdings) {
       const { security } = await services.catalog.findOrCreateFeed(h.symbol);
       holdings.push({ securityId: security.id, quantity: h.quantity });
+    }
+    for (const [currency, amount] of Object.entries(entry.cash)) {
+      const security = await services.catalog.findOrCreateCash(currency);
+      holdings.push({ securityId: security.id, quantity: amount });
     }
     await prisma.account.update({
       where: { id: entry.accountId },

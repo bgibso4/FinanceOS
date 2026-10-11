@@ -207,4 +207,75 @@ describe('ValuationService', () => {
     ]);
     expect(await balances(a.id)).toEqual([]);
   });
+  describe('cash holdings', () => {
+    const seedCash = (currency: string) =>
+      seedSecurity(prisma, {
+        name: `${currency} cash`,
+        type: 'cash',
+        currency,
+        priceSymbol: null,
+        pricing: 'fixed',
+        fixedPrice: 1,
+      });
+
+    it('adds cash at 1 per unit, converted, to feed-priced holdings on every priced day', async () => {
+      await prisma.exchangeRate.create({
+        data: { fromCurrency: 'USD', toCurrency: 'CAD', rate: 1.5 },
+      });
+      const a = await seedInvestmentAccount(prisma, {
+        balanceSource: 'valuation',
+        currency: 'CAD',
+      });
+      const feed = await seedSecurity(prisma, { priceSymbol: 'AAA', currency: 'USD' });
+      const cash = await seedCash('CAD');
+      for (const securityId of [feed.id, cash.id]) {
+        await seedSnapshot(prisma, {
+          accountId: a.id,
+          securityId,
+          date: '2026-10-02',
+          quantity: securityId === feed.id ? 2 : 100,
+          price: 1,
+          source: 'manual',
+        });
+      }
+      await seedPrice(prisma, feed.id, '2026-10-02', 10);
+      await seedPrice(prisma, feed.id, '2026-10-05', 12);
+      await at(MONDAY).valuation.writeBalances();
+      expect(await balances(a.id)).toEqual([
+        ['2026-10-02', 130, 'valuation'],
+        ['2026-10-05', 136, 'valuation'],
+      ]);
+    });
+
+    it('values a cash-only account at the cash amount, converted to the account currency', async () => {
+      await prisma.exchangeRate.create({
+        data: { fromCurrency: 'CAD', toCurrency: 'USD', rate: 0.75 },
+      });
+      const a = await seedInvestmentAccount(prisma, { balanceSource: 'valuation' });
+      const cash = await seedCash('CAD');
+      await at(FRIDAY).valuation.setHoldings(a.id, [{ securityId: cash.id, quantity: 200 }]);
+      expect(await balances(a.id)).toEqual([['2026-10-09', 150, 'valuation']]);
+    });
+
+    it('writes a row for every day a cash-only account holds cash', async () => {
+      const a = await seedInvestmentAccount(prisma, { balanceSource: 'valuation' });
+      const cash = await seedCash('USD');
+      await seedSnapshot(prisma, {
+        accountId: a.id,
+        securityId: cash.id,
+        date: '2026-10-02',
+        quantity: 50,
+        price: 1,
+        source: 'manual',
+      });
+      await at('2026-10-06T22:00:00Z').valuation.writeBalances();
+      expect(await balances(a.id)).toEqual([
+        ['2026-10-02', 50, 'valuation'],
+        ['2026-10-03', 50, 'valuation'],
+        ['2026-10-04', 50, 'valuation'],
+        ['2026-10-05', 50, 'valuation'],
+        ['2026-10-06', 50, 'valuation'],
+      ]);
+    });
+  });
 });
