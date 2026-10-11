@@ -228,6 +228,17 @@ export function ConnectedInstitutions({ onRefresh }: ConnectedInstitutionsProps)
                   />
                   <p className={`text-xs ${ds.text.muted} mt-1`}>Sandbox mode - for testing</p>
                 </div>
+                <div>
+                  <PlaidInstitutionConnect
+                    buttonText="Plaid · Investments"
+                    className="w-full"
+                    kind="investments"
+                    onSuccess={handleConnect}
+                  />
+                  <p className={`text-xs ${ds.text.muted} mt-1`}>
+                    Brokerage, IRA, 401k, HSA (Fidelity, Schwab)
+                  </p>
+                </div>
               </div>
             </div>
           )}

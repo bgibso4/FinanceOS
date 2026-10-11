@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { CountryCode, Products } from 'plaid';
-import { getPlaidClient } from '@/lib/plaid';
+import { CountryCode } from 'plaid';
+import { getPlaidClient, linkProductsFor } from '@/lib/plaid';
 import { prisma } from '@/lib/prisma';
 import { decryptAccessToken } from '@/lib/encryption';
 
 const schema = z.object({
   accountId: z.string().optional(),
   enrollmentId: z.string().optional(),
+  kind: z.enum(['banking', 'investments']).default('banking'),
 });
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { enrollmentId } = schema.parse(body);
+    const { enrollmentId, kind } = schema.parse(body);
 
     const plaid = getPlaidClient();
 
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
     const request = {
       user: { client_user_id: 'user-1' },
       client_name: 'FinanceOS',
-      products: [Products.Transactions],
+      ...linkProductsFor(kind),
       country_codes: [CountryCode.Us, CountryCode.Ca],
       language: 'en',
       // Plaid defaults to 90 days and the value is fixed once the Item exists, so the
