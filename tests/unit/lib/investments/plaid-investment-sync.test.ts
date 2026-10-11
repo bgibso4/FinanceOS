@@ -179,6 +179,19 @@ describe('syncPlaidInvestments', () => {
     expect(sold.security?.ticker).toBe('TOLD');
   });
 
+  it('keeps a security marked unpriced while Plaid reports the same symbol', async () => {
+    plaidMock();
+    await syncPlaidInvestments(conn, { now: NOW });
+    await testPrisma.security.updateMany({
+      where: { plaidSecurityId: 's-etf' },
+      data: { pricing: 'none' },
+    });
+    await syncPlaidInvestments(conn, { now: NOW });
+    expect(
+      await testPrisma.security.findFirstOrThrow({ where: { plaidSecurityId: 's-etf' } })
+    ).toMatchObject({ pricing: 'none', priceSymbol: 'TETF' });
+  });
+
   it('is idempotent within a day', async () => {
     plaidMock();
     await syncPlaidInvestments(conn, { now: NOW });
