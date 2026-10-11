@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { setupTestDb, teardownTestDb, resetTestDb } from '../../../helpers/db';
-import { day, seedBalance, seedInvestmentAccount } from '../../../helpers/investments';
+import {
+  day,
+  seedBalance,
+  seedInvestmentAccount,
+  seedSecurity,
+  seedSnapshot,
+} from '../../../helpers/investments';
 import { fixedClock } from '@/lib/clock';
 import { ManualHoldingService, manualHoldingSecurityId } from '@/lib/investments/manual-holding';
 import { isoDay } from '@/lib/investments/dates';
@@ -99,5 +105,20 @@ describe('ManualHoldingService', () => {
     expect(day('2026-10-01')).toEqual(
       (await prisma.holdingSnapshot.findFirstOrThrow({ where: { accountId: m.id } })).date
     );
+  });
+
+  it('sync refuses a provider account and leaves its snapshots intact', async () => {
+    const p = await seedInvestmentAccount(prisma, { balanceSource: 'provider' });
+    const sec = await seedSecurity(prisma);
+    await seedSnapshot(prisma, {
+      accountId: p.id,
+      securityId: sec.id,
+      date: '2026-10-01',
+      quantity: 2,
+      price: 5,
+    });
+    await seedBalance(prisma, p.id, '2026-10-01', 10, 'manual');
+    await expect(manual.sync(p.id)).rejects.toMatchObject({ status: 400 });
+    expect(await snapshots(p.id)).toEqual([['2026-10-01', sec.id, 2, 10, 'plaid']]);
   });
 });

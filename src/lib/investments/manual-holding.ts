@@ -60,7 +60,7 @@ export class ManualHoldingService {
    */
   async sync(accountId: string): Promise<boolean> {
     const prisma = this.prisma;
-    const account = await prisma.account.findUniqueOrThrow({ where: { id: accountId } });
+    const account = await requireInvestmentAccount(prisma, accountId, 'manual');
     const securityId = manualHoldingSecurityId(accountId);
     const [balances, snapshots] = await Promise.all([
       prisma.accountBalance.findMany({
