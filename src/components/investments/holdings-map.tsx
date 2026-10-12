@@ -38,7 +38,10 @@ export function HoldingsMap({
         return (
           <div
             key={t.key}
-            className="absolute flex flex-col justify-between overflow-hidden rounded-md border border-[var(--border)] px-[9px] py-2 transition hover:brightness-110"
+            className={`absolute flex flex-col justify-between overflow-hidden rounded-md border border-[var(--border)] transition hover:brightness-110 ${
+              // Padding would hold a narrow tile wider than its slot; label-less tiles go without.
+              size === 'tiny' ? '' : 'px-[9px] py-2'
+            }`}
             style={{
               left: `${(t.x / DESIGN_WIDTH) * 100}%`,
               width: `calc(${(t.w / DESIGN_WIDTH) * 100}% - ${TILE_GAP}px)`,
@@ -51,7 +54,7 @@ export function HoldingsMap({
             {size !== 'tiny' && (
               <>
                 <div className="min-w-0">
-                  <div className="font-mono text-xs font-medium text-[var(--text-primary)]">
+                  <div className="truncate font-mono text-xs font-medium text-[var(--text-primary)]">
                     {l.label}
                   </div>
                   {size === 'full' && (

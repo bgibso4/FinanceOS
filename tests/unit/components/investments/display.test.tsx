@@ -137,6 +137,22 @@ describe('HoldingsMap', () => {
     expect(screen.getByTitle(/^C Fund/)).toBeInTheDocument();
     expect(screen.queryByTitle(/^Dust Fund/)).not.toBeInTheDocument();
   });
+  it('gives label-less tiles no padding, so a narrow one keeps its laid-out width', () => {
+    render(
+      <HoldingsMap
+        currency="USD"
+        height={200}
+        lines={[
+          line({ key: 'a', label: 'AAA', name: 'A Fund', valueBase: 9000 }),
+          line({ key: 'b', label: 'BBB', name: 'B Fund', valueBase: 100 }),
+        ]}
+      />
+    );
+    const narrow = screen.getByTitle(/^B Fund/);
+    expect(narrow).toHaveTextContent('');
+    expect(narrow.className).not.toMatch(/\bp[xy]-/);
+    expect(screen.getByText('AAA')).toHaveClass('truncate');
+  });
 });
 
 describe('AllocationBars', () => {
