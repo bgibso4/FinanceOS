@@ -88,7 +88,7 @@ describe('buildActivity', () => {
     ]);
   });
 
-  it.each([
+  it.each<[string, Partial<ActivityInput>]>([
     ['a different security', { securityId: 's2', ticker: 'BBB' }],
     ['a different day', { date: utcDay('2026-10-02') }],
     ['a missing security id', { securityId: null }],
