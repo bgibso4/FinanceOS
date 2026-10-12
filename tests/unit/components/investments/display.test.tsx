@@ -121,6 +121,22 @@ describe('HoldingsMap', () => {
     ]);
     expect(tiles[0].style.width).toBe('calc(50% - 3px)');
   });
+  it('leaves out a holding too small to draw, so no tile spills out of the map', () => {
+    render(
+      <HoldingsMap
+        currency="USD"
+        height={200}
+        lines={[
+          line({ key: 'a', label: 'AAA', name: 'A Fund', valueBase: 9000 }),
+          line({ key: 'b', label: 'BBB', name: 'B Fund', valueBase: 5000 }),
+          line({ key: 'c', label: 'CCC', name: 'C Fund', valueBase: 1000 }),
+          line({ key: 'd', label: 'DDD', name: 'Dust Fund', valueBase: 5 }),
+        ]}
+      />
+    );
+    expect(screen.getByTitle(/^C Fund/)).toBeInTheDocument();
+    expect(screen.queryByTitle(/^Dust Fund/)).not.toBeInTheDocument();
+  });
 });
 
 describe('AllocationBars', () => {
