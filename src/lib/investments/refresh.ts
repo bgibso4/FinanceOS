@@ -44,12 +44,13 @@ export class InvestmentRefreshService {
     });
   }
 
-  /** Point a security at a new feed symbol, price it under that symbol and revalue. */
+  /** Point a security at a new feed symbol, price it under that symbol and revalue its history. */
   setPriceSymbol(id: string, symbol: string): Promise<Security> {
     return withSyncLock(REFRESH_LOCK, async () => {
       const security = await this.catalog.setPriceSymbol(id, symbol);
       await this.prices.refresh({ securityIds: [id] });
-      await this.valuation.writeBalances();
+      const holders = await this.valuation.holdersOf(id);
+      if (holders) await this.valuation.writeBalances(holders);
       return security;
     });
   }

@@ -67,7 +67,11 @@ export class ValuationService {
     return prisma.holdingSnapshot.findMany({ where: { accountId, date: today } });
   }
 
-  async writeBalances(opts: { accountIds?: string[] } = {}): Promise<number> {
+  /**
+   * Write valued accounts' daily balances. By default each account resumes from its last valuation
+   * row; `from` revalues from that day instead (e.g. after a security's prices were replaced).
+   */
+  async writeBalances(opts: { accountIds?: string[]; from?: Date } = {}): Promise<number> {
     const today = utcDay(this.clock.now());
     const accounts = await this.prisma.account.findMany({
       where: {
@@ -78,14 +82,28 @@ export class ValuationService {
     });
     const rates = await loadFxRates(this.prisma);
     let written = 0;
-    for (const account of accounts) written += await this.valueAccount(account, today, rates);
+    for (const account of accounts) {
+      written += await this.valueAccount(account, today, rates, opts.from);
+    }
     return written;
+  }
+
+  /** Valued accounts holding `securityId`, and the first day any of them held it. */
+  async holdersOf(securityId: string): Promise<{ accountIds: string[]; from: Date } | null> {
+    const snapshots = await this.prisma.holdingSnapshot.findMany({
+      where: { securityId, account: { trackingMode: 'investment', balanceSource: 'valuation' } },
+      select: { accountId: true, date: true },
+      orderBy: { date: 'asc' },
+    });
+    if (!snapshots.length) return null;
+    return { accountIds: [...new Set(snapshots.map((s) => s.accountId))], from: snapshots[0].date };
   }
 
   private async valueAccount(
     account: Account,
     today: Date,
-    rates: Map<string, number>
+    rates: Map<string, number>,
+    from?: Date
   ): Promise<number> {
     const prisma = this.prisma;
     const snapshots = await prisma.holdingSnapshot.findMany({
@@ -103,7 +121,9 @@ export class ValuationService {
       where: { accountId: account.id, source: 'valuation' },
       orderBy: { date: 'desc' },
     });
-    const start = last ? last.date : snapshots[0].date;
+    const firstDay = snapshots[0].date;
+    const resumeAt = last ? last.date : firstDay;
+    const start = from ? (from < firstDay ? firstDay : from) : resumeAt;
     const securityIds = [...new Set(snapshots.map((s) => s.securityId))];
     const book = await PriceBook.load(prisma, securityIds, today);
     const [prices, existingRows] = await Promise.all([

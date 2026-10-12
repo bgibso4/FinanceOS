@@ -128,4 +128,39 @@ describe('InvestmentRefreshService', () => {
     expect(security).toMatchObject({ pricing: 'manual' });
     expect(await todaysBalance(a.id)).toMatchObject({ balance: 14, source: 'valuation' });
   });
+
+  it('setPriceSymbol revalues every valued day since the security was first held', async () => {
+    const a = await seedInvestmentAccount(prisma, { balanceSource: 'valuation' });
+    const s = await seedSecurity(prisma, { priceSymbol: 'OLD' });
+    await seedSnapshot(prisma, {
+      accountId: a.id,
+      securityId: s.id,
+      date: '2026-10-01',
+      quantity: 10,
+      price: 1,
+      source: 'manual',
+    });
+    const weekdays = ['2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06', '2026-10-07'];
+    for (const d of [...weekdays, '2026-10-08', '2026-10-09']) await seedPrice(prisma, s.id, d, 1);
+    const { services } = testServices(prisma, {
+      closes: {
+        NEW: Object.fromEntries([...weekdays, '2026-10-08', '2026-10-09'].map((d) => [d, 2])),
+      },
+    });
+    await services.valuation.writeBalances();
+    const before = await prisma.accountBalance.findFirst({
+      where: { accountId: a.id, date: new Date('2026-10-02T00:00:00Z') },
+    });
+    expect(before).toMatchObject({ balance: 10, source: 'valuation' });
+
+    await services.refresh.setPriceSymbol(s.id, 'NEW');
+
+    const rows = await prisma.accountBalance.findMany({
+      where: { accountId: a.id },
+      orderBy: { date: 'asc' },
+    });
+    expect(rows.map((r) => [isoDay(r.date), r.balance])).toEqual(
+      [...weekdays, '2026-10-08', '2026-10-09'].map((d) => [d, 20])
+    );
+  });
 });
