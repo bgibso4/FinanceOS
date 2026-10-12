@@ -7,8 +7,10 @@ const DEADBAND_PCT = 0.05;
 
 const symbolFor = (currency = 'USD') => (currency === 'CAD' ? 'CA$' : getCurrencySymbol(currency));
 
+export type MoneyOpts = { cents?: boolean; currency?: string };
+
 /** `$1,234`, `CA$1,234`, `−$5` (U+2212). Whole units unless `cents`. */
-export function fmtMoney(v: number, opts: { cents?: boolean; currency?: string } = {}): string {
+export function fmtMoney(v: number, opts: MoneyOpts = {}): string {
   const digits = opts.cents ? 2 : 0;
   const rounded = Number(v.toFixed(digits));
   const body = Math.abs(rounded).toLocaleString('en-US', {
@@ -18,17 +20,21 @@ export function fmtMoney(v: number, opts: { cents?: boolean; currency?: string }
   return `${rounded < 0 ? MINUS : ''}${symbolFor(opts.currency)}${body}`;
 }
 
-export const fmtSignedMoney = (v: number): string =>
-  Number(v.toFixed(0)) > 0 ? `+${fmtMoney(v)}` : fmtMoney(v);
+export const fmtSignedMoney = (v: number, opts: MoneyOpts = {}): string =>
+  Number(v.toFixed(opts.cents ? 2 : 0)) > 0 ? `+${fmtMoney(v, opts)}` : fmtMoney(v, opts);
 
-/** Treemap values: `$12.3k`, `$123k` from 100k, plain dollars under 1k. */
-export function fmtCompact(v: number): string {
-  if (Math.abs(v) < 1000) return fmtMoney(v);
+/** Treemap values: `$12.3k`, `$123k` from 100k, plain units under 1k. */
+export function fmtCompact(v: number, currency?: string): string {
+  if (Math.abs(v) < 1000) return fmtMoney(v, { currency });
   const k = v / 1000;
-  return `${v < 0 ? MINUS : ''}$${Math.abs(k).toFixed(Math.abs(v) >= 100_000 ? 0 : 1)}k`;
+  return `${v < 0 ? MINUS : ''}${symbolFor(currency)}${Math.abs(k).toFixed(Math.abs(v) >= 100_000 ? 0 : 1)}k`;
 }
 
-export const fmtPct = (p: number): string => `${p >= 0 ? '+' : MINUS}${Math.abs(p).toFixed(1)}%`;
+/** `+1.2%`, `−3.0%`; the sign follows the rounded value, so `−0.04` reads `+0.0%`. */
+export function fmtPct(p: number): string {
+  const rounded = Number(p.toFixed(1));
+  return `${rounded < 0 ? MINUS : '+'}${Math.abs(rounded).toFixed(1)}%`;
+}
 
 export const fmtQty = (q: number): string =>
   q.toLocaleString('en-US', { maximumFractionDigits: 4 });
@@ -71,7 +77,7 @@ export const signedTone = (v: number | null): string =>
   v == null ? 'text-[var(--text-muted)]' : v >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]';
 
 /** `↗ $1,234 · +2.1%` — a balance change, never labelled a return. */
-export function changeText(change: SeriesChange): string {
-  const money = `${ARROWS[toneOf(change.pct)]}${fmtMoney(change.delta)}`;
+export function changeText(change: SeriesChange, currency?: string): string {
+  const money = `${ARROWS[toneOf(change.pct)]}${fmtMoney(change.delta, { currency })}`;
   return change.pct == null ? money : `${money} · ${fmtPct(change.pct)}`;
 }

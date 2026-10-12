@@ -9,7 +9,16 @@ const CANVAS = 1000;
 /** The mock's canvas width, used only to decide which tile details fit. */
 const DESIGN_WIDTH = 470;
 
-export function HoldingsMap({ lines, height }: { lines: HoldingLine[]; height: number }) {
+export function HoldingsMap({
+  lines,
+  height,
+  currency,
+}: {
+  lines: HoldingLine[];
+  height: number;
+  /** Base currency of `valueBase`. */
+  currency: string;
+}) {
   const byKey = new Map(lines.map((l) => [l.key, l]));
   const tiles = squarify(
     lines.map((l) => ({ key: l.key, value: l.valueBase })),
@@ -33,7 +42,7 @@ export function HoldingsMap({ lines, height }: { lines: HoldingLine[]; height: n
               height: t.h - 3,
               background: tileBackground(l.rangeChangePct),
             }}
-            title={`${l.name} · ${fmtMoney(l.valueBase)} · ${l.weightPct.toFixed(1)}% of portfolio`}
+            title={`${l.name} · ${fmtMoney(l.valueBase, { currency })} · ${l.weightPct.toFixed(1)}% of portfolio`}
           >
             {size !== 'tiny' && (
               <>
@@ -49,7 +58,9 @@ export function HoldingsMap({ lines, height }: { lines: HoldingLine[]; height: n
                 </div>
                 <div className="flex justify-between font-mono text-[11px]">
                   {size === 'full' && (
-                    <span className="text-[var(--text-secondary)]">{fmtCompact(l.valueBase)}</span>
+                    <span className="text-[var(--text-secondary)]">
+                      {fmtCompact(l.valueBase, currency)}
+                    </span>
                   )}
                   <span className={signedTone(l.rangeChangePct)}>
                     {l.rangeChangePct == null ? '—' : fmtPct(l.rangeChangePct)}

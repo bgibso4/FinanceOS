@@ -158,6 +158,30 @@ describe('AccountDetail', () => {
     expect(screen.getByText('CA$2,000')).toBeInTheDocument();
   });
 
+  it('formats base amounts in a non-USD base currency', () => {
+    const overview = makeOverview({
+      baseCurrency: 'CAD',
+      accounts: [makeAccount(), retirement],
+      holdings: [
+        makeHolding(),
+        makeHolding({ securityId: 'sec-bbb', label: 'BBB', gainBase: -5, valueBase: 400 }),
+      ],
+    });
+    render(
+      <>
+        <AccountNavigator overview={overview} selected={null} onSelect={vi.fn()} />
+        <AccountDetail {...handlers()} overview={overview} selected={null} />
+      </>
+    );
+    expect(screen.getAllByText('CA$6,100')).toHaveLength(2);
+    expect(screen.getAllByText('CA$5,000')).toHaveLength(2); // group total and row
+    expect(screen.getByText('+CA$100')).toBeInTheDocument();
+    expect(screen.getByText('−CA$5')).toBeInTheDocument();
+    expect(screen.getByText('CA$1.1k')).toBeInTheDocument();
+    expect(screen.getByText('↗ CA$100 · +10.0%')).toBeInTheDocument();
+    expect(screen.queryByText(/(^|[^A])\$\d/)).toBeNull();
+  });
+
   it('offers Reconnect, Retry and Set symbol from notices', async () => {
     const h = handlers();
     const broken = makeAccount({

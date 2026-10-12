@@ -23,7 +23,7 @@ export function AccountNavigator({
   selected: string | null;
   onSelect: (id: string | null) => void;
 }) {
-  const { accounts } = overview;
+  const { accounts, baseCurrency: currency } = overview;
   const institutions = new Set(accounts.map((a) => a.institution)).size;
   return (
     <nav aria-label="Investment accounts">
@@ -45,7 +45,7 @@ export function AccountNavigator({
           </span>
         </span>
         <span className="text-right font-mono text-[13px] font-medium text-[var(--text-primary)]">
-          {fmtMoney(overview.portfolio.value)}
+          {fmtMoney(overview.portfolio.value, { currency })}
         </span>
       </button>
       {GROUP_ORDER.map((group) => {
@@ -58,12 +58,13 @@ export function AccountNavigator({
           <section key={group} aria-label={group}>
             <div className="flex justify-between pb-1.5 pt-3.5 text-[10.5px] font-medium uppercase tracking-[0.7px] text-[var(--text-muted)]">
               <span>{group}</span>
-              <span className="font-mono">{fmtMoney(total)}</span>
+              <span className="font-mono">{fmtMoney(total, { currency })}</span>
             </div>
             {members.map((a) => (
               <AccountRow
                 key={a.id}
                 account={a}
+                currency={currency}
                 selected={selected === a.id}
                 onSelect={() => onSelect(a.id)}
               />
@@ -77,10 +78,12 @@ export function AccountNavigator({
 
 function AccountRow({
   account: a,
+  currency,
   selected,
   onSelect,
 }: {
   account: AccountSummary;
+  currency: string;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -111,7 +114,7 @@ function AccountRow({
       </span>
       {a.valueBase === 0 ? <span /> : <Sparkline points={a.series} tone={sparkTone(a)} />}
       <span className="text-right font-mono text-[13px] font-medium text-[var(--text-primary)]">
-        {fmtMoney(a.valueBase)}
+        {fmtMoney(a.valueBase, { currency })}
       </span>
     </button>
   );

@@ -34,12 +34,12 @@ const CHIP_TONES: Record<Tone, string> = {
   flat: 'text-[var(--text-muted)] bg-[var(--track-bg)]',
 };
 
-export function ChangeChip({ change }: { change: SeriesChange }) {
+export function ChangeChip({ change, currency }: { change: SeriesChange; currency: string }) {
   return (
     <span
       className={`rounded-[5px] px-1.5 py-px font-mono text-[11px] ${CHIP_TONES[toneOf(change.pct)]}`}
     >
-      {changeText(change)}
+      {changeText(change, currency)}
     </span>
   );
 }

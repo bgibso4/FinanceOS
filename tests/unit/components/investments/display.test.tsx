@@ -68,7 +68,7 @@ describe('pills', () => {
     render(
       <>
         <SourcePill source="valuation" />
-        <ChangeChip change={{ start: 100, end: 110, delta: 10, pct: 10 }} />
+        <ChangeChip change={{ start: 100, end: 110, delta: 10, pct: 10 }} currency="USD" />
         <StatusDot title="Waiting on Test Brokerage" tone="warn" />
         <Notice
           action={<button type="button">Retry</button>}
@@ -90,6 +90,7 @@ describe('HoldingsMap', () => {
   it('draws a tile per line with a tooltip', () => {
     render(
       <HoldingsMap
+        currency="USD"
         height={250}
         lines={[
           line({}),
@@ -122,6 +123,7 @@ describe('HoldingsTable', () => {
     render(
       <HoldingsTable
         multiAccount
+        currency="USD"
         lines={[
           line({ accountCount: 2 }),
           line({
@@ -144,7 +146,9 @@ describe('HoldingsTable', () => {
   });
 
   it('uses whole-number weights for one account and hides the tag', () => {
-    render(<HoldingsTable lines={[line({ accountCount: 2 })]} multiAccount={false} />);
+    render(
+      <HoldingsTable currency="USD" lines={[line({ accountCount: 2 })]} multiAccount={false} />
+    );
     expect(screen.queryByText('2 accounts')).toBeNull();
     expect(screen.getByText('60%')).toBeInTheDocument();
   });

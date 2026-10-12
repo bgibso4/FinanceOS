@@ -9,9 +9,12 @@ const GRID = 'grid grid-cols-[1fr_96px_92px_70px] gap-3';
 export function HoldingsTable({
   lines,
   multiAccount,
+  currency,
 }: {
   lines: HoldingLine[];
   multiAccount: boolean;
+  /** Base currency of `valueBase` and `gainBase`. */
+  currency: string;
 }) {
   return (
     <div className="mt-2.5">
@@ -43,10 +46,10 @@ export function HoldingsTable({
             </div>
           </div>
           <span className="text-right font-mono text-[var(--text-primary)]">
-            {fmtMoney(l.valueBase)}
+            {fmtMoney(l.valueBase, { currency })}
           </span>
           <span className={`text-right font-mono ${signedTone(l.gainBase)}`}>
-            {l.gainBase == null ? '—' : fmtSignedMoney(l.gainBase)}
+            {l.gainBase == null ? '—' : fmtSignedMoney(l.gainBase, { currency })}
           </span>
           <span className="text-right font-mono text-[var(--text-secondary)]">
             {l.weightPct.toFixed(multiAccount ? 1 : 0)}%

@@ -104,6 +104,7 @@ function ChartLegend({ manual }: { manual: boolean }) {
 
 export function AccountDetail(props: DetailProps) {
   const { overview, selected } = props;
+  const currency = overview.baseCurrency;
   const [dimension, setDimension] = useState<AllocationDimension>('type');
   const account = overview.accounts.find((a) => a.id === selected) ?? null;
   const rows = account
@@ -178,7 +179,7 @@ export function AccountDetail(props: DetailProps) {
       <div className="mt-[18px] flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="font-mono text-[32px] font-medium tracking-[-0.8px] text-[var(--text-primary)]">
-            {fmtMoney(value)}
+            {fmtMoney(value, { currency })}
           </div>
           <div className="mt-1.5 flex items-center gap-2.5 text-xs text-[var(--text-muted)]">
             {manual ? (
@@ -186,12 +187,12 @@ export function AccountDetail(props: DetailProps) {
             ) : (
               change && (
                 <>
-                  <ChangeChip change={change} />
+                  <ChangeChip change={change} currency={currency} />
                   <span>balance change · {overview.range}</span>
                 </>
               )
             )}
-            {account && account.currency !== overview.baseCurrency && (
+            {account && account.currency !== currency && (
               <span className="font-mono">
                 {fmtMoney(account.value, { currency: account.currency })}
               </span>
@@ -209,7 +210,9 @@ export function AccountDetail(props: DetailProps) {
           {entries.map((e) => (
             <span key={e.date}>
               {fmtDay(e.date)}{' '}
-              <span className="font-mono text-[var(--text-secondary)]">{fmtMoney(e.value)}</span>
+              <span className="font-mono text-[var(--text-secondary)]">
+                {fmtMoney(e.value, { currency })}
+              </span>
             </span>
           ))}
           <span>· carried forward between entries</span>
@@ -223,7 +226,7 @@ export function AccountDetail(props: DetailProps) {
               hint={`size = value · color = ${overview.range} change`}
               title="Holdings map"
             />
-            <HoldingsMap height={account ? 200 : 250} lines={lines} />
+            <HoldingsMap currency={currency} height={account ? 200 : 250} lines={lines} />
           </div>
           <div>
             <div className="flex items-center justify-between text-xs font-medium text-[var(--text-secondary)]">
@@ -261,7 +264,7 @@ export function AccountDetail(props: DetailProps) {
             title="Holdings"
           />
           {lines.length ? (
-            <HoldingsTable lines={lines} multiAccount={!account} />
+            <HoldingsTable currency={currency} lines={lines} multiAccount={!account} />
           ) : (
             <p className="mt-2.5 text-xs text-[var(--text-muted)]">No holdings reported.</p>
           )}
