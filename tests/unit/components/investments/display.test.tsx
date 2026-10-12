@@ -101,6 +101,26 @@ describe('HoldingsMap', () => {
     expect(screen.getByTitle('Triple A Fund · $1,500 · 60.0% of portfolio')).toBeInTheDocument();
     expect(screen.getByText('BBB')).toBeInTheDocument();
   });
+  it('lays tiles out on the container’s shape, not a stretched canvas', () => {
+    const { container } = render(
+      <HoldingsMap
+        currency="USD"
+        height={250}
+        lines={['A', 'B', 'C', 'D'].map((k) =>
+          line({ key: k, label: k, valueBase: 100, weightPct: 25 })
+        )}
+      />
+    );
+    const tiles = [...container.querySelectorAll<HTMLElement>('[title]')];
+    // Four equal holdings in a ~470×250 box form a 2×2 grid, not a 1×4 strip.
+    expect(tiles.map((t) => [t.style.left, t.style.top])).toEqual([
+      ['0%', '0px'],
+      ['0%', '125px'],
+      ['50%', '0px'],
+      ['50%', '125px'],
+    ]);
+    expect(tiles[0].style.width).toBe('calc(50% - 3px)');
+  });
 });
 
 describe('AllocationBars', () => {
