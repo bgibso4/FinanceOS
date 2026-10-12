@@ -4,8 +4,10 @@ import { PriceRefresher, type Sleeper } from '@/lib/prices/refresh';
 import { QuoteCache } from '@/lib/prices/quote-cache';
 import { SecurityCatalog } from '@/lib/prices/securities';
 import type { PriceProvider } from '@/lib/prices/types';
+import { CurrentHoldingsReader } from './current-holdings';
 import { ValueHistoryService } from './history';
 import { ManualHoldingService } from './manual-holding';
+import { InvestmentOverviewService } from './overview';
 import { InvestmentRefreshService } from './refresh';
 import { ValuationService } from './valuation';
 
@@ -17,6 +19,7 @@ export type InvestmentServices = {
   valuation: ValuationService;
   history: ValueHistoryService;
   refresh: InvestmentRefreshService;
+  overview: InvestmentOverviewService;
 };
 
 /** The one place investment services are wired. Omitted `clock`/`sleep` use the real ones. */
@@ -32,14 +35,22 @@ export function createInvestmentServices(deps: {
   const catalog = new SecurityCatalog(prisma, provider, quotes, clock);
   const manualHoldings = new ManualHoldingService(prisma, clock);
   const valuation = new ValuationService(prisma, manualHoldings, clock);
+  const history = new ValueHistoryService(prisma);
   return {
     prices,
     quotes,
     catalog,
     manualHoldings,
     valuation,
-    history: new ValueHistoryService(prisma),
+    history,
     refresh: new InvestmentRefreshService(prices, valuation, catalog),
+    overview: new InvestmentOverviewService(
+      prisma,
+      history,
+      new CurrentHoldingsReader(prisma),
+      prices,
+      clock
+    ),
   };
 }
 

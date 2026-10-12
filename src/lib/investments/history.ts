@@ -6,6 +6,33 @@ import { roundCents } from './money';
 
 export type SeriesPoint = { date: string; value: number; isEstimated: boolean };
 
+/** A series re-expressed in another currency at today's rates, rounded to cents. */
+export function convertSeries(
+  points: SeriesPoint[],
+  from: string,
+  to: string,
+  rates: Map<string, number>
+): SeriesPoint[] {
+  if (from === to) return points;
+  return points.map((p) => ({ ...p, value: roundCents(convertAmount(p.value, from, to, rates)) }));
+}
+
+/** Day-by-day sum of series in one currency; a day is estimated when any member's point is. */
+export function sumSeries(series: SeriesPoint[][]): SeriesPoint[] {
+  const totals = new Map<string, { value: number; isEstimated: boolean }>();
+  for (const points of series) {
+    for (const p of points) {
+      const total = totals.get(p.date) ?? { value: 0, isEstimated: false };
+      total.value += p.value;
+      total.isEstimated ||= p.isEstimated;
+      totals.set(p.date, total);
+    }
+  }
+  return [...totals.entries()]
+    .sort(([x], [y]) => x.localeCompare(y))
+    .map(([date, t]) => ({ date, value: roundCents(t.value), isEstimated: t.isEstimated }));
+}
+
 const QUANTITY_TYPES = new Set(['buy', 'sell', 'transfer']);
 
 type Position = { securityId: string; quantity: number; price: number; value: number };
@@ -74,18 +101,12 @@ export class ValueHistoryService {
       select: { id: true, currency: true },
     });
     const rates = await loadFxRates(this.prisma);
-    const totals = new Map<string, { value: number; isEstimated: boolean }>();
+    const series: SeriesPoint[][] = [];
     for (const a of accounts) {
-      for (const p of await this.accountSeries(a.id, from, to, { rates })) {
-        const total = totals.get(p.date) ?? { value: 0, isEstimated: false };
-        total.value += convertAmount(p.value, a.currency, baseCurrency, rates);
-        total.isEstimated ||= p.isEstimated;
-        totals.set(p.date, total);
-      }
+      const points = await this.accountSeries(a.id, from, to, { rates });
+      series.push(convertSeries(points, a.currency, baseCurrency, rates));
     }
-    return [...totals.entries()]
-      .sort(([x], [y]) => x.localeCompare(y))
-      .map(([date, t]) => ({ date, value: roundCents(t.value), isEstimated: t.isEstimated }));
+    return sumSeries(series);
   }
 }
 
