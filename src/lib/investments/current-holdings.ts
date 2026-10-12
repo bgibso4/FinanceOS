@@ -56,7 +56,8 @@ export class CurrentHoldingsReader {
       const value = toAccount(s.quantity * price);
       const startPrice = book.at(s.securityId, rangeStart)?.price;
       const endPrice = book.at(s.securityId, today)?.price;
-      const marketPriced = kind === 'security' && s.security.pricing === 'feed';
+      const marketPriced =
+        kind === 'security' && s.security.pricing !== 'none' && s.security.pricing !== 'fixed';
       return {
         accountId: account.id,
         securityId: s.securityId,

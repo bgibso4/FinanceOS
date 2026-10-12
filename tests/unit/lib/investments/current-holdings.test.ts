@@ -194,6 +194,23 @@ describe('CurrentHoldingsReader', () => {
     expect(r).toMatchObject({ kind: 'security', pricing: 'fixed', rangeChangePct: null });
   });
 
+  it('gives a manual-priced security a range change from its price entries', async () => {
+    const a = await seedInvestmentAccount(prisma, { balanceSource: 'valuation' });
+    const s = await seedSecurity(prisma, { priceSymbol: 'MAN', pricing: 'manual' });
+    await seedSnapshot(prisma, {
+      accountId: a.id,
+      securityId: s.id,
+      date: '2026-10-01',
+      quantity: 1,
+      price: 10,
+      source: 'manual',
+    });
+    await seedPrice(prisma, s.id, '2026-09-09', 8, 'manual');
+    await seedPrice(prisma, s.id, '2026-10-09', 10, 'manual');
+    const [r] = await read([a]);
+    expect(r.rangeChangePct).toBe(25);
+  });
+
   it('returns nothing for no accounts', async () => {
     expect(await read([])).toEqual([]);
   });
