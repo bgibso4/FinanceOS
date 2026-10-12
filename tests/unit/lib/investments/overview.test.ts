@@ -153,6 +153,23 @@ describe('InvestmentOverviewService', () => {
     expect(o.accounts[0].status.tradesReported).toBe(true);
   });
 
+  it('keeps a CAD account’s activity in CAD', async () => {
+    const a = await seedInvestmentAccount(prisma, { currency: 'CAD' });
+    const s = await seedSecurity(prisma, { priceSymbol: 'AAA' });
+    await seedTrade(prisma, {
+      accountId: a.id,
+      securityId: s.id,
+      date: '2026-10-05',
+      type: 'buy',
+      quantity: 2,
+      amount: 30,
+      currency: 'CAD',
+    });
+
+    const [item] = (await overview()).activity;
+    expect(item).toMatchObject({ currency: 'CAD', amount: -30 });
+  });
+
   it('keeps a quiet account’s activity next to a busy one', async () => {
     const busy = await seedInvestmentAccount(prisma);
     const quiet = await seedInvestmentAccount(prisma);

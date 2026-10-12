@@ -195,6 +195,7 @@ export class InvestmentOverviewService {
           quantity: t.quantity,
           price: t.price,
           amount: t.amount,
+          currency: t.currency,
           securityId: t.securityId,
           ticker: t.security?.ticker ?? null,
           securityName: t.security?.name ?? null,

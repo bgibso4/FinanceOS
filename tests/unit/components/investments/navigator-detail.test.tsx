@@ -111,8 +111,9 @@ describe('AccountDetail', () => {
           accountId: 'acc-ret',
           date: '2026-10-05',
           title: 'Buy · AAA',
-          detail: null,
+          trade: null,
           amount: -5,
+          currency: 'USD',
         },
       ],
     });

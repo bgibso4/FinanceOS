@@ -10,6 +10,7 @@ export type ActivityInput = {
   quantity: number | null;
   price: number | null;
   amount: number; // Plaid sign: positive = cash leaves the account
+  currency: string;
   securityId: string | null;
   ticker: string | null;
   securityName: string | null;
@@ -20,8 +21,11 @@ export type ActivityItem = {
   accountId: string;
   date: string;
   title: string;
-  detail: string | null;
+  /** Shares traded and their price, in `currency`. */
+  trade: { quantity: number; price: number } | null;
   amount: number; // positive = cash into the account
+  /** The transaction's own currency: activity is a cash event in the account, never converted. */
+  currency: string;
 };
 
 const symbolOf = (r: ActivityInput) => r.ticker ?? r.securityName ?? '';
@@ -53,10 +57,8 @@ const TITLE_RULES: { match: (r: ActivityInput) => boolean; title: (r: ActivityIn
 
 const titleOf = (r: ActivityInput) => TITLE_RULES.find((rule) => rule.match(r))?.title(r) ?? r.name;
 
-const tradeDetail = (r: ActivityInput): string | null =>
-  r.quantity != null && r.price != null
-    ? `${Math.abs(r.quantity).toLocaleString('en-US', { maximumFractionDigits: 4 })} sh @ $${r.price.toFixed(2)}`
-    : null;
+const tradeOf = (r: ActivityInput): ActivityItem['trade'] =>
+  r.quantity != null && r.price != null ? { quantity: Math.abs(r.quantity), price: r.price } : null;
 
 const sameDaySecurity = (a: ActivityInput, b: ActivityInput) =>
   a.accountId === b.accountId &&
@@ -82,8 +84,9 @@ export function buildActivity(rows: ActivityInput[]): ActivityItem[] {
       accountId: r.accountId,
       date: isoDay(r.date),
       title: reinvest ? titled('Dividend reinvested', r) : titleOf(r),
-      detail: tradeDetail(reinvest ?? r),
+      trade: tradeOf(reinvest ?? r),
       amount: -r.amount,
+      currency: r.currency,
     });
   }
   return items.sort((a, b) => b.date.localeCompare(a.date));

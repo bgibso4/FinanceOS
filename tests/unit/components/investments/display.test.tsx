@@ -160,8 +160,9 @@ describe('ActivityList', () => {
     accountId: 'a1',
     date: '2026-10-05',
     title: 'Buy · AAA',
-    detail: '1 sh @ $5.00',
+    trade: { quantity: 1, price: 5 },
     amount: -5,
+    currency: 'USD',
   };
 
   it('shows the empty copy', () => {
@@ -175,5 +176,18 @@ describe('ActivityList', () => {
     expect(within(row).getByText('Brokerage · Test Bank · 1 sh @ $5.00')).toBeInTheDocument();
     expect(within(row).getByText('−$5.00')).toBeInTheDocument();
     expect(within(row).getByText('Oct 5')).toBeInTheDocument();
+  });
+
+  it('shows amounts and prices in the transaction currency', () => {
+    render(
+      <ActivityList
+        emptyText=""
+        items={[
+          { ...item, trade: { quantity: 1234.5, price: 7.5 }, amount: 12.25, currency: 'CAD' },
+        ]}
+      />
+    );
+    expect(screen.getByText('1,234.5 sh @ CA$7.50')).toBeInTheDocument();
+    expect(screen.getByText('CA$12.25')).toBeInTheDocument();
   });
 });

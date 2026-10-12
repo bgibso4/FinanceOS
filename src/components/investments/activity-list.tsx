@@ -1,7 +1,7 @@
 'use client';
 
 import type { ActivityItem } from '@/lib/investments/activity';
-import { fmtDay, fmtMoney } from './format';
+import { fmtDay, fmtMoney, fmtQty } from './format';
 
 export function ActivityList({
   items,
@@ -18,7 +18,11 @@ export function ActivityList({
   return (
     <div className="mt-1.5">
       {items.map((item, i) => {
-        const sub = [sourceOf?.(item.accountId), item.detail].filter(Boolean).join(' · ');
+        const { trade, currency } = item;
+        const detail =
+          trade &&
+          `${fmtQty(trade.quantity)} sh @ ${fmtMoney(trade.price, { cents: true, currency })}`;
+        const sub = [sourceOf?.(item.accountId), detail].filter(Boolean).join(' · ');
         return (
           <div
             key={item.id}
@@ -38,7 +42,7 @@ export function ActivityList({
                 item.amount < 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-primary)]'
               }`}
             >
-              {fmtMoney(item.amount, { cents: true })}
+              {fmtMoney(item.amount, { cents: true, currency })}
             </span>
           </div>
         );

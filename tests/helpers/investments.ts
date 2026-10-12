@@ -128,6 +128,7 @@ export function seedTrade(
     type: string;
     quantity?: number | null;
     amount: number;
+    currency?: string;
     isCancelled?: boolean;
   }
 ) {
@@ -141,7 +142,7 @@ export function seedTrade(
       name: `Test ${data.type}`,
       quantity: data.quantity ?? null,
       amount: data.amount,
-      currency: 'USD',
+      currency: data.currency ?? 'USD',
       source: 'plaid',
       isCancelled: data.isCancelled ?? false,
     },
