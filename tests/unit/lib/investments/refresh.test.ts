@@ -9,6 +9,7 @@ import {
   testServices,
 } from '../../../helpers/investments';
 import { isoDay } from '@/lib/investments/dates';
+import { PriceProviderError } from '@/lib/prices/types';
 
 let prisma: PrismaClient;
 
@@ -162,5 +163,40 @@ describe('InvestmentRefreshService', () => {
     expect(rows.map((r) => [isoDay(r.date), r.balance])).toEqual(
       [...weekdays, '2026-10-08', '2026-10-09'].map((d) => [d, 20])
     );
+  });
+
+  it('setPriceSymbol keeps the valuation history when pricing the new symbol stops', async () => {
+    const a = await seedInvestmentAccount(prisma, { balanceSource: 'valuation' });
+    const s = await seedSecurity(prisma, { priceSymbol: 'OLD' });
+    await seedSnapshot(prisma, {
+      accountId: a.id,
+      securityId: s.id,
+      date: '2026-10-01',
+      quantity: 10,
+      price: 1,
+      source: 'manual',
+    });
+    const days = ['2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06', '2026-10-07'];
+    for (const d of [...days, '2026-10-08', '2026-10-09']) await seedPrice(prisma, s.id, d, 1);
+    const down = () => new PriceProviderError('network', 'offline');
+    const { services } = testServices(prisma, {
+      closes: { NEW: { '2026-10-09': 2 } },
+      errors: { NEW: [down(), down()] },
+    });
+    await services.valuation.writeBalances();
+    const balances = async () =>
+      (
+        await prisma.accountBalance.findMany({
+          where: { accountId: a.id },
+          orderBy: { date: 'asc' },
+        })
+      ).map((r) => [isoDay(r.date), r.balance, r.source]);
+    const before = await balances();
+    expect(before).toHaveLength(7);
+
+    const security = await services.refresh.setPriceSymbol(s.id, 'NEW');
+
+    expect(security).toMatchObject({ priceSymbol: 'NEW', pricing: 'feed' });
+    expect(await balances()).toEqual(before);
   });
 });

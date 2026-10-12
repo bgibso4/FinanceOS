@@ -44,11 +44,16 @@ export class InvestmentRefreshService {
     });
   }
 
-  /** Point a security at a new feed symbol, price it under that symbol and revalue its history. */
+  /**
+   * Point a security at a new feed symbol, price it under that symbol and revalue its history.
+   * If pricing stops, the history is left as it was: revaluing without the new closes would
+   * drop those days. The next refresh prices the symbol.
+   */
   setPriceSymbol(id: string, symbol: string): Promise<Security> {
     return withSyncLock(REFRESH_LOCK, async () => {
       const security = await this.catalog.setPriceSymbol(id, symbol);
-      await this.prices.refresh({ securityIds: [id] });
+      const prices = await this.prices.refresh({ securityIds: [id] });
+      if (prices.stopped) return security;
       const holders = await this.valuation.holdersOf(id);
       if (holders) await this.valuation.writeBalances(holders);
       return security;
