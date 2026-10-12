@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { systemClock, type Clock } from '@/lib/clock';
 import { addDays, utcDay } from '@/lib/investments/dates';
-import { lastCompletedTradingDay } from './trading-days';
+import { lastCompletedTradingDay, marketOf, previousTradingDay, type Market } from './trading-days';
 import {
   PriceProviderError,
   type DailyHistory,
@@ -26,6 +26,8 @@ export type PriceRefreshResult = {
   stopped: boolean;
   error: string | null;
 };
+
+export type PriceFreshness = { asOf: Date | null; stale: boolean };
 
 const defaultSleep: Sleeper = (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -69,7 +71,7 @@ export class PriceRefresher {
     let calls = 0;
     for (const security of securities) {
       const symbol = security.priceSymbol!;
-      const market = security.type === 'crypto' ? 'crypto' : 'exchange';
+      const market = marketOf(security.type);
       const target = lastCompletedTradingDay(now, market);
       const latest = await this.latestStoredClose(security.id);
       const from = latest ? addDays(latest, 1) : await this.firstNeededDay(security.id, today);
@@ -117,18 +119,32 @@ export class PriceRefresher {
     return row?.date ?? null;
   }
 
-  /** Oldest "latest Yahoo close" across held feed securities: the honest "prices as of". */
-  async pricesAsOf(): Promise<Date | null> {
+  /**
+   * How current stored closes are for held feed securities (or just `securityIds`). Each security
+   * is judged on its own market's calendar, with one trading day of grace for unmodelled holidays:
+   * stale when its latest close is older than the trading day before the last completed one.
+   * `asOf` is the oldest latest close among exchange securities, else among crypto.
+   */
+  async freshness(opts: { securityIds?: string[] } = {}): Promise<PriceFreshness> {
+    const now = this.clock.now();
     const securities = await this.prisma.security.findMany({
-      where: { pricing: 'feed', holdings: { some: {} } },
-      select: { id: true },
+      where: {
+        pricing: 'feed',
+        ...(opts.securityIds ? { id: { in: opts.securityIds } } : { holdings: { some: {} } }),
+      },
+      select: { id: true, type: true },
     });
-    let oldest: Date | null = null;
-    for (const { id } of securities) {
-      const latest = await this.latestStoredClose(id);
-      if (latest && (!oldest || latest < oldest)) oldest = latest;
+    const oldest: Partial<Record<Market, Date>> = {};
+    let stale = false;
+    for (const s of securities) {
+      const market = marketOf(s.type);
+      const latest = await this.latestStoredClose(s.id);
+      const grace = previousTradingDay(lastCompletedTradingDay(now, market), market);
+      if (!latest || latest < grace) stale = true;
+      const current = oldest[market];
+      if (latest && (!current || latest < current)) oldest[market] = latest;
     }
-    return oldest;
+    return { asOf: oldest.exchange ?? oldest.crypto ?? null, stale };
   }
 
   /** First day a never-priced security needs: its earliest holding or trade, else a short lookback. */

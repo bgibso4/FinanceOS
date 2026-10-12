@@ -7,8 +7,11 @@ export async function POST() {
   try {
     const { refresh, prices } = await getInvestmentServices();
     const result = await refresh.refresh();
-    const pricesAsOf = await prices.pricesAsOf();
-    return NextResponse.json({ ...result, pricesAsOf: pricesAsOf ? isoDay(pricesAsOf) : null });
+    const freshness = await prices.freshness();
+    return NextResponse.json({
+      ...result,
+      pricesAsOf: freshness.asOf ? isoDay(freshness.asOf) : null,
+    });
   } catch (error) {
     return investmentErrorResponse(error, 'Failed to refresh investments');
   }

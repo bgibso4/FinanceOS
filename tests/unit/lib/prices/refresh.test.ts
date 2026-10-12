@@ -225,22 +225,51 @@ describe('PriceRefresher', () => {
     expect(calls).toEqual([{ symbol: 'NEW', from: '2026-09-09', to: '2026-10-09' }]);
   });
 
-  it('pricesAsOf reports the oldest latest close among held feed securities', async () => {
-    const a = await seedInvestmentAccount(prisma);
-    for (const [symbol, last] of [
-      ['AAA', '2026-10-09'],
-      ['BBB', '2026-10-07'],
-    ]) {
-      const s = await seedSecurity(prisma, { priceSymbol: symbol });
-      await seedSnapshot(prisma, {
-        accountId: a.id,
-        securityId: s.id,
-        date: '2026-10-09',
-        quantity: 1,
-        price: 1,
-      });
-      await seedPrice(prisma, s.id, last, 1);
+  describe('freshness', () => {
+    // Clock: Friday 2026-10-09 22:00Z. Exchange target 10-09 (grace 10-08); crypto 10-08 (grace 10-07).
+    async function heldWithClose(symbol: string, last: string, type = 'etf') {
+      const { security } = await held(symbol, { type });
+      await seedPrice(prisma, security.id, last, 1);
+      return security;
     }
-    expect(isoDay((await refresher(fakeProvider().provider).pricesAsOf())!)).toBe('2026-10-07');
+    const freshness = (opts?: { securityIds?: string[] }) =>
+      refresher(fakeProvider().provider).freshness(opts);
+
+    it('reports the oldest exchange close and is fresh within one trading day', async () => {
+      await heldWithClose('AAA', '2026-10-09');
+      await heldWithClose('BBB', '2026-10-08');
+      await heldWithClose('BTC-USD', '2026-10-07', 'crypto');
+      const f = await freshness();
+      expect(isoDay(f.asOf!)).toBe('2026-10-08');
+      expect(f.stale).toBe(false);
+    });
+
+    it('is stale when an exchange close is older than the grace day', async () => {
+      await heldWithClose('AAA', '2026-10-09');
+      await heldWithClose('BBB', '2026-10-07');
+      expect(await freshness()).toMatchObject({ stale: true });
+    });
+
+    it('is stale when crypto is older than its own grace day', async () => {
+      await heldWithClose('BTC-USD', '2026-10-06', 'crypto');
+      const f = await freshness();
+      expect(isoDay(f.asOf!)).toBe('2026-10-06');
+      expect(f.stale).toBe(true);
+    });
+
+    it('is stale for a held feed security never priced', async () => {
+      await held('NEW');
+      expect(await freshness()).toEqual({ asOf: null, stale: true });
+    });
+
+    it('judges only the given securities', async () => {
+      const fresh = await heldWithClose('AAA', '2026-10-09');
+      await heldWithClose('BBB', '2026-10-01');
+      expect(await freshness({ securityIds: [fresh.id] })).toMatchObject({ stale: false });
+    });
+
+    it('has nothing to judge when no feed security is held', async () => {
+      expect(await freshness()).toEqual({ asOf: null, stale: false });
+    });
   });
 });
