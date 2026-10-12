@@ -128,6 +128,7 @@ export function seedTrade(
     type: string;
     quantity?: number | null;
     amount: number;
+    currency?: string;
     isCancelled?: boolean;
   }
 ) {
@@ -141,7 +142,7 @@ export function seedTrade(
       name: `Test ${data.type}`,
       quantity: data.quantity ?? null,
       amount: data.amount,
-      currency: 'USD',
+      currency: data.currency ?? 'USD',
       source: 'plaid',
       isCancelled: data.isCancelled ?? false,
     },
@@ -208,4 +209,38 @@ export function testServices(
     sleep: noSleep,
   });
   return { services, calls };
+}
+
+/** A Plaid connection (with its enrollment) for an account; synthetic credentials. */
+export async function seedPlaidConnection(
+  prisma: PrismaClient,
+  accountId: string,
+  over: {
+    institutionName?: string;
+    subtype?: string | null;
+    status?: string;
+    pendingSteps?: string | null;
+    lastSyncAt?: Date | null;
+  } = {}
+) {
+  const enrollment = await prisma.plaidEnrollment.create({
+    data: {
+      plaidItemId: `item-${accountId}`,
+      institutionName: over.institutionName ?? 'Test Brokerage',
+      accessTokenEncrypted: 'test',
+      accessTokenIv: 'test',
+    },
+  });
+  return prisma.plaidConnection.create({
+    data: {
+      accountId,
+      plaidEnrollmentId: enrollment.id,
+      plaidAccountId: `plaid-${accountId}`,
+      plaidAccountSubtype: over.subtype ?? null,
+      status: over.status ?? 'connected',
+      pendingSteps: over.pendingSteps ?? null,
+      lastSyncAt: over.lastSyncAt ?? null,
+    },
+    include: { plaidEnrollment: true },
+  });
 }

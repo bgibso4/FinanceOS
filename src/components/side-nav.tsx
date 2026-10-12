@@ -16,6 +16,7 @@ import {
   Sparkles,
   Sun,
   Target,
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
@@ -44,6 +45,7 @@ const links: NavLink[] = [
       { href: '/reports?tab=monthly', label: 'Monthly Detail' },
     ],
   },
+  { href: '/investments', label: 'Investments', icon: TrendingUp },
   { href: '/goals', label: 'Goals', icon: Target },
   {
     href: '/settings',

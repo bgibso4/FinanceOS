@@ -73,6 +73,22 @@ describe('investment securities APIs', () => {
     expect((await create(json('POST', { symbol: 'NOPE' }))).status).toBe(400);
   });
 
+  it('POST { cash } finds or creates the currency cash security', async () => {
+    const first = await create(json('POST', { cash: 'cad' }));
+    expect(first.status).toBe(200);
+    const { security } = await first.json();
+    expect(security).toMatchObject({
+      type: 'cash',
+      pricing: 'fixed',
+      fixedPrice: 1,
+      currency: 'CAD',
+    });
+    const again = await (await create(json('POST', { cash: 'CAD' }))).json();
+    expect(again.security.id).toBe(security.id);
+    expect((await create(json('POST', { cash: 'XYZ' }))).status).toBe(400);
+    expect((await create(json('POST', {}))).status).toBe(400);
+  });
+
   it('PATCH priceSymbol re-arms feed pricing and reprices under the new symbol', async () => {
     const s = await seedSecurity(testPrisma, { priceSymbol: 'OLD', pricing: 'none' });
     await seedPrice(testPrisma, s.id, '2026-10-01', 1);
