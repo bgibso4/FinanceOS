@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
@@ -55,6 +55,7 @@ export function HoldingsEditorModal({
   const [results, setResults] = useState<SymbolMatch[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     const q = query.trim();
@@ -73,15 +74,25 @@ export function HoldingsEditorModal({
     return () => clearTimeout(timer);
   }, [query]);
 
+  const rowsRef = useRef(rows);
+  const addingRef = useRef(false);
+  const commitRows = (next: EditorRow[]) => {
+    rowsRef.current = next;
+    setRows(next);
+  };
+
   const addRow = (row: EditorRow) => {
-    if (rows.some((r) => r.securityId === row.securityId)) {
+    if (rowsRef.current.some((r) => r.securityId === row.securityId)) {
       setError(`${row.label} is already listed`);
       return;
     }
-    setRows((current) => [...current, row]);
+    commitRows([...rowsRef.current, row]);
   };
 
   const add = async (body: { symbol: string } | { cash: string }, kind: HoldingKind) => {
+    if (addingRef.current) return;
+    addingRef.current = true;
+    setAdding(true);
     setError(null);
     try {
       const { security } = await sendJson<{ security: AddedSecurity }>(
@@ -102,6 +113,9 @@ export function HoldingsEditorModal({
       setResults([]);
     } catch (err) {
       setError(errorText(err));
+    } finally {
+      addingRef.current = false;
+      setAdding(false);
     }
   };
 
@@ -170,8 +184,8 @@ export function HoldingsEditorModal({
                     inputMode="decimal"
                     value={r.units}
                     onChange={(e) =>
-                      setRows((current) =>
-                        current.map((c) =>
+                      commitRows(
+                        rowsRef.current.map((c) =>
                           c.securityId === r.securityId ? { ...c, units: e.target.value } : c
                         )
                       )
@@ -193,7 +207,7 @@ export function HoldingsEditorModal({
                     className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
                     type="button"
                     onClick={() =>
-                      setRows((current) => current.filter((c) => c.securityId !== r.securityId))
+                      commitRows(rowsRef.current.filter((c) => c.securityId !== r.securityId))
                     }
                   >
                     ✕
@@ -216,6 +230,7 @@ export function HoldingsEditorModal({
                     <button
                       key={m.symbol}
                       className="block w-full px-2.5 py-1.5 text-left text-xs hover:bg-[var(--bg-elevated)]"
+                      disabled={adding}
                       type="button"
                       onClick={() => add({ symbol: m.symbol }, 'security')}
                     >
@@ -227,6 +242,7 @@ export function HoldingsEditorModal({
             </td>
             <td className={CELL} colSpan={3}>
               <Button
+                disabled={adding}
                 type="button"
                 variant="ghost"
                 onClick={() => add({ cash: account.currency }, 'cash')}

@@ -183,6 +183,28 @@ describe('HoldingsEditorModal', () => {
     expect(screen.queryByLabelText('Units for ZZZ')).toBeNull();
   });
 
+  it('does not add cash twice on a double click', async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    global.fetch = vi.fn(async () => {
+      await gate; // the POST stays in flight across both clicks
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          security: { id: 'sec-cash', ticker: null, name: 'USD cash', pricing: 'fixed' },
+        }),
+      } as Response;
+    }) as unknown as typeof fetch;
+    renderEditor();
+    const button = screen.getByRole('button', { name: '+ Add cash' });
+    await userEvent.dblClick(button);
+    release();
+    expect(await screen.findByLabelText('Units for Cash')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('Units for Cash')).toHaveLength(1);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('adds cash in the account currency', async () => {
     replies['POST /api/investments/securities'] = ok({
       security: { id: 'sec-cash', ticker: null, name: 'USD cash', pricing: 'fixed' },
