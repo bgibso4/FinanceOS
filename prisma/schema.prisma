@@ -65,6 +65,7 @@ model PlaidConnection {
   lastSyncAt           DateTime?
   lastSyncStatus       String          @default("never")
   lastSyncError        String?
+  pendingSteps         String?         // investment sync steps still waiting on the institution, e.g. "holdings,transactions"
   status               String          @default("connected")
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt

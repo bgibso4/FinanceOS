@@ -209,3 +209,37 @@ export function testServices(
   });
   return { services, calls };
 }
+
+/** A Plaid connection (with its enrollment) for an account; synthetic credentials. */
+export async function seedPlaidConnection(
+  prisma: PrismaClient,
+  accountId: string,
+  over: {
+    institutionName?: string;
+    subtype?: string | null;
+    status?: string;
+    pendingSteps?: string | null;
+    lastSyncAt?: Date | null;
+  } = {}
+) {
+  const enrollment = await prisma.plaidEnrollment.create({
+    data: {
+      plaidItemId: `item-${accountId}`,
+      institutionName: over.institutionName ?? 'Test Brokerage',
+      accessTokenEncrypted: 'test',
+      accessTokenIv: 'test',
+    },
+  });
+  return prisma.plaidConnection.create({
+    data: {
+      accountId,
+      plaidEnrollmentId: enrollment.id,
+      plaidAccountId: `plaid-${accountId}`,
+      plaidAccountSubtype: over.subtype ?? null,
+      status: over.status ?? 'connected',
+      pendingSteps: over.pendingSteps ?? null,
+      lastSyncAt: over.lastSyncAt ?? null,
+    },
+    include: { plaidEnrollment: true },
+  });
+}
