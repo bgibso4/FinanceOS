@@ -115,6 +115,25 @@ describe('InvestmentsPage', () => {
     );
   });
 
+  it('offers Retry after a failed refresh even while prices are not yet stale', async () => {
+    refreshReply = { status: 502, body: { error: 'Price service unavailable' } };
+    render(<InvestmentsPage />);
+    expect(
+      await screen.findByText('Prices as of Oct 9 close · couldn’t reach price source')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('reports a failed refresh with no prices at all', async () => {
+    refreshReply = { status: 200, body: { stopped: true, failedSymbols: [], fetched: 0 } };
+    overview = makeOverview({ accounts: [makeAccount()], prices: { asOf: null, stale: false } });
+    render(<InvestmentsPage />);
+    expect(
+      await screen.findByText('Prices unavailable · couldn’t reach price source')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
   it('switches range and selection', async () => {
     render(<InvestmentsPage />);
     await screen.findByRole('heading', { name: 'All accounts' });

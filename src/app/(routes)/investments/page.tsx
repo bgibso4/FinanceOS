@@ -206,20 +206,14 @@ function PricesNote({
   if (refresh.running) {
     return <span className="text-[11.5px] text-[var(--text-muted)]">Updating prices…</span>;
   }
-  const asOf = overview?.prices.asOf;
-  if (!asOf) return null;
-  if (!overview.prices.stale) {
-    return (
-      <span className="text-[11.5px] text-[var(--text-muted)]">
-        Prices as of {fmtDay(asOf)} close
-      </span>
-    );
+  const asOf = overview?.prices.asOf ?? null;
+  const label = asOf ? `Prices as of ${fmtDay(asOf)} close` : 'Prices unavailable';
+  if (!refresh.failed && !overview?.prices.stale) {
+    return asOf ? <span className="text-[11.5px] text-[var(--text-muted)]">{label}</span> : null;
   }
   return (
     <span className="inline-flex gap-2 text-[11.5px] text-[var(--accent)]">
-      <span>
-        {`Prices as of ${fmtDay(asOf)} close${refresh.failed ? ' · couldn’t reach price source' : ''}`}
-      </span>
+      <span>{`${label}${refresh.failed ? ' · couldn’t reach price source' : ''}`}</span>
       <button className="font-medium" type="button" onClick={onRetry}>
         Retry
       </button>
