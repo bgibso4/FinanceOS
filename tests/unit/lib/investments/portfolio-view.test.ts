@@ -67,8 +67,9 @@ describe('seriesChange', () => {
       pct: 10,
     });
   });
-  it('has no percentage from a zero start, and nothing without points', () => {
+  it('has no percentage from a zero start, and nothing under two points', () => {
     expect(seriesChange([{ value: 0 }, { value: 5 }])?.pct).toBeNull();
     expect(seriesChange([])).toBeNull();
+    expect(seriesChange([{ value: 100 }])).toBeNull();
   });
 });

@@ -56,9 +56,12 @@ export const allocationBucket = (wrapper: string): string =>
 
 export type SeriesChange = { start: number; end: number; delta: number; pct: number | null };
 
-/** Balance change across a series: last point minus first. Not a return (flows aren't removed). */
+/**
+ * Balance change across a series: last point minus first, or null under two points.
+ * Not a return (flows aren't removed).
+ */
 export function seriesChange(points: { value: number }[]): SeriesChange | null {
-  if (!points.length) return null;
+  if (points.length < 2) return null;
   const start = points[0].value;
   const end = points[points.length - 1].value;
   const delta = roundCents(end - start);
