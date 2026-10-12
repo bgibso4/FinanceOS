@@ -67,13 +67,43 @@ describe('buildActivity', () => {
   it('merges a same-day dividend and reinvestment into one line', () => {
     const items = buildActivity([
       tx({ subtype: 'dividend', amount: -10 }),
-      tx({ type: 'buy', subtype: 'buy', quantity: 0.25, price: 40, amount: 10 }),
       tx({ accountId: 'a2', type: 'buy', subtype: 'buy', quantity: 1, price: 5, amount: 5 }),
+      tx({ type: 'buy', subtype: 'buy', quantity: 0.25, price: 40, amount: 10 }),
     ]);
     expect(items.map((i) => [i.accountId, i.title, i.detail, i.amount])).toEqual([
       ['a1', 'Dividend reinvested · AAA', '0.25 sh @ $40.00', 10],
       ['a2', 'Buy · AAA', '1 sh @ $5.00', -5],
     ]);
+  });
+
+  it('merges a dividend with only one of two same-day buys and keeps the other', () => {
+    const items = buildActivity([
+      tx({ subtype: 'dividend', amount: -10 }),
+      tx({ type: 'buy', subtype: 'buy', quantity: 1, price: 4, amount: 4 }),
+      tx({ type: 'buy', subtype: 'buy', quantity: 2, price: 3, amount: 6 }),
+    ]);
+    expect(items.map((i) => [i.title, i.detail, i.amount])).toEqual([
+      ['Dividend reinvested · AAA', '1 sh @ $4.00', 10],
+      ['Buy · AAA', '2 sh @ $3.00', -6],
+    ]);
+  });
+
+  it.each([
+    ['a different security', { securityId: 's2', ticker: 'BBB' }],
+    ['a different day', { date: utcDay('2026-10-02') }],
+    ['a missing security id', { securityId: null }],
+  ])('does not merge a dividend with a buy of %s', (_label, over) => {
+    const items = buildActivity([
+      tx({ subtype: 'dividend', amount: -10, securityId: over.securityId === null ? null : 's1' }),
+      tx({ type: 'buy', subtype: 'buy', quantity: 1, price: 10, amount: 10, ...over }),
+    ]);
+    expect(items.map((i) => i.title)).toHaveLength(2);
+    expect(items.map((i) => i.title)).not.toContain('Dividend reinvested · AAA');
+  });
+
+  it('keeps a dividend with no matching buy as a plain dividend', () => {
+    const items = buildActivity([tx({ subtype: 'dividend', amount: -2 })]);
+    expect(items.map((i) => [i.title, i.detail])).toEqual([['Dividend · AAA', null]]);
   });
 
   it('merges regardless of input order', () => {
