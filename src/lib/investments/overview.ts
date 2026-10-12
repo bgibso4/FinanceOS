@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import type { BalanceSource } from '@/lib/account-defaults';
 import { systemClock, type Clock } from '@/lib/clock';
 import { getAccountBalances } from '@/lib/balances';
 import { convertAmount } from '@/lib/currency';
@@ -20,7 +21,6 @@ import {
   type SeriesChange,
 } from './portfolio-view';
 
-export type BalanceSource = 'provider' | 'valuation' | 'manual';
 export type PriceFreshnessView = { asOf: string | null; stale: boolean };
 
 export type AccountStatus = {

@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import type { BalanceSource } from '@/lib/investments/overview';
+import type { BalanceSource } from '@/lib/account-defaults';
 import type { SeriesChange } from '@/lib/investments/portfolio-view';
 import { changeText, toneOf, type Tone } from './format';
 

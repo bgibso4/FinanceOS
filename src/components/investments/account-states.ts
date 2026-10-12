@@ -1,4 +1,5 @@
-import type { AccountSummary, BalanceSource } from '@/lib/investments/overview';
+import type { BalanceSource } from '@/lib/account-defaults';
+import type { AccountSummary } from '@/lib/investments/overview';
 import { daysBetween, fmtDay, fmtSyncTime } from './format';
 
 export type NoticeKind = 'reauth' | 'waiting' | 'stale' | 'unpriced';
