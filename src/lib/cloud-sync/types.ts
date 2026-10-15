@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { LEGACY_CODES } from '@/lib/investments/codes';
 
 // ============================================================================
 // Export Types (data that gets synced)
@@ -202,6 +203,9 @@ export const SecurityExportSchema = z.object({
   priceSymbolOverride: z.boolean(),
   pricing: z.string(),
   fixedPrice: z.number().nullable(),
+  // Optional: payloads from before proxies and fetch tracking omit them.
+  pricesFetchedFrom: z.string().nullable().optional(),
+  proxySecurityId: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -277,6 +281,40 @@ export const SyncDataSchema = z.object({
   investmentTransactions: z.array(InvestmentTransactionExportSchema).optional(),
 });
 export type SyncData = z.infer<typeof SyncDataSchema>;
+
+/** A stored code, with a value from before the neutral codes translated (spec §3). */
+const upgraded = (legacy: Readonly<Record<string, string>>) =>
+  z.string().transform((value) => legacy[value] ?? value);
+
+/**
+ * `SyncDataSchema` as imported: snapshots uploaded before the neutral codes carry old values.
+ * Parsed after the checksum check, since the checksum covers the data exactly as exported.
+ */
+export const SyncImportDataSchema = SyncDataSchema.extend({
+  accountBalances: z
+    .array(AccountBalanceExportSchema.extend({ source: upgraded(LEGACY_CODES.balanceRowSource) }))
+    .optional(),
+  securities: z
+    .array(SecurityExportSchema.extend({ pricing: upgraded(LEGACY_CODES.pricing) }))
+    .optional(),
+  securityPrices: z
+    .array(SecurityPriceExportSchema.extend({ source: upgraded(LEGACY_CODES.priceSource) }))
+    .optional(),
+  securityEvents: z
+    .array(SecurityEventExportSchema.extend({ source: upgraded(LEGACY_CODES.priceSource) }))
+    .optional(),
+  holdingSnapshots: z
+    .array(HoldingSnapshotExportSchema.extend({ source: upgraded(LEGACY_CODES.recordSource) }))
+    .optional(),
+  investmentTransactions: z
+    .array(
+      InvestmentTransactionExportSchema.extend({ source: upgraded(LEGACY_CODES.recordSource) })
+    )
+    .optional(),
+});
+
+/** Verified sync data with stored codes from before the neutral codes translated. */
+export const upgradeLegacyCodes = (data: SyncData): SyncData => SyncImportDataSchema.parse(data);
 
 export const SyncMetadataSchema = z.object({
   recordCounts: z.object({

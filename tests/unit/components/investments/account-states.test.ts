@@ -9,11 +9,12 @@ import {
   sparkTone,
 } from '@/components/investments/account-states';
 import { makeAccount } from '../../../helpers/investment-overview';
+import { BalanceSource } from '@/lib/investments/codes';
 
 describe('account states', () => {
   it('lists notices in priority order with their copy', () => {
     const a = makeAccount({
-      balanceSource: 'valuation',
+      balanceSource: BalanceSource.Valuation,
       prices: { asOf: '2026-10-06', stale: true },
       status: {
         needsReauth: { since: '2026-10-01' },
@@ -81,28 +82,39 @@ describe('account states', () => {
     ).toBe('Last synced Oct 9');
     expect(
       freshnessText(
-        makeAccount({ balanceSource: 'valuation', prices: { asOf: '2026-10-08', stale: false } }),
+        makeAccount({
+          balanceSource: BalanceSource.Valuation,
+          prices: { asOf: '2026-10-08', stale: false },
+        }),
         '2026-10-09'
       )
     ).toBe('Prices as of Oct 8 close');
     expect(
-      freshnessText(makeAccount({ balanceSource: 'manual', asOf: '2026-07-12' }), '2026-10-09')
+      freshnessText(
+        makeAccount({ balanceSource: BalanceSource.Manual, asOf: '2026-07-12' }),
+        '2026-10-09'
+      )
     ).toBe('Last entry Jul 12 · 89 days ago');
     expect(
-      freshnessText(makeAccount({ balanceSource: 'manual', asOf: '2026-10-09' }), '2026-10-09')
+      freshnessText(
+        makeAccount({ balanceSource: BalanceSource.Manual, asOf: '2026-10-09' }),
+        '2026-10-09'
+      )
     ).toBe('Last entry Oct 9 · today');
   });
 
   it('builds navigator meta, sparkline tone and plurals', () => {
     expect(navMeta(makeAccount())).toBe('Test Bank · Taxable');
-    expect(navMeta(makeAccount({ balanceSource: 'manual', asOf: '2026-07-12' }))).toBe(
+    expect(navMeta(makeAccount({ balanceSource: BalanceSource.Manual, asOf: '2026-07-12' }))).toBe(
       'Test Bank · Taxable · as of Jul 12'
     );
     expect(sparkTone(makeAccount())).toBe('up');
     expect(sparkTone(makeAccount({ change: { start: 2, end: 1, delta: -1, pct: -50 } }))).toBe(
       'down'
     );
-    expect(sparkTone(makeAccount({ balanceSource: 'manual', change: null }))).toBe('muted');
+    expect(sparkTone(makeAccount({ balanceSource: BalanceSource.Manual, change: null }))).toBe(
+      'muted'
+    );
     expect(plural(1, 'account')).toBe('1 account');
     expect(plural(3, 'institution')).toBe('3 institutions');
   });

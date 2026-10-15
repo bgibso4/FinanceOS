@@ -1,6 +1,8 @@
 import { addDays, utcDay } from '@/lib/investments/dates';
+import { SecurityType } from '@/lib/investments/codes';
 
-// 16:00 ET is 20:00 UTC (EDT) or 21:00 UTC (EST); 21:30 covers both plus time for Yahoo to publish.
+// 16:00 ET is 20:00 UTC (EDT) or 21:00 UTC (EST); 21:30 covers both plus time for the market data
+// provider to publish.
 const SETTLED_UTC_MINUTES = 21 * 60 + 30;
 
 const isWeekend = (d: Date) => d.getUTCDay() === 0 || d.getUTCDay() === 6;
@@ -9,7 +11,7 @@ export type Market = 'exchange' | 'crypto';
 
 /** Which trading calendar a security follows. */
 export const marketOf = (securityType: string): Market =>
-  securityType === 'crypto' ? 'crypto' : 'exchange';
+  securityType === SecurityType.Crypto ? 'crypto' : 'exchange';
 
 /** The trading day before `d`: the previous calendar day for crypto, else the previous weekday. */
 export function previousTradingDay(d: Date, market: Market): Date {

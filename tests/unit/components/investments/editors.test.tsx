@@ -5,6 +5,7 @@ import { RecordBalanceModal } from '@/components/investments/record-balance-moda
 import { HoldingsEditorModal } from '@/components/investments/holdings-editor-modal';
 import { SetSymbolModal } from '@/components/investments/set-symbol-modal';
 import { makeHolding } from '../../../helpers/investment-overview';
+import { Pricing } from '@/lib/investments/codes';
 
 type Reply = { status?: number; body: unknown };
 let replies: Record<string, Reply>;
@@ -134,7 +135,7 @@ describe('HoldingsEditorModal', () => {
       results: [{ symbol: 'BBB', name: 'B Fund', type: 'etf', exchange: 'NYQ' }],
     });
     replies['POST /api/investments/securities'] = ok({
-      security: { id: 'sec-bbb', ticker: 'BBB', name: 'B Fund', pricing: 'feed' },
+      security: { id: 'sec-bbb', ticker: 'BBB', name: 'B Fund', pricing: Pricing.Market },
     });
     renderEditor();
     await userEvent.type(
@@ -153,7 +154,7 @@ describe('HoldingsEditorModal', () => {
       results: [{ symbol: 'AAA', name: 'Triple A Fund', type: 'etf', exchange: null }],
     });
     replies['POST /api/investments/securities'] = ok({
-      security: { id: 'sec-aaa', ticker: 'AAA', name: 'Triple A Fund', pricing: 'feed' },
+      security: { id: 'sec-aaa', ticker: 'AAA', name: 'Triple A Fund', pricing: Pricing.Market },
     });
     renderEditor();
     await userEvent.type(
@@ -192,7 +193,7 @@ describe('HoldingsEditorModal', () => {
         ok: true,
         status: 200,
         json: async () => ({
-          security: { id: 'sec-cash', ticker: null, name: 'USD cash', pricing: 'fixed' },
+          security: { id: 'sec-cash', ticker: null, name: 'USD cash', pricing: Pricing.Fixed },
         }),
       } as Response;
     }) as unknown as typeof fetch;
@@ -207,7 +208,7 @@ describe('HoldingsEditorModal', () => {
 
   it('adds cash in the account currency', async () => {
     replies['POST /api/investments/securities'] = ok({
-      security: { id: 'sec-cash', ticker: null, name: 'USD cash', pricing: 'fixed' },
+      security: { id: 'sec-cash', ticker: null, name: 'USD cash', pricing: Pricing.Fixed },
     });
     renderEditor();
     await userEvent.click(screen.getByRole('button', { name: '+ Add cash' }));
@@ -217,12 +218,15 @@ describe('HoldingsEditorModal', () => {
 });
 
 describe('SetSymbolModal', () => {
-  const security = { securityId: 'sec-z', label: 'ZZZ' };
+  const security = { securityId: 'sec-z', label: 'ZZZ', institution: null };
+  const hint = 'Use test symbols.';
 
-  it('points the security at a new symbol', async () => {
+  it('points the security at a new symbol, under the provider’s symbol hint', async () => {
     replies['PATCH /api/investments/securities/sec-z'] = ok({ security: {} });
     const onSaved = vi.fn();
-    render(<SetSymbolModal security={security} onClose={vi.fn()} onSaved={onSaved} />);
+    render(<SetSymbolModal hint={hint} security={security} onClose={vi.fn()} onSaved={onSaved} />);
+    expect(screen.getByText('Use test symbols.')).toBeInTheDocument();
+    expect(screen.queryByText(/Yahoo/)).toBeNull();
     await userEvent.type(screen.getByLabelText('Price symbol'), 'ZZZ.TO');
     await userEvent.click(screen.getByRole('button', { name: 'Use symbol' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
@@ -231,7 +235,7 @@ describe('SetSymbolModal', () => {
 
   it('sets a manual price, and validates both inputs', async () => {
     replies['PATCH /api/investments/securities/sec-z'] = ok({ security: {} });
-    render(<SetSymbolModal security={security} onClose={vi.fn()} onSaved={vi.fn()} />);
+    render(<SetSymbolModal hint={hint} security={security} onClose={vi.fn()} onSaved={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: 'Use symbol' }));
     expect(screen.getByText('Enter a symbol')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Set price' }));
@@ -239,5 +243,47 @@ describe('SetSymbolModal', () => {
     await userEvent.type(screen.getByLabelText('Or set a price per unit'), '50.73');
     await userEvent.click(screen.getByRole('button', { name: 'Set price' }));
     await waitFor(() => expect(calls()[0]?.body).toEqual({ manualPrice: 50.73 }));
+  });
+
+  describe('for a fund priced by its institution', () => {
+    const quote = { price: 28.34, currency: 'USD', date: '2026-10-10', proxy: null };
+    const fund = { securityId: 'sec-p', label: 'PLAN', institution: quote };
+
+    it('shows the institution’s price and follows a fund', async () => {
+      replies['PATCH /api/investments/securities/sec-p'] = ok({ security: {} });
+      const onSaved = vi.fn();
+      render(<SetSymbolModal hint={hint} security={fund} onClose={vi.fn()} onSaved={onSaved} />);
+      expect(screen.getByText(/Priced by the institution/)).toHaveTextContent(
+        'Priced by the institution: $28.34 on Oct 10.'
+      );
+      expect(screen.getByText(/stays the real price/)).toHaveTextContent(
+        /^The institution’s price stays the real price\./
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Follow fund' }));
+      expect(screen.getByText('Enter a fund symbol')).toBeInTheDocument();
+      await userEvent.type(screen.getByLabelText('Fund to follow'), 'FOLW');
+      await userEvent.click(screen.getByRole('button', { name: 'Follow fund' }));
+      await waitFor(() => expect(onSaved).toHaveBeenCalled());
+      expect(calls()[0].body).toEqual({ proxySymbol: 'FOLW' });
+    });
+
+    it('stops following', async () => {
+      replies['PATCH /api/investments/securities/sec-p'] = ok({ security: {} });
+      const following = {
+        ...fund,
+        institution: { ...quote, proxy: { symbol: 'PRXY', name: 'Proxy Fund' } },
+      };
+      render(
+        <SetSymbolModal hint={hint} security={following} onClose={vi.fn()} onSaved={vi.fn()} />
+      );
+      expect(screen.getByText(/Following/)).toHaveTextContent('Following PRXY · Proxy Fund');
+      await userEvent.click(screen.getByRole('button', { name: 'Stop following' }));
+      await waitFor(() => expect(calls()[0]?.body).toEqual({ proxySymbol: null }));
+    });
+  });
+
+  it('offers no fund to follow for a security its institution does not price', () => {
+    render(<SetSymbolModal hint={hint} security={security} onClose={vi.fn()} onSaved={vi.fn()} />);
+    expect(screen.queryByText('No public ticker? Follow a similar fund')).not.toBeInTheDocument();
   });
 });

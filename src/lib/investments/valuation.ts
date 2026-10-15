@@ -6,6 +6,7 @@ import { InvestmentInputError, requireInvestmentAccount } from './account-guard'
 import { addDays, lastAtOrBefore, utcDay } from './dates';
 import { manualHoldingSecurityId, type ManualHoldingService } from './manual-holding';
 import { roundCents } from './money';
+import { BalanceRowSource, BalanceSource, Pricing, RecordSource } from './codes';
 
 export type HoldingInput = { securityId: string; quantity: number };
 
@@ -19,7 +20,7 @@ export class ValuationService {
 
   latestBalance(accountId: string): Promise<AccountBalance | null> {
     return this.prisma.accountBalance.findFirst({
-      where: { accountId, source: 'valuation' },
+      where: { accountId, source: BalanceRowSource.Valuation },
       orderBy: { date: 'desc' },
     });
   }
@@ -27,7 +28,7 @@ export class ValuationService {
   /** Replace today's holdings (earlier days keep the set in effect then) and revalue the account. */
   async setHoldings(accountId: string, holdings: HoldingInput[]): Promise<HoldingSnapshot[]> {
     const prisma = this.prisma;
-    await requireInvestmentAccount(prisma, accountId, 'valuation');
+    await requireInvestmentAccount(prisma, accountId, BalanceSource.Valuation);
     if (!holdings.length) {
       throw new InvestmentInputError('A valued account needs at least one holding');
     }
@@ -58,7 +59,7 @@ export class ValuationService {
             quantity: h.quantity,
             price,
             value: h.quantity * price,
-            source: 'manual',
+            source: RecordSource.Manual,
           },
         });
       }),
@@ -76,7 +77,7 @@ export class ValuationService {
     const accounts = await this.prisma.account.findMany({
       where: {
         trackingMode: 'investment',
-        balanceSource: 'valuation',
+        balanceSource: BalanceSource.Valuation,
         ...(opts.accountIds ? { id: { in: opts.accountIds } } : {}),
       },
     });
@@ -91,7 +92,10 @@ export class ValuationService {
   /** Valued accounts holding `securityId`, and the first day any of them held it. */
   async holdersOf(securityId: string): Promise<{ accountIds: string[]; from: Date } | null> {
     const snapshots = await this.prisma.holdingSnapshot.findMany({
-      where: { securityId, account: { trackingMode: 'investment', balanceSource: 'valuation' } },
+      where: {
+        securityId,
+        account: { trackingMode: 'investment', balanceSource: BalanceSource.Valuation },
+      },
       select: { accountId: true, date: true },
       orderBy: { date: 'asc' },
     });
@@ -118,7 +122,7 @@ export class ValuationService {
     });
     if (!snapshots.length) return 0;
     const last = await prisma.accountBalance.findFirst({
-      where: { accountId: account.id, source: 'valuation' },
+      where: { accountId: account.id, source: BalanceRowSource.Valuation },
       orderBy: { date: 'desc' },
     });
     const firstDay = snapshots[0].date;
@@ -144,7 +148,7 @@ export class ValuationService {
       if (setDay === undefined) continue;
       const held = snapshots.filter((s) => s.date.getTime() === setDay);
       // Fixed-price holdings (cash) have no price rows, so a set of only those is valued every day.
-      const needsPriceDay = held.some((h) => h.security.pricing !== 'fixed');
+      const needsPriceDay = held.some((h) => h.security.pricing !== Pricing.Fixed);
       if (needsPriceDay && t !== today.getTime() && !priceDays.has(t) && !setDays.includes(t)) {
         continue;
       }
@@ -166,13 +170,13 @@ export class ValuationService {
       const prev = existing.get(t);
       if (!complete) {
         // A day that can no longer be valued must not keep its earlier valuation row.
-        if (prev?.source === 'valuation') {
+        if (prev?.source === BalanceRowSource.Valuation) {
           await prisma.accountBalance.delete({ where: { id: prev.id } });
         }
         continue;
       }
       const balance = roundCents(value);
-      if (prev?.source === 'valuation' && prev.balance === balance) continue;
+      if (prev?.source === BalanceRowSource.Valuation && prev.balance === balance) continue;
       await prisma.accountBalance.upsert({
         where: { accountId_date: { accountId: account.id, date: d } },
         create: {
@@ -180,9 +184,9 @@ export class ValuationService {
           date: d,
           balance,
           currency: account.currency,
-          source: 'valuation',
+          source: BalanceRowSource.Valuation,
         },
-        update: { balance, source: 'valuation' },
+        update: { balance, source: BalanceRowSource.Valuation },
       });
       written++;
     }

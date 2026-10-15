@@ -9,6 +9,7 @@ import type { SymbolMatch } from '@/lib/prices/types';
 import { fmtDay, fmtMoney } from './format';
 import { FlagPill } from './pills';
 import { ERROR, HINT, errorText, sendJson } from './editor-kit';
+import { Pricing } from '@/lib/investments/codes';
 
 type EditorRow = {
   securityId: string;
@@ -48,7 +49,7 @@ export function HoldingsEditorModal({
         kind: h.kind,
         units: String(h.quantity),
         priceInAccount: h.priceInAccount,
-        unpriced: h.pricing === 'none',
+        unpriced: h.pricing === Pricing.None,
       }))
   );
   const [query, setQuery] = useState('');
@@ -107,7 +108,7 @@ export function HoldingsEditorModal({
         kind,
         units: '',
         priceInAccount: kind === 'cash' ? 1 : null,
-        unpriced: security.pricing === 'none',
+        unpriced: security.pricing === Pricing.None,
       });
       setQuery('');
       setResults([]);

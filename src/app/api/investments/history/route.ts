@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { addDays, utcDay } from '@/lib/investments/dates';
+import { MAX_DAYS } from '@/lib/investments/history';
 import { getInvestmentServices } from '@/lib/investments/services';
 import { investmentErrorResponse, isoDateSchema } from '../_lib/http';
-
-const MAX_DAYS = 3660;
 
 const querySchema = z.object({
   accountId: z.string().min(1).optional(),

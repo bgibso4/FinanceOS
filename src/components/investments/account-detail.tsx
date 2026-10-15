@@ -7,6 +7,7 @@ import {
   allocation,
   holdingLines,
   type AllocationDimension,
+  type PriceTarget,
 } from '@/lib/investments/holdings-view';
 import type { AccountSummary, InvestmentOverview } from '@/lib/investments/overview';
 import { GROUP_ORDER } from '@/lib/investments/portfolio-view';
@@ -19,11 +20,12 @@ import {
 } from './account-states';
 import { ActivityList } from './activity-list';
 import { AllocationBars } from './allocation-bars';
-import { fmtDay, fmtMoney } from './format';
+import { fmtDay, fmtMoney, spansYear } from './format';
 import { HoldingsMap } from './holdings-map';
 import { HoldingsTable } from './holdings-table';
 import { ChangeChip, Notice, SourcePill } from './pills';
-import { ValueChart } from './value-chart';
+import { seriesLabels, ValueChart } from './value-chart';
+import { BalanceSource } from '@/lib/investments/codes';
 
 const BUTTON =
   'rounded-lg border border-[var(--border-hover)] bg-[var(--bg-elevated)] px-[11px] py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]';
@@ -42,7 +44,7 @@ type DetailProps = {
   selected: string | null;
   onRecordBalance: (account: AccountSummary) => void;
   onEditHoldings: (account: AccountSummary) => void;
-  onSetSymbol: (security: { securityId: string; label: string }) => void;
+  onSetSymbol: (target: PriceTarget) => void;
   onRetryPrices: () => void;
   onReconnected: () => void;
 };
@@ -64,7 +66,11 @@ const NOTICE_ACTIONS: Record<NoticeKind, (a: AccountSummary, p: DetailProps) => 
     </button>
   ),
   unpriced: (a, p) => (
-    <button className={BUTTON} type="button" onClick={() => p.onSetSymbol(a.status.unpriced[0])}>
+    <button
+      className={BUTTON}
+      type="button"
+      onClick={() => p.onSetSymbol({ ...a.status.unpriced[0], institution: null })}
+    >
       Set symbol
     </button>
   ),
@@ -84,6 +90,7 @@ function SectionTitle({ title, hint }: { title: string; hint?: ReactNode }) {
 }
 
 function ChartLegend({ manual }: { manual: boolean }) {
+  const labels = seriesLabels(manual);
   const solid = <span className="inline-block h-0 w-4 border-t-[1.5px] border-[var(--accent)]" />;
   const dashed = (
     <span className="inline-block h-0 w-4 border-t-[1.5px] border-dashed border-[var(--accent)] opacity-70" />
@@ -92,11 +99,11 @@ function ChartLegend({ manual }: { manual: boolean }) {
     <div className="flex gap-3.5 text-[10.5px] text-[var(--text-muted)]">
       <span className="flex items-center gap-1.5">
         {manual ? <span className="h-[7px] w-[7px] rounded-full bg-[var(--accent)]" /> : solid}
-        {manual ? 'Entered' : 'Synced'}
+        {labels.exact}
       </span>
       <span className="flex items-center gap-1.5">
         {dashed}
-        {manual ? 'Carried forward' : 'Estimated between syncs'}
+        {labels.estimated}
       </span>
     </div>
   );
@@ -113,7 +120,7 @@ export function AccountDetail(props: DetailProps) {
   const lines = holdingLines(rows);
   const series = account ? account.series : overview.portfolio.series;
   const change = account ? account.change : overview.portfolio.change;
-  const manual = account?.balanceSource === 'manual';
+  const manual = account?.balanceSource === BalanceSource.Manual;
   const value = account ? account.valueBase : overview.portfolio.value;
   const facts = overview.accounts.map((a) => ({
     id: a.id,
@@ -149,7 +156,7 @@ export function AccountDetail(props: DetailProps) {
             )}
           </div>
         </div>
-        {account?.balanceSource === 'manual' && (
+        {account?.balanceSource === BalanceSource.Manual && (
           <button
             className={ACCENT_BUTTON}
             type="button"
@@ -158,7 +165,7 @@ export function AccountDetail(props: DetailProps) {
             Record balance
           </button>
         )}
-        {account?.balanceSource === 'valuation' && (
+        {account?.balanceSource === BalanceSource.Valuation && (
           <button className={BUTTON} type="button" onClick={() => props.onEditHoldings(account)}>
             Edit holdings
           </button>
@@ -202,7 +209,13 @@ export function AccountDetail(props: DetailProps) {
         <ChartLegend manual={manual} />
       </div>
 
-      <ValueChart manual={manual} points={series} />
+      <ValueChart
+        currency={currency}
+        from={overview.from}
+        manual={manual}
+        points={series}
+        yearLabels={spansYear(overview.from, overview.today)}
+      />
 
       {entries.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-[18px] text-[11px] text-[var(--text-muted)]">
@@ -264,7 +277,13 @@ export function AccountDetail(props: DetailProps) {
             title="Holdings"
           />
           {lines.length ? (
-            <HoldingsTable currency={currency} lines={lines} multiAccount={!account} />
+            <HoldingsTable
+              key={account?.id ?? 'all'}
+              accounts={overview.accounts}
+              currency={currency}
+              lines={lines}
+              multiAccount={!account}
+            />
           ) : (
             <p className="mt-2.5 text-xs text-[var(--text-muted)]">No holdings reported.</p>
           )}

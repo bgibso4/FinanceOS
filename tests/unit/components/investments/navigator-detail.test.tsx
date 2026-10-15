@@ -17,6 +17,7 @@ import {
   makeOverview,
   series,
 } from '../../../helpers/investment-overview';
+import { BalanceSource } from '@/lib/investments/codes';
 
 const handlers = () => ({
   onRecordBalance: vi.fn(),
@@ -40,7 +41,7 @@ const manual = makeAccount({
   institution: 'Test Life',
   group: 'Retirement',
   wrapper: 'Retirement',
-  balanceSource: 'manual',
+  balanceSource: BalanceSource.Manual,
   asOf: '2026-10-01',
   value: 900,
   valueBase: 900,
@@ -91,6 +92,34 @@ describe('AccountNavigator', () => {
 });
 
 describe('AccountDetail', () => {
+  it('labels the All range and dates its axis with years', () => {
+    render(
+      <AccountDetail
+        {...handlers()}
+        overview={makeOverview({ range: 'All', from: '2024-10-01' })}
+        selected={null}
+      />
+    );
+    expect(screen.getByText('balance change · All')).toBeInTheDocument();
+    expect(screen.getByText('Oct 1, 24')).toBeInTheDocument();
+  });
+
+  it('keeps a holding open across a range change and closes it after switching accounts', async () => {
+    const o = makeOverview({
+      accounts: [makeAccount(), retirement],
+      holdings: [makeHolding(), makeHolding({ accountId: 'acc-ret', quantity: 5, valueBase: 500 })],
+    });
+    const { rerender } = render(<AccountDetail {...handlers()} overview={o} selected={null} />);
+    await userEvent.click(screen.getByRole('button', { name: /AAA/ }));
+    expect(screen.getAllByTestId('holding-member')).toHaveLength(2);
+    expect(screen.getByText('Workplace Plan')).toBeInTheDocument();
+    rerender(<AccountDetail {...handlers()} overview={{ ...o, range: '1Y' }} selected={null} />);
+    expect(screen.getAllByTestId('holding-member')).toHaveLength(2);
+    rerender(<AccountDetail {...handlers()} overview={o} selected="acc-ret" />);
+    rerender(<AccountDetail {...handlers()} overview={o} selected={null} />);
+    expect(screen.queryByTestId('holding-member')).toBeNull();
+  });
+
   it('shows all accounts combined', () => {
     const overview = makeOverview({
       accounts: [makeAccount(), retirement],
@@ -121,7 +150,7 @@ describe('AccountDetail', () => {
     expect(screen.getByRole('heading', { name: 'All accounts' })).toBeInTheDocument();
     expect(screen.getByText('$6,100')).toBeInTheDocument();
     expect(screen.getByText('combined across accounts')).toBeInTheDocument();
-    expect(screen.getByText('2 accounts')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /AAA/ })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByText('size = value · color = 3M change')).toBeInTheDocument();
     expect(screen.getByText('Workplace Plan · Test Bank')).toBeInTheDocument();
     expect(screen.getByText('balance change · 3M')).toBeInTheDocument();
@@ -178,7 +207,11 @@ describe('AccountDetail', () => {
     expect(screen.getAllByText('CA$5,000')).toHaveLength(2); // group total and row
     expect(screen.getByText('+CA$100')).toBeInTheDocument();
     expect(screen.getByText('−CA$5')).toBeInTheDocument();
-    expect(screen.getByText('CA$1.1k')).toBeInTheDocument();
+    // The chart's y-axis may print the same compact value, so leave the axis out.
+    const outsideAxis = screen
+      .getAllByText('CA$1.1k')
+      .filter((el) => !el.closest('[data-testid="chart-y-axis"]'));
+    expect(outsideAxis).toHaveLength(1);
     expect(screen.getByText('↗ CA$100 · +10.0%')).toBeInTheDocument();
     expect(screen.queryByText(/(^|[^A])\$\d/)).toBeNull();
   });
@@ -201,7 +234,7 @@ describe('AccountDetail', () => {
 
     const valued = makeAccount({
       id: 'acc-val',
-      balanceSource: 'valuation',
+      balanceSource: BalanceSource.Valuation,
       prices: { asOf: '2026-10-06', stale: true },
       status: {
         needsReauth: null,
@@ -216,7 +249,11 @@ describe('AccountDetail', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(h.onRetryPrices).toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Set symbol' }));
-    expect(h.onSetSymbol).toHaveBeenCalledWith({ securityId: 'sec-z', label: 'ZZZ' });
+    expect(h.onSetSymbol).toHaveBeenCalledWith({
+      securityId: 'sec-z',
+      label: 'ZZZ',
+      institution: null,
+    });
     await userEvent.click(screen.getByRole('button', { name: 'Edit holdings' }));
     expect(h.onEditHoldings).toHaveBeenCalledWith(valued);
   });

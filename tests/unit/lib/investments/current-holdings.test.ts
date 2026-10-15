@@ -10,6 +10,7 @@ import {
 } from '../../../helpers/investments';
 import { CurrentHoldingsReader } from '@/lib/investments/current-holdings';
 import { manualHoldingSecurityId } from '@/lib/investments/manual-holding';
+import { BalanceSource, PriceSource, Pricing, RecordSource } from '@/lib/investments/codes';
 
 let prisma: PrismaClient;
 const rates = new Map([['CAD_USD', 0.5]]); // 1 USD = 2 CAD, exact in floating point
@@ -34,7 +35,7 @@ describe('CurrentHoldingsReader', () => {
   });
 
   it('prices a valued account’s latest set from the price book, with range change', async () => {
-    const a = await seedInvestmentAccount(prisma, { balanceSource: 'valuation' });
+    const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Valuation });
     const s = await seedSecurity(prisma, { priceSymbol: 'AAA', name: 'Triple A' });
     await seedSnapshot(prisma, {
       accountId: a.id,
@@ -42,7 +43,7 @@ describe('CurrentHoldingsReader', () => {
       date: '2026-09-01',
       quantity: 1,
       price: 5,
-      source: 'manual',
+      source: RecordSource.Manual,
     });
     await seedSnapshot(prisma, {
       accountId: a.id,
@@ -50,7 +51,7 @@ describe('CurrentHoldingsReader', () => {
       date: '2026-10-01',
       quantity: 3,
       price: 5,
-      source: 'manual',
+      source: RecordSource.Manual,
     });
     await seedPrice(prisma, s.id, '2026-09-09', 8);
     await seedPrice(prisma, s.id, '2026-10-09', 10);
@@ -86,7 +87,10 @@ describe('CurrentHoldingsReader', () => {
   });
 
   it('converts a CAD account into the base currency', async () => {
-    const a = await seedInvestmentAccount(prisma, { balanceSource: 'valuation', currency: 'CAD' });
+    const a = await seedInvestmentAccount(prisma, {
+      balanceSource: BalanceSource.Valuation,
+      currency: 'CAD',
+    });
     const s = await seedSecurity(prisma, { priceSymbol: 'AAA', currency: 'USD' });
     await seedSnapshot(prisma, {
       accountId: a.id,
@@ -94,7 +98,7 @@ describe('CurrentHoldingsReader', () => {
       date: '2026-10-01',
       quantity: 1,
       price: 75,
-      source: 'manual',
+      source: RecordSource.Manual,
     });
     await seedPrice(prisma, s.id, '2026-10-09', 75);
     const [r] = await read([a]);
@@ -103,7 +107,7 @@ describe('CurrentHoldingsReader', () => {
 
   it('labels cash and a manual account’s single holding, without range change', async () => {
     const manual = await seedInvestmentAccount(prisma, {
-      balanceSource: 'manual',
+      balanceSource: BalanceSource.Manual,
       name: 'Pension',
     });
     await prisma.security.create({
@@ -111,7 +115,7 @@ describe('CurrentHoldingsReader', () => {
         id: manualHoldingSecurityId(manual.id),
         name: 'Pension',
         type: 'other',
-        pricing: 'manual',
+        pricing: Pricing.Manual,
       },
     });
     await seedSnapshot(prisma, {
@@ -120,14 +124,20 @@ describe('CurrentHoldingsReader', () => {
       date: '2026-10-01',
       quantity: 1,
       price: 900,
-      source: 'manual',
+      source: RecordSource.Manual,
     });
-    await seedPrice(prisma, manualHoldingSecurityId(manual.id), '2026-10-01', 900, 'manual');
-    const valued = await seedInvestmentAccount(prisma, { balanceSource: 'valuation' });
+    await seedPrice(
+      prisma,
+      manualHoldingSecurityId(manual.id),
+      '2026-10-01',
+      900,
+      PriceSource.Manual
+    );
+    const valued = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Valuation });
     const cash = await seedSecurity(prisma, {
       type: 'cash',
       priceSymbol: null,
-      pricing: 'fixed',
+      pricing: Pricing.Fixed,
       fixedPrice: 1,
       name: 'USD cash',
     });
@@ -137,7 +147,7 @@ describe('CurrentHoldingsReader', () => {
       date: '2026-10-01',
       quantity: 250,
       price: 1,
-      source: 'manual',
+      source: RecordSource.Manual,
     });
     const rows = await read([manual, valued]);
     expect(rows.map((r) => [r.kind, r.label, r.value, r.rangeChangePct])).toEqual(
@@ -149,9 +159,14 @@ describe('CurrentHoldingsReader', () => {
   });
 
   it('ignores a valued account’s leftover manual-holding mirror', async () => {
-    const a = await seedInvestmentAccount(prisma, { balanceSource: 'valuation' });
+    const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Valuation });
     await prisma.security.create({
-      data: { id: manualHoldingSecurityId(a.id), name: 'Mirror', type: 'other', pricing: 'manual' },
+      data: {
+        id: manualHoldingSecurityId(a.id),
+        name: 'Mirror',
+        type: 'other',
+        pricing: Pricing.Manual,
+      },
     });
     await seedSnapshot(prisma, {
       accountId: a.id,
@@ -159,7 +174,7 @@ describe('CurrentHoldingsReader', () => {
       date: '2026-10-09',
       quantity: 1,
       price: 900,
-      source: 'manual',
+      source: RecordSource.Manual,
     });
     const s = await seedSecurity(prisma, { priceSymbol: 'AAA' });
     await seedSnapshot(prisma, {
@@ -168,16 +183,16 @@ describe('CurrentHoldingsReader', () => {
       date: '2026-10-05',
       quantity: 1,
       price: 10,
-      source: 'manual',
+      source: RecordSource.Manual,
     });
     expect((await read([a])).map((r) => r.label)).toEqual(['AAA']);
   });
 
   it('gives no range change to a fixed-price security', async () => {
-    const a = await seedInvestmentAccount(prisma, { balanceSource: 'valuation' });
+    const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Valuation });
     const s = await seedSecurity(prisma, {
       priceSymbol: 'FIX',
-      pricing: 'fixed',
+      pricing: Pricing.Fixed,
       fixedPrice: 10,
     });
     await seedSnapshot(prisma, {
@@ -186,27 +201,27 @@ describe('CurrentHoldingsReader', () => {
       date: '2026-10-01',
       quantity: 1,
       price: 10,
-      source: 'manual',
+      source: RecordSource.Manual,
     });
     await seedPrice(prisma, s.id, '2026-09-09', 9);
     await seedPrice(prisma, s.id, '2026-10-09', 10);
     const [r] = await read([a]);
-    expect(r).toMatchObject({ kind: 'security', pricing: 'fixed', rangeChangePct: null });
+    expect(r).toMatchObject({ kind: 'security', pricing: Pricing.Fixed, rangeChangePct: null });
   });
 
   it('gives a manual-priced security a range change from its price entries', async () => {
-    const a = await seedInvestmentAccount(prisma, { balanceSource: 'valuation' });
-    const s = await seedSecurity(prisma, { priceSymbol: 'MAN', pricing: 'manual' });
+    const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Valuation });
+    const s = await seedSecurity(prisma, { priceSymbol: 'MAN', pricing: Pricing.Manual });
     await seedSnapshot(prisma, {
       accountId: a.id,
       securityId: s.id,
       date: '2026-10-01',
       quantity: 1,
       price: 10,
-      source: 'manual',
+      source: RecordSource.Manual,
     });
-    await seedPrice(prisma, s.id, '2026-09-09', 8, 'manual');
-    await seedPrice(prisma, s.id, '2026-10-09', 10, 'manual');
+    await seedPrice(prisma, s.id, '2026-09-09', 8, PriceSource.Manual);
+    await seedPrice(prisma, s.id, '2026-10-09', 10, PriceSource.Manual);
     const [r] = await read([a]);
     expect(r.rangeChangePct).toBe(25);
   });

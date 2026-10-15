@@ -4,17 +4,8 @@ import type {
   InvestmentTransaction as PlaidInvestmentTransaction,
   Transaction as PlaidTransaction,
 } from 'plaid';
+import { Pricing, SecurityType } from './codes';
 import { utcDay } from './dates';
-
-export type SecurityType =
-  | 'etf'
-  | 'equity'
-  | 'mutual_fund'
-  | 'money_market'
-  | 'cash'
-  | 'crypto'
-  | 'other';
-export type Pricing = 'feed' | 'plaid' | 'fixed' | 'manual' | 'none';
 
 export type MappedSecurity = {
   plaidSecurityId: string;
@@ -57,19 +48,19 @@ const PUBLIC_TICKER = /^[A-Z][A-Z0-9]{0,5}$/;
 const MIC_SUFFIX: Record<string, string> = { XTSE: '.TO', XTSX: '.V', NEOE: '.NE' };
 
 function securityType(s: PlaidSecurity): SecurityType {
-  if (s.type === 'cash') return 'cash';
-  if (s.is_cash_equivalent) return 'money_market';
+  if (s.type === 'cash') return SecurityType.Cash;
+  if (s.is_cash_equivalent) return SecurityType.MoneyMarket;
   switch (s.type) {
     case 'etf':
-      return 'etf';
+      return SecurityType.Etf;
     case 'equity':
-      return 'equity';
+      return SecurityType.Equity;
     case 'mutual fund':
-      return 'mutual_fund';
+      return SecurityType.MutualFund;
     case 'cryptocurrency':
-      return 'crypto';
+      return SecurityType.Crypto;
     default:
-      return 'other';
+      return SecurityType.Other;
   }
 }
 
@@ -85,17 +76,22 @@ export function mapSecurity(s: PlaidSecurity): MappedSecurity {
     currency,
     exchangeMic: s.market_identifier_code ?? null,
   };
-  if (type === 'cash' || type === 'money_market') {
-    return { ...base, priceSymbol: null, pricing: 'fixed', fixedPrice: 1 };
+  if (type === SecurityType.Cash || type === SecurityType.MoneyMarket) {
+    return { ...base, priceSymbol: null, pricing: Pricing.Fixed, fixedPrice: 1 };
   }
-  if (type === 'crypto' && ticker) {
-    return { ...base, priceSymbol: `${ticker}-${currency}`, pricing: 'feed', fixedPrice: null };
+  if (type === SecurityType.Crypto && ticker) {
+    return {
+      ...base,
+      priceSymbol: `${ticker}-${currency}`,
+      pricing: Pricing.Market,
+      fixedPrice: null,
+    };
   }
   if (ticker && PUBLIC_TICKER.test(ticker)) {
     const suffix = MIC_SUFFIX[s.market_identifier_code ?? ''] ?? '';
-    return { ...base, priceSymbol: ticker + suffix, pricing: 'feed', fixedPrice: null };
+    return { ...base, priceSymbol: ticker + suffix, pricing: Pricing.Market, fixedPrice: null };
   }
-  return { ...base, priceSymbol: null, pricing: 'plaid', fixedPrice: null };
+  return { ...base, priceSymbol: null, pricing: Pricing.Institution, fixedPrice: null };
 }
 
 export function mapHolding(h: Holding): MappedHolding {

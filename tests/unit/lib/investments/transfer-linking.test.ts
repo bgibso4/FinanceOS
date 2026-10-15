@@ -4,6 +4,7 @@ import { setupTestDb, teardownTestDb, resetTestDb } from '../../../helpers/db';
 import { createAccountData, createTransactionData } from '../../../helpers/factories';
 import { detectCrossAccountTransfers } from '@/lib/sync-common';
 import { isCashFlow, pickMatch, linkInvestmentTransfers } from '@/lib/investments/transfer-linking';
+import { BalanceSource, RecordSource } from '@/lib/investments/codes';
 
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
 
@@ -60,7 +61,7 @@ describe('linkInvestmentTransfers', () => {
         data: {
           ...createAccountData({ type: 'brokerage' }),
           trackingMode: 'investment',
-          balanceSource: 'provider',
+          balanceSource: BalanceSource.Provider,
         },
       })
     ).id;
@@ -87,7 +88,7 @@ describe('linkInvestmentTransfers', () => {
         name: 'Tfr',
         amount: o.amount ?? -2000,
         currency: 'USD',
-        source: 'plaid',
+        source: RecordSource.Synced,
         isCancelled: o.isCancelled ?? false,
       },
     });
@@ -141,7 +142,7 @@ describe('linkInvestmentTransfers', () => {
       data: {
         ...createAccountData({ type: 'brokerage' }),
         trackingMode: 'investment',
-        balanceSource: 'manual',
+        balanceSource: BalanceSource.Manual,
       },
     });
     await prisma.transaction.create({
@@ -155,7 +156,7 @@ describe('linkInvestmentTransfers', () => {
       data: {
         ...createAccountData({ type: 'retirement' }),
         trackingMode: 'investment',
-        balanceSource: 'provider',
+        balanceSource: BalanceSource.Provider,
       },
     });
     const first = await inv({ date: d('2026-10-06') });
@@ -169,7 +170,7 @@ describe('linkInvestmentTransfers', () => {
         name: 'Conversion',
         amount: -2000,
         currency: 'USD',
-        source: 'plaid',
+        source: RecordSource.Synced,
       },
     });
     await bank({ date: d('2026-10-06') });
@@ -214,7 +215,7 @@ describe('bank transfer detection and investment-linked rows', () => {
       data: {
         ...createAccountData({ type: 'brokerage' }),
         trackingMode: 'investment',
-        balanceSource: 'provider',
+        balanceSource: BalanceSource.Provider,
       },
     });
     const tx = (accountId: string, amount: number, transferGroupId: string | null = null) =>
@@ -238,7 +239,7 @@ describe('bank transfer detection and investment-linked rows', () => {
         name: 'Deposit',
         amount: -1000,
         currency: 'USD',
-        source: 'plaid',
+        source: RecordSource.Synced,
         linkedTransactionId: deposit.id,
       },
     });

@@ -17,6 +17,7 @@ vi.mock('@/lib/investments/services', async (importOriginal) => ({
 
 import { getInvestmentServices } from '@/lib/investments/services';
 import { GET } from '@/app/api/investments/overview/route';
+import { BalanceRowSource, BalanceSource } from '@/lib/investments/codes';
 
 const get = (query = '') =>
   GET(new NextRequest(`http://localhost/api/investments/overview${query}`));
@@ -34,8 +35,8 @@ describe('GET /api/investments/overview', () => {
   });
 
   it('defaults to 3M and returns the overview', async () => {
-    const a = await seedInvestmentAccount(testPrisma, { balanceSource: 'manual' });
-    await seedBalance(testPrisma, a.id, '2026-10-01', 10, 'manual');
+    const a = await seedInvestmentAccount(testPrisma, { balanceSource: BalanceSource.Manual });
+    await seedBalance(testPrisma, a.id, '2026-10-01', 10, BalanceRowSource.Manual);
     const res = await get();
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -44,6 +45,7 @@ describe('GET /api/investments/overview', () => {
 
   it('accepts a range and rejects an unknown one', async () => {
     expect((await (await get('?range=YTD')).json()).range).toBe('YTD');
+    expect((await (await get('?range=All')).json()).range).toBe('All');
     const bad = await get('?range=5Y');
     expect(bad.status).toBe(400);
     expect(await bad.json()).toEqual({ error: 'Invalid range' });

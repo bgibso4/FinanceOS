@@ -1,16 +1,23 @@
 import { addDays, utcDay } from './dates';
 import { roundCents } from './money';
 
-export type Range = '1M' | '3M' | 'YTD' | '1Y';
-export const RANGES: Range[] = ['1M', '3M', 'YTD', '1Y'];
+export type Range = '1M' | '3M' | 'YTD' | '1Y' | '3Y' | 'All';
+export const RANGES: Range[] = ['1M', '3M', 'YTD', '1Y', '3Y', 'All'];
 export const DEFAULT_RANGE: Range = '3M';
+/** Ranges whose start follows from today alone; 'All' starts where the data does. */
+export type FixedRange = Exclude<Range, 'All'>;
 
 export const isRange = (v: unknown): v is Range => RANGES.includes(v as Range);
 
-const RANGE_DAYS: Record<Exclude<Range, 'YTD'>, number> = { '1M': 30, '3M': 91, '1Y': 365 };
+const RANGE_DAYS: Record<Exclude<FixedRange, 'YTD'>, number> = {
+  '1M': 30,
+  '3M': 91,
+  '1Y': 365,
+  '3Y': 1095,
+};
 
-/** First day of a range ending today (UTC). */
-export function rangeStart(range: Range, today: Date): Date {
+/** First day of a fixed range ending today (UTC). */
+export function rangeStart(range: FixedRange, today: Date): Date {
   if (range === 'YTD') return utcDay(`${today.getUTCFullYear()}-01-01`);
   return addDays(today, -RANGE_DAYS[range]);
 }
@@ -42,10 +49,8 @@ const WRAPPER_BY_SUBTYPE: Record<string, string> = {
 };
 
 /** The tax wrapper shown next to the institution ("Test Brokerage · 401(k)"). */
-export function wrapperLabel(plaidSubtype: string | null, accountType: string): string {
-  return (
-    (plaidSubtype && WRAPPER_BY_SUBTYPE[plaidSubtype.toLowerCase()]) || accountGroup(accountType)
-  );
+export function wrapperLabel(subtype: string | null, accountType: string): string {
+  return (subtype && WRAPPER_BY_SUBTYPE[subtype.toLowerCase()]) || accountGroup(accountType);
 }
 
 const BUCKET_ALIASES: Record<string, string> = { 'Cash mgmt': 'Taxable' };

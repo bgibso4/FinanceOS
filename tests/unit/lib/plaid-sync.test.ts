@@ -33,6 +33,7 @@ vi.mock('@/lib/sync-common', async (importOriginal) => {
 import { syncPlaidTransactions, type SyncResult, type DryRunResult } from '@/lib/plaid-sync';
 import { getPlaidClient } from '@/lib/plaid';
 import * as syncCommon from '@/lib/sync-common';
+import { BalanceSource, RecordSource } from '@/lib/investments/codes';
 
 describe('plaid-sync', () => {
   let prisma: PrismaClient;
@@ -1177,7 +1178,7 @@ describe('plaid-sync', () => {
           data: {
             ...createAccountData({ name: 'Brokerage', type: 'brokerage' }),
             trackingMode: 'investment',
-            balanceSource: 'provider',
+            balanceSource: BalanceSource.Provider,
           },
         })
       ).id;
@@ -1233,7 +1234,7 @@ describe('plaid-sync', () => {
           name: 'Deposit',
           amount: -500,
           currency: 'USD',
-          source: 'plaid',
+          source: RecordSource.Synced,
         },
       });
       mockAdded([

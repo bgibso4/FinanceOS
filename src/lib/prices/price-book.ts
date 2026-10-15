@@ -10,21 +10,34 @@ export class PriceBook {
 
   static async load(prisma: PrismaClient, securityIds: string[], to: Date): Promise<PriceBook> {
     const ids = [...new Set(securityIds)];
-    const [securities, rows] = await Promise.all([
-      prisma.security.findMany({
-        where: { id: { in: ids } },
-        select: { id: true, pricing: true, fixedPrice: true },
-      }),
-      prisma.securityPrice.findMany({
-        where: { securityId: { in: ids }, date: { lte: to } },
-        orderBy: { date: 'asc' },
-        select: { securityId: true, date: true, close: true, source: true },
-      }),
-    ]);
+    const securities = await prisma.security.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, pricing: true, fixedPrice: true, proxySecurityId: true },
+    });
+    const proxyIds = securities.flatMap((s) => (s.proxySecurityId ? [s.proxySecurityId] : []));
+    const rows = await prisma.securityPrice.findMany({
+      where: { securityId: { in: [...ids, ...proxyIds] }, date: { lte: to } },
+      orderBy: { date: 'asc' },
+      select: { securityId: true, date: true, close: true, source: true },
+    });
+    const pointsOf = new Map<string, PricePoint[]>();
+    for (const r of rows) {
+      const list = pointsOf.get(r.securityId);
+      if (list) list.push(r);
+      else pointsOf.set(r.securityId, [r]);
+    }
     const entries = new Map<string, Entry>(
-      securities.map((s) => [s.id, { strategy: pricingFor(s), points: [] }])
+      securities.map((s) => [
+        s.id,
+        {
+          strategy: pricingFor(
+            s,
+            s.proxySecurityId ? (pointsOf.get(s.proxySecurityId) ?? []) : undefined
+          ),
+          points: pointsOf.get(s.id) ?? [],
+        },
+      ])
     );
-    for (const r of rows) entries.get(r.securityId)?.points.push(r);
     return new PriceBook(entries);
   }
 

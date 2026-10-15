@@ -27,6 +27,13 @@ import { isoDay } from '@/lib/investments/dates';
 import { GET as search } from '@/app/api/investments/securities/search/route';
 import { POST as create } from '@/app/api/investments/securities/route';
 import { PATCH as patch } from '@/app/api/investments/securities/[id]/route';
+import {
+  BalanceRowSource,
+  BalanceSource,
+  PriceSource,
+  Pricing,
+  RecordSource,
+} from '@/lib/investments/codes';
 
 const json = (method: string, body: unknown) =>
   new NextRequest('http://localhost/api/investments/securities', {
@@ -79,7 +86,7 @@ describe('investment securities APIs', () => {
     const { security } = await first.json();
     expect(security).toMatchObject({
       type: 'cash',
-      pricing: 'fixed',
+      pricing: Pricing.Fixed,
       fixedPrice: 1,
       currency: 'CAD',
     });
@@ -89,46 +96,48 @@ describe('investment securities APIs', () => {
     expect((await create(json('POST', {}))).status).toBe(400);
   });
 
-  it('PATCH priceSymbol re-arms feed pricing and reprices under the new symbol', async () => {
-    const s = await seedSecurity(testPrisma, { priceSymbol: 'OLD', pricing: 'none' });
+  it('PATCH priceSymbol re-arms market pricing and reprices under the new symbol', async () => {
+    const s = await seedSecurity(testPrisma, { priceSymbol: 'OLD', pricing: Pricing.None });
     await seedPrice(testPrisma, s.id, '2026-10-01', 1);
-    await seedPrice(testPrisma, s.id, '2026-10-01', 1, 'plaid');
+    await seedPrice(testPrisma, s.id, '2026-10-01', 1, PriceSource.Institution);
     const res = await patch(json('PATCH', { priceSymbol: 'bbb' }), params(s.id));
     expect((await res.json()).security).toMatchObject({
       priceSymbol: 'BBB',
-      pricing: 'feed',
+      pricing: Pricing.Market,
       priceSymbolOverride: true,
     });
     const yahoo = await testPrisma.securityPrice.findMany({
-      where: { securityId: s.id, source: 'yahoo' },
+      where: { securityId: s.id, source: PriceSource.Market },
     });
     expect(yahoo.map((p) => [isoDay(p.date), p.close])).toEqual([['2026-10-09', 20]]);
     expect(
-      await testPrisma.securityPrice.count({ where: { securityId: s.id, source: 'plaid' } })
+      await testPrisma.securityPrice.count({
+        where: { securityId: s.id, source: PriceSource.Institution },
+      })
     ).toBe(1);
   });
 
   it('PATCH manualPrice prices the security and revalues valued accounts', async () => {
-    const a = await seedInvestmentAccount(testPrisma, { balanceSource: 'valuation' });
-    const s = await seedSecurity(testPrisma, { priceSymbol: 'ZZZ', pricing: 'none' });
+    const a = await seedInvestmentAccount(testPrisma, { balanceSource: BalanceSource.Valuation });
+    const s = await seedSecurity(testPrisma, { priceSymbol: 'ZZZ', pricing: Pricing.None });
     await seedSnapshot(testPrisma, {
       accountId: a.id,
       securityId: s.id,
       date: '2026-10-01',
       quantity: 3,
       price: 0,
-      source: 'manual',
+      source: RecordSource.Manual,
     });
     const res = await patch(json('PATCH', { manualPrice: 7 }), params(s.id));
     expect((await res.json()).security).toMatchObject({
-      pricing: 'manual',
+      pricing: Pricing.Manual,
       priceSymbolOverride: true,
     });
     expect(
       await testPrisma.accountBalance.findUnique({
         where: { accountId_date: { accountId: a.id, date: day('2026-10-09') } },
       })
-    ).toMatchObject({ balance: 21, source: 'valuation' });
+    ).toMatchObject({ balance: 21, source: BalanceRowSource.Valuation });
   });
 
   it('PATCH validates', async () => {
@@ -137,5 +146,38 @@ describe('investment securities APIs', () => {
     expect((await patch(json('PATCH', { manualPrice: -1 }), params(s.id))).status).toBe(400);
     expect((await patch(json('PATCH', { manualPrice: 1 }), params('missing'))).status).toBe(404);
     expect((await patch(json('PATCH', { priceSymbol: 'NOPE' }), params(s.id))).status).toBe(400);
+  });
+
+  it('PATCH proxySymbol links and unlinks a proxy fund', async () => {
+    vi.mocked(getInvestmentServices).mockResolvedValue(
+      testServices(testPrisma, { closes: { FOLW: { '2026-10-09': 60 } } }).services
+    );
+    const fund = await seedSecurity(testPrisma, {
+      priceSymbol: null,
+      pricing: Pricing.Institution,
+    });
+    const linked = await patch(json('PATCH', { proxySymbol: 'FOLW' }), params(fund.id));
+    expect(linked.status).toBe(200);
+    expect((await linked.json()).security.proxySecurityId).toEqual(expect.any(String));
+    const unlinked = await patch(json('PATCH', { proxySymbol: null }), params(fund.id));
+    expect((await unlinked.json()).security.proxySecurityId).toBeNull();
+  });
+
+  it('PATCH proxySymbol rejects unknown symbols, funds not priced by their institution, and blanks', async () => {
+    vi.mocked(getInvestmentServices).mockResolvedValue(
+      testServices(testPrisma, { closes: { FOLW: { '2026-10-09': 60 } } }).services
+    );
+    const fund = await seedSecurity(testPrisma, {
+      priceSymbol: null,
+      pricing: Pricing.Institution,
+    });
+    const market = await seedSecurity(testPrisma, { priceSymbol: 'AAA' });
+    expect((await patch(json('PATCH', { proxySymbol: 'NOPE' }), params(fund.id))).status).toBe(400);
+    const notInstitution = await patch(json('PATCH', { proxySymbol: 'FOLW' }), params(market.id));
+    expect(notInstitution.status).toBe(400);
+    expect(await notInstitution.json()).toEqual({
+      error: 'Only a fund priced by its institution can follow another fund',
+    });
+    expect((await patch(json('PATCH', { proxySymbol: '' }), params(fund.id))).status).toBe(400);
   });
 });

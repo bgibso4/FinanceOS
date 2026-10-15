@@ -1,4 +1,5 @@
 import type { Account, PrismaClient } from '@prisma/client';
+import type { BalanceSource } from './codes';
 
 export class InvestmentInputError extends Error {
   readonly status: 400 | 404;
@@ -13,7 +14,7 @@ export class InvestmentInputError extends Error {
 export async function requireInvestmentAccount(
   prisma: PrismaClient,
   accountId: string,
-  balanceSource: 'valuation' | 'manual'
+  balanceSource: typeof BalanceSource.Valuation | typeof BalanceSource.Manual
 ): Promise<Account> {
   const account = await prisma.account.findUnique({ where: { id: accountId } });
   if (!account) throw new InvestmentInputError('Account not found', 404);

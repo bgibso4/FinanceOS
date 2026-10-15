@@ -12,7 +12,9 @@ import { convertAmount, isValidCurrency } from '../src/lib/currency';
 import { loadFxRates } from '../src/lib/prices/price-book';
 import { YahooPriceProvider } from '../src/lib/prices/yahoo';
 import { createInvestmentServices } from '../src/lib/investments/services';
+import { ensureStoredCodes } from '../src/lib/investments/rename-stored-codes';
 import { backupDatabase } from './lib/backup-db';
+import { BalanceSource } from '../src/lib/investments/codes';
 
 const FileSchema = z.object({
   accounts: z
@@ -62,12 +64,13 @@ async function main() {
   const path = process.argv.slice(2).find((a) => !a.startsWith('--'));
   if (!path) throw new Error('Usage: set-valuation-holdings.ts <holdings.json> [--apply]');
   const config = FileSchema.parse(JSON.parse(readFileSync(path, 'utf8')));
+  await ensureStoredCodes(prisma);
   const services = createInvestmentServices({ prisma, provider: new YahooPriceProvider() });
   const rates = await loadFxRates(prisma);
 
   for (const entry of config.accounts) {
     const account = await prisma.account.findUniqueOrThrow({ where: { id: entry.accountId } });
-    if (account.trackingMode !== 'investment' || account.balanceSource === 'provider') {
+    if (account.trackingMode !== 'investment' || account.balanceSource === BalanceSource.Provider) {
       throw new Error(`${account.name}: must be a manual or valued investment account`);
     }
     const current = await getAccountBalance(prisma, account.id);
@@ -103,7 +106,7 @@ async function main() {
   for (const entry of config.accounts) {
     const holdings = [];
     for (const h of entry.holdings) {
-      const { security } = await services.catalog.findOrCreateFeed(h.symbol);
+      const { security } = await services.catalog.findOrCreateMarket(h.symbol);
       holdings.push({ securityId: security.id, quantity: h.quantity });
     }
     for (const [currency, amount] of Object.entries(entry.cash)) {
@@ -112,7 +115,7 @@ async function main() {
     }
     await prisma.account.update({
       where: { id: entry.accountId },
-      data: { balanceSource: 'valuation' },
+      data: { balanceSource: BalanceSource.Valuation },
     });
     const { prices } = await services.refresh.saveHoldings(entry.accountId, holdings);
     if (prices.stopped) {

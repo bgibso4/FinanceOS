@@ -11,6 +11,13 @@ import {
 import { fixedClock } from '@/lib/clock';
 import { ManualHoldingService, manualHoldingSecurityId } from '@/lib/investments/manual-holding';
 import { isoDay } from '@/lib/investments/dates';
+import {
+  BalanceRowSource,
+  BalanceSource,
+  PriceSource,
+  Pricing,
+  RecordSource,
+} from '@/lib/investments/codes';
 
 let prisma: PrismaClient;
 let manual: ManualHoldingService;
@@ -33,23 +40,26 @@ describe('ManualHoldingService', () => {
   });
 
   it('records a balance and mirrors it as the single holding', async () => {
-    const a = await seedInvestmentAccount(prisma, { balanceSource: 'manual', currency: 'CAD' });
-    const row = await manual.record(a.id, { date: '2026-10-01', balance: 5000 });
-    expect(row).toMatchObject({ balance: 5000, currency: 'CAD', source: 'manual' });
-    const sid = manualHoldingSecurityId(a.id);
-    expect(await snapshots(a.id)).toEqual([['2026-10-01', sid, 1, 5000, 'manual']]);
-    expect(await prisma.security.findUniqueOrThrow({ where: { id: sid } })).toMatchObject({
-      type: 'other',
-      pricing: 'manual',
+    const a = await seedInvestmentAccount(prisma, {
+      balanceSource: BalanceSource.Manual,
       currency: 'CAD',
     });
-    expect(await prisma.securityPrice.count({ where: { securityId: sid, source: 'manual' } })).toBe(
-      1
-    );
+    const row = await manual.record(a.id, { date: '2026-10-01', balance: 5000 });
+    expect(row).toMatchObject({ balance: 5000, currency: 'CAD', source: BalanceRowSource.Manual });
+    const sid = manualHoldingSecurityId(a.id);
+    expect(await snapshots(a.id)).toEqual([['2026-10-01', sid, 1, 5000, RecordSource.Manual]]);
+    expect(await prisma.security.findUniqueOrThrow({ where: { id: sid } })).toMatchObject({
+      type: 'other',
+      pricing: Pricing.Manual,
+      currency: 'CAD',
+    });
+    expect(
+      await prisma.securityPrice.count({ where: { securityId: sid, source: PriceSource.Manual } })
+    ).toBe(1);
   });
 
   it('recording the same day again overwrites it', async () => {
-    const a = await seedInvestmentAccount(prisma, { balanceSource: 'manual' });
+    const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Manual });
     await manual.record(a.id, { date: '2026-10-01', balance: 1 });
     await manual.record(a.id, { date: '2026-10-01', balance: 2 });
     expect(await prisma.accountBalance.count({ where: { accountId: a.id } })).toBe(1);
@@ -57,14 +67,14 @@ describe('ManualHoldingService', () => {
   });
 
   it('rejects future dates, non-numbers and non-manual accounts', async () => {
-    const a = await seedInvestmentAccount(prisma, { balanceSource: 'manual' });
+    const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Manual });
     await expect(manual.record(a.id, { date: '2026-10-10', balance: 1 })).rejects.toMatchObject({
       status: 400,
     });
     await expect(manual.record(a.id, { date: '2026-10-01', balance: NaN })).rejects.toMatchObject({
       status: 400,
     });
-    const p = await seedInvestmentAccount(prisma, { balanceSource: 'provider' });
+    const p = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Provider });
     await expect(manual.record(p.id, { date: '2026-10-01', balance: 1 })).rejects.toMatchObject({
       status: 400,
     });
@@ -74,7 +84,7 @@ describe('ManualHoldingService', () => {
   });
 
   it('deletes an entry and its holding row', async () => {
-    const a = await seedInvestmentAccount(prisma, { balanceSource: 'manual' });
+    const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Manual });
     const first = await manual.record(a.id, { date: '2026-10-01', balance: 1 });
     await manual.record(a.id, { date: '2026-10-05', balance: 2 });
     await manual.delete(a.id, first.id);
@@ -84,9 +94,9 @@ describe('ManualHoldingService', () => {
   });
 
   it('backfills migrated entries and is a no-op when already in sync', async () => {
-    const a = await seedInvestmentAccount(prisma, { balanceSource: 'manual' });
-    await seedBalance(prisma, a.id, '2026-01-27', 100, 'manual');
-    await seedBalance(prisma, a.id, '2026-07-12', 150, 'manual');
+    const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Manual });
+    await seedBalance(prisma, a.id, '2026-01-27', 100, BalanceRowSource.Manual);
+    await seedBalance(prisma, a.id, '2026-07-12', 150, BalanceRowSource.Manual);
     expect(await manual.sync(a.id)).toBe(true);
     expect((await snapshots(a.id)).map((s) => [s[0], s[3]])).toEqual([
       ['2026-01-27', 100],
@@ -96,10 +106,10 @@ describe('ManualHoldingService', () => {
   });
 
   it('syncAll touches manual accounts only', async () => {
-    const m = await seedInvestmentAccount(prisma, { balanceSource: 'manual' });
-    const p = await seedInvestmentAccount(prisma, { balanceSource: 'provider' });
-    await seedBalance(prisma, m.id, '2026-10-01', 10, 'manual');
-    await seedBalance(prisma, p.id, '2026-10-01', 10, 'manual');
+    const m = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Manual });
+    const p = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Provider });
+    await seedBalance(prisma, m.id, '2026-10-01', 10, BalanceRowSource.Manual);
+    await seedBalance(prisma, p.id, '2026-10-01', 10, BalanceRowSource.Manual);
     expect(await manual.syncAll()).toBe(1);
     expect(await prisma.holdingSnapshot.count({ where: { accountId: p.id } })).toBe(0);
     expect(day('2026-10-01')).toEqual(
@@ -108,7 +118,7 @@ describe('ManualHoldingService', () => {
   });
 
   it('sync refuses a provider account and leaves its snapshots intact', async () => {
-    const p = await seedInvestmentAccount(prisma, { balanceSource: 'provider' });
+    const p = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Provider });
     const sec = await seedSecurity(prisma);
     await seedSnapshot(prisma, {
       accountId: p.id,
@@ -117,8 +127,8 @@ describe('ManualHoldingService', () => {
       quantity: 2,
       price: 5,
     });
-    await seedBalance(prisma, p.id, '2026-10-01', 10, 'manual');
+    await seedBalance(prisma, p.id, '2026-10-01', 10, BalanceRowSource.Manual);
     await expect(manual.sync(p.id)).rejects.toMatchObject({ status: 400 });
-    expect(await snapshots(p.id)).toEqual([['2026-10-01', sec.id, 2, 10, 'plaid']]);
+    expect(await snapshots(p.id)).toEqual([['2026-10-01', sec.id, 2, 10, RecordSource.Synced]]);
   });
 });

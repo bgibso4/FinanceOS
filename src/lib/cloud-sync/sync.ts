@@ -24,7 +24,7 @@ import type {
   UserSettingsExport,
   RecurringTransactionExport,
 } from './types';
-import { validateSyncPayload } from './types';
+import { upgradeLegacyCodes, validateSyncPayload } from './types';
 
 // Allow tests to inject a different Prisma client
 let prismaInstance: PrismaClient = defaultPrisma;
@@ -311,6 +311,8 @@ export async function exportDatabase(): Promise<SyncPayload> {
       priceSymbolOverride: r.priceSymbolOverride,
       pricing: r.pricing,
       fixedPrice: r.fixedPrice,
+      pricesFetchedFrom: r.pricesFetchedFrom?.toISOString() ?? null,
+      proxySecurityId: r.proxySecurityId,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
     })),
@@ -426,7 +428,7 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
     throw new Error('Sync payload checksum mismatch - data may be corrupted');
   }
 
-  const { data } = validated;
+  const data = upgradeLegacyCodes(validated.data);
 
   // A payload from a build without investment support has no investment arrays. Importing it
   // would delete every local investment row and restore pre-migration accounts, so refuse it
@@ -594,8 +596,22 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
 
     // Import investment data (after accounts and transactions; securities before their dependents)
     for (const r of data.securities ?? []) {
+      const { pricesFetchedFrom, proxySecurityId: _proxy, ...rest } = r;
       await tx.security.create({
-        data: { ...r, createdAt: new Date(r.createdAt), updatedAt: new Date(r.updatedAt) },
+        data: {
+          ...rest,
+          pricesFetchedFrom: pricesFetchedFrom ? new Date(pricesFetchedFrom) : null,
+          createdAt: new Date(r.createdAt),
+          updatedAt: new Date(r.updatedAt),
+        },
+      });
+    }
+    // A proxy is another security, so link proxies once every security exists.
+    for (const r of data.securities ?? []) {
+      if (!r.proxySecurityId) continue;
+      await tx.security.update({
+        where: { id: r.id },
+        data: { proxySecurityId: r.proxySecurityId, updatedAt: new Date(r.updatedAt) },
       });
     }
     for (const r of data.securityPrices ?? []) {

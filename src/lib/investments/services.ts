@@ -9,6 +9,7 @@ import { ValueHistoryService } from './history';
 import { ManualHoldingService } from './manual-holding';
 import { InvestmentOverviewService } from './overview';
 import { InvestmentRefreshService } from './refresh';
+import { ensureStoredCodes } from './rename-stored-codes';
 import { ValuationService } from './valuation';
 
 export type InvestmentServices = {
@@ -49,6 +50,7 @@ export function createInvestmentServices(deps: {
       history,
       new CurrentHoldingsReader(prisma),
       prices,
+      provider.symbolHint,
       clock
     ),
   };
@@ -57,15 +59,16 @@ export function createInvestmentServices(deps: {
 let instance: InvestmentServices | null = null;
 
 /**
- * Production services: the app Prisma client and Yahoo, built on first use. Both load lazily so
- * code paths that never price don't import `yahoo-finance2`.
+ * Production services: the app Prisma client and the market data provider's gateway, built on
+ * first use. Both load lazily so code paths that never price don't load the provider's client.
+ * Stored codes from before the neutral codes are renamed first, once per process, so no service
+ * ever reads an old value. `createInvestmentServices` (tests) never runs the rename.
  */
 export async function getInvestmentServices(): Promise<InvestmentServices> {
+  const { prisma } = await import('@/lib/prisma');
+  await ensureStoredCodes(prisma);
   if (!instance) {
-    const [{ prisma }, { YahooPriceProvider }] = await Promise.all([
-      import('@/lib/prisma'),
-      import('../prices/yahoo'),
-    ]);
+    const { YahooPriceProvider } = await import('../prices/yahoo');
     instance ??= createInvestmentServices({ prisma, provider: new YahooPriceProvider() });
   }
   return instance;

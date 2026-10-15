@@ -15,6 +15,7 @@ describe('rangeStart', () => {
     ['1M', '2026-09-11'],
     ['3M', '2026-07-12'],
     ['1Y', '2025-10-11'],
+    ['3Y', '2023-10-12'],
     ['YTD', '2026-01-01'],
   ] as const)('%s starts on %s', (range, expected) => {
     expect(isoDay(rangeStart(range, today))).toBe(expected);
@@ -22,8 +23,10 @@ describe('rangeStart', () => {
 });
 
 describe('isRange', () => {
-  it('accepts the four ranges only', () => {
+  it('accepts the six ranges only', () => {
     expect(isRange('YTD')).toBe(true);
+    expect(isRange('3Y')).toBe(true);
+    expect(isRange('All')).toBe(true);
     expect(isRange('5Y')).toBe(false);
     expect(isRange(undefined)).toBe(false);
   });

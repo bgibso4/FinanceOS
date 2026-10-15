@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { PrismaClient } from '@prisma/client';
 import { utcDay } from './dates';
 import { roundCents } from './money';
+import { BalanceRowSource, BalanceSource } from './codes';
 
 export const ADJUSTMENT_MERCHANT = 'Balance Adjustment';
 
@@ -25,7 +26,7 @@ export const MigrationConfigSchema = z.object({
   accounts: z.array(
     z.object({
       accountId: z.string(),
-      balanceSource: z.enum(['provider', 'valuation', 'manual']),
+      balanceSource: z.enum(BalanceSource),
       plaid: PlaidRefSchema.optional(),
     })
   ),
@@ -50,7 +51,7 @@ export type PlaidAccountRef = {
 type ConvertStep = {
   accountId: string;
   accountName: string;
-  balanceSource: 'provider' | 'valuation' | 'manual';
+  balanceSource: BalanceSource;
   currency: string;
   balances: { date: Date; balance: number }[];
   adjustmentIds: string[];
@@ -111,7 +112,7 @@ export async function buildMigrationPlan(
         `Account ${account.id} has ${other.length} non-adjustment transaction(s); refusing to convert`
       );
     }
-    if (entry.balanceSource === 'provider' && !entry.plaid) {
+    if (entry.balanceSource === BalanceSource.Provider && !entry.plaid) {
       throw new Error(
         `Account ${account.id}: provider accounts need a plaid { institution, mask }`
       );
@@ -191,7 +192,7 @@ export async function applyMigrationPlan(
             date: b.date,
             balance: b.balance,
             currency: step.currency,
-            source: 'manual',
+            source: BalanceRowSource.Manual,
           },
           update: {},
         });
@@ -208,7 +209,7 @@ export async function applyMigrationPlan(
           institution: step.plaid.institutionName,
           currency: step.currency,
           trackingMode: 'investment',
-          balanceSource: 'provider',
+          balanceSource: BalanceSource.Provider,
         },
       });
       await tx.plaidConnection.create({ data: connectionData(account.id, step.plaid) });

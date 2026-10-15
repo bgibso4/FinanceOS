@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { getDefaultTrackingMode, TRACKING_MODES, BALANCE_SOURCES } from '@/lib/account-defaults';
+import { getDefaultTrackingMode, TRACKING_MODES } from '@/lib/account-defaults';
+import { BalanceSource } from '@/lib/investments/codes';
 
 const accountSchema = z.object({
   name: z.string().min(1),
@@ -11,7 +12,7 @@ const accountSchema = z.object({
   isActive: z.boolean().default(true),
   notes: z.string().optional(),
   trackingMode: z.enum(TRACKING_MODES).optional(),
-  balanceSource: z.enum(BALANCE_SOURCES).optional().nullable(),
+  balanceSource: z.enum(BalanceSource).optional().nullable(),
 });
 
 export async function GET() {

@@ -20,6 +20,7 @@ vi.mock('@/lib/investments/services', () => ({
 import { POST } from '@/app/api/plaid/sync/route';
 import { syncPlaidInvestments } from '@/lib/investments/plaid-investment-sync';
 import { syncPlaidTransactions } from '@/lib/plaid-sync';
+import { BalanceSource } from '@/lib/investments/codes';
 
 const post = (body: unknown) =>
   POST(
@@ -43,7 +44,7 @@ describe('POST /api/plaid/sync for investment accounts', () => {
       data: {
         ...createAccountData({ type: trackingMode === 'investment' ? 'brokerage' : 'checking' }),
         trackingMode,
-        balanceSource: trackingMode === 'investment' ? 'provider' : null,
+        balanceSource: trackingMode === 'investment' ? BalanceSource.Provider : null,
       },
     });
     await testPrisma.plaidConnection.create({
@@ -69,7 +70,7 @@ describe('POST /api/plaid/sync for investment accounts', () => {
       data: {
         ...createAccountData({ type: 'brokerage' }),
         trackingMode: 'investment',
-        balanceSource: 'provider',
+        balanceSource: BalanceSource.Provider,
       },
     });
     accountId = a.id;
