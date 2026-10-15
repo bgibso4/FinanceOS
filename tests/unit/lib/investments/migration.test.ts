@@ -8,6 +8,7 @@ import {
   applyMigrationPlan,
   type PlaidAccountRef,
 } from '@/lib/investments/migration';
+import { BalanceRowSource, BalanceSource } from '@/lib/investments/codes';
 
 const d = (s: string) => new Date(s);
 
@@ -108,7 +109,7 @@ describe('buildMigrationPlan / applyMigrationPlan', () => {
         accounts: [
           {
             accountId: a.id,
-            balanceSource: 'provider',
+            balanceSource: BalanceSource.Provider,
             plaid: { institution: 'Test Brokerage', mask: '1111' },
           },
         ],
@@ -121,7 +122,10 @@ describe('buildMigrationPlan / applyMigrationPlan', () => {
       where: { id: a.id },
       include: { plaidConnection: true },
     });
-    expect(acct).toMatchObject({ trackingMode: 'investment', balanceSource: 'provider' });
+    expect(acct).toMatchObject({
+      trackingMode: 'investment',
+      balanceSource: BalanceSource.Provider,
+    });
     expect(acct.plaidConnection).toMatchObject({
       plaidAccountId: 'pa-1',
       plaidAccountMask: '1111',
@@ -132,8 +136,8 @@ describe('buildMigrationPlan / applyMigrationPlan', () => {
       orderBy: { date: 'asc' },
     });
     expect(rows.map((r) => [r.date.toISOString().slice(0, 10), r.balance, r.source])).toEqual([
-      ['2026-01-27', 1000, 'manual'],
-      ['2026-04-04', 1250, 'manual'],
+      ['2026-01-27', 1000, BalanceRowSource.Manual],
+      ['2026-04-04', 1250, BalanceRowSource.Manual],
     ]);
     expect(await prisma.transaction.count({ where: { accountId: a.id } })).toBe(0);
   });
@@ -162,7 +166,7 @@ describe('buildMigrationPlan / applyMigrationPlan', () => {
     expect(acct).toMatchObject({
       name: 'New IRA',
       trackingMode: 'investment',
-      balanceSource: 'provider',
+      balanceSource: BalanceSource.Provider,
     });
     expect(acct.plaidConnection?.plaidAccountId).toBe('pa-2');
   });
@@ -175,7 +179,7 @@ describe('buildMigrationPlan / applyMigrationPlan', () => {
     await expect(
       buildMigrationPlan(
         prisma,
-        { accounts: [{ accountId: a.id, balanceSource: 'manual' }], create: [] },
+        { accounts: [{ accountId: a.id, balanceSource: BalanceSource.Manual }], create: [] },
         []
       )
     ).rejects.toThrow(/non-adjustment/);
@@ -190,7 +194,7 @@ describe('buildMigrationPlan / applyMigrationPlan', () => {
           accounts: [
             {
               accountId: a.id,
-              balanceSource: 'provider',
+              balanceSource: BalanceSource.Provider,
               plaid: { institution: 'Test Brokerage', mask: '9999' },
             },
           ],
@@ -207,7 +211,7 @@ describe('buildMigrationPlan / applyMigrationPlan', () => {
           accounts: [
             {
               accountId: a.id,
-              balanceSource: 'provider',
+              balanceSource: BalanceSource.Provider,
               plaid: { institution: 'Test Brokerage', mask: '1111' },
             },
           ],
@@ -221,7 +225,7 @@ describe('buildMigrationPlan / applyMigrationPlan', () => {
   it('re-running an applied plan changes nothing', async () => {
     const a = await legacyAccount();
     const config = {
-      accounts: [{ accountId: a.id, balanceSource: 'manual' as const }],
+      accounts: [{ accountId: a.id, balanceSource: BalanceSource.Manual }],
       create: [],
     };
     await applyMigrationPlan(prisma, await buildMigrationPlan(prisma, config, []));
@@ -252,7 +256,7 @@ describe('buildMigrationPlan / applyMigrationPlan', () => {
   describe('conflict detection', () => {
     const provider = (accountId: string, mask: string) => ({
       accountId,
-      balanceSource: 'provider' as const,
+      balanceSource: BalanceSource.Provider,
       plaid: { institution: 'Test Brokerage', mask },
     });
 
@@ -263,8 +267,8 @@ describe('buildMigrationPlan / applyMigrationPlan', () => {
           prisma,
           {
             accounts: [
-              { accountId: a.id, balanceSource: 'manual' },
-              { accountId: a.id, balanceSource: 'manual' },
+              { accountId: a.id, balanceSource: BalanceSource.Manual },
+              { accountId: a.id, balanceSource: BalanceSource.Manual },
             ],
             create: [],
           },

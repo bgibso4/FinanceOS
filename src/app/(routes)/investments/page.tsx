@@ -10,13 +10,14 @@ import { RecordBalanceModal } from '@/components/investments/record-balance-moda
 import { SetSymbolModal } from '@/components/investments/set-symbol-modal';
 import { Card } from '@/components/ui/card';
 import { triggerSync } from '@/lib/cloud-sync';
+import type { PriceTarget } from '@/lib/investments/holdings-view';
 import type { AccountSummary, InvestmentOverview } from '@/lib/investments/overview';
 import { DEFAULT_RANGE, RANGES, type Range } from '@/lib/investments/portfolio-view';
 
 type Dialog =
   | { kind: 'record'; account: AccountSummary }
   | { kind: 'holdings'; account: AccountSummary }
-  | { kind: 'symbol'; security: { securityId: string; label: string } };
+  | { kind: 'symbol'; security: PriceTarget };
 
 type RefreshState = { running: boolean; failed: boolean };
 
@@ -185,6 +186,7 @@ export default function InvestmentsPage() {
       {dialog?.kind === 'symbol' && (
         <SetSymbolModal
           key={dialog.security.securityId}
+          hint={overview?.symbolHint ?? ''}
           security={dialog.security}
           onClose={() => setDialog(null)}
           onSaved={saved}

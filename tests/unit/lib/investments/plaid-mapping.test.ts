@@ -6,6 +6,7 @@ import {
   mapInvestmentTransaction,
   mapCashTransaction,
 } from '@/lib/investments/plaid-mapping';
+import { Pricing } from '@/lib/investments/codes';
 
 const sec = (o: Partial<Security>): Security =>
   ({
@@ -21,11 +22,11 @@ const sec = (o: Partial<Security>): Security =>
   }) as unknown as Security;
 
 describe('mapSecurity', () => {
-  it('maps a US-listed ETF to a feed symbol equal to its ticker', () => {
+  it('maps a US-listed ETF to a market symbol equal to its ticker', () => {
     const m = mapSecurity(sec({ ticker_symbol: 'TETF', market_identifier_code: 'ARCX' }));
     expect(m).toMatchObject({
       type: 'etf',
-      pricing: 'feed',
+      pricing: Pricing.Market,
       priceSymbol: 'TETF',
       fixedPrice: null,
     });
@@ -42,23 +43,25 @@ describe('mapSecurity', () => {
   it('fixes cash and cash-equivalent funds at 1.00', () => {
     expect(mapSecurity(sec({ type: 'cash', ticker_symbol: 'CUR:USD' }))).toMatchObject({
       type: 'cash',
-      pricing: 'fixed',
+      pricing: Pricing.Fixed,
       fixedPrice: 1,
     });
     expect(
       mapSecurity(sec({ type: 'mutual fund', ticker_symbol: 'TMMXX', is_cash_equivalent: true }))
     ).toMatchObject({
       type: 'money_market',
-      pricing: 'fixed',
+      pricing: Pricing.Fixed,
       fixedPrice: 1,
     });
   });
 
   it('uses Plaid pricing for non-public identifiers', () => {
     expect(mapSecurity(sec({ type: 'equity', ticker_symbol: 'PLAN.FUND.2060' })).pricing).toBe(
-      'plaid'
+      Pricing.Institution
     );
-    expect(mapSecurity(sec({ type: 'equity', ticker_symbol: null })).pricing).toBe('plaid');
+    expect(mapSecurity(sec({ type: 'equity', ticker_symbol: null })).pricing).toBe(
+      Pricing.Institution
+    );
   });
 
   it('maps crypto to a TICKER-CCY symbol', () => {
@@ -66,7 +69,7 @@ describe('mapSecurity', () => {
       mapSecurity(sec({ type: 'cryptocurrency', ticker_symbol: 'BTC', iso_currency_code: 'CAD' }))
     ).toMatchObject({
       type: 'crypto',
-      pricing: 'feed',
+      pricing: Pricing.Market,
       priceSymbol: 'BTC-CAD',
     });
   });

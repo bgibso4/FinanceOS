@@ -13,6 +13,7 @@ import {
   mapCashTransaction,
   type MappedInvestmentTransaction,
 } from './plaid-mapping';
+import { BalanceRowSource, PriceSource, Pricing, RecordSource } from './codes';
 
 export type StepStatus = 'ok' | 'pending' | 'error' | 'skipped';
 export type InvestmentStep = 'balance' | 'holdings' | 'transactions' | 'linking';
@@ -32,9 +33,10 @@ export type InvestmentConnection = {
   plaidEnrollment: { accessTokenEncrypted: string; accessTokenIv: string };
 };
 
-const FIRST_SYNC_DAYS = 730; // Plaid's investment-transaction maximum (24 months)
 const OVERLAP_DAYS = 30;
 const PAGE = 500;
+/** How far back Plaid returns investment transactions (24 months). */
+const PLAID_TRADE_HISTORY_DAYS = 730;
 
 async function plaidCall<T>(fn: () => Promise<T>): Promise<T> {
   return retryWithBackoff(async () => {
@@ -63,9 +65,10 @@ async function upsertSecurities(securities: PlaidSecurity[]): Promise<Map<string
       exchangeMic: m.exchangeMic,
     };
     if (existing) {
-      // Never clobber a user-set price symbol; pricing follows the symbol. A symbol the price
-      // feed rejected stays unpriced until Plaid reports a different one.
-      const keepUnpriced = existing.pricing === 'none' && existing.priceSymbol === m.priceSymbol;
+      // Never clobber a user-set price symbol; pricing follows the symbol. A symbol the market data
+      // provider rejected stays unpriced until Plaid reports a different one.
+      const keepUnpriced =
+        existing.pricing === Pricing.None && existing.priceSymbol === m.priceSymbol;
       const pricingFields =
         existing.priceSymbolOverride || keepUnpriced
           ? {}
@@ -123,7 +126,7 @@ async function upsertInvestmentTransactions(
       amount: r.amount,
       fees: r.fees,
       currency: r.currency,
-      source: 'plaid',
+      source: RecordSource.Synced,
     };
     await prisma.investmentTransaction.upsert({
       where: { accountId_externalId: { accountId, externalId: r.externalId } },
@@ -145,11 +148,11 @@ async function upsertInvestmentTransactions(
 
 async function transactionWindowStart(accountId: string, today: Date): Promise<Date> {
   const latest = await prisma.investmentTransaction.findFirst({
-    where: { accountId, source: 'plaid' },
+    where: { accountId, source: RecordSource.Synced },
     orderBy: { date: 'desc' },
     select: { date: true },
   });
-  return latest ? addDays(latest.date, -OVERLAP_DAYS) : addDays(today, -FIRST_SYNC_DAYS);
+  return latest ? addDays(latest.date, -OVERLAP_DAYS) : addDays(today, -PLAID_TRADE_HISTORY_DAYS);
 }
 
 export async function syncPlaidInvestments(
@@ -200,9 +203,9 @@ export async function syncPlaidInvestments(
         date: today,
         balance: acct.balances.current,
         currency: conn.account.currency,
-        source: 'plaid',
+        source: BalanceRowSource.Synced,
       },
-      update: { balance: acct.balances.current, source: 'plaid' },
+      update: { balance: acct.balances.current, source: BalanceRowSource.Synced },
     });
   });
 
@@ -216,7 +219,9 @@ export async function syncPlaidInvestments(
         .map(mapHolding);
       if (!holdings.length) {
         // Empty first extraction: keep prior data and wait for the institution to report.
-        const prior = await prisma.holdingSnapshot.count({ where: { accountId, source: 'plaid' } });
+        const prior = await prisma.holdingSnapshot.count({
+          where: { accountId, source: RecordSource.Synced },
+        });
         if (!prior) {
           result.errors.holdings = 'No holdings reported yet (institution extraction pending)';
           return 'pending';
@@ -237,7 +242,7 @@ export async function syncPlaidInvestments(
                 price: h.price,
                 value: h.value,
                 costBasis: h.costBasis,
-                source: 'plaid',
+                source: RecordSource.Synced,
               },
             })
           ),
@@ -246,8 +251,10 @@ export async function syncPlaidInvestments(
         const securityId = securityIds.get(h.plaidSecurityId);
         if (!securityId) continue;
         await prisma.securityPrice.upsert({
-          where: { securityId_date_source: { securityId, date: today, source: 'plaid' } },
-          create: { securityId, date: today, close: h.price, source: 'plaid' },
+          where: {
+            securityId_date_source: { securityId, date: today, source: PriceSource.Institution },
+          },
+          create: { securityId, date: today, close: h.price, source: PriceSource.Institution },
           update: { close: h.price },
         });
       }

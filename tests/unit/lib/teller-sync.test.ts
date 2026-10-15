@@ -37,6 +37,7 @@ vi.mock('@/lib/sync-common', async (importOriginal) => {
 import { syncTellerTransactions, type SyncResult, type DryRunResult } from '@/lib/teller-sync';
 import { tellerFetch } from '@/lib/teller';
 import * as syncCommon from '@/lib/sync-common';
+import { BalanceSource, RecordSource } from '@/lib/investments/codes';
 
 describe('teller-sync', () => {
   let prisma: PrismaClient;
@@ -1223,7 +1224,7 @@ describe('teller-sync', () => {
         data: {
           ...createAccountData({ name: 'Brokerage', type: 'brokerage' }),
           trackingMode: 'investment',
-          balanceSource: 'provider',
+          balanceSource: BalanceSource.Provider,
         },
       });
       const deposit = await prisma.investmentTransaction.create({
@@ -1236,7 +1237,7 @@ describe('teller-sync', () => {
           name: 'Deposit',
           amount: -500,
           currency: 'USD',
-          source: 'plaid',
+          source: RecordSource.Synced,
         },
       });
       vi.mocked(tellerFetch).mockResolvedValueOnce([

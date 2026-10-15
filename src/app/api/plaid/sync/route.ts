@@ -7,6 +7,7 @@ import {
   syncPlaidInvestments,
   type InvestmentSyncResult,
 } from '@/lib/investments/plaid-investment-sync';
+import { ensureStoredCodes } from '@/lib/investments/rename-stored-codes';
 import { recordInvestmentSyncStatus } from '@/lib/investments/sync-status';
 import { withSyncLock } from '@/lib/sync-common';
 import { classifyPlaidError } from '@/lib/bank-errors';
@@ -88,6 +89,9 @@ export async function POST(req: NextRequest) {
     // Serialize real syncs by enrollment: Plaid's transactionsSync cursor is shared across all
     // sibling accounts under one item, and the investment sync uses the same item token.
     // Re-auth errors propagate to the catch below.
+    // Investment code reads and writes the neutral stored codes; rename any old ones first.
+    // Bank-only items skip it, so a failed rename never blocks a transactions sync.
+    if (investmentConnections.length) await ensureStoredCodes(prisma);
     const { result, investments } = await withSyncLock(
       `plaid:${connection.plaidEnrollment.id}`,
       async () => {

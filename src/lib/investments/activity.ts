@@ -9,7 +9,7 @@ export type ActivityInput = {
   name: string;
   quantity: number | null;
   price: number | null;
-  amount: number; // Plaid sign: positive = cash leaves the account
+  amount: number; // aggregator sign: positive = cash leaves the account
   currency: string;
   securityId: string | null;
   ticker: string | null;

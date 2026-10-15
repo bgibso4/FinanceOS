@@ -17,6 +17,7 @@ import {
   applyMigrationPlan,
   type PlaidAccountRef,
 } from '../src/lib/investments/migration';
+import { ensureStoredCodes } from '../src/lib/investments/rename-stored-codes';
 import { syncPlaidInvestments } from '../src/lib/investments/plaid-investment-sync';
 import { recordInvestmentSyncStatus } from '../src/lib/investments/sync-status';
 import { backupDatabase } from './lib/backup-db';
@@ -49,6 +50,7 @@ async function main() {
   if (!configPath || configPath.startsWith('--'))
     throw new Error('Usage: migrate-investment-accounts.ts <config.json> [--apply]');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  await ensureStoredCodes(prisma);
 
   console.warn(`\n=== Investment account migration (${APPLY ? 'APPLY' : 'DRY RUN'}) ===\n`);
   const plan = await buildMigrationPlan(prisma, config, await loadPlaidAccounts());

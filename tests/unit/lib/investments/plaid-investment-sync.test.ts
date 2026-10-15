@@ -17,6 +17,13 @@ import {
   syncPlaidInvestments,
   type InvestmentConnection,
 } from '@/lib/investments/plaid-investment-sync';
+import {
+  BalanceRowSource,
+  BalanceSource,
+  PriceSource,
+  Pricing,
+  RecordSource,
+} from '@/lib/investments/codes';
 
 const NOW = new Date('2026-10-09T15:00:00Z');
 const TODAY = '2026-10-09T00:00:00.000Z';
@@ -125,7 +132,7 @@ describe('syncPlaidInvestments', () => {
       data: {
         ...createAccountData({ type: 'brokerage' }),
         trackingMode: 'investment',
-        balanceSource: 'provider',
+        balanceSource: BalanceSource.Provider,
       },
     });
     conn = {
@@ -144,7 +151,7 @@ describe('syncPlaidInvestments', () => {
     const bal = await testPrisma.accountBalance.findFirstOrThrow({
       where: { accountId: conn.accountId },
     });
-    expect(bal).toMatchObject({ balance: 1234.5, source: 'plaid' });
+    expect(bal).toMatchObject({ balance: 1234.5, source: BalanceRowSource.Synced });
     expect(bal.date.toISOString()).toBe(TODAY);
     const snap = await testPrisma.holdingSnapshot.findMany({
       where: { accountId: conn.accountId },
@@ -156,14 +163,16 @@ describe('syncPlaidInvestments', () => {
       price: 100,
       value: 1000,
       costBasis: 800,
-      source: 'plaid',
+      source: RecordSource.Synced,
     });
     expect(snap[0].security).toMatchObject({
       ticker: 'TETF',
       priceSymbol: 'TETF',
-      pricing: 'feed',
+      pricing: Pricing.Market,
     });
-    expect(await testPrisma.securityPrice.count({ where: { source: 'plaid' } })).toBe(1);
+    expect(
+      await testPrisma.securityPrice.count({ where: { source: PriceSource.Institution } })
+    ).toBe(1);
     expect(
       await testPrisma.investmentTransaction.count({ where: { accountId: conn.accountId } })
     ).toBe(2);
@@ -184,12 +193,12 @@ describe('syncPlaidInvestments', () => {
     await syncPlaidInvestments(conn, { now: NOW });
     await testPrisma.security.updateMany({
       where: { plaidSecurityId: 's-etf' },
-      data: { pricing: 'none' },
+      data: { pricing: Pricing.None },
     });
     await syncPlaidInvestments(conn, { now: NOW });
     expect(
       await testPrisma.security.findFirstOrThrow({ where: { plaidSecurityId: 's-etf' } })
-    ).toMatchObject({ pricing: 'none', priceSymbol: 'TETF' });
+    ).toMatchObject({ pricing: Pricing.None, priceSymbol: 'TETF' });
   });
 
   it('is idempotent within a day', async () => {

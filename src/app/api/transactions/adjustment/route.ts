@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAccountBalance } from '@/lib/balances';
 import { getInvestmentServices } from '@/lib/investments/services';
+import { BalanceSource } from '@/lib/investments/codes';
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,12 +28,12 @@ export async function POST(request: NextRequest) {
 
     // Investment accounts keep balances in AccountBalance, never in the transaction ledger.
     if (account.trackingMode === 'investment') {
-      if (account.balanceSource !== 'manual') {
-        const from = account.balanceSource === 'provider' ? 'Plaid' : 'its holdings';
-        return NextResponse.json(
-          { error: `This account's balance comes from ${from}` },
-          { status: 400 }
-        );
+      if (account.balanceSource !== BalanceSource.Manual) {
+        const error =
+          account.balanceSource === BalanceSource.Provider
+            ? "This account's balance is set by its connection"
+            : "This account's balance comes from its holdings";
+        return NextResponse.json({ error }, { status: 400 });
       }
       const { balance } = await getAccountBalance(prisma, accountId);
       const { manualHoldings } = await getInvestmentServices();

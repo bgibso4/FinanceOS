@@ -12,6 +12,7 @@ vi.mock('@/lib/prisma', () => ({
 }));
 
 import { PATCH } from '@/app/api/accounts/[id]/route';
+import { BalanceRowSource, BalanceSource, Pricing, RecordSource } from '@/lib/investments/codes';
 
 describe('investment schema', () => {
   beforeAll(async () => {
@@ -29,12 +30,18 @@ describe('investment schema', () => {
       data: {
         ...createAccountData({ type: 'brokerage' }),
         trackingMode: 'investment',
-        balanceSource: 'provider',
+        balanceSource: BalanceSource.Provider,
       },
     });
     const day = new Date('2026-10-09T00:00:00.000Z');
     await testPrisma.accountBalance.create({
-      data: { accountId: account.id, date: day, balance: 1000, currency: 'USD', source: 'plaid' },
+      data: {
+        accountId: account.id,
+        date: day,
+        balance: 1000,
+        currency: 'USD',
+        source: BalanceRowSource.Synced,
+      },
     });
     const security = await testPrisma.security.create({
       data: {
@@ -42,7 +49,7 @@ describe('investment schema', () => {
         ticker: 'TETF',
         type: 'etf',
         currency: 'USD',
-        pricing: 'feed',
+        pricing: Pricing.Market,
         priceSymbol: 'TETF',
       },
     });
@@ -54,7 +61,7 @@ describe('investment schema', () => {
         quantity: 2,
         price: 500,
         value: 1000,
-        source: 'plaid',
+        source: RecordSource.Synced,
       },
     });
     await testPrisma.investmentTransaction.create({
@@ -70,13 +77,19 @@ describe('investment schema', () => {
         price: 500,
         amount: 1000,
         currency: 'USD',
-        source: 'plaid',
+        source: RecordSource.Synced,
       },
     });
 
     await expect(
       testPrisma.accountBalance.create({
-        data: { accountId: account.id, date: day, balance: 1, currency: 'USD', source: 'plaid' },
+        data: {
+          accountId: account.id,
+          date: day,
+          balance: 1,
+          currency: 'USD',
+          source: BalanceRowSource.Synced,
+        },
       })
     ).rejects.toThrow(); // unique (accountId, date)
 
@@ -92,11 +105,11 @@ describe('investment schema', () => {
     });
     const req = new NextRequest(`http://localhost/api/accounts/${account.id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ trackingMode: 'investment', balanceSource: 'manual' }),
+      body: JSON.stringify({ trackingMode: 'investment', balanceSource: BalanceSource.Manual }),
     });
     const res = await PATCH(req, { params: Promise.resolve({ id: account.id }) });
     const body = await res.json();
     expect(body.trackingMode).toBe('investment');
-    expect(body.balanceSource).toBe('manual');
+    expect(body.balanceSource).toBe(BalanceSource.Manual);
   });
 });

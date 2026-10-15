@@ -16,7 +16,7 @@ model Account {
   isActive         Boolean           @default(true)
   notes            String?
   trackingMode     String            @default("cash_flow")  // "cash_flow" | "balance_only" | "investment"
-  balanceSource    String?           // investment accounts only: "provider" | "valuation" | "manual"
+  balanceSource    String?           // investment accounts only: BalanceSource in src/lib/investments/codes.ts
   invertAmounts    Boolean           @default(false) // Flip amount signs during bank sync (for accounts with inverted conventions)
   sortOrder        Int               @default(0)
   createdAt        DateTime          @default(now())
@@ -345,7 +345,7 @@ model AccountBalance {
   date      DateTime // UTC midnight
   balance   Float
   currency  String
-  source    String   // "plaid" | "valuation" | "manual"
+  source    String   // BalanceRowSource (src/lib/investments/codes.ts)
   createdAt DateTime @default(now())
 
   @@unique([accountId, date])
@@ -362,8 +362,12 @@ model Security {
   exchangeMic         String?
   priceSymbol         String? // price-provider symbol, e.g. "VIU.TO", "BTC-CAD"
   priceSymbolOverride Boolean                 @default(false)
-  pricing             String // "feed" | "plaid" | "fixed" | "manual" | "none"
+  pricing             String // Pricing (src/lib/investments/codes.ts)
   fixedPrice          Float?
+  pricesFetchedFrom   DateTime? // earliest day already requested from the price provider
+  proxySecurityId     String? // market-priced security whose daily moves fill this one's days without an institution price
+  proxy               Security?               @relation("SecurityProxy", fields: [proxySecurityId], references: [id], onDelete: SetNull)
+  proxyFor            Security[]              @relation("SecurityProxy")
   createdAt           DateTime                @default(now())
   updatedAt           DateTime                @updatedAt
   prices              SecurityPrice[]
@@ -380,7 +384,7 @@ model SecurityPrice {
   security   Security @relation(fields: [securityId], references: [id], onDelete: Cascade)
   date       DateTime // UTC midnight
   close      Float // raw (unadjusted) close
-  source     String // "yahoo" | "plaid" | "manual"
+  source     String // PriceSource (src/lib/investments/codes.ts)
   createdAt  DateTime @default(now())
 
   @@unique([securityId, date, source])
@@ -394,7 +398,7 @@ model SecurityEvent {
   type       String // "dividend" | "split"
   amount     Float?
   ratio      Float?
-  source     String
+  source     String // PriceSource (src/lib/investments/codes.ts)
   createdAt  DateTime @default(now())
 
   @@unique([securityId, date, type])
@@ -411,7 +415,7 @@ model HoldingSnapshot {
   price      Float
   value      Float
   costBasis  Float?
-  source     String // "plaid" | "manual"
+  source     String // RecordSource (src/lib/investments/codes.ts)
   createdAt  DateTime @default(now())
 
   @@unique([accountId, securityId, date])
@@ -431,10 +435,10 @@ model InvestmentTransaction {
   name                String
   quantity            Float?
   price               Float?
-  amount              Float // Plaid sign: positive = cash leaves the account
+  amount              Float // aggregator sign convention: positive = cash leaves the account
   fees                Float?
   currency            String
-  source              String // "plaid" | "manual" | "import"
+  source              String // RecordSource (src/lib/investments/codes.ts)
   isCancelled         Boolean      @default(false)
   linkedTransactionId String?
   linkedTransaction   Transaction? @relation("InvestmentTransferLink", fields: [linkedTransactionId], references: [id], onDelete: SetNull)

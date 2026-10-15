@@ -1,6 +1,5 @@
 import YahooFinance from 'yahoo-finance2';
 import { addDays, utcDay } from '@/lib/investments/dates';
-import type { SecurityType } from '@/lib/investments/plaid-mapping';
 import {
   PriceProviderError,
   type DailyHistory,
@@ -10,6 +9,7 @@ import {
   type Quote,
   type SymbolMatch,
 } from './types';
+import { SecurityType } from '@/lib/investments/codes';
 
 type ChartOptions = { period1: Date; period2: Date; interval: '1d'; events: string };
 type ChartResult = {
@@ -41,11 +41,11 @@ export type YahooClient = {
 };
 
 const QUOTE_TYPES: Record<string, SecurityType> = {
-  EQUITY: 'equity',
-  ETF: 'etf',
-  MUTUALFUND: 'mutual_fund',
-  CRYPTOCURRENCY: 'crypto',
-  MONEYMARKET: 'money_market',
+  EQUITY: SecurityType.Equity,
+  ETF: SecurityType.Etf,
+  MUTUALFUND: SecurityType.MutualFund,
+  CRYPTOCURRENCY: SecurityType.Crypto,
+  MONEYMARKET: SecurityType.MoneyMarket,
 };
 
 /** yahoo-finance2 errors raised for a response or request it can't use, not for transport. */
@@ -74,6 +74,8 @@ async function call<T>(fn: () => Promise<T>): Promise<T> {
 
 /** `PriceProvider` backed by Yahoo Finance; every client error becomes a `PriceProviderError`. */
 export class YahooPriceProvider implements PriceProvider {
+  readonly symbolHint = 'Use Yahoo Finance symbols: add .TO for Toronto listings, -USD for crypto.';
+
   constructor(
     private readonly client: YahooClient = new YahooFinance() as unknown as YahooClient
   ) {}
@@ -135,7 +137,7 @@ export class YahooPriceProvider implements PriceProvider {
       .map((q) => ({
         symbol: q.symbol!,
         name: q.shortname ?? q.longname ?? q.symbol!,
-        type: QUOTE_TYPES[q.quoteType ?? ''] ?? 'other',
+        type: QUOTE_TYPES[q.quoteType ?? ''] ?? SecurityType.Other,
         exchange: q.exchange ?? null,
       }));
   }

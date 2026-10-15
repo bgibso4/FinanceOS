@@ -4,6 +4,8 @@ import {
   daysBetween,
   fmtCompact,
   fmtDay,
+  spansYear,
+  fmtLongDay,
   fmtMoney,
   fmtPct,
   fmtQty,
@@ -46,6 +48,13 @@ describe('investment formatting', () => {
     expect(daysBetween('2026-07-12', '2026-10-09')).toBe(89);
   });
 
+  it('adds a two-digit year to a day on request, and knows a range of a year or more', () => {
+    expect(fmtDay('2023-10-14')).toBe('Oct 14');
+    expect(fmtDay('2023-10-14', { year: true })).toBe('Oct 14, 23');
+    expect(spansYear('2025-10-13', '2026-10-13')).toBe(true);
+    expect(spansYear('2026-01-01', '2026-10-13')).toBe(false);
+  });
+
   it('describes a change with an arrow outside the deadband', () => {
     expect(toneOf(0.04)).toBe('flat');
     expect(toneOf(null)).toBe('flat');
@@ -63,5 +72,11 @@ describe('investment formatting', () => {
     expect(institutionMark('Test Brokerage').initials).toBe('TB');
     expect(institutionMark('acme').initials).toBe('A');
     expect(institutionMark('').initials).toBe('?');
+  });
+});
+
+describe('fmtLongDay', () => {
+  it('reads weekday, month, day and year in UTC', () => {
+    expect(fmtLongDay('2026-10-02')).toBe('Fri, Oct 2, 2026');
   });
 });

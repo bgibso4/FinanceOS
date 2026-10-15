@@ -13,6 +13,7 @@ import {
 } from '../../../helpers/investments';
 import { ACTIVITY_ROWS_PER_ACCOUNT } from '@/lib/investments/activity';
 import type { Range } from '@/lib/investments/portfolio-view';
+import { BalanceRowSource, BalanceSource, Pricing, RecordSource } from '@/lib/investments/codes';
 
 let prisma: PrismaClient;
 // Clock: Friday 2026-10-09 22:00Z, so 1M = 2026-09-09 … 2026-10-09.
@@ -34,14 +35,17 @@ describe('InvestmentOverviewService', () => {
       data: { fromCurrency: 'CAD', toCurrency: 'USD', rate: 0.5 },
     });
     const cad = await seedInvestmentAccount(prisma, {
-      balanceSource: 'manual',
+      balanceSource: BalanceSource.Manual,
       currency: 'CAD',
       type: 'retirement',
       name: 'CAD Plan',
     });
-    await seedBalance(prisma, cad.id, '2026-10-01', 200, 'manual');
-    const usd = await seedInvestmentAccount(prisma, { balanceSource: 'manual', name: 'USD Plan' });
-    await seedBalance(prisma, usd.id, '2026-10-01', 50, 'manual');
+    await seedBalance(prisma, cad.id, '2026-10-01', 200, BalanceRowSource.Manual);
+    const usd = await seedInvestmentAccount(prisma, {
+      balanceSource: BalanceSource.Manual,
+      name: 'USD Plan',
+    });
+    await seedBalance(prisma, usd.id, '2026-10-01', 50, BalanceRowSource.Manual);
 
     const o = await overview();
     expect(o).toMatchObject({ range: '1M', today: '2026-10-09', baseCurrency: 'USD' });
@@ -53,7 +57,7 @@ describe('InvestmentOverviewService', () => {
       asOf: '2026-10-01',
       group: 'Retirement',
       wrapper: 'Retirement',
-      balanceSource: 'manual',
+      balanceSource: BalanceSource.Manual,
       change: null,
       prices: null,
     });
@@ -87,12 +91,12 @@ describe('InvestmentOverviewService', () => {
       institution: 'Test Bank',
       wrapper: '401(k)',
       group: 'Retirement',
-      balanceSource: 'provider',
+      balanceSource: BalanceSource.Provider,
       enrollmentId: expect.any(String),
       lastSyncAt: '2026-10-08T14:00:00.000Z',
       value: 100,
       asOf: '2026-10-02',
-      change: { start: 90, end: 100, delta: 10 },
+      change: { start: 100, end: 100, delta: 0 }, // days before the snapshot are backfilled at its price
       status: {
         needsReauth: { since: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) },
         waiting: { showingFrom: '2026-10-02' },
@@ -103,9 +107,9 @@ describe('InvestmentOverviewService', () => {
   });
 
   it('flags unpriced holdings and judges a valued account’s prices', async () => {
-    const a = await seedInvestmentAccount(prisma, { balanceSource: 'valuation' });
+    const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Valuation });
     const priced = await seedSecurity(prisma, { priceSymbol: 'AAA' });
-    const unpriced = await seedSecurity(prisma, { priceSymbol: 'ZZZ', pricing: 'none' });
+    const unpriced = await seedSecurity(prisma, { priceSymbol: 'ZZZ', pricing: Pricing.None });
     for (const s of [priced, unpriced]) {
       await seedSnapshot(prisma, {
         accountId: a.id,
@@ -113,11 +117,11 @@ describe('InvestmentOverviewService', () => {
         date: '2026-10-01',
         quantity: 1,
         price: 10,
-        source: 'manual',
+        source: RecordSource.Manual,
       });
     }
     await seedPrice(prisma, priced.id, '2026-10-06', 10);
-    await seedBalance(prisma, a.id, '2026-10-06', 20, 'valuation');
+    await seedBalance(prisma, a.id, '2026-10-06', 20, BalanceRowSource.Valuation);
 
     const o = await overview();
     expect(o.accounts[0].status.unpriced).toEqual([{ securityId: unpriced.id, label: 'ZZZ' }]);
@@ -212,5 +216,22 @@ describe('InvestmentOverviewService', () => {
   it('uses the stored base currency', async () => {
     await prisma.userSettings.create({ data: { baseCurrency: 'CAD' } });
     expect((await overview()).baseCurrency).toBe('CAD');
+  });
+
+  it('reports the first day of the range', async () => {
+    expect((await overview('1M')).from).toBe('2026-09-09');
+    expect((await overview('YTD')).from).toBe('2026-01-01');
+  });
+
+  it('carries the price provider’s symbol hint for the price window', async () => {
+    expect((await overview()).symbolHint).toBe('Use test symbols.');
+  });
+
+  it('starts All at the earliest day any account has a value', async () => {
+    const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Manual });
+    await seedBalance(prisma, a.id, '2025-03-02', 100, BalanceRowSource.Manual);
+    const o = await overview('All');
+    expect(o).toMatchObject({ range: 'All', from: '2025-03-02' });
+    expect(o.portfolio.series[0]).toEqual({ date: '2025-03-02', value: 100, isEstimated: false });
   });
 });

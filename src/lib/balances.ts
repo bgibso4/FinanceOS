@@ -1,15 +1,17 @@
 import type { PrismaClient } from '@prisma/client';
+import { BalanceRowSource, BalanceSource } from '@/lib/investments/codes';
 
 export type ResolvedBalance = {
   balance: number;
   asOf: Date | null;
-  source: 'transactions' | 'plaid' | 'valuation' | 'manual';
+  source: 'transactions' | BalanceRowSource;
 };
 
-const SOURCE_FOR_EMPTY: Record<string, ResolvedBalance['source']> = {
-  provider: 'plaid',
-  valuation: 'valuation',
-  manual: 'manual',
+/** The source an investment account reports before it has any balance row. */
+const SOURCE_FOR_EMPTY: Record<BalanceSource, BalanceRowSource> = {
+  [BalanceSource.Provider]: BalanceRowSource.Synced,
+  [BalanceSource.Valuation]: BalanceRowSource.Valuation,
+  [BalanceSource.Manual]: BalanceRowSource.Manual,
 };
 
 /**
@@ -61,7 +63,9 @@ export async function getAccountBalances(
           : {
               balance: 0,
               asOf: null,
-              source: SOURCE_FOR_EMPTY[balanceSource ?? 'manual'] ?? 'manual',
+              source:
+                SOURCE_FOR_EMPTY[(balanceSource ?? BalanceSource.Manual) as BalanceSource] ??
+                BalanceRowSource.Manual,
             }
       );
     }

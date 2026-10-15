@@ -28,6 +28,7 @@ import {
   POST as postBalance,
 } from '@/app/api/investments/accounts/[id]/balances/route';
 import { DELETE as deleteBalance } from '@/app/api/investments/accounts/[id]/balances/[balanceId]/route';
+import { BalanceRowSource, BalanceSource } from '@/lib/investments/codes';
 
 const req = (method: string, body?: unknown) =>
   new NextRequest('http://localhost/api/investments', {
@@ -54,7 +55,7 @@ describe('investment account APIs', () => {
   });
 
   it('PUT holdings prices new securities, then saves holdings and balance', async () => {
-    const a = await seedInvestmentAccount(testPrisma, { balanceSource: 'valuation' });
+    const a = await seedInvestmentAccount(testPrisma, { balanceSource: BalanceSource.Valuation });
     const s = await seedSecurity(testPrisma, { priceSymbol: 'AAA' });
     useServices({ closes: { AAA: { '2026-10-09': 25 } } });
     const res = await putHoldings(
@@ -64,12 +65,12 @@ describe('investment account APIs', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.holdings).toHaveLength(1);
-    expect(body.balance).toMatchObject({ balance: 100, source: 'valuation' });
+    expect(body.balance).toMatchObject({ balance: 100, source: BalanceRowSource.Valuation });
     expect(body.prices).toMatchObject({ fetched: 1 });
   });
 
   it('PUT holdings still saves when pricing fails', async () => {
-    const a = await seedInvestmentAccount(testPrisma, { balanceSource: 'valuation' });
+    const a = await seedInvestmentAccount(testPrisma, { balanceSource: BalanceSource.Valuation });
     const s = await seedSecurity(testPrisma, { priceSymbol: 'AAA' });
     const failure = () => new PriceProviderError('network', 'fetch failed');
     useServices({ errors: { AAA: [failure(), failure()] } });
@@ -87,7 +88,7 @@ describe('investment account APIs', () => {
   });
 
   it('PUT holdings validates', async () => {
-    const a = await seedInvestmentAccount(testPrisma, { balanceSource: 'valuation' });
+    const a = await seedInvestmentAccount(testPrisma, { balanceSource: BalanceSource.Valuation });
     expect((await putHoldings(req('PUT', { holdings: 'x' }), params({ id: a.id }))).status).toBe(
       400
     );
@@ -100,7 +101,7 @@ describe('investment account APIs', () => {
   });
 
   it('manual balances: record, list, delete', async () => {
-    const a = await seedInvestmentAccount(testPrisma, { balanceSource: 'manual' });
+    const a = await seedInvestmentAccount(testPrisma, { balanceSource: BalanceSource.Manual });
     const created = await postBalance(
       req('POST', { date: '2026-10-01', balance: 1234.5 }),
       params({ id: a.id })
@@ -117,7 +118,7 @@ describe('investment account APIs', () => {
   });
 
   it('manual balances validate body and account kind', async () => {
-    const a = await seedInvestmentAccount(testPrisma, { balanceSource: 'manual' });
+    const a = await seedInvestmentAccount(testPrisma, { balanceSource: BalanceSource.Manual });
     expect(
       (await postBalance(req('POST', { date: '10/01/2026', balance: 1 }), params({ id: a.id })))
         .status
@@ -126,7 +127,7 @@ describe('investment account APIs', () => {
       (await postBalance(req('POST', { date: '2026-10-10', balance: 1 }), params({ id: a.id })))
         .status
     ).toBe(400);
-    const p = await seedInvestmentAccount(testPrisma, { balanceSource: 'provider' });
+    const p = await seedInvestmentAccount(testPrisma, { balanceSource: BalanceSource.Provider });
     expect(
       (await postBalance(req('POST', { date: '2026-10-01', balance: 1 }), params({ id: p.id })))
         .status

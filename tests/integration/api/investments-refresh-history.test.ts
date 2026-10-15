@@ -18,6 +18,7 @@ vi.mock('@/lib/investments/services', async (importOriginal) => ({
 import { getInvestmentServices } from '@/lib/investments/services';
 import { POST as refresh } from '@/app/api/investments/refresh/route';
 import { GET as history } from '@/app/api/investments/history/route';
+import { BalanceRowSource, BalanceSource } from '@/lib/investments/codes';
 
 const get = (query: string) =>
   history(new NextRequest(`http://localhost/api/investments/history?${query}`));
@@ -41,8 +42,8 @@ describe('investments refresh and history APIs', () => {
   });
 
   it('GET /history returns an account series in its currency', async () => {
-    const a = await seedInvestmentAccount(testPrisma, { balanceSource: 'manual' });
-    await seedBalance(testPrisma, a.id, '2026-10-01', 10, 'manual');
+    const a = await seedInvestmentAccount(testPrisma, { balanceSource: BalanceSource.Manual });
+    await seedBalance(testPrisma, a.id, '2026-10-01', 10, BalanceRowSource.Manual);
     const res = await get(`accountId=${a.id}&from=2026-10-01&to=2026-10-02`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({

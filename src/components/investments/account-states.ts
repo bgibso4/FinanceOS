@@ -1,4 +1,4 @@
-import type { BalanceSource } from '@/lib/account-defaults';
+import { BalanceSource } from '@/lib/investments/codes';
 import type { AccountSummary } from '@/lib/investments/overview';
 import { daysBetween, fmtDay, fmtSyncTime } from './format';
 
@@ -39,7 +39,7 @@ const NOTICE_RULES: {
   },
   {
     kind: 'stale',
-    applies: (a) => a.balanceSource === 'valuation' && a.prices?.stale === true,
+    applies: (a) => a.balanceSource === BalanceSource.Valuation && a.prices?.stale === true,
     view: (a) => ({
       tone: 'warn',
       lead: a.prices?.asOf
@@ -80,15 +80,15 @@ const ago = (days: number) =>
   days === 0 ? 'today' : days === 1 ? '1 day ago' : `${days} days ago`;
 
 const FRESHNESS: Record<BalanceSource, (a: AccountSummary, today: string) => string> = {
-  provider: (a) => {
+  [BalanceSource.Provider]: (a) => {
     if (!a.lastSyncAt) return 'Not synced yet';
     return a.status.needsReauth
       ? `Last synced ${fmtDay(a.lastSyncAt)}`
       : `Synced ${fmtSyncTime(a.lastSyncAt)}`;
   },
-  valuation: (a) =>
+  [BalanceSource.Valuation]: (a) =>
     a.prices?.asOf ? `Prices as of ${fmtDay(a.prices.asOf)} close` : 'Not priced yet',
-  manual: (a, today) =>
+  [BalanceSource.Manual]: (a, today) =>
     a.asOf ? `Last entry ${fmtDay(a.asOf)} · ${ago(daysBetween(a.asOf, today))}` : 'No entries yet',
 };
 
@@ -97,11 +97,11 @@ export const freshnessText = (a: AccountSummary, today: string) =>
 
 export const navMeta = (a: AccountSummary) =>
   `${a.institution} · ${a.wrapper}${
-    a.balanceSource === 'manual' && a.asOf ? ` · as of ${fmtDay(a.asOf)}` : ''
+    a.balanceSource === BalanceSource.Manual && a.asOf ? ` · as of ${fmtDay(a.asOf)}` : ''
   }`;
 
 export function sparkTone(a: AccountSummary): 'up' | 'down' | 'muted' {
-  if (a.balanceSource === 'manual' || !a.change) return 'muted';
+  if (a.balanceSource === BalanceSource.Manual || !a.change) return 'muted';
   return a.change.delta >= 0 ? 'up' : 'down';
 }
 

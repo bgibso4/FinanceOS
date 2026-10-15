@@ -4,6 +4,7 @@ import { PriceBook } from '@/lib/prices/price-book';
 import type { HoldingKind, HoldingRow } from './holdings-view';
 import { manualHoldingSecurityId } from './manual-holding';
 import { roundCents } from './money';
+import { BalanceSource, Pricing, RecordSource, SecurityType } from './codes';
 
 export type CurrentHoldingsOptions = {
   accounts: { id: string; name: string; currency: string; balanceSource: string | null }[];
@@ -13,7 +14,10 @@ export type CurrentHoldingsOptions = {
   rates: Map<string, number>;
 };
 
-const CASH_LABELS: Record<string, string> = { cash: 'Cash', money_market: 'Money market' };
+const CASH_LABELS: Record<string, string> = {
+  [SecurityType.Cash]: 'Cash',
+  [SecurityType.MoneyMarket]: 'Money market',
+};
 
 /** Each account's latest holdings set, priced for today, as page rows. */
 export class CurrentHoldingsReader {
@@ -24,7 +28,7 @@ export class CurrentHoldingsReader {
     if (!accounts.length) return [];
     const byId = new Map(accounts.map((a) => [a.id, a]));
     const isLeftoverMirror = (accountId: string, securityId: string) =>
-      byId.get(accountId)?.balanceSource === 'valuation' &&
+      byId.get(accountId)?.balanceSource === BalanceSource.Valuation &&
       securityId === manualHoldingSecurityId(accountId);
 
     const snapshots = (
@@ -49,7 +53,9 @@ export class CurrentHoldingsReader {
       const account = byId.get(s.accountId)!;
       const kind = kindOf(s.security, account.id);
       const price =
-        s.source === 'plaid' ? s.price : (book.at(s.securityId, today)?.price ?? s.price);
+        s.source === RecordSource.Synced
+          ? s.price
+          : (book.at(s.securityId, today)?.price ?? s.price);
       const toAccount = (v: number) =>
         convertAmount(v, s.security.currency, account.currency, rates);
       const toBase = (v: number) => convertAmount(v, account.currency, baseCurrency, rates);
@@ -57,7 +63,9 @@ export class CurrentHoldingsReader {
       const startPrice = book.at(s.securityId, rangeStart)?.price;
       const endPrice = book.at(s.securityId, today)?.price;
       const marketPriced =
-        kind === 'security' && s.security.pricing !== 'none' && s.security.pricing !== 'fixed';
+        kind === 'security' &&
+        s.security.pricing !== Pricing.None &&
+        s.security.pricing !== Pricing.Fixed;
       return {
         accountId: account.id,
         securityId: s.securityId,

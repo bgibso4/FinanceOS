@@ -10,6 +10,13 @@ import {
   type PriceProvider,
   type SymbolMatch,
 } from '@/lib/prices/types';
+import {
+  BalanceRowSource,
+  BalanceSource,
+  PriceSource,
+  Pricing,
+  RecordSource,
+} from '@/lib/investments/codes';
 
 export const day = (iso: string) => utcDay(iso);
 
@@ -43,7 +50,7 @@ export function seedInvestmentAccount(
         name: over.name ?? 'Test Investments',
       }),
       trackingMode: 'investment',
-      balanceSource: over.balanceSource ?? 'provider',
+      balanceSource: over.balanceSource ?? BalanceSource.Provider,
     },
   });
 }
@@ -67,7 +74,7 @@ export function seedSecurity(
       type: over.type ?? 'etf',
       currency: over.currency ?? 'USD',
       priceSymbol,
-      pricing: over.pricing ?? 'feed',
+      pricing: over.pricing ?? Pricing.Market,
       fixedPrice: over.fixedPrice ?? null,
     },
   });
@@ -92,7 +99,7 @@ export function seedSnapshot(
       quantity: data.quantity,
       price: data.price,
       value: data.quantity * data.price,
-      source: data.source ?? 'plaid',
+      source: data.source ?? RecordSource.Synced,
     },
   });
 }
@@ -102,7 +109,7 @@ export function seedPrice(
   securityId: string,
   date: string,
   close: number,
-  source = 'yahoo'
+  source: string = PriceSource.Market
 ) {
   return prisma.securityPrice.create({ data: { securityId, date: day(date), close, source } });
 }
@@ -112,7 +119,7 @@ export function seedBalance(
   accountId: string,
   date: string,
   balance: number,
-  source = 'plaid'
+  source: string = BalanceRowSource.Synced
 ) {
   return prisma.accountBalance.create({
     data: { accountId, date: day(date), balance, currency: 'USD', source },
@@ -143,7 +150,7 @@ export function seedTrade(
       quantity: data.quantity ?? null,
       amount: data.amount,
       currency: data.currency ?? 'USD',
-      source: 'plaid',
+      source: RecordSource.Synced,
       isCancelled: data.isCancelled ?? false,
     },
   });
@@ -167,6 +174,7 @@ export function fakeProvider(
     Object.entries(opts.errors ?? {}).map(([symbol, list]) => [symbol, [...list]])
   );
   const provider: PriceProvider = {
+    symbolHint: 'Use test symbols.',
     getDailyHistory: vi.fn(async (symbol: string, from: Date, to: Date) => {
       calls.push({ symbol, from: isoDay(from), to: isoDay(to) });
       const queued = errors[symbol]?.shift();

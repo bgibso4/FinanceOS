@@ -16,7 +16,10 @@ export class InvestmentRefreshService {
   constructor(
     private readonly prices: PriceRefresher,
     private readonly valuation: ValuationService,
-    private readonly catalog: Pick<SecurityCatalog, 'setPriceSymbol' | 'setManualPrice'>
+    private readonly catalog: Pick<
+      SecurityCatalog,
+      'setPriceSymbol' | 'setManualPrice' | 'setProxy'
+    >
   ) {}
 
   refresh(): Promise<InvestmentRefreshResult> {
@@ -45,7 +48,7 @@ export class InvestmentRefreshService {
   }
 
   /**
-   * Point a security at a new feed symbol, price it under that symbol and revalue its history.
+   * Point a security at a new market symbol, price it under that symbol and revalue its history.
    * If pricing stops, the history is left as it was: revaluing without the new closes would
    * drop those days. The next refresh prices the symbol.
    */
@@ -54,8 +57,7 @@ export class InvestmentRefreshService {
       const security = await this.catalog.setPriceSymbol(id, symbol);
       const prices = await this.prices.refresh({ securityIds: [id] });
       if (prices.stopped) return security;
-      const holders = await this.valuation.holdersOf(id);
-      if (holders) await this.valuation.writeBalances(holders);
+      await this.revalueHolders(id);
       return security;
     });
   }
@@ -67,5 +69,28 @@ export class InvestmentRefreshService {
       await this.valuation.writeBalances();
       return security;
     });
+  }
+
+  /**
+   * Make an institution-priced fund follow a public fund (null stops following), price that fund
+   * back to the follower's history start, and revalue valued accounts that hold the follower. If
+   * pricing stops, the link stays and the next refresh prices it.
+   */
+  setProxy(id: string, symbol: string | null): Promise<Security> {
+    return withSyncLock(REFRESH_LOCK, async () => {
+      const security = await this.catalog.setProxy(id, symbol);
+      if (security.proxySecurityId) {
+        const prices = await this.prices.refresh({ securityIds: [security.proxySecurityId] });
+        if (prices.stopped) return security;
+      }
+      await this.revalueHolders(id);
+      return security;
+    });
+  }
+
+  /** Revalue every valued account that has held `securityId`, from the first day it did. */
+  private async revalueHolders(securityId: string): Promise<void> {
+    const holders = await this.valuation.holdersOf(securityId);
+    if (holders) await this.valuation.writeBalances(holders);
   }
 }

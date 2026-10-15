@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import { setupTestDb, teardownTestDb, resetTestDb } from '../../../helpers/db';
 import { day, seedPrice, seedSecurity } from '../../../helpers/investments';
 import { loadFxRates, PriceBook } from '@/lib/prices/price-book';
+import { PriceSource, Pricing } from '@/lib/investments/codes';
 
 describe('PriceBook / loadFxRates', () => {
   let prisma: PrismaClient;
@@ -30,5 +31,17 @@ describe('PriceBook / loadFxRates', () => {
       data: { fromCurrency: 'CAD', toCurrency: 'USD', rate: 0.75 },
     });
     expect((await loadFxRates(prisma)).get('CAD_USD')).toBe(0.75);
+  });
+
+  it("prices a Plaid-priced security through its proxy's closes", async () => {
+    const proxy = await seedSecurity(prisma, { priceSymbol: 'PRXY' });
+    const fund = await seedSecurity(prisma, { priceSymbol: null, pricing: Pricing.Institution });
+    await prisma.security.update({ where: { id: fund.id }, data: { proxySecurityId: proxy.id } });
+    await seedPrice(prisma, fund.id, '2026-10-01', 20, PriceSource.Institution);
+    await seedPrice(prisma, proxy.id, '2026-09-01', 50);
+    await seedPrice(prisma, proxy.id, '2026-10-01', 100);
+    const book = await PriceBook.load(prisma, [fund.id], day('2026-10-09'));
+    expect(book.at(fund.id, day('2026-09-15'))).toEqual({ price: 10, estimated: true });
+    expect(book.at(proxy.id, day('2026-09-15'))).toBeNull(); // only requested securities answer
   });
 });

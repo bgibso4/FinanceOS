@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     if ('cash' in body.data) {
       return NextResponse.json({ security: await catalog.findOrCreateCash(body.data.cash) });
     }
-    const { security, created } = await catalog.findOrCreateFeed(body.data.symbol);
+    const { security, created } = await catalog.findOrCreateMarket(body.data.symbol);
     return NextResponse.json({ security }, { status: created ? 201 : 200 });
   } catch (error) {
     return investmentErrorResponse(error, 'Failed to add security');

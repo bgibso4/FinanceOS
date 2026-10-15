@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import { setupTestDb, teardownTestDb, resetTestDb } from '../../helpers/db';
 import { createAccountData } from '../../helpers/factories';
 import { getAccountBalances, getAccountBalance } from '@/lib/balances';
+import { BalanceRowSource, BalanceSource } from '@/lib/investments/codes';
 
 describe('balance resolver', () => {
   let prisma: PrismaClient;
@@ -41,7 +42,7 @@ describe('balance resolver', () => {
       data: {
         ...createAccountData({ type: 'brokerage' }),
         trackingMode: 'investment',
-        balanceSource: 'provider',
+        balanceSource: BalanceSource.Provider,
       },
     });
     for (const [d, b] of [
@@ -55,14 +56,14 @@ describe('balance resolver', () => {
           date: new Date(`${d}T00:00:00Z`),
           balance: b,
           currency: 'USD',
-          source: 'plaid',
+          source: BalanceRowSource.Synced,
         },
       });
     }
     const r = await getAccountBalance(prisma, a.id);
     expect(r.balance).toBe(1100);
     expect(r.asOf?.toISOString()).toBe('2026-10-08T00:00:00.000Z');
-    expect(r.source).toBe('plaid');
+    expect(r.source).toBe(BalanceRowSource.Synced);
   });
 
   it('ignores transactions for investment accounts', async () => {
@@ -70,7 +71,7 @@ describe('balance resolver', () => {
       data: {
         ...createAccountData({ type: 'brokerage' }),
         trackingMode: 'investment',
-        balanceSource: 'manual',
+        balanceSource: BalanceSource.Manual,
       },
     });
     await prisma.transaction.create({
@@ -87,7 +88,7 @@ describe('balance resolver', () => {
         date: new Date('2026-10-02T00:00:00Z'),
         balance: 50,
         currency: 'USD',
-        source: 'manual',
+        source: BalanceRowSource.Manual,
       },
     });
     expect((await getAccountBalance(prisma, a.id)).balance).toBe(50);
@@ -98,13 +99,13 @@ describe('balance resolver', () => {
       data: {
         ...createAccountData({ type: 'brokerage' }),
         trackingMode: 'investment',
-        balanceSource: 'provider',
+        balanceSource: BalanceSource.Provider,
       },
     });
     expect(await getAccountBalance(prisma, a.id)).toEqual({
       balance: 0,
       asOf: null,
-      source: 'plaid',
+      source: BalanceRowSource.Synced,
     });
   });
 
@@ -115,7 +116,7 @@ describe('balance resolver', () => {
       data: {
         ...createAccountData({ type: 'retirement' }),
         trackingMode: 'investment',
-        balanceSource: 'manual',
+        balanceSource: BalanceSource.Manual,
       },
     });
     await prisma.accountBalance.create({
@@ -124,7 +125,7 @@ describe('balance resolver', () => {
         date: new Date('2026-10-02T00:00:00Z'),
         balance: 77,
         currency: 'USD',
-        source: 'manual',
+        source: BalanceRowSource.Manual,
       },
     });
     const map = await getAccountBalances(prisma, [

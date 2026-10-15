@@ -1,4 +1,4 @@
-import type { SecurityType } from '@/lib/investments/plaid-mapping';
+import type { SecurityType } from '@/lib/investments/codes';
 
 export type DailyClose = { date: Date; close: number };
 
@@ -34,6 +34,8 @@ export class PriceProviderError extends Error {
 }
 
 export interface PriceProvider {
+  /** How to write a symbol this provider prices; shown in the price window. */
+  readonly symbolHint: string;
   /** Raw daily closes (null bars dropped) and dividend/split events for inclusive UTC days. */
   getDailyHistory(symbol: string, from: Date, to: Date): Promise<DailyHistory>;
   getQuote(symbol: string): Promise<Quote>;

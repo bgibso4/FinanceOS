@@ -15,6 +15,7 @@ import { GET as getBalances } from '@/app/api/accounts/balances/route';
 import { POST as postSnapshot } from '@/app/api/snapshots/route';
 import { calculateGoalProgress } from '@/lib/goals';
 import { executeGetAccountBalances } from '@/lib/agent/tools';
+import { BalanceRowSource, BalanceSource } from '@/lib/investments/codes';
 
 describe('balance call sites use the resolver', () => {
   let investmentId: string;
@@ -32,7 +33,7 @@ describe('balance call sites use the resolver', () => {
       data: {
         ...createAccountData({ name: 'Brokerage', type: 'brokerage' }),
         trackingMode: 'investment',
-        balanceSource: 'provider',
+        balanceSource: BalanceSource.Provider,
       },
     });
     investmentId = inv.id;
@@ -42,7 +43,7 @@ describe('balance call sites use the resolver', () => {
         date: new Date('2026-10-09T00:00:00Z'),
         balance: 5000,
         currency: 'USD',
-        source: 'plaid',
+        source: BalanceRowSource.Synced,
       },
     });
     // stray legacy row that must be ignored

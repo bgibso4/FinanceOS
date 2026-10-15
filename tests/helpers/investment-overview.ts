@@ -1,6 +1,7 @@
 import { addDays, isoDay, utcDay } from '@/lib/investments/dates';
 import type { HoldingRow } from '@/lib/investments/holdings-view';
 import type { AccountSummary, InvestmentOverview } from '@/lib/investments/overview';
+import { BalanceSource, Pricing } from '@/lib/investments/codes';
 
 /** Daily points from `start`; indexes in `estimated` are estimates. */
 export const series = (values: number[], estimated: number[] = [], start = '2026-10-01') =>
@@ -18,7 +19,7 @@ export function makeAccount(over: Partial<AccountSummary> = {}): AccountSummary 
     group: 'Taxable',
     wrapper: 'Taxable',
     currency: 'USD',
-    balanceSource: 'provider',
+    balanceSource: BalanceSource.Provider,
     value: 1100,
     valueBase: 1100,
     asOf: '2026-10-09',
@@ -40,7 +41,7 @@ export function makeHolding(over: Partial<HoldingRow> = {}): HoldingRow {
     label: 'AAA',
     name: 'Triple A Fund',
     type: 'etf',
-    pricing: 'feed',
+    pricing: Pricing.Market,
     currency: 'USD',
     quantity: 10,
     price: 110,
@@ -58,8 +59,10 @@ export function makeOverview(over: Partial<InvestmentOverview> = {}): Investment
   return {
     range: '3M',
     today: '2026-10-09',
+    from: '2026-07-09',
     baseCurrency: 'USD',
     prices: { asOf: '2026-10-09', stale: false },
+    symbolHint: 'Use test symbols.',
     portfolio: {
       value: accounts.reduce((sum, a) => sum + a.valueBase, 0),
       series: series([1000, 1050, 1100]),

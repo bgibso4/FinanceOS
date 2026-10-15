@@ -2,6 +2,14 @@ import type { AccountBalance, Prisma, PrismaClient } from '@prisma/client';
 import { systemClock, type Clock } from '@/lib/clock';
 import { InvestmentInputError, requireInvestmentAccount } from './account-guard';
 import { utcDay } from './dates';
+import {
+  BalanceRowSource,
+  BalanceSource,
+  PriceSource,
+  Pricing,
+  RecordSource,
+  SecurityType,
+} from './codes';
 
 export const manualHoldingSecurityId = (accountId: string) => `manual-holding-${accountId}`;
 
@@ -16,7 +24,7 @@ export class ManualHoldingService {
     accountId: string,
     input: { date: string | Date; balance: number }
   ): Promise<AccountBalance> {
-    const account = await requireInvestmentAccount(this.prisma, accountId, 'manual');
+    const account = await requireInvestmentAccount(this.prisma, accountId, BalanceSource.Manual);
     if (!Number.isFinite(input.balance)) throw new InvestmentInputError('Balance must be a number');
     const date = utcDay(input.date);
     if (date > utcDay(this.clock.now())) {
@@ -29,27 +37,27 @@ export class ManualHoldingService {
         date,
         balance: input.balance,
         currency: account.currency,
-        source: 'manual',
+        source: BalanceRowSource.Manual,
       },
-      update: { balance: input.balance, source: 'manual' },
+      update: { balance: input.balance, source: BalanceRowSource.Manual },
     });
     await this.sync(accountId);
     return row;
   }
 
   async delete(accountId: string, balanceId: string): Promise<void> {
-    await requireInvestmentAccount(this.prisma, accountId, 'manual');
+    await requireInvestmentAccount(this.prisma, accountId, BalanceSource.Manual);
     const { count } = await this.prisma.accountBalance.deleteMany({
-      where: { id: balanceId, accountId, source: 'manual' },
+      where: { id: balanceId, accountId, source: BalanceRowSource.Manual },
     });
     if (!count) throw new InvestmentInputError('Balance entry not found', 404);
     await this.sync(accountId);
   }
 
   async list(accountId: string): Promise<AccountBalance[]> {
-    await requireInvestmentAccount(this.prisma, accountId, 'manual');
+    await requireInvestmentAccount(this.prisma, accountId, BalanceSource.Manual);
     return this.prisma.accountBalance.findMany({
-      where: { accountId, source: 'manual' },
+      where: { accountId, source: BalanceRowSource.Manual },
       orderBy: { date: 'desc' },
     });
   }
@@ -60,11 +68,11 @@ export class ManualHoldingService {
    */
   async sync(accountId: string): Promise<boolean> {
     const prisma = this.prisma;
-    const account = await requireInvestmentAccount(prisma, accountId, 'manual');
+    const account = await requireInvestmentAccount(prisma, accountId, BalanceSource.Manual);
     const securityId = manualHoldingSecurityId(accountId);
     const [balances, snapshots] = await Promise.all([
       prisma.accountBalance.findMany({
-        where: { accountId, source: 'manual' },
+        where: { accountId, source: BalanceRowSource.Manual },
         orderBy: { date: 'asc' },
       }),
       prisma.holdingSnapshot.findMany({ where: { accountId }, orderBy: { date: 'asc' } }),
@@ -84,9 +92,9 @@ export class ManualHoldingService {
       create: {
         id: securityId,
         name: account.name,
-        type: 'other',
+        type: SecurityType.Other,
         currency: account.currency,
-        pricing: 'manual',
+        pricing: Pricing.Manual,
       },
       update: { name: account.name, currency: account.currency },
     });
@@ -102,11 +110,11 @@ export class ManualHoldingService {
             quantity: 1,
             price: b.balance,
             value: b.balance,
-            source: 'manual',
+            source: RecordSource.Manual,
           },
         }),
         prisma.securityPrice.create({
-          data: { securityId, date: b.date, close: b.balance, source: 'manual' },
+          data: { securityId, date: b.date, close: b.balance, source: PriceSource.Manual },
         }),
       ]),
     ]);
@@ -115,7 +123,7 @@ export class ManualHoldingService {
 
   async syncAll(): Promise<number> {
     const accounts = await this.prisma.account.findMany({
-      where: { trackingMode: 'investment', balanceSource: 'manual' },
+      where: { trackingMode: 'investment', balanceSource: BalanceSource.Manual },
       select: { id: true },
     });
     let changed = 0;

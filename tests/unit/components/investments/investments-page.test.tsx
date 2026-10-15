@@ -70,6 +70,14 @@ describe('InvestmentsPage', () => {
     stop();
   });
 
+  it('offers 3Y and All and loads the range picked', async () => {
+    render(<InvestmentsPage />);
+    await screen.findByRole('heading', { name: 'All accounts' });
+    expect(screen.getByRole('button', { name: '3Y' })).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(screen.getByRole('button', { name: 'All' }));
+    await waitFor(() => expect(urls()).toContain('GET /api/investments/overview?range=All'));
+  });
+
   it('syncs after a refresh that stored prices', async () => {
     const { synced, stop } = listenForSync();
     refreshReply = {
@@ -151,5 +159,24 @@ describe('InvestmentsPage', () => {
       'href',
       '/settings?tab=accounts'
     );
+  });
+
+  it('shows the price provider’s symbol hint in the price window', async () => {
+    overview = makeOverview({
+      accounts: [
+        makeAccount({
+          status: {
+            needsReauth: null,
+            waiting: null,
+            unpriced: [{ securityId: 'sec-z', label: 'ZZZ' }],
+            tradesReported: true,
+          },
+        }),
+      ],
+    });
+    render(<InvestmentsPage />);
+    await userEvent.click(await screen.findByText('Brokerage'));
+    await userEvent.click(await screen.findByRole('button', { name: 'Set symbol' }));
+    expect(await screen.findByText('Use test symbols.')).toBeInTheDocument();
   });
 });

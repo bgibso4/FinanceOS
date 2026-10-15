@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import type { BalanceSource } from '@/lib/account-defaults';
+import { BalanceSource } from '@/lib/investments/codes';
 import type { SeriesChange } from '@/lib/investments/portfolio-view';
 import { changeText, toneOf, type Tone } from './format';
 
@@ -9,15 +9,15 @@ const PILL =
   'inline-flex items-center whitespace-nowrap rounded-full border px-[7px] py-px text-[10.5px] font-medium';
 
 const SOURCE_PILLS: Record<BalanceSource, { label: string; className: string }> = {
-  provider: {
-    label: 'Plaid',
+  [BalanceSource.Provider]: {
+    label: 'Synced',
     className: 'text-[var(--tag-blue)] border-[color-mix(in_srgb,var(--tag-blue)_30%,transparent)]',
   },
-  valuation: {
+  [BalanceSource.Valuation]: {
     label: 'Valued',
     className: 'text-[var(--tag-teal)] border-[color-mix(in_srgb,var(--tag-teal)_30%,transparent)]',
   },
-  manual: {
+  [BalanceSource.Manual]: {
     label: 'Manual',
     className: 'text-[var(--text-secondary)] border-[var(--border-hover)]',
   },
@@ -57,14 +57,10 @@ export function StatusDot({ tone, title }: { tone: 'warn' | 'err'; title: string
   );
 }
 
+const FLAG_TONE = 'border-[color-mix(in_srgb,var(--accent)_35%,transparent)] text-[var(--accent)]';
+
 export function FlagPill({ children }: { children: ReactNode }) {
-  return (
-    <span
-      className={`${PILL} ml-1.5 border-[color-mix(in_srgb,var(--accent)_35%,transparent)] font-sans text-[var(--accent)]`}
-    >
-      {children}
-    </span>
-  );
+  return <span className={`${PILL} ml-1.5 font-sans ${FLAG_TONE}`}>{children}</span>;
 }
 
 const NOTICE_TONES = {

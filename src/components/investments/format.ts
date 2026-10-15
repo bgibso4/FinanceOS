@@ -39,11 +39,22 @@ export function fmtPct(p: number): string {
 export const fmtQty = (q: number): string =>
   q.toLocaleString('en-US', { maximumFractionDigits: 4 });
 
-/** `Oct 9` for a `YYYY-MM-DD` day. */
-export const fmtDay = (iso: string): string =>
+/** `Oct 9` for a `YYYY-MM-DD` day; `Oct 9, 26` with `year`. */
+export const fmtDay = (iso: string, opts: { year?: boolean } = {}): string =>
   new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
+    ...(opts.year ? { year: '2-digit' as const } : {}),
+    timeZone: 'UTC',
+  });
+
+/** `Wed, Sep 16, 2026` for a `YYYY-MM-DD` day. */
+export const fmtLongDay = (iso: string): string =>
+  new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
     timeZone: 'UTC',
   });
 
@@ -62,6 +73,10 @@ export const daysBetween = (fromIso: string, toIso: string): number =>
       Date.parse(`${fromIso.slice(0, 10)}T00:00:00Z`)) /
       DAY_MS
   );
+
+/** A range of a year or more, whose axis dates need a year. */
+export const spansYear = (fromIso: string, toIso: string): boolean =>
+  daysBetween(fromIso, toIso) >= 365;
 
 export type Tone = 'up' | 'down' | 'flat';
 

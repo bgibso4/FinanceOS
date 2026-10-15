@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import type { BalanceSource } from '@/lib/account-defaults';
+import { BalanceSource, Pricing, RecordSource } from './codes';
 import { systemClock, type Clock } from '@/lib/clock';
 import { getAccountBalances } from '@/lib/balances';
 import { convertAmount } from '@/lib/currency';
@@ -52,15 +52,19 @@ export type AccountSummary = {
 export type InvestmentOverview = {
   range: Range;
   today: string;
+  /** First day of the range (YYYY-MM-DD). */
+  from: string;
   baseCurrency: string;
   prices: PriceFreshnessView;
+  /** How to write a price symbol, from the market data provider. */
+  symbolHint: string;
   portfolio: { value: number; series: SeriesPoint[]; change: SeriesChange | null };
   accounts: AccountSummary[];
   holdings: HoldingRow[];
   activity: ActivityItem[];
 };
 
-/** Plaid steps whose pending state means the account is waiting on its institution. */
+/** Sync steps whose pending state means the account is waiting on its institution. */
 const WAITING_STEPS = new Set(['holdings', 'transactions']);
 
 const freshnessView = (f: PriceFreshness): PriceFreshnessView => ({
@@ -72,16 +76,18 @@ const freshnessView = (f: PriceFreshness): PriceFreshnessView => ({
 export class InvestmentOverviewService {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly history: Pick<ValueHistoryService, 'accountSeries'>,
+    private readonly history: Pick<ValueHistoryService, 'accountSeries' | 'earliestDay'>,
     private readonly holdings: Pick<CurrentHoldingsReader, 'read'>,
     private readonly prices: Pick<PriceRefresher, 'freshness'>,
+    /** How to write a price symbol, from the market data provider; shown in the price window. */
+    private readonly symbolHint: string,
     private readonly clock: Clock = systemClock
   ) {}
 
   async load(range: Range): Promise<InvestmentOverview> {
     const prisma = this.prisma;
     const today = utcDay(this.clock.now());
-    const from = rangeStart(range, today);
+    const from = range === 'All' ? await this.history.earliestDay(today) : rangeStart(range, today);
     const [accounts, settings, rates] = await Promise.all([
       prisma.account.findMany({
         where: { trackingMode: 'investment', isActive: true },
@@ -98,7 +104,7 @@ export class InvestmentOverviewService {
     const baseCurrency = settings?.baseCurrency || 'USD';
     const ids = accounts.map((a) => a.id);
 
-    const [balances, holdings, trades, plaidDays, recent, prices] = await Promise.all([
+    const [balances, holdings, trades, syncedDays, recent, prices] = await Promise.all([
       getAccountBalances(prisma, accounts),
       this.holdings.read({ accounts, today, rangeStart: from, baseCurrency, rates }),
       prisma.investmentTransaction.groupBy({
@@ -109,9 +115,9 @@ export class InvestmentOverviewService {
       prisma.holdingSnapshot.groupBy({
         by: ['accountId'],
         _max: { date: true },
-        where: { accountId: { in: ids }, source: 'plaid' },
+        where: { accountId: { in: ids }, source: RecordSource.Synced },
       }),
-      // Newest rows per account, so a busy account can't crowd out a quieter one's feed.
+      // Newest rows per account, so a busy account can't crowd out a quieter one's rows.
       Promise.all(
         ids.map((accountId) =>
           prisma.investmentTransaction.findMany({
@@ -125,7 +131,7 @@ export class InvestmentOverviewService {
       this.prices.freshness(),
     ]);
     const tradeCount = new Map(trades.map((t) => [t.accountId, t._count._all]));
-    const lastPlaidDay = new Map(plaidDays.map((d) => [d.accountId, d._max.date]));
+    const lastSyncedDay = new Map(syncedDays.map((d) => [d.accountId, d._max.date]));
 
     const summaries: AccountSummary[] = [];
     for (const a of accounts) {
@@ -133,10 +139,10 @@ export class InvestmentOverviewService {
       const series = convertSeries(native, a.currency, baseCurrency, rates);
       const balance = balances.get(a.id)!;
       const rows = holdings.filter((h) => h.accountId === a.id);
-      const source = (a.balanceSource ?? 'manual') as BalanceSource;
+      const source = (a.balanceSource ?? BalanceSource.Manual) as BalanceSource;
       const conn = a.plaidConnection;
       const pending = conn?.pendingSteps?.split(',') ?? [];
-      const showingFrom = lastPlaidDay.get(a.id);
+      const showingFrom = lastSyncedDay.get(a.id);
       summaries.push({
         id: a.id,
         name: a.name,
@@ -151,9 +157,9 @@ export class InvestmentOverviewService {
         lastSyncAt: conn?.lastSyncAt?.toISOString() ?? null,
         enrollmentId: conn?.plaidEnrollment.id ?? null,
         series,
-        change: source === 'manual' ? null : seriesChange(series),
+        change: source === BalanceSource.Manual ? null : seriesChange(series),
         prices:
-          source === 'valuation'
+          source === BalanceSource.Valuation
             ? freshnessView(
                 await this.prices.freshness({ securityIds: rows.map((r) => r.securityId) })
               )
@@ -164,9 +170,9 @@ export class InvestmentOverviewService {
             ? { showingFrom: showingFrom ? isoDay(showingFrom) : null }
             : null,
           unpriced: rows
-            .filter((r) => r.pricing === 'none')
+            .filter((r) => r.pricing === Pricing.None)
             .map((r) => ({ securityId: r.securityId, label: r.label })),
-          tradesReported: source !== 'provider' || (tradeCount.get(a.id) ?? 0) > 0,
+          tradesReported: source !== BalanceSource.Provider || (tradeCount.get(a.id) ?? 0) > 0,
         },
       });
     }
@@ -175,8 +181,10 @@ export class InvestmentOverviewService {
     return {
       range,
       today: isoDay(today),
+      from: isoDay(from),
       baseCurrency,
       prices: freshnessView(prices),
+      symbolHint: this.symbolHint,
       portfolio: {
         value: roundCents(summaries.reduce((sum, s) => sum + s.valueBase, 0)),
         series: portfolioSeries,
