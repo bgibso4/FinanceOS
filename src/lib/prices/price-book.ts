@@ -1,6 +1,13 @@
 import type { PrismaClient } from '@prisma/client';
 import { parseExchangeRates } from '@/lib/currency';
-import { pricingFor, type PricedAt, type PricePoint, type PricingStrategy } from './pricing';
+import { PriceSource } from '@/lib/investments/codes';
+import {
+  pricingFor,
+  type LatestPrice,
+  type PricedAt,
+  type PricePoint,
+  type PricingStrategy,
+} from './pricing';
 
 type Entry = { strategy: PricingStrategy; points: PricePoint[] };
 
@@ -45,8 +52,27 @@ export class PriceBook {
     const entry = this.entries.get(securityId);
     return entry ? entry.strategy.priceOn(entry.points, date) : null;
   }
+
+  /** The newest price the security's own pricing mode stored; null when unknown or none. */
+  latest(securityId: string): LatestPrice | null {
+    const entry = this.entries.get(securityId);
+    return entry ? entry.strategy.latest(entry.points) : null;
+  }
 }
 
 export async function loadFxRates(prisma: PrismaClient): Promise<Map<string, number>> {
   return parseExchangeRates(await prisma.exchangeRate.findMany());
+}
+
+/** Which of `securityIds` have a stored institution price (Institution pricing is offered). */
+export async function institutionPricedIds(
+  prisma: PrismaClient,
+  securityIds: string[]
+): Promise<Set<string>> {
+  const rows = await prisma.securityPrice.findMany({
+    where: { securityId: { in: securityIds }, source: PriceSource.Institution },
+    distinct: ['securityId'],
+    select: { securityId: true },
+  });
+  return new Set(rows.map((r) => r.securityId));
 }

@@ -7,17 +7,14 @@ import { AccountNavigator } from '@/components/investments/account-navigator';
 import { fmtDay } from '@/components/investments/format';
 import { HoldingsEditorModal } from '@/components/investments/holdings-editor-modal';
 import { RecordBalanceModal } from '@/components/investments/record-balance-modal';
-import { SetSymbolModal } from '@/components/investments/set-symbol-modal';
 import { Card } from '@/components/ui/card';
 import { triggerSync } from '@/lib/cloud-sync';
-import type { PriceTarget } from '@/lib/investments/holdings-view';
 import type { AccountSummary, InvestmentOverview } from '@/lib/investments/overview';
 import { DEFAULT_RANGE, RANGES, type Range } from '@/lib/investments/portfolio-view';
 
 type Dialog =
   | { kind: 'record'; account: AccountSummary }
-  | { kind: 'holdings'; account: AccountSummary }
-  | { kind: 'symbol'; security: PriceTarget };
+  | { kind: 'holdings'; account: AccountSummary };
 
 type RefreshState = { running: boolean; failed: boolean };
 
@@ -158,7 +155,6 @@ export default function InvestmentsPage() {
               onReconnected={() => load(range)}
               onRecordBalance={(account) => setDialog({ kind: 'record', account })}
               onRetryPrices={refreshPrices}
-              onSetSymbol={(security) => setDialog({ kind: 'symbol', security })}
             />
           </Card>
         </div>
@@ -179,15 +175,6 @@ export default function InvestmentsPage() {
           account={dialog.account}
           holdings={overview.holdings.filter((h) => h.accountId === dialog.account.id)}
           pricesAsOf={dialog.account.prices?.asOf ?? null}
-          onClose={() => setDialog(null)}
-          onSaved={saved}
-        />
-      )}
-      {dialog?.kind === 'symbol' && (
-        <SetSymbolModal
-          key={dialog.security.securityId}
-          hint={overview?.symbolHint ?? ''}
-          security={dialog.security}
           onClose={() => setDialog(null)}
           onSaved={saved}
         />

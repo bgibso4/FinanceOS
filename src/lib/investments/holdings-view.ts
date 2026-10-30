@@ -4,24 +4,6 @@ import { roundCents } from './money';
 
 export type HoldingKind = 'security' | 'cash' | 'account';
 
-/** An institution-priced security's latest institution price and the public fund it follows. */
-export type InstitutionQuote = {
-  price: number;
-  currency: string;
-  date: string;
-  proxy: { symbol: string; name: string } | null;
-};
-
-/**
- * What the price window needs for one security; `institution` only when its institution prices
- * it. The investments page passes null; Settings → Securities (Plan 4) supplies it.
- */
-export type PriceTarget = {
-  securityId: string;
-  label: string;
-  institution: InstitutionQuote | null;
-};
-
 /** One current position in one account, priced (see `CurrentHoldingsReader`). */
 export type HoldingRow = {
   accountId: string;

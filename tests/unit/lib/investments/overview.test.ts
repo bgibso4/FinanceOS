@@ -223,8 +223,8 @@ describe('InvestmentOverviewService', () => {
     expect((await overview('YTD')).from).toBe('2026-01-01');
   });
 
-  it('carries the price provider’s symbol hint for the price window', async () => {
-    expect((await overview()).symbolHint).toBe('Use test symbols.');
+  it('leaves the symbol hint to the securities list', async () => {
+    expect(await overview()).not.toHaveProperty('symbolHint');
   });
 
   it('starts All at the earliest day any account has a value', async () => {

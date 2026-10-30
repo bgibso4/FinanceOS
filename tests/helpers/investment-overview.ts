@@ -1,7 +1,8 @@
 import { addDays, isoDay, utcDay } from '@/lib/investments/dates';
 import type { HoldingRow } from '@/lib/investments/holdings-view';
 import type { AccountSummary, InvestmentOverview } from '@/lib/investments/overview';
-import { BalanceSource, Pricing } from '@/lib/investments/codes';
+import { BalanceSource, Pricing, SecurityType } from '@/lib/investments/codes';
+import type { SecurityListItem } from '@/lib/investments/security-list';
 
 /** Daily points from `start`; indexes in `estimated` are estimates. */
 export const series = (values: number[], estimated: number[] = [], start = '2026-10-01') =>
@@ -62,7 +63,6 @@ export function makeOverview(over: Partial<InvestmentOverview> = {}): Investment
     from: '2026-07-09',
     baseCurrency: 'USD',
     prices: { asOf: '2026-10-09', stale: false },
-    symbolHint: 'Use test symbols.',
     portfolio: {
       value: accounts.reduce((sum, a) => sum + a.valueBase, 0),
       series: series([1000, 1050, 1100]),
@@ -71,6 +71,24 @@ export function makeOverview(over: Partial<InvestmentOverview> = {}): Investment
     accounts,
     holdings: [makeHolding()],
     activity: [],
+    ...over,
+  };
+}
+
+export function makeSecurityItem(over: Partial<SecurityListItem> = {}): SecurityListItem {
+  return {
+    id: 'sec-aaa',
+    label: 'AAA',
+    name: 'Triple A Fund',
+    type: SecurityType.Etf,
+    currency: 'USD',
+    pricing: Pricing.Market,
+    priceSymbol: 'AAA',
+    proxySymbol: null,
+    fixedPrice: null,
+    latest: { price: 110, date: '2026-10-08' },
+    hasInstitutionPrice: false,
+    heldIn: 1,
     ...over,
   };
 }

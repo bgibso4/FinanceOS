@@ -22,7 +22,6 @@ import { BalanceSource } from '@/lib/investments/codes';
 const handlers = () => ({
   onRecordBalance: vi.fn(),
   onEditHoldings: vi.fn(),
-  onSetSymbol: vi.fn(),
   onRetryPrices: vi.fn(),
   onReconnected: vi.fn(),
 });
@@ -216,7 +215,7 @@ describe('AccountDetail', () => {
     expect(screen.queryByText(/(^|[^A])\$\d/)).toBeNull();
   });
 
-  it('offers Reconnect, Retry and Set symbol from notices', async () => {
+  it('offers Reconnect, Retry and Set up pricing from notices', async () => {
     const h = handlers();
     const broken = makeAccount({
       status: {
@@ -248,12 +247,11 @@ describe('AccountDetail', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(h.onRetryPrices).toHaveBeenCalled();
-    await userEvent.click(screen.getByRole('button', { name: 'Set symbol' }));
-    expect(h.onSetSymbol).toHaveBeenCalledWith({
-      securityId: 'sec-z',
-      label: 'ZZZ',
-      institution: null,
-    });
+    expect(screen.getByRole('link', { name: 'Set up pricing' })).toHaveAttribute(
+      'href',
+      '/settings?tab=securities&security=sec-z'
+    );
+    expect(screen.queryByRole('button', { name: 'Set symbol' })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Edit holdings' }));
     expect(h.onEditHoldings).toHaveBeenCalledWith(valued);
   });

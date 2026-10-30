@@ -161,7 +161,7 @@ describe('InvestmentsPage', () => {
     );
   });
 
-  it('shows the price provider’s symbol hint in the price window', async () => {
+  it('links an unpriced holding’s notice to Settings → Securities, with no price window', async () => {
     overview = makeOverview({
       accounts: [
         makeAccount({
@@ -176,7 +176,12 @@ describe('InvestmentsPage', () => {
     });
     render(<InvestmentsPage />);
     await userEvent.click(await screen.findByText('Brokerage'));
-    await userEvent.click(await screen.findByRole('button', { name: 'Set symbol' }));
-    expect(await screen.findByText('Use test symbols.')).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Set up pricing' })).toHaveAttribute(
+      'href',
+      '/settings?tab=securities&security=sec-z'
+    );
+    expect(screen.getByText('ZZZ has no price source.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Set symbol' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: /is priced$/ })).toBeNull();
   });
 });

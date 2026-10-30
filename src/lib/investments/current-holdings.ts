@@ -38,11 +38,7 @@ export class CurrentHoldingsReader {
         orderBy: { date: 'desc' },
       })
     ).filter((s) => !isLeftoverMirror(s.accountId, s.securityId));
-    const latestDay = new Map<string, number>();
-    for (const s of snapshots) {
-      if (!latestDay.has(s.accountId)) latestDay.set(s.accountId, s.date.getTime());
-    }
-    const current = snapshots.filter((s) => s.date.getTime() === latestDay.get(s.accountId));
+    const current = latestSets(snapshots);
     const book = await PriceBook.load(
       this.prisma,
       [...new Set(current.map((s) => s.securityId))],
@@ -99,4 +95,13 @@ function labelOf(security: Security, kind: HoldingKind, accountName: string): st
   if (kind === 'account') return accountName;
   if (kind === 'cash') return CASH_LABELS[security.type];
   return security.ticker ?? security.name;
+}
+
+/** Each account's newest snapshot set, from snapshots sorted newest first. */
+export function latestSets<T extends { accountId: string; date: Date }>(newestFirst: T[]): T[] {
+  const latestDay = new Map<string, number>();
+  for (const s of newestFirst) {
+    if (!latestDay.has(s.accountId)) latestDay.set(s.accountId, s.date.getTime());
+  }
+  return newestFirst.filter((s) => s.date.getTime() === latestDay.get(s.accountId));
 }
