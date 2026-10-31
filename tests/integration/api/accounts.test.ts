@@ -1,13 +1,34 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { setupTestDb, teardownTestDb, resetTestDb } from '../../helpers/db';
 import { createAccountData } from '../../helpers/factories';
 import type { PrismaClient } from '@prisma/client';
+import type { NextRequest } from 'next/server';
+import { BalanceSource } from '@/lib/investments/codes';
+
+let routePrisma: PrismaClient;
+
+vi.mock('@/lib/prisma', () => ({
+  get prisma() {
+    return routePrisma;
+  },
+}));
+
+import { POST as postAccount } from '@/app/api/accounts/route';
+
+function createRequest(body: unknown): NextRequest {
+  return new Request('http://localhost/api/accounts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }) as unknown as NextRequest;
+}
 
 describe('accounts API integration', () => {
   let prisma: PrismaClient;
 
   beforeAll(async () => {
     prisma = await setupTestDb();
+    routePrisma = prisma;
   });
 
   afterAll(async () => {
@@ -92,6 +113,26 @@ describe('accounts API integration', () => {
   });
 
   describe('POST account', () => {
+    it.each(['brokerage', 'retirement', 'crypto'])(
+      'POST creates a %s account as a manual investment account',
+      async (type) => {
+        const res = await postAccount(createRequest({ name: 'Test Account', type }));
+        const body = await res.json();
+
+        expect(body).toMatchObject({
+          trackingMode: 'investment',
+          balanceSource: BalanceSource.Manual,
+        });
+      }
+    );
+
+    it('POST creates a loan as net-worth-only with no balance source', async () => {
+      const res = await postAccount(createRequest({ name: 'Test Loan', type: 'loan' }));
+      const body = await res.json();
+
+      expect(body).toMatchObject({ trackingMode: 'balance_only', balanceSource: null });
+    });
+
     it('creates account with required fields', async () => {
       const accountData = {
         name: 'Test Checking',

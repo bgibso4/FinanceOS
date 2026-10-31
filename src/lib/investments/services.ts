@@ -6,7 +6,7 @@ import { SecurityCatalog } from '@/lib/prices/securities';
 import type { PriceProvider } from '@/lib/prices/types';
 import { CurrentHoldingsReader } from './current-holdings';
 import { ValueHistoryService } from './history';
-import { ManualHoldingService } from './manual-holding';
+import { EnteredBalanceService } from './entered-balances';
 import { InvestmentOverviewService } from './overview';
 import { InvestmentRefreshService } from './refresh';
 import { ensureStoredCodes } from './rename-stored-codes';
@@ -17,7 +17,7 @@ export type InvestmentServices = {
   prices: PriceRefresher;
   quotes: QuoteCache;
   catalog: SecurityCatalog;
-  manualHoldings: ManualHoldingService;
+  enteredBalances: EnteredBalanceService;
   valuation: ValuationService;
   history: ValueHistoryService;
   refresh: InvestmentRefreshService;
@@ -36,17 +36,17 @@ export function createInvestmentServices(deps: {
   const prices = new PriceRefresher(prisma, provider, clock, sleep);
   const quotes = new QuoteCache(provider, clock);
   const catalog = new SecurityCatalog(prisma, provider, quotes, clock);
-  const manualHoldings = new ManualHoldingService(prisma, clock);
-  const valuation = new ValuationService(prisma, manualHoldings, clock);
+  const enteredBalances = new EnteredBalanceService(prisma, clock);
+  const valuation = new ValuationService(prisma, enteredBalances, clock);
   const history = new ValueHistoryService(prisma);
   return {
     prices,
     quotes,
     catalog,
-    manualHoldings,
+    enteredBalances,
     valuation,
     history,
-    refresh: new InvestmentRefreshService(prices, valuation, catalog),
+    refresh: new InvestmentRefreshService(prices, valuation, catalog, enteredBalances),
     overview: new InvestmentOverviewService(
       prisma,
       history,

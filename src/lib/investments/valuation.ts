@@ -4,7 +4,7 @@ import { convertAmount } from '@/lib/currency';
 import { loadFxRates, PriceBook } from '@/lib/prices/price-book';
 import { InvestmentInputError, requireInvestmentAccount } from './account-guard';
 import { addDays, lastAtOrBefore, utcDay } from './dates';
-import { manualHoldingSecurityId, type ManualHoldingService } from './manual-holding';
+import { manualHoldingSecurityId, type EnteredBalanceService } from './entered-balances';
 import { roundCents } from './money';
 import { BalanceRowSource, BalanceSource, Pricing, RecordSource } from './codes';
 
@@ -14,7 +14,7 @@ export type HoldingInput = { securityId: string; quantity: number };
 export class ValuationService {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly manualHoldings: ManualHoldingService,
+    private readonly enteredBalances: EnteredBalanceService,
     private readonly clock: Clock = systemClock
   ) {}
 
@@ -47,7 +47,7 @@ export class ValuationService {
     const book = await PriceBook.load(prisma, ids, today);
     await prisma.$transaction([
       // A manual account switching to Valued drops its single-holding mirror on first entry.
-      ...this.manualHoldings.removalOps(accountId),
+      ...this.enteredBalances.removalOps(accountId),
       prisma.holdingSnapshot.deleteMany({ where: { accountId, date: today } }),
       ...holdings.map((h) => {
         const price = book.at(h.securityId, today)?.price ?? 0;
@@ -144,6 +144,9 @@ export class ValuationService {
     let written = 0;
     for (let d = start; d <= today; d = addDays(d, 1)) {
       const t = d.getTime();
+      const prev = existing.get(t);
+      // A synced balance is the institution's own figure: valuation never replaces it.
+      if (prev?.source === BalanceRowSource.Synced) continue;
       const setDay = lastAtOrBefore(setDays, t);
       if (setDay === undefined) continue;
       const held = snapshots.filter((s) => s.date.getTime() === setDay);
@@ -167,7 +170,6 @@ export class ValuationService {
           rates
         );
       }
-      const prev = existing.get(t);
       if (!complete) {
         // A day that can no longer be valued must not keep its earlier valuation row.
         if (prev?.source === BalanceRowSource.Valuation) {

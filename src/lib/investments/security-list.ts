@@ -5,7 +5,7 @@ import { PriceBook, institutionPricedIds } from '@/lib/prices/price-book';
 import { SecurityType, type Pricing } from './codes';
 import { latestSets } from './current-holdings';
 import { isoDay, utcDay } from './dates';
-import { isManualHoldingSecurity } from './manual-holding';
+import { isManualHoldingSecurity } from './entered-balances';
 
 /** One row of Settings → Securities (spec 2026-10-14 §6). */
 export type SecurityListItem = {

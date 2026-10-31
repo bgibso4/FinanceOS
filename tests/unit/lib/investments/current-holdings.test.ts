@@ -9,7 +9,7 @@ import {
   seedSnapshot,
 } from '../../../helpers/investments';
 import { CurrentHoldingsReader } from '@/lib/investments/current-holdings';
-import { manualHoldingSecurityId } from '@/lib/investments/manual-holding';
+import { manualHoldingSecurityId } from '@/lib/investments/entered-balances';
 import { BalanceSource, PriceSource, Pricing, RecordSource } from '@/lib/investments/codes';
 
 let prisma: PrismaClient;
@@ -186,6 +186,37 @@ describe('CurrentHoldingsReader', () => {
       source: RecordSource.Manual,
     });
     expect((await read([a])).map((r) => r.label)).toEqual(['AAA']);
+  });
+
+  it('shows only the mirror for a manual account that still has real holdings', async () => {
+    const m = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Manual });
+    await prisma.security.create({
+      data: {
+        id: manualHoldingSecurityId(m.id),
+        name: 'Mirror',
+        type: 'other',
+        pricing: Pricing.Manual,
+      },
+    });
+    await seedSnapshot(prisma, {
+      accountId: m.id,
+      securityId: manualHoldingSecurityId(m.id),
+      date: '2026-10-05',
+      quantity: 1,
+      price: 900,
+      source: RecordSource.Manual,
+    });
+    const s = await seedSecurity(prisma, { priceSymbol: 'AAA' });
+    await seedSnapshot(prisma, {
+      accountId: m.id,
+      securityId: s.id,
+      date: '2026-10-07',
+      quantity: 1,
+      price: 10,
+      source: RecordSource.Manual,
+    });
+    const rows = await read([m]);
+    expect(rows.map((r) => r.securityId)).toEqual([manualHoldingSecurityId(m.id)]);
   });
 
   it('gives no range change to a fixed-price security', async () => {

@@ -2,6 +2,8 @@ import { withSyncLock } from '@/lib/sync-common';
 import type { PriceRefresher, PriceRefreshResult } from '@/lib/prices/refresh';
 import type { SecurityCatalog } from '@/lib/prices/securities';
 import type { AccountBalance, HoldingSnapshot, Security } from '@prisma/client';
+import { BalanceSource } from './codes';
+import type { EnteredBalanceService } from './entered-balances';
 import type { HoldingInput, ValuationService } from './valuation';
 
 const REFRESH_LOCK = 'investments:refresh';
@@ -19,7 +21,8 @@ export class InvestmentRefreshService {
     private readonly catalog: Pick<
       SecurityCatalog,
       'setPriceSymbol' | 'setManualPrice' | 'setProxy'
-    >
+    >,
+    private readonly entered: Pick<EnteredBalanceService, 'switchSource'>
   ) {}
 
   refresh(): Promise<InvestmentRefreshResult> {
@@ -84,6 +87,19 @@ export class InvestmentRefreshService {
       if (followed.length) await this.prices.refresh({ securityIds: followed });
       await this.revalueHolders(id, ...repointed);
       return security;
+    });
+  }
+
+  /**
+   * Switch an account's balance source (already checked by `checkAccountUpdate`). Valued: value
+   * it from its first real holdings day on, which does nothing while it has none.
+   */
+  switchBalanceSource(accountId: string, to: BalanceSource): Promise<void> {
+    return withSyncLock(REFRESH_LOCK, async () => {
+      await this.entered.switchSource(accountId, to);
+      if (to === BalanceSource.Valuation) {
+        await this.valuation.writeBalances({ accountIds: [accountId] });
+      }
     });
   }
 

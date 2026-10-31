@@ -8,8 +8,8 @@ export async function DELETE(
 ) {
   const { id, balanceId } = await params;
   try {
-    const { manualHoldings } = await getInvestmentServices();
-    await manualHoldings.delete(id, balanceId);
+    const { enteredBalances } = await getInvestmentServices();
+    await enteredBalances.delete(id, balanceId);
     return NextResponse.json({ success: true });
   } catch (error) {
     return investmentErrorResponse(error, 'Failed to delete balance');

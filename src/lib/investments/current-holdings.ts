@@ -2,7 +2,7 @@ import type { PrismaClient, Security } from '@prisma/client';
 import { convertAmount } from '@/lib/currency';
 import { PriceBook } from '@/lib/prices/price-book';
 import type { HoldingKind, HoldingRow } from './holdings-view';
-import { manualHoldingSecurityId } from './manual-holding';
+import { manualHoldingSecurityId } from './entered-balances';
 import { roundCents } from './money';
 import { BalanceSource, Pricing, RecordSource, SecurityType } from './codes';
 
@@ -27,9 +27,14 @@ export class CurrentHoldingsReader {
     const { accounts, today, rangeStart, baseCurrency, rates } = opts;
     if (!accounts.length) return [];
     const byId = new Map(accounts.map((a) => [a.id, a]));
-    const isLeftoverMirror = (accountId: string, securityId: string) =>
-      byId.get(accountId)?.balanceSource === BalanceSource.Valuation &&
-      securityId === manualHoldingSecurityId(accountId);
+    // Valued accounts hide the leftover mirror; Manual accounts show only the mirror.
+    const isHidden = (accountId: string, securityId: string) => {
+      const isMirror = securityId === manualHoldingSecurityId(accountId);
+      const source = byId.get(accountId)?.balanceSource;
+      return source === BalanceSource.Manual
+        ? !isMirror
+        : source === BalanceSource.Valuation && isMirror;
+    };
 
     const snapshots = (
       await this.prisma.holdingSnapshot.findMany({
@@ -37,7 +42,7 @@ export class CurrentHoldingsReader {
         include: { security: true },
         orderBy: { date: 'desc' },
       })
-    ).filter((s) => !isLeftoverMirror(s.accountId, s.securityId));
+    ).filter((s) => !isHidden(s.accountId, s.securityId));
     const current = latestSets(snapshots);
     const book = await PriceBook.load(
       this.prisma,
