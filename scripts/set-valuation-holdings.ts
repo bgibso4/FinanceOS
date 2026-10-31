@@ -127,7 +127,9 @@ async function main() {
     console.warn(`Switched ${entry.accountId}: balance ${fmt(after.balance)} (${after.source})`);
   }
   // One-time backfill: migrated manual entries predate the single-holding mirror.
-  console.warn(`Manual holdings rebuilt for ${await services.manualHoldings.syncAll()} account(s)`);
+  console.warn(
+    `Manual holdings rebuilt for ${await services.enteredBalances.syncAll()} account(s)`
+  );
 }
 
 main()

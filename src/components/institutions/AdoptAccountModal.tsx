@@ -5,7 +5,7 @@ import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { ds } from '@/lib/design-system';
-import { mapBankAccountType } from '@/lib/bank-account-matching';
+import { isInvestmentProviderType, mapBankAccountType } from '@/lib/bank-account-matching';
 import type { DiscoveredAccount, Provider } from './types';
 
 const ACCOUNT_TYPES = [
@@ -111,6 +111,13 @@ export function AdoptAccountModal({
               </option>
             ))}
           </Select>
+          {account && isInvestmentProviderType(account.type) && (
+            <p className={`mt-1.5 text-xs ${ds.text.muted}`} data-testid="adopt-investment-note">
+              Your institution reports this as an <strong>investment account</strong>, so it will
+              track a balance history, holdings and activity, and stay out of budgets and spending.
+              Balance source: <strong>Synced</strong>.
+            </p>
+          )}
         </div>
 
         {error && <p className={`text-sm ${ds.status.error.text}`}>{error}</p>}

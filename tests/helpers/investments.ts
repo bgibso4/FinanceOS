@@ -40,7 +40,13 @@ export const noSleep = async (_ms: number) => {};
 
 export function seedInvestmentAccount(
   prisma: PrismaClient,
-  over: { balanceSource?: string; currency?: string; type?: string; name?: string } = {}
+  over: {
+    balanceSource?: string;
+    currency?: string;
+    type?: string;
+    name?: string;
+    isActive?: boolean;
+  } = {}
 ) {
   return prisma.account.create({
     data: {
@@ -51,6 +57,7 @@ export function seedInvestmentAccount(
       }),
       trackingMode: 'investment',
       balanceSource: over.balanceSource ?? BalanceSource.Provider,
+      ...(over.isActive === undefined ? {} : { isActive: over.isActive }),
     },
   });
 }

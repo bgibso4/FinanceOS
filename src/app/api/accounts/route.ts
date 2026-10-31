@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { getDefaultTrackingMode, TRACKING_MODES } from '@/lib/account-defaults';
+import {
+  defaultBalanceSource,
+  getDefaultTrackingMode,
+  TRACKING_MODES,
+} from '@/lib/account-defaults';
 import { BalanceSource } from '@/lib/investments/codes';
 
 const accountSchema = z.object({
@@ -46,6 +50,8 @@ export async function POST(req: NextRequest) {
 
   // Set default trackingMode based on account type if not provided
   const trackingMode = parsed.trackingMode ?? getDefaultTrackingMode(parsed.type);
+  const balanceSource =
+    parsed.balanceSource ?? defaultBalanceSource(trackingMode, { synced: false });
 
   // Get the maximum sortOrder to place new account at the end
   const maxSortOrder = await prisma.account.aggregate({
@@ -57,7 +63,7 @@ export async function POST(req: NextRequest) {
     data: {
       ...parsed,
       trackingMode,
-      balanceSource: parsed.balanceSource ?? null,
+      balanceSource,
       sortOrder: nextSortOrder,
     },
   });

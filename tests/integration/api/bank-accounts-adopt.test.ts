@@ -11,6 +11,7 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
+import { BalanceSource } from '@/lib/investments/codes';
 import { POST } from '@/app/api/bank-accounts/adopt/route';
 
 function adoptRequest(body: unknown): NextRequest {
@@ -260,5 +261,55 @@ describe('bank-accounts adopt API', () => {
     const statuses = [resA.status, resB.status].sort();
     expect(statuses).toEqual([200, 409]);
     expect(await prisma.account.count()).toBe(1);
+  });
+
+  describe('investment accounts', () => {
+    async function seedPlaidEnrollment() {
+      return prisma.plaidEnrollment.create({
+        data: {
+          plaidItemId: 'item_inv',
+          institutionId: 'ins_inv',
+          institutionName: 'Test Brokerage',
+          accessTokenEncrypted: 'enc',
+          accessTokenIv: 'iv',
+          status: 'connected',
+        },
+      });
+    }
+
+    async function adopt(provider: 'plaid' | 'teller', type: string, providerType: string) {
+      const enrollment =
+        provider === 'plaid' ? await seedPlaidEnrollment() : await seedTellerEnrollment();
+      const res = await POST(
+        adoptRequest({
+          provider,
+          enrollmentId: enrollment.id,
+          externalAccountId: 'ext_inv_1',
+          name: 'Test Account',
+          type,
+          providerType,
+        })
+      );
+      expect(res.status).toBe(200);
+      return (await res.json()).account;
+    }
+
+    it('adopts an aggregator investment account as a synced investment account whatever type is picked', async () => {
+      const account = await adopt('plaid', 'other', 'investment');
+      expect(account.trackingMode).toBe('investment');
+      expect(account.balanceSource).toBe(BalanceSource.Provider);
+    });
+
+    it('adopts a brokerage-typed Plaid depository account as synced', async () => {
+      const account = await adopt('plaid', 'brokerage', 'depository');
+      expect(account.trackingMode).toBe('investment');
+      expect(account.balanceSource).toBe(BalanceSource.Provider);
+    });
+
+    it('adopts a brokerage-typed Teller account as a manual investment account', async () => {
+      const account = await adopt('teller', 'brokerage', 'depository');
+      expect(account.trackingMode).toBe('investment');
+      expect(account.balanceSource).toBe(BalanceSource.Manual);
+    });
   });
 });

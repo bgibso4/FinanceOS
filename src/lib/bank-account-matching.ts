@@ -57,6 +57,11 @@ export function mapBankAccountType(type: string): string {
   return 'other';
 }
 
+/** True when the aggregator itself classifies the account as an investment account. */
+export function isInvestmentProviderType(providerType: string | null | undefined): boolean {
+  return (providerType ?? '').toLowerCase() === 'investment';
+}
+
 type Tier = (conn: ExistingConnection, acc: ProviderAccount) => boolean;
 
 // Tried in order. Each is strictly weaker than the one before it.

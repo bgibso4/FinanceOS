@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 
 interface ModalProps {
   isOpen: boolean;
@@ -15,6 +15,7 @@ const sizeClasses = {
 };
 
 export function Modal({ isOpen, onClose, title, children, size = 'default' }: ModalProps) {
+  const titleId = useId();
   if (!isOpen) return null;
 
   return (
@@ -27,12 +28,17 @@ export function Modal({ isOpen, onClose, title, children, size = 'default' }: Mo
 
       {/* Modal */}
       <div
+        aria-labelledby={titleId}
+        aria-modal="true"
         className={`relative bg-[var(--bg-elevated)] rounded-xl ${sizeClasses[size]} w-full max-h-[85vh] overflow-hidden border border-[var(--border-hover)]`}
+        role="dialog"
         style={{ boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-[var(--border)] bg-[var(--bg-base)]">
-          <h3 className="text-xl font-bold text-[var(--text-primary)]">{title}</h3>
+          <h3 className="text-xl font-bold text-[var(--text-primary)]" id={titleId}>
+            {title}
+          </h3>
           <button
             className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] rounded-full p-1 transition-colors"
             onClick={onClose}

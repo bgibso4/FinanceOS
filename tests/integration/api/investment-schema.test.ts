@@ -100,8 +100,14 @@ describe('investment schema', () => {
   });
 
   it('PATCH accepts trackingMode investment with a balanceSource', async () => {
+    // Converting to investment is refused (account-source-switch.test.ts); an investment account
+    // still accepts both fields.
     const account = await testPrisma.account.create({
-      data: createAccountData({ type: 'brokerage' }),
+      data: {
+        ...createAccountData({ type: 'brokerage' }),
+        trackingMode: 'investment',
+        balanceSource: BalanceSource.Manual,
+      },
     });
     const req = new NextRequest(`http://localhost/api/accounts/${account.id}`, {
       method: 'PATCH',

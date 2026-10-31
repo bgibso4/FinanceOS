@@ -36,8 +36,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error }, { status: 400 });
       }
       const { balance } = await getAccountBalance(prisma, accountId);
-      const { manualHoldings } = await getInvestmentServices();
-      const accountBalance = await manualHoldings.record(accountId, {
+      const { enteredBalances } = await getInvestmentServices();
+      const accountBalance = await enteredBalances.record(accountId, {
         date: new Date(),
         balance: balance + amount,
       });

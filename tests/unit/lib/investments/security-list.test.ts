@@ -10,7 +10,7 @@ import {
   seedTrade,
   testServices,
 } from '../../../helpers/investments';
-import { manualHoldingSecurityId } from '@/lib/investments/manual-holding';
+import { manualHoldingSecurityId } from '@/lib/investments/entered-balances';
 import { BalanceSource, PriceSource, Pricing, SecurityType } from '@/lib/investments/codes';
 
 let prisma: PrismaClient;
@@ -240,7 +240,7 @@ describe('SecurityListReader', () => {
       balanceSource: BalanceSource.Manual,
       name: 'Pension',
     });
-    await services().manualHoldings.record(pension.id, { date: '2026-10-01', balance: 500 });
+    await services().enteredBalances.record(pension.id, { date: '2026-10-01', balance: 500 });
     expect((await list()).securities).toEqual([]);
   });
 

@@ -4,6 +4,7 @@ import {
   mapBankAccountType,
   normalizeAccountName,
   isAccountIgnored,
+  isInvestmentProviderType,
   type ExistingConnection,
   type ProviderAccount,
 } from '@/lib/bank-account-matching';
@@ -163,5 +164,15 @@ describe('isAccountIgnored', () => {
     expect(isAccountIgnored({ externalId: 'acc_new', lastFour: '9999' }, 'chase', ignored)).toBe(
       false
     );
+  });
+});
+
+describe('isInvestmentProviderType', () => {
+  it('recognises only the aggregator’s investment type', () => {
+    expect(isInvestmentProviderType('investment')).toBe(true);
+    expect(isInvestmentProviderType('Investment')).toBe(true);
+    for (const t of ['depository', 'credit', '', undefined, null]) {
+      expect(isInvestmentProviderType(t)).toBe(false);
+    }
   });
 });

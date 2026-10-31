@@ -1,7 +1,15 @@
 import { getCurrencySymbol } from '@/lib/currency';
+import { BalanceSource } from '@/lib/investments/codes';
 import type { SeriesChange } from '@/lib/investments/portfolio-view';
 
 export const MINUS = '−';
+
+/** How each balance source reads in pills, badges and the source picker. */
+export const SOURCE_LABEL: Record<BalanceSource, 'Synced' | 'Valued' | 'Manual'> = {
+  [BalanceSource.Provider]: 'Synced',
+  [BalanceSource.Valuation]: 'Valued',
+  [BalanceSource.Manual]: 'Manual',
+};
 const DAY_MS = 86_400_000;
 const DEADBAND_PCT = 0.05;
 

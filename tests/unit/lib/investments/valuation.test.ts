@@ -10,7 +10,7 @@ import {
 } from '../../../helpers/investments';
 import { fixedClock } from '@/lib/clock';
 import { ValuationService } from '@/lib/investments/valuation';
-import { ManualHoldingService, manualHoldingSecurityId } from '@/lib/investments/manual-holding';
+import { EnteredBalanceService, manualHoldingSecurityId } from '@/lib/investments/entered-balances';
 import { isoDay } from '@/lib/investments/dates';
 import { BalanceRowSource, BalanceSource, Pricing, RecordSource } from '@/lib/investments/codes';
 
@@ -21,8 +21,8 @@ const MONDAY = '2026-10-05T22:00:00Z';
 /** Services on a fixed clock (these tests seed prices directly). */
 function at(iso: string) {
   const clock = fixedClock(iso);
-  const manualHoldings = new ManualHoldingService(prisma, clock);
-  return { manualHoldings, valuation: new ValuationService(prisma, manualHoldings, clock) };
+  const enteredBalances = new EnteredBalanceService(prisma, clock);
+  return { enteredBalances, valuation: new ValuationService(prisma, enteredBalances, clock) };
 }
 
 const balances = async (accountId: string) =>
@@ -97,9 +97,9 @@ describe('ValuationService', () => {
 
   it('the first valued entry removes the manual-holding mirror', async () => {
     const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Manual });
-    const { manualHoldings, valuation } = at(FRIDAY);
+    const { enteredBalances, valuation } = at(FRIDAY);
     await seedBalance(prisma, a.id, '2026-07-12', 500, BalanceRowSource.Manual);
-    await manualHoldings.sync(a.id);
+    await enteredBalances.sync(a.id);
     await prisma.account.update({
       where: { id: a.id },
       data: { balanceSource: BalanceSource.Valuation },
@@ -118,10 +118,10 @@ describe('ValuationService', () => {
 
   it('does not value the manual-holding mirror before valued holdings are set', async () => {
     const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Manual });
-    const { manualHoldings, valuation } = at(FRIDAY);
+    const { enteredBalances, valuation } = at(FRIDAY);
     await seedBalance(prisma, a.id, '2026-07-12', 500, BalanceRowSource.Manual);
     await seedBalance(prisma, a.id, '2026-08-20', 650, BalanceRowSource.Manual);
-    await manualHoldings.sync(a.id);
+    await enteredBalances.sync(a.id);
     await prisma.account.update({
       where: { id: a.id },
       data: { balanceSource: BalanceSource.Valuation },
@@ -214,6 +214,36 @@ describe('ValuationService', () => {
     ]);
     expect(await balances(a.id)).toEqual([]);
   });
+  it('never overwrites a synced balance row; values only days without one', async () => {
+    const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Valuation });
+    const s = await seedSecurity(prisma, { priceSymbol: 'AAA' });
+    for (const date of ['2026-10-02', '2026-10-05']) {
+      await seedSnapshot(prisma, {
+        accountId: a.id,
+        securityId: s.id,
+        date,
+        quantity: 2,
+        price: 10,
+      });
+    }
+    for (const d of ['2026-10-02', '2026-10-05', '2026-10-06'])
+      await seedPrice(prisma, s.id, d, 10);
+    await seedBalance(prisma, a.id, '2026-10-02', 1000, BalanceRowSource.Synced);
+    await seedBalance(prisma, a.id, '2026-10-05', 2000, BalanceRowSource.Synced);
+    const { valuation } = at('2026-10-06T22:00:00Z');
+    expect(await valuation.writeBalances()).toBe(1);
+    expect(await balances(a.id)).toEqual([
+      ['2026-10-02', 1000, BalanceRowSource.Synced],
+      ['2026-10-05', 2000, BalanceRowSource.Synced],
+      ['2026-10-06', 20, BalanceRowSource.Valuation],
+    ]);
+    await valuation.writeBalances({ from: new Date('2026-10-01T00:00:00Z') });
+    expect((await balances(a.id)).slice(0, 2)).toEqual([
+      ['2026-10-02', 1000, BalanceRowSource.Synced],
+      ['2026-10-05', 2000, BalanceRowSource.Synced],
+    ]);
+  });
+
   describe('cash holdings', () => {
     const seedCash = (currency: string) =>
       seedSecurity(prisma, {

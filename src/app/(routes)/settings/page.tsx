@@ -27,6 +27,18 @@ import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
+import { Drawer, DRAWER_PUSH_CLASS } from '@/components/ui/drawer';
+import {
+  drawerSections,
+  drawerSubtitle,
+  investmentBadge,
+  TRACKING_INVESTMENT_TEXT,
+} from '@/components/investments/account-drawer';
+import { BalanceSourcePicker } from '@/components/investments/balance-source-picker';
+import { AccountHoldingsSection } from '@/components/investments/account-holdings-section';
+import { EnteredBalancesSection } from '@/components/investments/entered-balances-section';
+import type { TrackingMode } from '@/lib/account-defaults';
+import { BalanceSource } from '@/lib/investments/codes';
 import { ds } from '@/lib/design-system';
 import { syncUnits, statsForAccount, isSyncAllCandidate } from '@/lib/sync-grouping';
 import { investmentSyncStatus } from '@/lib/investments/sync-status';
@@ -74,13 +86,21 @@ type Account = {
   institution?: string | null;
   isActive?: boolean;
   currency?: string;
-  trackingMode?: 'cash_flow' | 'balance_only';
+  trackingMode?: TrackingMode;
+  balanceSource?: BalanceSource | null;
   invertAmounts?: boolean;
   sortOrder?: number;
   plaidConnection?: PlaidConnection | null;
   tellerConnection?: TellerConnection | null;
 };
 type AccountBalance = { id: string; balance: number; nativeBalance: number; currency: string };
+
+const drawerAccount = (a: Account) => ({
+  ...a,
+  hasConnection: !!(a.plaidConnection || a.tellerConnection),
+});
+// Spec note 1: only the Plaid connection syncs investment balances, so only it locks Synced.
+const canSync = (a: Account) => !!a.plaidConnection;
 type Category = { id: string; name: string; type: string; parentId?: string | null };
 type Rule = {
   id: string;
@@ -256,10 +276,12 @@ const getBankBackground = (institution: string | null | undefined) => {
 function SortableAccountCard({
   account,
   balance,
+  selected,
   onOpenModal,
 }: {
   account: Account;
   balance: number;
+  selected: boolean;
   onOpenModal: (account: Account) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -276,13 +298,32 @@ function SortableAccountCard({
   const accountStyle = getAccountStyle(account.type);
   const bankBg = getBankBackground(account.institution);
   const isArchived = account.isActive === false;
+  const modeBadge =
+    account.trackingMode === 'balance_only'
+      ? 'Net Worth Only'
+      : investmentBadge(drawerAccount(account));
+  const selectedClass = selected
+    ? 'border-[var(--accent)] ring-[3px] ring-[color-mix(in_srgb,var(--accent)_18%,transparent)]'
+    : '';
+  const openProps = {
+    'aria-pressed': selected,
+    role: 'button',
+    tabIndex: 0,
+    onClick: () => onOpenModal(account),
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      onOpenModal(account);
+    },
+  };
 
   // Render card with bank background
   if (bankBg) {
     return (
       <div
         ref={setNodeRef}
-        className={`relative rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all ${isArchived ? 'opacity-60' : ''} ${isDragging ? 'shadow-2xl' : ''}`}
+        className={`relative rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all ${isArchived ? 'opacity-60' : ''} ${isDragging ? 'shadow-2xl' : ''} ${selectedClass}`}
+        data-selected={selected}
         style={style}
       >
         {/* Drag handle */}
@@ -310,7 +351,7 @@ function SortableAccountCard({
             backgroundPosition: 'center',
             aspectRatio: '1.8 / 1',
           }}
-          onClick={() => onOpenModal(account)}
+          {...openProps}
         >
           {/* Lighter gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-br from-black/30 via-transparent to-transparent" />
@@ -323,9 +364,9 @@ function SortableAccountCard({
                 <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-medium backdrop-blur-sm">
                   {account.type.charAt(0).toUpperCase() + account.type.slice(1)}
                 </span>
-                {account.trackingMode === 'balance_only' && (
+                {modeBadge && (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--accent)]/50 text-white font-medium backdrop-blur-sm">
-                    Net Worth Only
+                    {modeBadge}
                   </span>
                 )}
                 {isArchived && (
@@ -355,7 +396,8 @@ function SortableAccountCard({
   return (
     <div
       ref={setNodeRef}
-      className={`rounded-xl border-2 ${accountStyle.color} ${isArchived ? `opacity-60 ${ds.bg.secondary}` : ds.bg.primary} p-4 shadow-sm hover:shadow-md transition-shadow ${isDragging ? 'shadow-2xl' : ''}`}
+      className={`rounded-xl border-2 ${accountStyle.color} ${isArchived ? `opacity-60 ${ds.bg.secondary}` : ds.bg.primary} p-4 shadow-sm hover:shadow-md transition-shadow ${isDragging ? 'shadow-2xl' : ''} ${selectedClass}`}
+      data-selected={selected}
       style={style}
     >
       {/* Drag handle */}
@@ -375,7 +417,7 @@ function SortableAccountCard({
         </svg>
       </div>
 
-      <div className="cursor-pointer" onClick={() => onOpenModal(account)}>
+      <div className="cursor-pointer" {...openProps}>
         <div className="space-y-2">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2">
@@ -393,11 +435,11 @@ function SortableAccountCard({
                   >
                     {account.type.charAt(0).toUpperCase() + account.type.slice(1)}
                   </Badge>
-                  {account.trackingMode === 'balance_only' && (
+                  {modeBadge && (
                     <Badge
                       className={`text-xs px-2 py-1 ${ds.status.purple.text} bg-transparent border-current`}
                     >
-                      Net Worth Only
+                      {modeBadge}
                     </Badge>
                   )}
                   {isArchived && (
@@ -476,9 +518,7 @@ function SettingsPageContent() {
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [modalAccount, setModalAccount] = useState<Account | null>(null);
   const [accountTransactionCount, setAccountTransactionCount] = useState(0);
-  const [modalAccountBalance, setModalAccountBalance] = useState(0);
-  const [modalNativeBalance, setModalNativeBalance] = useState(0);
-  const [modalAccountCurrency, setModalAccountCurrency] = useState('USD');
+  const [accountSaveError, setAccountSaveError] = useState<string | null>(null);
   const [reconcileTarget, setReconcileTarget] = useState('');
   const [newCategory, setNewCategory] = useState({ name: '', type: 'expense', parentId: '' });
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -700,13 +740,15 @@ function SettingsPageContent() {
     setAccountNativeBalances(nativeMap);
   };
 
-  const refreshAccounts = async () => {
+  const refreshAccounts = async (): Promise<Account[]> => {
     const [acc, bal] = await Promise.all([
       fetch('/api/accounts').then((r) => r.json()),
       fetch('/api/accounts/balances').then((r) => r.json()),
     ]);
-    setAccounts(acc.accounts ?? []);
+    const fresh: Account[] = acc.accounts ?? [];
+    setAccounts(fresh);
     updateBalanceMaps(bal.accounts ?? []);
+    return fresh;
   };
 
   const refreshCategories = async () => {
@@ -763,6 +805,7 @@ function SettingsPageContent() {
     setModalAccount(account);
     setAccountModalOpen(true);
     setReconcileTarget('');
+    setAccountSaveError(null);
 
     // Get transaction count for this account (use preset=custom with wide range to get ALL transactions)
     try {
@@ -774,21 +817,13 @@ function SettingsPageContent() {
     } catch (_error) {
       setAccountTransactionCount(0);
     }
-
-    // Use the already-computed balance from the balances API (sums ALL transactions)
-    setModalAccountBalance(accountBalances.get(account.id) ?? 0);
-    const native = accountNativeBalances.get(account.id);
-    setModalNativeBalance(native?.balance ?? accountBalances.get(account.id) ?? 0);
-    setModalAccountCurrency(native?.currency ?? account.currency ?? 'USD');
   };
 
   const closeAccountModal = () => {
     setAccountModalOpen(false);
     setModalAccount(null);
     setAccountTransactionCount(0);
-    setModalAccountBalance(0);
-    setModalNativeBalance(0);
-    setModalAccountCurrency('USD');
+    setAccountSaveError(null);
     setReconcileTarget('');
     setSyncResult(null);
   };
@@ -874,23 +909,10 @@ function SettingsPageContent() {
         removed: data.removed,
         skippedOld: data.skippedOld,
       });
-      // Refresh accounts + balances, then update modal with fresh data
-      const [acc, bal] = await Promise.all([
-        fetch('/api/accounts').then((r) => r.json()),
-        fetch('/api/accounts/balances').then((r) => r.json()),
-      ]);
-      setAccounts(acc.accounts ?? []);
-      const balAccounts: AccountBalance[] = bal.accounts ?? [];
-      updateBalanceMaps(balAccounts);
-
-      const updatedAccount = (acc.accounts ?? []).find((a: Account) => a.id === modalAccount.id);
-      if (updatedAccount) {
-        setModalAccount(updatedAccount);
-        const native = balAccounts.find((a) => a.id === modalAccount.id);
-        setModalAccountBalance(native?.balance ?? 0);
-        setModalNativeBalance(native?.nativeBalance ?? 0);
-        setModalAccountCurrency(native?.currency ?? 'USD');
-      }
+      // Refresh accounts + balances (the drawer reads balances live), then the drawer's row
+      const fresh = await refreshAccounts();
+      const updatedAccount = fresh.find((a) => a.id === modalAccount.id);
+      if (updatedAccount) setModalAccount(updatedAccount);
     } catch (_error) {
       alert('Failed to sync transactions');
     } finally {
@@ -1104,23 +1126,10 @@ function SettingsPageContent() {
         merged: data.merged,
         skippedOld: data.skippedPending,
       });
-      // Refresh accounts + balances, then update modal with fresh data
-      const [acc, bal] = await Promise.all([
-        fetch('/api/accounts').then((r) => r.json()),
-        fetch('/api/accounts/balances').then((r) => r.json()),
-      ]);
-      setAccounts(acc.accounts ?? []);
-      const balAccounts: AccountBalance[] = bal.accounts ?? [];
-      updateBalanceMaps(balAccounts);
-
-      const updatedAccount = (acc.accounts ?? []).find((a: Account) => a.id === modalAccount.id);
-      if (updatedAccount) {
-        setModalAccount(updatedAccount);
-        const native = balAccounts.find((a) => a.id === modalAccount.id);
-        setModalAccountBalance(native?.balance ?? 0);
-        setModalNativeBalance(native?.nativeBalance ?? 0);
-        setModalAccountCurrency(native?.currency ?? 'USD');
-      }
+      // Refresh accounts + balances (the drawer reads balances live), then the drawer's row
+      const fresh = await refreshAccounts();
+      const updatedAccount = fresh.find((a) => a.id === modalAccount.id);
+      if (updatedAccount) setModalAccount(updatedAccount);
     } catch (_error) {
       alert('Failed to sync transactions');
     } finally {
@@ -1392,7 +1401,7 @@ function SettingsPageContent() {
 
   const updateModalAccount = async () => {
     if (!modalAccount) return;
-    await fetch(`/api/accounts/${modalAccount.id}`, {
+    const res = await fetch(`/api/accounts/${modalAccount.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1402,10 +1411,20 @@ function SettingsPageContent() {
         currency: modalAccount.currency,
         trackingMode: modalAccount.trackingMode,
         invertAmounts: modalAccount.invertAmounts,
+        ...(modalAccount.trackingMode === 'investment' && {
+          balanceSource: modalAccount.balanceSource,
+        }),
       }),
     });
-    closeAccountModal();
-    refreshAccounts();
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setAccountSaveError(data.error || 'Failed to save changes');
+      return;
+    }
+    setAccountSaveError(null);
+    const fresh = await refreshAccounts();
+    const saved = fresh.find((a) => a.id === modalAccount.id);
+    if (saved) setModalAccount(saved);
   };
 
   const deleteAccount = async () => {
@@ -1505,11 +1524,10 @@ function SettingsPageContent() {
         return;
       }
 
-      // Update the modal balance and clear input
-      setModalNativeBalance(targetBalance);
+      // Clear input; the drawer reads the refreshed balances
       setReconcileTarget('');
       setAccountTransactionCount(accountTransactionCount + 1);
-      refreshAccounts();
+      await refreshAccounts();
     } catch (_error) {
       alert('Failed to create adjustment');
     }
@@ -1901,8 +1919,22 @@ function SettingsPageContent() {
     }
   };
 
+  // Drawer: balances are read live so they update after writes; sections, subtitle and the
+  // section keys follow the saved row, not the picker's unsaved value.
+  const modalAccountBalance = modalAccount ? (accountBalances.get(modalAccount.id) ?? 0) : 0;
+  const modalNative = modalAccount ? accountNativeBalances.get(modalAccount.id) : undefined;
+  const modalNativeBalance = modalNative?.balance ?? modalAccountBalance;
+  const modalAccountCurrency = modalNative?.currency ?? modalAccount?.currency ?? 'USD';
+  const savedModalAccount = modalAccount
+    ? (accounts.find((a) => a.id === modalAccount.id) ?? modalAccount)
+    : null;
+  const sections = savedModalAccount ? drawerSections(drawerAccount(savedModalAccount)) : [];
+  const sectionKey = savedModalAccount
+    ? `${savedModalAccount.id}:${savedModalAccount.balanceSource}`
+    : '';
+
   return (
-    <div className="space-y-4">
+    <div className={cn('space-y-4', accountModalOpen && DRAWER_PUSH_CLASS)}>
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-[var(--text-primary)]">Settings</h1>
       </div>
@@ -2407,6 +2439,7 @@ function SettingsPageContent() {
                           key={a.id}
                           account={a}
                           balance={accountBalances.get(a.id) ?? 0}
+                          selected={accountModalOpen && modalAccount?.id === a.id}
                           onOpenModal={openAccountModal}
                         />
                       ))}
@@ -2622,14 +2655,15 @@ function SettingsPageContent() {
         </Card>
       )}
 
-      {/* Account Management Modal */}
-      <Modal
-        isOpen={accountModalOpen}
+      {/* Account Management Drawer */}
+      <Drawer
+        open={accountModalOpen}
+        subtitle={savedModalAccount ? drawerSubtitle(drawerAccount(savedModalAccount)) : undefined}
         title={modalAccount ? `Manage ${modalAccount.name}` : 'Manage Account'}
         onClose={closeAccountModal}
       >
         {modalAccount && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Edit Account */}
             <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
               <h4 className={`font-semibold ${ds.text.primary} mb-3`}>Edit Details</h4>
@@ -2701,25 +2735,38 @@ function SettingsPageContent() {
                   <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
                     Tracking Mode
                   </label>
-                  <Select
-                    className="w-full"
-                    value={modalAccount.trackingMode || 'cash_flow'}
-                    onChange={(e) =>
-                      setModalAccount({
-                        ...modalAccount,
-                        trackingMode: e.target.value as 'cash_flow' | 'balance_only',
-                      })
-                    }
-                  >
-                    <option value="cash_flow">Cash Flow (budgeting)</option>
-                    <option value="balance_only">Balance Only (net worth)</option>
-                  </Select>
-                  <div className={`text-xs ${ds.text.muted} mt-1`}>
-                    {modalAccount.trackingMode === 'balance_only'
-                      ? '📊 Transactions excluded from budgeting, only balance counts for net worth'
-                      : '💰 Transactions included in budgeting analysis and net worth'}
-                  </div>
+                  {modalAccount.trackingMode === 'investment' ? (
+                    <div className={`text-sm ${ds.text.muted}`}>{TRACKING_INVESTMENT_TEXT}</div>
+                  ) : (
+                    <>
+                      <Select
+                        className="w-full"
+                        value={modalAccount.trackingMode || 'cash_flow'}
+                        onChange={(e) =>
+                          setModalAccount({
+                            ...modalAccount,
+                            trackingMode: e.target.value as TrackingMode,
+                          })
+                        }
+                      >
+                        <option value="cash_flow">Cash Flow (budgeting)</option>
+                        <option value="balance_only">Balance Only (net worth)</option>
+                      </Select>
+                      <div className={`text-xs ${ds.text.muted} mt-1`}>
+                        {modalAccount.trackingMode === 'balance_only'
+                          ? '📊 Transactions excluded from budgeting, only balance counts for net worth'
+                          : '💰 Transactions included in budgeting analysis and net worth'}
+                      </div>
+                    </>
+                  )}
                 </div>
+                {modalAccount.trackingMode === 'investment' && (
+                  <BalanceSourcePicker
+                    canSync={canSync(modalAccount)}
+                    value={modalAccount.balanceSource ?? BalanceSource.Manual}
+                    onChange={(s) => setModalAccount({ ...modalAccount, balanceSource: s })}
+                  />
+                )}
                 {/* Show invert amounts option for bank-synced accounts */}
                 {(modalAccount.plaidConnection || modalAccount.tellerConnection) && (
                   <div>
@@ -2751,6 +2798,11 @@ function SettingsPageContent() {
                 >
                   Save Changes
                 </Button>
+                {accountSaveError && (
+                  <p className="text-sm text-[var(--red)]" role="alert">
+                    {accountSaveError}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -2795,135 +2847,330 @@ function SettingsPageContent() {
             </div>
 
             {/* Reconcile Balance */}
-            <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
-              <h4 className={`font-semibold ${ds.status.purple.text} mb-3`}>Reconcile Balance</h4>
-              <div className={`text-sm ${ds.text.secondary} mb-3`}>
-                Enter the actual balance from your bank statement to create an adjustment
-                transaction.
-                {modalAccountCurrency !== (userSettings?.baseCurrency || 'USD') && (
-                  <span className={ds.text.muted}>
-                    {' '}
-                    Values are in {modalAccountCurrency} (account currency).
-                  </span>
-                )}
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
-                      Current ({modalAccountCurrency})
-                    </label>
-                    <div
-                      className={`text-lg font-bold ${modalNativeBalance >= 0 ? ds.text.primary : 'text-[var(--red)]'}`}
-                    >
-                      {formatCurrency(modalNativeBalance, modalAccountCurrency)}
+            {sections.includes('reconcile') && (
+              <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
+                <h4 className={`font-semibold ${ds.status.purple.text} mb-3`}>Reconcile Balance</h4>
+                <div className={`text-sm ${ds.text.secondary} mb-3`}>
+                  Enter the actual balance from your bank statement to create an adjustment
+                  transaction.
+                  {modalAccountCurrency !== (userSettings?.baseCurrency || 'USD') && (
+                    <span className={ds.text.muted}>
+                      {' '}
+                      Values are in {modalAccountCurrency} (account currency).
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
+                        Current ({modalAccountCurrency})
+                      </label>
+                      <div
+                        className={`text-lg font-bold ${modalNativeBalance >= 0 ? ds.text.primary : 'text-[var(--red)]'}`}
+                      >
+                        {formatCurrency(modalNativeBalance, modalAccountCurrency)}
+                      </div>
+                    </div>
+                    <div className={ds.text.muted}>→</div>
+                    <div className="flex-1">
+                      <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
+                        Actual Balance ({modalAccountCurrency})
+                      </label>
+                      <Input
+                        className="w-full"
+                        placeholder="0.00"
+                        step="0.01"
+                        type="number"
+                        value={reconcileTarget}
+                        onChange={(e) => setReconcileTarget(e.target.value)}
+                      />
                     </div>
                   </div>
-                  <div className={ds.text.muted}>→</div>
-                  <div className="flex-1">
-                    <label className={`block text-xs font-medium ${ds.text.secondary} mb-1`}>
-                      Actual Balance ({modalAccountCurrency})
-                    </label>
-                    <Input
-                      className="w-full"
-                      placeholder="0.00"
-                      step="0.01"
-                      type="number"
-                      value={reconcileTarget}
-                      onChange={(e) => setReconcileTarget(e.target.value)}
-                    />
-                  </div>
+                  {reconcileTarget && !isNaN(parseFloat(reconcileTarget)) && (
+                    <div className={`${ds.bg.primary} rounded p-2 text-sm`}>
+                      <span className={ds.text.secondary}>Adjustment needed: </span>
+                      <span
+                        className={`font-semibold ${parseFloat(reconcileTarget) - modalNativeBalance >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
+                      >
+                        {parseFloat(reconcileTarget) - modalNativeBalance >= 0 ? '+' : ''}
+                        {formatCurrency(
+                          parseFloat(reconcileTarget) - modalNativeBalance,
+                          modalAccountCurrency
+                        )}
+                      </span>
+                    </div>
+                  )}
+                  <Button
+                    className="w-full bg-[var(--accent)] hover:bg-[var(--accent)] disabled:bg-[var(--bg-elevated)] disabled:cursor-not-allowed py-3"
+                    disabled={
+                      !reconcileTarget ||
+                      isNaN(parseFloat(reconcileTarget)) ||
+                      Math.abs(parseFloat(reconcileTarget) - modalNativeBalance) < 0.01
+                    }
+                    onClick={reconcileBalance}
+                  >
+                    Create Adjustment
+                  </Button>
                 </div>
-                {reconcileTarget && !isNaN(parseFloat(reconcileTarget)) && (
-                  <div className={`${ds.bg.primary} rounded p-2 text-sm`}>
-                    <span className={ds.text.secondary}>Adjustment needed: </span>
-                    <span
-                      className={`font-semibold ${parseFloat(reconcileTarget) - modalNativeBalance >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}`}
-                    >
-                      {parseFloat(reconcileTarget) - modalNativeBalance >= 0 ? '+' : ''}
-                      {formatCurrency(
-                        parseFloat(reconcileTarget) - modalNativeBalance,
-                        modalAccountCurrency
-                      )}
-                    </span>
-                  </div>
-                )}
-                <Button
-                  className="w-full bg-[var(--accent)] hover:bg-[var(--accent)] disabled:bg-[var(--bg-elevated)] disabled:cursor-not-allowed py-3"
-                  disabled={
-                    !reconcileTarget ||
-                    isNaN(parseFloat(reconcileTarget)) ||
-                    Math.abs(parseFloat(reconcileTarget) - modalNativeBalance) < 0.01
-                  }
-                  onClick={reconcileBalance}
-                >
-                  Create Adjustment
-                </Button>
               </div>
-            </div>
+            )}
 
             {/* Bank Connection */}
-            <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
-              <h4 className={`font-semibold ${ds.status.info.text} mb-3`}>Bank Connection</h4>
+            {sections.includes('connection') && (
+              <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
+                <h4 className={`font-semibold ${ds.status.info.text} mb-3`}>Bank Connection</h4>
 
-              {modalAccount.tellerConnection ? (
-                // Teller Connection UI
-                <div className="space-y-4">
-                  {/* Connection Status */}
-                  <div className="flex items-center justify-between">
-                    <div className={`text-sm ${ds.text.secondary}`}>
-                      <div>
-                        Status:{' '}
-                        <SyncStatusBadge
-                          lastSyncAt={modalAccount.tellerConnection.lastSyncAt}
-                          status={modalAccount.tellerConnection.status}
-                        />
-                      </div>
-                      {modalAccount.tellerConnection.tellerEnrollment?.institutionName && (
-                        <div className="mt-1">
-                          Connected to:{' '}
-                          <span className={ds.text.primary}>
-                            {modalAccount.tellerConnection.tellerEnrollment.institutionName}
-                          </span>
-                          {modalAccount.tellerConnection.tellerAccountName &&
-                            ` - ${modalAccount.tellerConnection.tellerAccountName}`}{' '}
-                          (Teller)
+                {modalAccount.tellerConnection ? (
+                  // Teller Connection UI
+                  <div className="space-y-4">
+                    {/* Connection Status */}
+                    <div className="flex items-center justify-between">
+                      <div className={`text-sm ${ds.text.secondary}`}>
+                        <div>
+                          Status:{' '}
+                          <SyncStatusBadge
+                            lastSyncAt={modalAccount.tellerConnection.lastSyncAt}
+                            status={modalAccount.tellerConnection.status}
+                          />
                         </div>
+                        {modalAccount.tellerConnection.tellerEnrollment?.institutionName && (
+                          <div className="mt-1">
+                            Connected to:{' '}
+                            <span className={ds.text.primary}>
+                              {modalAccount.tellerConnection.tellerEnrollment.institutionName}
+                            </span>
+                            {modalAccount.tellerConnection.tellerAccountName &&
+                              ` - ${modalAccount.tellerConnection.tellerAccountName}`}{' '}
+                            (Teller)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Last Sync Error */}
+                    {modalAccount.tellerConnection.lastSyncError && (
+                      <div
+                        className={`p-2 rounded ${ds.status.error.bg} ${ds.status.error.text} text-sm`}
+                      >
+                        {modalAccount.tellerConnection.lastSyncError}
+                      </div>
+                    )}
+
+                    {/* Sync Result */}
+                    {syncResult && (
+                      <div
+                        className={`p-2 rounded ${ds.status.success.bg} ${ds.status.success.text} text-sm`}
+                      >
+                        <div>
+                          Sync complete: {syncResult.added} added
+                          {syncResult.merged ? `, ${syncResult.merged} merged` : ''}
+                          {syncResult.modified ? `, ${syncResult.modified} modified` : ''}
+                          {syncResult.removed ? `, ${syncResult.removed} removed` : ''}
+                        </div>
+                        {syncResult.skippedOld && syncResult.skippedOld > 0 && (
+                          <div className={`text-xs ${ds.text.muted} mt-1`}>
+                            ({syncResult.skippedOld} pending transactions skipped)
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="space-y-3">
+                      {modalAccount.tellerConnection.status === 'disconnected' ? (
+                        <TellerAccountLinkSelector
+                          accountId={modalAccount.id}
+                          accountName={modalAccount.name}
+                          onSuccess={async () => {
+                            await refreshAccounts();
+                            const updatedAccounts = await fetch('/api/accounts').then((r) =>
+                              r.json()
+                            );
+                            const updatedAccount = updatedAccounts.accounts?.find(
+                              (a: Account) => a.id === modalAccount.id
+                            );
+                            if (updatedAccount) {
+                              setModalAccount(updatedAccount);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <label className={`text-sm ${ds.text.secondary}`}>Import last:</label>
+                            <Select
+                              className="flex-1"
+                              value={daysToSync.toString()}
+                              onChange={(e) => setDaysToSync(parseInt(e.target.value))}
+                            >
+                              <option value="30">30 days</option>
+                              <option value="60">60 days</option>
+                              <option value="90">90 days</option>
+                              <option value="180">6 months</option>
+                              <option value="365">1 year</option>
+                              <option value="730">2 years</option>
+                            </Select>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              className="flex-1 py-3"
+                              disabled={previewLoading}
+                              variant="outline"
+                              onClick={handleTellerPreview}
+                            >
+                              {previewLoading ? 'Loading...' : 'Preview'}
+                            </Button>
+                            <Button
+                              className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent)] py-3"
+                              disabled={syncingAccountId === modalAccount.id}
+                              onClick={handleTellerSync}
+                            >
+                              {syncingAccountId === modalAccount.id ? 'Syncing...' : 'Sync Now'}
+                            </Button>
+                          </div>
+                        </>
                       )}
+                      <div className="flex gap-2">
+                        <Button
+                          className="w-full py-3"
+                          variant="outline"
+                          onClick={handleTellerDisconnect}
+                        >
+                          Disconnect
+                        </Button>
+                      </div>
                     </div>
                   </div>
-
-                  {/* Last Sync Error */}
-                  {modalAccount.tellerConnection.lastSyncError && (
-                    <div
-                      className={`p-2 rounded ${ds.status.error.bg} ${ds.status.error.text} text-sm`}
-                    >
-                      {modalAccount.tellerConnection.lastSyncError}
-                    </div>
-                  )}
-
-                  {/* Sync Result */}
-                  {syncResult && (
-                    <div
-                      className={`p-2 rounded ${ds.status.success.bg} ${ds.status.success.text} text-sm`}
-                    >
-                      <div>
-                        Sync complete: {syncResult.added} added
-                        {syncResult.merged ? `, ${syncResult.merged} merged` : ''}
-                        {syncResult.modified ? `, ${syncResult.modified} modified` : ''}
-                        {syncResult.removed ? `, ${syncResult.removed} removed` : ''}
-                      </div>
-                      {syncResult.skippedOld && syncResult.skippedOld > 0 && (
-                        <div className={`text-xs ${ds.text.muted} mt-1`}>
-                          ({syncResult.skippedOld} pending transactions skipped)
+                ) : modalAccount.plaidConnection ? (
+                  // Plaid Connection UI
+                  <div className="space-y-4">
+                    {/* Connection Status */}
+                    <div className="flex items-center justify-between">
+                      <div className={`text-sm ${ds.text.secondary}`}>
+                        <div>
+                          Status:{' '}
+                          <SyncStatusBadge
+                            lastSyncAt={modalAccount.plaidConnection.lastSyncAt}
+                            status={modalAccount.plaidConnection.status}
+                          />
                         </div>
-                      )}
+                        {modalAccount.plaidConnection.plaidEnrollment?.institutionName && (
+                          <div className="mt-1">
+                            Connected to:{' '}
+                            <span className={ds.text.primary}>
+                              {modalAccount.plaidConnection.plaidEnrollment.institutionName}
+                            </span>{' '}
+                            (Plaid)
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
 
-                  {/* Actions */}
-                  <div className="space-y-3">
-                    {modalAccount.tellerConnection.status === 'disconnected' ? (
+                    {/* Last Sync Error */}
+                    {modalAccount.plaidConnection.lastSyncError && (
+                      <div
+                        className={`p-2 rounded ${ds.status.error.bg} ${ds.status.error.text} text-sm`}
+                      >
+                        {modalAccount.plaidConnection.lastSyncError}
+                      </div>
+                    )}
+
+                    {/* Sync Result */}
+                    {syncResult && (
+                      <div
+                        className={`p-2 rounded ${ds.status.success.bg} ${ds.status.success.text} text-sm`}
+                      >
+                        <div>
+                          Sync complete: {syncResult.added} added, {syncResult.modified} modified,{' '}
+                          {syncResult.removed} removed
+                        </div>
+                        {syncResult.skippedOld && syncResult.skippedOld > 0 && (
+                          <div className={`text-xs ${ds.text.muted} mt-1`}>
+                            ({syncResult.skippedOld} older transactions skipped)
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="space-y-3">
+                      {modalAccount.plaidConnection.status === 'needs_reauth' ? (
+                        <PlaidReconnectButton
+                          className="w-full bg-[var(--accent)] hover:bg-[var(--accent)] py-3"
+                          enrollmentId={modalAccount.plaidConnection.plaidEnrollmentId}
+                          onSuccess={async () => {
+                            await refreshAccounts();
+                            const updatedAccounts = await fetch('/api/accounts').then((r) =>
+                              r.json()
+                            );
+                            const updatedAccount = updatedAccounts.accounts?.find(
+                              (a: Account) => a.id === modalAccount.id
+                            );
+                            if (updatedAccount) {
+                              setModalAccount(updatedAccount);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <label className={`text-sm ${ds.text.secondary}`}>Import last:</label>
+                            <Select
+                              className="flex-1"
+                              value={daysToSync.toString()}
+                              onChange={(e) => setDaysToSync(parseInt(e.target.value))}
+                            >
+                              <option value="30">30 days</option>
+                              <option value="60">60 days</option>
+                              <option value="90">90 days</option>
+                              <option value="180">6 months</option>
+                              <option value="365">1 year</option>
+                              <option value="730">2 years</option>
+                            </Select>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              className="flex-1 py-3"
+                              disabled={previewLoading}
+                              variant="outline"
+                              onClick={handlePlaidPreview}
+                            >
+                              {previewLoading ? 'Loading...' : 'Preview'}
+                            </Button>
+                            <Button
+                              className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent)] py-3"
+                              disabled={syncingAccountId === modalAccount.id}
+                              onClick={handlePlaidSync}
+                            >
+                              {syncingAccountId === modalAccount.id ? 'Syncing...' : 'Sync Now'}
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                      <div className="flex gap-2">
+                        <Button
+                          className="flex-1 py-3"
+                          variant="outline"
+                          onClick={handlePlaidDisconnect}
+                        >
+                          Disconnect
+                        </Button>
+                        <Button
+                          className="flex-1 py-3"
+                          variant="outline"
+                          onClick={handlePlaidResetCursor}
+                        >
+                          Reset Cursor
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  // No connection - show both Teller and Plaid link selectors
+                  <div className="space-y-4">
+                    <div>
+                      <h5 className={`text-sm font-medium ${ds.text.secondary} mb-2`}>Teller</h5>
                       <TellerAccountLinkSelector
                         accountId={modalAccount.id}
                         accountName={modalAccount.name}
@@ -2940,110 +3187,13 @@ function SettingsPageContent() {
                           }
                         }}
                       />
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-2">
-                          <label className={`text-sm ${ds.text.secondary}`}>Import last:</label>
-                          <Select
-                            className="flex-1"
-                            value={daysToSync.toString()}
-                            onChange={(e) => setDaysToSync(parseInt(e.target.value))}
-                          >
-                            <option value="30">30 days</option>
-                            <option value="60">60 days</option>
-                            <option value="90">90 days</option>
-                            <option value="180">6 months</option>
-                            <option value="365">1 year</option>
-                            <option value="730">2 years</option>
-                          </Select>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            className="flex-1 py-3"
-                            disabled={previewLoading}
-                            variant="outline"
-                            onClick={handleTellerPreview}
-                          >
-                            {previewLoading ? 'Loading...' : 'Preview'}
-                          </Button>
-                          <Button
-                            className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent)] py-3"
-                            disabled={syncingAccountId === modalAccount.id}
-                            onClick={handleTellerSync}
-                          >
-                            {syncingAccountId === modalAccount.id ? 'Syncing...' : 'Sync Now'}
-                          </Button>
-                        </div>
-                      </>
-                    )}
-                    <div className="flex gap-2">
-                      <Button
-                        className="w-full py-3"
-                        variant="outline"
-                        onClick={handleTellerDisconnect}
-                      >
-                        Disconnect
-                      </Button>
                     </div>
-                  </div>
-                </div>
-              ) : modalAccount.plaidConnection ? (
-                // Plaid Connection UI
-                <div className="space-y-4">
-                  {/* Connection Status */}
-                  <div className="flex items-center justify-between">
-                    <div className={`text-sm ${ds.text.secondary}`}>
-                      <div>
-                        Status:{' '}
-                        <SyncStatusBadge
-                          lastSyncAt={modalAccount.plaidConnection.lastSyncAt}
-                          status={modalAccount.plaidConnection.status}
-                        />
-                      </div>
-                      {modalAccount.plaidConnection.plaidEnrollment?.institutionName && (
-                        <div className="mt-1">
-                          Connected to:{' '}
-                          <span className={ds.text.primary}>
-                            {modalAccount.plaidConnection.plaidEnrollment.institutionName}
-                          </span>{' '}
-                          (Plaid)
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Last Sync Error */}
-                  {modalAccount.plaidConnection.lastSyncError && (
-                    <div
-                      className={`p-2 rounded ${ds.status.error.bg} ${ds.status.error.text} text-sm`}
-                    >
-                      {modalAccount.plaidConnection.lastSyncError}
-                    </div>
-                  )}
-
-                  {/* Sync Result */}
-                  {syncResult && (
-                    <div
-                      className={`p-2 rounded ${ds.status.success.bg} ${ds.status.success.text} text-sm`}
-                    >
-                      <div>
-                        Sync complete: {syncResult.added} added, {syncResult.modified} modified,{' '}
-                        {syncResult.removed} removed
-                      </div>
-                      {syncResult.skippedOld && syncResult.skippedOld > 0 && (
-                        <div className={`text-xs ${ds.text.muted} mt-1`}>
-                          ({syncResult.skippedOld} older transactions skipped)
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  <div className="space-y-3">
-                    {modalAccount.plaidConnection.status === 'needs_reauth' ? (
-                      <PlaidReconnectButton
-                        className="w-full bg-[var(--accent)] hover:bg-[var(--accent)] py-3"
-                        enrollmentId={modalAccount.plaidConnection.plaidEnrollmentId}
+                    <div className={`text-center text-sm ${ds.text.muted}`}>or</div>
+                    <div>
+                      <h5 className={`text-sm font-medium ${ds.text.secondary} mb-2`}>Plaid</h5>
+                      <PlaidAccountLinkSelector
+                        accountId={modalAccount.id}
+                        accountName={modalAccount.name}
                         onSuccess={async () => {
                           await refreshAccounts();
                           const updatedAccounts = await fetch('/api/accounts').then((r) =>
@@ -3057,101 +3207,35 @@ function SettingsPageContent() {
                           }
                         }}
                       />
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-2">
-                          <label className={`text-sm ${ds.text.secondary}`}>Import last:</label>
-                          <Select
-                            className="flex-1"
-                            value={daysToSync.toString()}
-                            onChange={(e) => setDaysToSync(parseInt(e.target.value))}
-                          >
-                            <option value="30">30 days</option>
-                            <option value="60">60 days</option>
-                            <option value="90">90 days</option>
-                            <option value="180">6 months</option>
-                            <option value="365">1 year</option>
-                            <option value="730">2 years</option>
-                          </Select>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            className="flex-1 py-3"
-                            disabled={previewLoading}
-                            variant="outline"
-                            onClick={handlePlaidPreview}
-                          >
-                            {previewLoading ? 'Loading...' : 'Preview'}
-                          </Button>
-                          <Button
-                            className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent)] py-3"
-                            disabled={syncingAccountId === modalAccount.id}
-                            onClick={handlePlaidSync}
-                          >
-                            {syncingAccountId === modalAccount.id ? 'Syncing...' : 'Sync Now'}
-                          </Button>
-                        </div>
-                      </>
-                    )}
-                    <div className="flex gap-2">
-                      <Button
-                        className="flex-1 py-3"
-                        variant="outline"
-                        onClick={handlePlaidDisconnect}
-                      >
-                        Disconnect
-                      </Button>
-                      <Button
-                        className="flex-1 py-3"
-                        variant="outline"
-                        onClick={handlePlaidResetCursor}
-                      >
-                        Reset Cursor
-                      </Button>
                     </div>
                   </div>
-                </div>
-              ) : (
-                // No connection - show both Teller and Plaid link selectors
-                <div className="space-y-4">
-                  <div>
-                    <h5 className={`text-sm font-medium ${ds.text.secondary} mb-2`}>Teller</h5>
-                    <TellerAccountLinkSelector
-                      accountId={modalAccount.id}
-                      accountName={modalAccount.name}
-                      onSuccess={async () => {
-                        await refreshAccounts();
-                        const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
-                        const updatedAccount = updatedAccounts.accounts?.find(
-                          (a: Account) => a.id === modalAccount.id
-                        );
-                        if (updatedAccount) {
-                          setModalAccount(updatedAccount);
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className={`text-center text-sm ${ds.text.muted}`}>or</div>
-                  <div>
-                    <h5 className={`text-sm font-medium ${ds.text.secondary} mb-2`}>Plaid</h5>
-                    <PlaidAccountLinkSelector
-                      accountId={modalAccount.id}
-                      accountName={modalAccount.name}
-                      onSuccess={async () => {
-                        await refreshAccounts();
-                        const updatedAccounts = await fetch('/api/accounts').then((r) => r.json());
-                        const updatedAccount = updatedAccounts.accounts?.find(
-                          (a: Account) => a.id === modalAccount.id
-                        );
-                        if (updatedAccount) {
-                          setModalAccount(updatedAccount);
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
+
+            {savedModalAccount && sections.includes('holdings') && (
+              <AccountHoldingsSection
+                key={`holdings:${sectionKey}`}
+                account={{
+                  id: savedModalAccount.id,
+                  name: savedModalAccount.name,
+                  currency: savedModalAccount.currency ?? 'USD',
+                  balanceSource: savedModalAccount.balanceSource ?? BalanceSource.Manual,
+                }}
+                onChanged={refreshAccounts}
+              />
+            )}
+            {savedModalAccount && sections.includes('entered') && (
+              <EnteredBalancesSection
+                key={`entered:${sectionKey}`}
+                account={{
+                  id: savedModalAccount.id,
+                  currency: savedModalAccount.currency ?? 'USD',
+                  balanceSource: savedModalAccount.balanceSource ?? BalanceSource.Manual,
+                }}
+                onChanged={refreshAccounts}
+              />
+            )}
 
             {/* Archive/Restore */}
             {modalAccount.isActive !== false ? (
@@ -3211,7 +3295,7 @@ function SettingsPageContent() {
             </div>
           </div>
         )}
-      </Modal>
+      </Drawer>
 
       {/* Category Management Modal */}
       <Modal

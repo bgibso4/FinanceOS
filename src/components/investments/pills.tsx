@@ -3,29 +3,21 @@
 import type { ReactNode } from 'react';
 import { BalanceSource } from '@/lib/investments/codes';
 import type { SeriesChange } from '@/lib/investments/portfolio-view';
-import { changeText, toneOf, type Tone } from './format';
+import { SOURCE_LABEL, changeText, toneOf, type Tone } from './format';
 
 const PILL =
   'inline-flex items-center whitespace-nowrap rounded-full border px-[7px] py-px text-[10.5px] font-medium';
 
-const SOURCE_PILLS: Record<BalanceSource, { label: string; className: string }> = {
-  [BalanceSource.Provider]: {
-    label: 'Synced',
-    className: 'text-[var(--tag-blue)] border-[color-mix(in_srgb,var(--tag-blue)_30%,transparent)]',
-  },
-  [BalanceSource.Valuation]: {
-    label: 'Valued',
-    className: 'text-[var(--tag-teal)] border-[color-mix(in_srgb,var(--tag-teal)_30%,transparent)]',
-  },
-  [BalanceSource.Manual]: {
-    label: 'Manual',
-    className: 'text-[var(--text-secondary)] border-[var(--border-hover)]',
-  },
+const SOURCE_PILL_TONES: Record<BalanceSource, string> = {
+  [BalanceSource.Provider]:
+    'text-[var(--tag-blue)] border-[color-mix(in_srgb,var(--tag-blue)_30%,transparent)]',
+  [BalanceSource.Valuation]:
+    'text-[var(--tag-teal)] border-[color-mix(in_srgb,var(--tag-teal)_30%,transparent)]',
+  [BalanceSource.Manual]: 'text-[var(--text-secondary)] border-[var(--border-hover)]',
 };
 
 export function SourcePill({ source }: { source: BalanceSource }) {
-  const pill = SOURCE_PILLS[source];
-  return <span className={`${PILL} ${pill.className}`}>{pill.label}</span>;
+  return <span className={`${PILL} ${SOURCE_PILL_TONES[source]}`}>{SOURCE_LABEL[source]}</span>;
 }
 
 const CHIP_TONES: Record<Tone, string> = {

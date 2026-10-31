@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { getDefaultTrackingMode } from '@/lib/account-defaults';
+import { defaultBalanceSource, getDefaultTrackingMode } from '@/lib/account-defaults';
+import { isInvestmentProviderType } from '@/lib/bank-account-matching';
 import { isUniqueConstraintError } from '@/lib/sync-common';
 
 const schema = z.object({
@@ -57,6 +58,14 @@ export async function POST(req: NextRequest) {
     const maxSortOrder = await prisma.account.aggregate({ _max: { sortOrder: true } });
     const nextSortOrder = (maxSortOrder._max.sortOrder ?? -1) + 1;
 
+    const trackingMode = isInvestmentProviderType(parsed.providerType)
+      ? 'investment'
+      : getDefaultTrackingMode(parsed.type);
+    // Spec note 1: only the Plaid connection runs the investment sync.
+    const balanceSource = defaultBalanceSource(trackingMode, {
+      synced: parsed.provider === 'plaid',
+    });
+
     const account = await prisma.$transaction(async (tx) => {
       const created = await tx.account.create({
         data: {
@@ -66,7 +75,8 @@ export async function POST(req: NextRequest) {
           currency: parsed.currency,
           isActive: true,
           sortOrder: nextSortOrder,
-          trackingMode: getDefaultTrackingMode(parsed.type),
+          trackingMode,
+          balanceSource,
         },
       });
 

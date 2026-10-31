@@ -234,4 +234,25 @@ describe('InvestmentOverviewService', () => {
     expect(o).toMatchObject({ range: 'All', from: '2025-03-02' });
     expect(o.portfolio.series[0]).toEqual({ date: '2025-03-02', value: 100, isEstimated: false });
   });
+
+  it('accountHoldings reads one account, with the price date only for Valued accounts', async () => {
+    const svc = testServices(prisma).services.overview;
+    const s = await seedSecurity(prisma, { priceSymbol: 'AAA' });
+    const v = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Valuation });
+    await seedSnapshot(prisma, {
+      accountId: v.id,
+      securityId: s.id,
+      date: '2026-10-09',
+      quantity: 2,
+      price: 25,
+    });
+    await seedPrice(prisma, s.id, '2026-10-09', 25);
+    expect(await svc.accountHoldings(v.id)).toMatchObject({
+      holdings: [{ securityId: s.id, quantity: 2, value: 50 }],
+      pricesAsOf: '2026-10-09',
+    });
+    const m = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Manual });
+    expect((await svc.accountHoldings(m.id)).pricesAsOf).toBeNull();
+    await expect(svc.accountHoldings('missing')).rejects.toMatchObject({ status: 404 });
+  });
 });

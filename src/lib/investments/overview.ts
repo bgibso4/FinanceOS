@@ -7,6 +7,7 @@ import { loadFxRates } from '@/lib/prices/price-book';
 import type { PriceFreshness, PriceRefresher } from '@/lib/prices/refresh';
 import { ACTIVITY_ROWS_PER_ACCOUNT, buildActivity, type ActivityItem } from './activity';
 import type { CurrentHoldingsReader } from './current-holdings';
+import { requireInvestmentAccount } from './account-guard';
 import { isoDay, utcDay } from './dates';
 import { convertSeries, sumSeries, type SeriesPoint, type ValueHistoryService } from './history';
 import type { HoldingRow } from './holdings-view';
@@ -49,6 +50,9 @@ export type AccountSummary = {
   status: AccountStatus;
 };
 
+/** One account's current holdings and the date their prices are from. */
+export type AccountHoldings = { holdings: HoldingRow[]; pricesAsOf: string | null };
+
 export type InvestmentOverview = {
   range: Range;
   today: string;
@@ -79,6 +83,30 @@ export class InvestmentOverviewService {
     private readonly prices: Pick<PriceRefresher, 'freshness'>,
     private readonly clock: Clock = systemClock
   ) {}
+
+  /** The account's current holdings; archived accounts allowed. */
+  async accountHoldings(accountId: string): Promise<AccountHoldings> {
+    const account = await requireInvestmentAccount(this.prisma, accountId);
+    const today = utcDay(this.clock.now());
+    const [settings, rates] = await Promise.all([
+      this.prisma.userSettings.findFirst(),
+      loadFxRates(this.prisma),
+    ]);
+    const holdings = await this.holdings.read({
+      accounts: [account],
+      today,
+      rangeStart: today,
+      baseCurrency: settings?.baseCurrency || 'USD',
+      rates,
+    });
+    const pricesAsOf =
+      account.balanceSource === BalanceSource.Valuation
+        ? freshnessView(
+            await this.prices.freshness({ securityIds: holdings.map((h) => h.securityId) })
+          ).asOf
+        : null;
+    return { holdings, pricesAsOf };
+  }
 
   async load(range: Range): Promise<InvestmentOverview> {
     const prisma = this.prisma;
