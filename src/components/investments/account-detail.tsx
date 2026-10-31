@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 import { PlaidReconnectButton } from '@/components/plaid/PlaidReconnectButton';
 import { ACTIVITY_SHOWN } from '@/lib/investments/activity';
@@ -7,7 +8,6 @@ import {
   allocation,
   holdingLines,
   type AllocationDimension,
-  type PriceTarget,
 } from '@/lib/investments/holdings-view';
 import type { AccountSummary, InvestmentOverview } from '@/lib/investments/overview';
 import { GROUP_ORDER } from '@/lib/investments/portfolio-view';
@@ -24,6 +24,7 @@ import { fmtDay, fmtMoney, spansYear } from './format';
 import { HoldingsMap } from './holdings-map';
 import { HoldingsTable } from './holdings-table';
 import { ChangeChip, Notice, SourcePill } from './pills';
+import { securitySettingsHref } from './securities-view';
 import { seriesLabels, ValueChart } from './value-chart';
 import { BalanceSource } from '@/lib/investments/codes';
 
@@ -44,7 +45,6 @@ type DetailProps = {
   selected: string | null;
   onRecordBalance: (account: AccountSummary) => void;
   onEditHoldings: (account: AccountSummary) => void;
-  onSetSymbol: (target: PriceTarget) => void;
   onRetryPrices: () => void;
   onReconnected: () => void;
 };
@@ -65,14 +65,10 @@ const NOTICE_ACTIONS: Record<NoticeKind, (a: AccountSummary, p: DetailProps) => 
       Retry
     </button>
   ),
-  unpriced: (a, p) => (
-    <button
-      className={BUTTON}
-      type="button"
-      onClick={() => p.onSetSymbol({ ...a.status.unpriced[0], institution: null })}
-    >
-      Set symbol
-    </button>
+  unpriced: (a) => (
+    <Link className={BUTTON} href={securitySettingsHref(a.status.unpriced[0].securityId)}>
+      Set up pricing
+    </Link>
   ),
 };
 

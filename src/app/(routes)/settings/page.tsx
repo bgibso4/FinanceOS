@@ -40,6 +40,7 @@ import { PlaidAccountLinkSelector } from '@/components/plaid/PlaidAccountLinkSel
 import { PlaidReconnectButton } from '@/components/plaid/PlaidReconnectButton';
 import { SyncSettings } from '@/components/sync-settings';
 import { RulesTab } from '@/components/rules/RulesTab';
+import { SecuritiesTab } from '@/components/investments/securities-tab';
 import { getTagColors } from '@/components/tag-input';
 
 type PlaidConnection = {
@@ -1907,23 +1908,31 @@ function SettingsPageContent() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex items-center gap-6 text-sm font-medium mb-8 border-b border-[var(--border)] pb-2">
-        {['general', 'accounts', 'categories', 'rules', 'budgets', 'import', 'tags', 'sync'].map(
-          (t) => (
-            <Link
-              key={t}
-              className={cn(
-                'pb-2 border-b-2 transition-colors capitalize',
-                tab === t
-                  ? 'text-[var(--text-primary)] border-[var(--accent)]'
-                  : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
-              )}
-              href={`/settings?tab=${t}`}
-            >
-              {t === 'sync' ? 'Cloud Sync' : t.charAt(0).toUpperCase() + t.slice(1)}
-            </Link>
-          )
-        )}
+      <div className="flex items-center gap-6 overflow-x-auto text-sm font-medium mb-8 border-b border-[var(--border)] pb-2">
+        {[
+          'general',
+          'accounts',
+          'securities',
+          'categories',
+          'rules',
+          'budgets',
+          'import',
+          'tags',
+          'sync',
+        ].map((t) => (
+          <Link
+            key={t}
+            className={cn(
+              'pb-2 border-b-2 transition-colors capitalize shrink-0 whitespace-nowrap',
+              tab === t
+                ? 'text-[var(--text-primary)] border-[var(--accent)]'
+                : 'text-[var(--text-muted)] border-transparent hover:text-[var(--text-secondary)]'
+            )}
+            href={`/settings?tab=${t}`}
+          >
+            {t === 'sync' ? 'Cloud Sync' : t.charAt(0).toUpperCase() + t.slice(1)}
+          </Link>
+        ))}
       </div>
 
       {tab === 'general' && (
@@ -2408,6 +2417,8 @@ function SettingsPageContent() {
           </Card>
         </>
       )}
+
+      {tab === 'securities' && <SecuritiesTab focusId={searchParams.get('security')} />}
 
       {tab === 'categories' && (
         <Card>

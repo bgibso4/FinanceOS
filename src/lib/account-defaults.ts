@@ -5,5 +5,8 @@ export function getDefaultTrackingMode(type: string): 'cash_flow' | 'balance_onl
   return BALANCE_ONLY_TYPES.includes(type) ? 'balance_only' : 'cash_flow';
 }
 
-export const TRACKING_MODES = ['cash_flow', 'balance_only', 'investment'] as const;
+/** `Account.trackingMode` of an account tracked by holdings and trades. */
+export const INVESTMENT_TRACKING_MODE = 'investment' as const;
+
+export const TRACKING_MODES = ['cash_flow', 'balance_only', INVESTMENT_TRACKING_MODE] as const;
 export type TrackingMode = (typeof TRACKING_MODES)[number];

@@ -56,8 +56,6 @@ export type InvestmentOverview = {
   from: string;
   baseCurrency: string;
   prices: PriceFreshnessView;
-  /** How to write a price symbol, from the market data provider. */
-  symbolHint: string;
   portfolio: { value: number; series: SeriesPoint[]; change: SeriesChange | null };
   accounts: AccountSummary[];
   holdings: HoldingRow[];
@@ -79,8 +77,6 @@ export class InvestmentOverviewService {
     private readonly history: Pick<ValueHistoryService, 'accountSeries' | 'earliestDay'>,
     private readonly holdings: Pick<CurrentHoldingsReader, 'read'>,
     private readonly prices: Pick<PriceRefresher, 'freshness'>,
-    /** How to write a price symbol, from the market data provider; shown in the price window. */
-    private readonly symbolHint: string,
     private readonly clock: Clock = systemClock
   ) {}
 
@@ -184,7 +180,6 @@ export class InvestmentOverviewService {
       from: isoDay(from),
       baseCurrency,
       prices: freshnessView(prices),
-      symbolHint: this.symbolHint,
       portfolio: {
         value: roundCents(summaries.reduce((sum, s) => sum + s.valueBase, 0)),
         series: portfolioSeries,

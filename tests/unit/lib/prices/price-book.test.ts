@@ -17,6 +17,16 @@ describe('PriceBook / loadFxRates', () => {
     await resetTestDb();
   });
 
+  it('gives a security’s latest price from its own mode, up to the requested day', async () => {
+    const s = await seedSecurity(prisma, { priceSymbol: 'AAA' });
+    await seedPrice(prisma, s.id, '2026-10-01', 10);
+    await seedPrice(prisma, s.id, '2026-10-05', 12);
+    await seedPrice(prisma, s.id, '2026-10-06', 13);
+    await seedPrice(prisma, s.id, '2026-10-04', 99, PriceSource.Institution);
+    const book = await PriceBook.load(prisma, [s.id], day('2026-10-05'));
+    expect(book.latest(s.id)).toEqual({ price: 12, date: day('2026-10-05') });
+    expect(book.latest('missing')).toBeNull();
+  });
   it('answers from stored prices up to the requested day', async () => {
     const s = await seedSecurity(prisma, { priceSymbol: 'AAA' });
     await seedPrice(prisma, s.id, '2026-10-01', 10);

@@ -72,25 +72,29 @@ export class InvestmentRefreshService {
   }
 
   /**
-   * Make an institution-priced fund follow a public fund (null stops following), price that fund
-   * back to the follower's history start, and revalue valued accounts that hold the follower. If
-   * pricing stops, the link stays and the next refresh prices it.
+   * Price a fund by its institution, following a public fund (null follows none; a fund switched
+   * to market pricing comes back this way), price every market fund the switch made anyone follow
+   * back to their history start, and revalue valued accounts that hold the fund or a follower
+   * re-pointed by the switch. Holders are revalued even if pricing stops: institution and
+   * proxied-institution pricing never drop days, and the next refresh prices the followed fund.
    */
   setProxy(id: string, symbol: string | null): Promise<Security> {
     return withSyncLock(REFRESH_LOCK, async () => {
-      const security = await this.catalog.setProxy(id, symbol);
-      if (security.proxySecurityId) {
-        const prices = await this.prices.refresh({ securityIds: [security.proxySecurityId] });
-        if (prices.stopped) return security;
-      }
-      await this.revalueHolders(id);
+      const { security, followed, repointed } = await this.catalog.setProxy(id, symbol);
+      if (followed.length) await this.prices.refresh({ securityIds: followed });
+      await this.revalueHolders(id, ...repointed);
       return security;
     });
   }
 
-  /** Revalue every valued account that has held `securityId`, from the first day it did. */
-  private async revalueHolders(securityId: string): Promise<void> {
-    const holders = await this.valuation.holdersOf(securityId);
-    if (holders) await this.valuation.writeBalances(holders);
+  /** Revalue every valued account that has held any of `securityIds`, from the first day held. */
+  private async revalueHolders(...securityIds: string[]): Promise<void> {
+    const found = await Promise.all(securityIds.map((id) => this.valuation.holdersOf(id)));
+    const holders = found.filter((h): h is NonNullable<typeof h> => h !== null);
+    if (!holders.length) return;
+    await this.valuation.writeBalances({
+      accountIds: [...new Set(holders.flatMap((h) => h.accountIds))],
+      from: new Date(Math.min(...holders.map((h) => h.from.getTime()))),
+    });
   }
 }

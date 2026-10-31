@@ -1,15 +1,24 @@
 import { PriceSource, Pricing } from '@/lib/investments/codes';
 export type PricePoint = { date: Date; close: number; source: string };
 export type PricedAt = { price: number; estimated: boolean };
+/** The newest price a pricing mode reads from its own source; `date` is null for a constant. */
+export type LatestPrice = { price: number; date: Date | null };
 
 /** How one pricing mode prices a security on a UTC day (rules table in Plan 2, Task 3). */
 export interface PricingStrategy {
   /** `points` are the security's stored prices, date ascending. */
   priceOn(points: PricePoint[], date: Date): PricedAt | null;
+  /** The newest of `points` this mode reads (Settings → Securities); null when none. */
+  latest(points: PricePoint[]): LatestPrice | null;
 }
 
 const fromSource = (points: PricePoint[], source: string) =>
   points.filter((p) => p.source === source);
+
+function lastFrom(points: PricePoint[], source: string): LatestPrice | null {
+  const last = fromSource(points, source).at(-1);
+  return last ? { price: last.close, date: last.date } : null;
+}
 
 function carryForward(points: PricePoint[], t: number, estimated: boolean): PricedAt | null {
   let found: PricePoint | null = null;
@@ -44,10 +53,18 @@ export class FixedPricing implements PricingStrategy {
   priceOn(): PricedAt {
     return { price: this.fixedPrice ?? 1, estimated: false };
   }
+
+  latest(): LatestPrice {
+    return { price: this.priceOn().price, date: null };
+  }
 }
 
 /** The prices the institution reports with each sync, interpolated between them. */
 export class InstitutionPricing implements PricingStrategy {
+  latest(points: PricePoint[]): LatestPrice | null {
+    return lastFrom(points, PriceSource.Institution);
+  }
+
   priceOn(points: PricePoint[], date: Date): PricedAt | null {
     return interpolate(fromSource(points, PriceSource.Institution), date.getTime());
   }
@@ -77,6 +94,10 @@ export class ProxiedInstitutionPricing implements PricingStrategy {
     }
     return this.fallback.priceOn(points, date);
   }
+
+  latest(points: PricePoint[]): LatestPrice | null {
+    return this.fallback.latest(points);
+  }
 }
 
 /** Market closes carried forward; institution prices before the first close. */
@@ -89,15 +110,27 @@ export class MarketPricing implements PricingStrategy {
       this.fallback.priceOn(points, date)
     );
   }
+
+  latest(points: PricePoint[]): LatestPrice | null {
+    return lastFrom(points, PriceSource.Market);
+  }
 }
 
 export class ManualPricing implements PricingStrategy {
+  latest(points: PricePoint[]): LatestPrice | null {
+    return lastFrom(points, PriceSource.Manual);
+  }
+
   priceOn(points: PricePoint[], date: Date): PricedAt | null {
     return carryForward(fromSource(points, PriceSource.Manual), date.getTime(), false);
   }
 }
 
 export class UnpricedPricing implements PricingStrategy {
+  latest(): null {
+    return null;
+  }
+
   priceOn(points: PricePoint[], date: Date): PricedAt | null {
     return carryForward(points, date.getTime(), true);
   }

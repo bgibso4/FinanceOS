@@ -9,7 +9,11 @@ import {
   seedSnapshot,
 } from '../../../helpers/investments';
 import { fixedClock } from '@/lib/clock';
-import { ManualHoldingService, manualHoldingSecurityId } from '@/lib/investments/manual-holding';
+import {
+  ManualHoldingService,
+  isManualHoldingSecurity,
+  manualHoldingSecurityId,
+} from '@/lib/investments/manual-holding';
 import { isoDay } from '@/lib/investments/dates';
 import {
   BalanceRowSource,
@@ -130,5 +134,12 @@ describe('ManualHoldingService', () => {
     await seedBalance(prisma, p.id, '2026-10-01', 10, BalanceRowSource.Manual);
     await expect(manual.sync(p.id)).rejects.toMatchObject({ status: 400 });
     expect(await snapshots(p.id)).toEqual([['2026-10-01', sec.id, 2, 10, RecordSource.Synced]]);
+  });
+});
+
+describe('isManualHoldingSecurity', () => {
+  it('recognises any account’s mirror security and nothing else', () => {
+    expect(isManualHoldingSecurity(manualHoldingSecurityId('acc-1'))).toBe(true);
+    expect(isManualHoldingSecurity('sec-aaa')).toBe(false);
   });
 });

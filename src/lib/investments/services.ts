@@ -10,6 +10,7 @@ import { ManualHoldingService } from './manual-holding';
 import { InvestmentOverviewService } from './overview';
 import { InvestmentRefreshService } from './refresh';
 import { ensureStoredCodes } from './rename-stored-codes';
+import { SecurityListReader } from './security-list';
 import { ValuationService } from './valuation';
 
 export type InvestmentServices = {
@@ -21,6 +22,7 @@ export type InvestmentServices = {
   history: ValueHistoryService;
   refresh: InvestmentRefreshService;
   overview: InvestmentOverviewService;
+  securityList: SecurityListReader;
 };
 
 /** The one place investment services are wired. Omitted `clock`/`sleep` use the real ones. */
@@ -50,9 +52,9 @@ export function createInvestmentServices(deps: {
       history,
       new CurrentHoldingsReader(prisma),
       prices,
-      provider.symbolHint,
       clock
     ),
+    securityList: new SecurityListReader(prisma, provider.symbolHint, clock),
   };
 }
 

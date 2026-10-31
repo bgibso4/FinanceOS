@@ -3,9 +3,19 @@ import { systemClock, type Clock } from '@/lib/clock';
 import { InvestmentInputError } from '@/lib/investments/account-guard';
 import { utcDay } from '@/lib/investments/dates';
 import { isValidCurrency } from '@/lib/currency';
+import { institutionPricedIds } from './price-book';
 import type { QuoteCache } from './quote-cache';
 import type { SymbolLookup, SymbolMatch } from './types';
 import { PriceSource, Pricing, SecurityType } from '@/lib/investments/codes';
+
+/** A security switched to institution pricing, and who now follows which market security. */
+export type ProxyChange = {
+  security: Security;
+  /** Market securities the switch made anyone follow; they need pricing. */
+  followed: string[];
+  /** Securities that followed the switched one and now follow `followed` instead. */
+  repointed: string[];
+};
 
 /** Finding, adding and repricing securities by hand (ticker search, symbol fixes, manual prices). */
 export class SecurityCatalog {
@@ -20,10 +30,17 @@ export class SecurityCatalog {
     return this.lookup.search(query);
   }
 
-  async findOrCreateMarket(symbol: string): Promise<{ security: Security; created: boolean }> {
+  /**
+   * The market security priced under `symbol`, created (validated by a quote) when none exists.
+   * `exclude` skips one security, e.g. one leaving that symbol.
+   */
+  async findOrCreateMarket(
+    symbol: string,
+    opts: { exclude?: string } = {}
+  ): Promise<{ security: Security; created: boolean }> {
     const priceSymbol = symbol.trim().toUpperCase();
     const existing = await this.prisma.security.findFirst({
-      where: { priceSymbol },
+      where: { priceSymbol, ...(opts.exclude ? { id: { not: opts.exclude } } : {}) },
       orderBy: { createdAt: 'asc' },
     });
     if (existing) return { security: existing, created: false };
@@ -97,12 +114,7 @@ export class SecurityCatalog {
           proxySecurityId: null,
         },
       }),
-      this.prisma.securityPrice.deleteMany({
-        where: { securityId: id, source: PriceSource.Market },
-      }),
-      this.prisma.securityEvent.deleteMany({
-        where: { securityId: id, source: PriceSource.Market },
-      }),
+      ...this.dropMarketData(id),
     ]);
     return security;
   }
@@ -126,27 +138,91 @@ export class SecurityCatalog {
   }
 
   /**
-   * Link an institution-priced security to the market-priced fund whose daily moves fill its days
-   * without an institution price (validated and created like any market symbol); null unlinks.
-   * Callers price the proxy and revalue under the refresh lock (`InvestmentRefreshService.setProxy`).
+   * Price a security by its institution, optionally following the market-priced fund whose daily
+   * moves fill its days without an institution price (validated and created like any market
+   * symbol); null follows nothing. Sets `priceSymbolOverride`, which pins the choice against
+   * aggregator re-mapping. A security switched to market pricing can come back as long as
+   * institution prices are stored for it: its market data is dropped as `setPriceSymbol` would,
+   * and securities that followed it follow another market security for its old symbol instead.
+   * Callers price `followed` and revalue under the refresh lock
+   * (`InvestmentRefreshService.setProxy`).
    */
-  async setProxy(id: string, symbol: string | null): Promise<Security> {
+  async setProxy(id: string, symbol: string | null): Promise<ProxyChange> {
     const security = await this.prisma.security.findUnique({ where: { id } });
     if (!security) throw new InvestmentInputError('Security not found', 404);
-    if (security.pricing !== Pricing.Institution) {
+    const wasInstitution = security.pricing === Pricing.Institution;
+    if (!wasInstitution && !(await institutionPricedIds(this.prisma, [id])).has(id)) {
       throw new InvestmentInputError(
         'Only a fund priced by its institution can follow another fund'
       );
     }
-    if (symbol == null) {
-      return this.prisma.security.update({ where: { id }, data: { proxySecurityId: null } });
+    let proxy: Security | null = null;
+    if (symbol != null) {
+      proxy = (await this.findOrCreateMarket(symbol, { exclude: id })).security;
+      if (proxy.id === id) throw new InvestmentInputError('A fund can’t follow itself');
+      if (proxy.pricing !== Pricing.Market) {
+        throw new InvestmentInputError(`${proxy.priceSymbol} has no market price to follow`);
+      }
     }
-    const { security: proxy } = await this.findOrCreateMarket(symbol);
-    if (proxy.id === id) throw new InvestmentInputError('A fund can’t follow itself');
-    if (proxy.pricing !== Pricing.Market) {
-      throw new InvestmentInputError(`${proxy.priceSymbol} has no market price to follow`);
+    // Followers of a market security leaving its symbol keep following that symbol.
+    const oldSymbol = wasInstitution ? null : security.priceSymbol;
+    const repointed = oldSymbol
+      ? (
+          await this.prisma.security.findMany({
+            where: { proxySecurityId: id },
+            select: { id: true },
+          })
+        ).map((f) => f.id)
+      : [];
+    const replacement =
+      oldSymbol && repointed.length
+        ? (await this.findOrCreateMarket(oldSymbol, { exclude: id })).security
+        : null;
+    if (
+      replacement &&
+      (replacement.pricing !== Pricing.Market || repointed.includes(replacement.id))
+    ) {
+      throw new InvestmentInputError(
+        `Funds following ${oldSymbol} have no other market price to follow`
+      );
     }
-    return this.prisma.security.update({ where: { id }, data: { proxySecurityId: proxy.id } });
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.security.update({
+        where: { id },
+        data: {
+          pricing: Pricing.Institution,
+          priceSymbol: null,
+          priceSymbolOverride: true, // aggregator sync must not take the choice back
+          pricesFetchedFrom: null,
+          proxySecurityId: proxy?.id ?? null,
+        },
+      }),
+      ...(wasInstitution ? [] : this.dropMarketData(id)),
+      ...(replacement
+        ? [
+            this.prisma.security.updateMany({
+              where: { id: { in: repointed } },
+              data: { proxySecurityId: replacement.id },
+            }),
+          ]
+        : []),
+    ]);
+    const followed = [
+      ...new Set([proxy?.id, replacement?.id].filter((f): f is string => f != null)),
+    ];
+    return { security: updated, followed, repointed };
+  }
+
+  /** Deletes of a security's market-sourced closes and events, for a transaction. */
+  private dropMarketData(id: string) {
+    return [
+      this.prisma.securityPrice.deleteMany({
+        where: { securityId: id, source: PriceSource.Market },
+      }),
+      this.prisma.securityEvent.deleteMany({
+        where: { securityId: id, source: PriceSource.Market },
+      }),
+    ];
   }
 
   private async requireSecurity(id: string): Promise<void> {

@@ -128,3 +128,36 @@ describe('pricing strategies', () => {
     });
   });
 });
+
+describe('latest price per mode', () => {
+  const pts = [
+    p('2026-10-01', 10, PriceSource.Market),
+    p('2026-10-02', 20, PriceSource.Institution),
+    p('2026-10-03', 30, PriceSource.Manual),
+    p('2026-10-04', 11, PriceSource.Market),
+    p('2026-10-05', 21, PriceSource.Institution),
+  ];
+  const latest = (pricing: string, fixedPrice: number | null = null, proxy?: PricePoint[]) =>
+    pricingFor({ pricing, fixedPrice }, proxy).latest(pts);
+
+  it('reads only the mode’s own source', () => {
+    expect(latest(Pricing.Market)).toEqual({ price: 11, date: day('2026-10-04') });
+    expect(latest(Pricing.Institution)).toEqual({ price: 21, date: day('2026-10-05') });
+    expect(latest(Pricing.Institution, null, [p('2026-10-06', 50, PriceSource.Market)])).toEqual({
+      price: 21,
+      date: day('2026-10-05'),
+    });
+    expect(latest(Pricing.Manual)).toEqual({ price: 30, date: day('2026-10-03') });
+  });
+
+  it('gives a fixed price with no date, and nothing for unpriced or missing sources', () => {
+    expect(latest(Pricing.Fixed, 2.5)).toEqual({ price: 2.5, date: null });
+    expect(latest(Pricing.Fixed)).toEqual({ price: 1, date: null });
+    expect(latest(Pricing.None)).toBeNull();
+    expect(
+      pricingFor({ pricing: Pricing.Market, fixedPrice: null }).latest([
+        p('2026-10-02', 20, PriceSource.Institution),
+      ])
+    ).toBeNull();
+  });
+});

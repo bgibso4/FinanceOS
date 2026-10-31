@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { setupTestDb, teardownTestDb, resetTestDb } from '../../../helpers/db';
 import {
+  day,
   expectWarning,
   seedInvestmentAccount,
   seedPrice,
@@ -266,18 +267,77 @@ describe('InvestmentRefreshService', () => {
       expect(updated.proxySecurityId).not.toBeNull();
     });
 
-    it('rejects a fund not priced by Plaid, and a fund following itself', async () => {
-      const market = await seedSecurity(prisma, { priceSymbol: 'AAA' });
-      const fund = await planFund();
-      const { services } = testServices(prisma, {
-        closes: { FOLW: { '2026-10-09': 60 }, PLAN: { '2026-10-09': 20 } },
+    /** A security in a valued account on 2026-10-01. */
+    async function valuedHolder(over: Parameters<typeof seedSecurity>[1]) {
+      const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Valuation });
+      const s = await seedSecurity(prisma, over);
+      await seedSnapshot(prisma, {
+        accountId: a.id,
+        securityId: s.id,
+        date: '2026-10-01',
+        quantity: 10,
+        price: 20,
+        source: RecordSource.Manual,
       });
+      return { a, s };
+    }
+
+    it('revalues the holders even when pricing the proxy stops', async () => {
+      const { a, s: fund } = await valuedHolder({
+        priceSymbol: 'PLAN',
+        pricing: Pricing.Institution,
+      });
+      const down = () => new PriceProviderError('network', 'offline');
+      const { services } = testServices(prisma, {
+        closes: { FOLW: { '2026-10-09': 60 } },
+        errors: { FOLW: [down(), down()] },
+      });
+      const writeBalances = vi.spyOn(services.valuation, 'writeBalances');
+      await expectWarning('stopping', () => services.refresh.setProxy(fund.id, 'FOLW'));
+      expect(writeBalances).toHaveBeenCalledWith({ accountIds: [a.id], from: day('2026-10-01') });
+    });
+
+    it("prices what a switched-back fund's followers now follow, and revalues them", async () => {
+      const { a, s } = await valuedHolder({ priceSymbol: 'FOLW' });
+      await seedPrice(prisma, s.id, '2026-10-01', 20, PriceSource.Institution);
+      const { a: b, s: follower } = await valuedHolder({
+        priceSymbol: null,
+        pricing: Pricing.Institution,
+      });
+      await prisma.security.update({ where: { id: follower.id }, data: { proxySecurityId: s.id } });
+      const { services } = testServices(prisma, { closes: { FOLW: { '2026-10-09': 60 } } });
+      const refresh = vi.spyOn(services.prices, 'refresh');
+      const writeBalances = vi.spyOn(services.valuation, 'writeBalances');
+
+      await services.refresh.setProxy(s.id, null);
+
+      const replacement = await prisma.security.findFirstOrThrow({
+        where: { priceSymbol: 'FOLW' },
+      });
+      expect(replacement.id).not.toBe(s.id);
+      expect(refresh).toHaveBeenCalledWith({ securityIds: [replacement.id] });
+      expect(writeBalances).toHaveBeenCalledWith({
+        accountIds: expect.arrayContaining([a.id, b.id]),
+        from: day('2026-10-01'),
+      });
+    });
+
+    it('rejects a fund not priced by Plaid', async () => {
+      const market = await seedSecurity(prisma, { priceSymbol: 'AAA' });
+      const { services } = testServices(prisma, { closes: { FOLW: { '2026-10-09': 60 } } });
       await expect(services.refresh.setProxy(market.id, 'FOLW')).rejects.toBeInstanceOf(
         InvestmentInputError
       );
-      await expect(services.refresh.setProxy(fund.id, 'PLAN')).rejects.toBeInstanceOf(
-        InvestmentInputError
-      );
+    });
+
+    it('follows a separate market security for a fund that carries the same ticker', async () => {
+      const fund = await planFund();
+      const { services } = testServices(prisma, { closes: { PLAN: { '2026-10-09': 20 } } });
+      const updated = await services.refresh.setProxy(fund.id, 'PLAN');
+      const proxy = await prisma.security.findFirstOrThrow({
+        where: { priceSymbol: 'PLAN', id: { not: fund.id } },
+      });
+      expect(updated.proxySecurityId).toBe(proxy.id);
     });
   });
 });

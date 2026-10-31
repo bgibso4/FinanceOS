@@ -11,7 +11,14 @@ import {
   SecurityType,
 } from './codes';
 
-export const manualHoldingSecurityId = (accountId: string) => `manual-holding-${accountId}`;
+const MANUAL_HOLDING_PREFIX = 'manual-holding-';
+
+export const manualHoldingSecurityId = (accountId: string) =>
+  `${MANUAL_HOLDING_PREFIX}${accountId}`;
+
+/** Whether a security is a manual account's balance mirror rather than a real security. */
+export const isManualHoldingSecurity = (securityId: string) =>
+  securityId.startsWith(MANUAL_HOLDING_PREFIX);
 
 /** Manual investment accounts: dated balance entries, mirrored as one synthetic holding. */
 export class ManualHoldingService {

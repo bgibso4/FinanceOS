@@ -3,8 +3,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RecordBalanceModal } from '@/components/investments/record-balance-modal';
 import { HoldingsEditorModal } from '@/components/investments/holdings-editor-modal';
-import { SetSymbolModal } from '@/components/investments/set-symbol-modal';
-import { makeHolding } from '../../../helpers/investment-overview';
+import { PriceWindow } from '@/components/investments/price-window';
+import { makeHolding, makeSecurityItem } from '../../../helpers/investment-overview';
+import type { SecurityListItem } from '@/lib/investments/security-list';
 import { Pricing } from '@/lib/investments/codes';
 
 type Reply = { status?: number; body: unknown };
@@ -217,73 +218,204 @@ describe('HoldingsEditorModal', () => {
   });
 });
 
-describe('SetSymbolModal', () => {
-  const security = { securityId: 'sec-z', label: 'ZZZ', institution: null };
+describe('PriceWindow', () => {
   const hint = 'Use test symbols.';
+  const market = makeSecurityItem({
+    id: 'sec-z',
+    label: 'ZZZ',
+    priceSymbol: 'ZZZ',
+    latest: { price: 11, date: '2026-10-08' },
+  });
+  const open = (security: SecurityListItem, onSaved = vi.fn()) =>
+    render(<PriceWindow hint={hint} security={security} onClose={vi.fn()} onSaved={onSaved} />);
+  const currently = () => screen.getByText('Currently').parentElement;
 
-  it('points the security at a new symbol, under the provider’s symbol hint', async () => {
+  it('titles the window and says how the security is priced now', () => {
+    open(market);
+    expect(screen.getByRole('heading', { name: 'How ZZZ is priced' })).toBeInTheDocument();
+    expect(currently()).toHaveTextContent('Currently Market · ZZZ · $11.00 on Oct 8');
+  });
+
+  it('leaves out the price when there is none, and the date when the source has none', () => {
+    const { unmount } = open(makeSecurityItem({ pricing: Pricing.None, latest: null }));
+    expect(currently()).toHaveTextContent(/^Currently No price source$/);
+    unmount();
+    open(
+      makeSecurityItem({ pricing: Pricing.Fixed, fixedPrice: 2, latest: { price: 2, date: null } })
+    );
+    expect(currently()).toHaveTextContent(/^Currently Fixed · \$2\.00$/);
+  });
+
+  it('names a manual price once, with the day it was entered', () => {
+    open(
+      makeSecurityItem({ pricing: Pricing.Manual, latest: { price: 64.3, date: '2026-09-30' } })
+    );
+    expect(currently()).toHaveTextContent(/^Currently Manual · \$64\.30 on Sep 30$/);
+  });
+
+  const radio = (name: string) => screen.getByRole('radio', { name });
+  const save = () => screen.getByRole('button', { name: 'Save' });
+
+  it('saves a new symbol once, under the provider’s symbol hint', async () => {
     replies['PATCH /api/investments/securities/sec-z'] = ok({ security: {} });
     const onSaved = vi.fn();
-    render(<SetSymbolModal hint={hint} security={security} onClose={vi.fn()} onSaved={onSaved} />);
+    open(market, onSaved);
+    expect(radio('Market symbol')).toBeChecked();
+    expect(screen.getByLabelText('Symbol')).toHaveValue('ZZZ');
+    expect(save()).toBeDisabled();
     expect(screen.getByText('Use test symbols.')).toBeInTheDocument();
     expect(screen.queryByText(/Yahoo/)).toBeNull();
-    await userEvent.type(screen.getByLabelText('Price symbol'), 'ZZZ.TO');
-    await userEvent.click(screen.getByRole('button', { name: 'Use symbol' }));
+    await userEvent.type(screen.getByLabelText('Symbol'), '.TO');
+    expect(save()).toBeEnabled();
+    await userEvent.click(save());
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(calls()).toHaveLength(1);
     expect(calls()[0].body).toEqual({ priceSymbol: 'ZZZ.TO' });
   });
 
-  it('sets a manual price, and validates both inputs', async () => {
+  it('sets a manual price, and validates it', async () => {
     replies['PATCH /api/investments/securities/sec-z'] = ok({ security: {} });
-    render(<SetSymbolModal hint={hint} security={security} onClose={vi.fn()} onSaved={vi.fn()} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Use symbol' }));
-    expect(screen.getByText('Enter a symbol')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Set price' }));
+    open(market);
+    await userEvent.click(radio('Manual price'));
+    expect(screen.getByLabelText('Price per unit')).toBeInTheDocument();
+    await userEvent.click(save());
     expect(screen.getByText('Enter a positive price')).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText('Or set a price per unit'), '50.73');
-    await userEvent.click(screen.getByRole('button', { name: 'Set price' }));
+    await userEvent.type(screen.getByLabelText('Price per unit'), '50.73');
+    await userEvent.click(save());
     await waitFor(() => expect(calls()[0]?.body).toEqual({ manualPrice: 50.73 }));
   });
 
-  describe('for a fund priced by its institution', () => {
-    const quote = { price: 28.34, currency: 'USD', date: '2026-10-10', proxy: null };
-    const fund = { securityId: 'sec-p', label: 'PLAN', institution: quote };
+  it('needs a symbol', async () => {
+    open(market);
+    await userEvent.clear(screen.getByLabelText('Symbol'));
+    await userEvent.click(save());
+    expect(screen.getByText('Enter a symbol')).toBeInTheDocument();
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
 
-    it('shows the institution’s price and follows a fund', async () => {
-      replies['PATCH /api/investments/securities/sec-p'] = ok({ security: {} });
-      const onSaved = vi.fn();
-      render(<SetSymbolModal hint={hint} security={fund} onClose={vi.fn()} onSaved={onSaved} />);
-      expect(screen.getByText(/Priced by the institution/)).toHaveTextContent(
-        'Priced by the institution: $28.34 on Oct 10.'
-      );
-      expect(screen.getByText(/stays the real price/)).toHaveTextContent(
-        /^The institution’s price stays the real price\./
-      );
-      await userEvent.click(screen.getByRole('button', { name: 'Follow fund' }));
-      expect(screen.getByText('Enter a fund symbol')).toBeInTheDocument();
-      await userEvent.type(screen.getByLabelText('Fund to follow'), 'FOLW');
-      await userEvent.click(screen.getByRole('button', { name: 'Follow fund' }));
-      await waitFor(() => expect(onSaved).toHaveBeenCalled());
-      expect(calls()[0].body).toEqual({ proxySymbol: 'FOLW' });
+  it('prefills a manual price', () => {
+    open(
+      makeSecurityItem({ pricing: Pricing.Manual, latest: { price: 64.3, date: '2026-09-30' } })
+    );
+    expect(radio('Manual price')).toBeChecked();
+    expect(screen.getByLabelText('Price per unit')).toHaveValue('64.3');
+    expect(save()).toBeDisabled();
+  });
+
+  it('offers no institution price for a security its institution has not priced', () => {
+    open(market);
+    expect(screen.queryByRole('radio', { name: 'Institution price' })).toBeNull();
+  });
+
+  it('lets a market security with an institution price switch back to it', async () => {
+    replies['PATCH /api/investments/securities/sec-z'] = ok({ security: {} });
+    const held = { ...market, hasInstitutionPrice: true };
+    const { unmount } = open(held);
+    await userEvent.click(radio('Institution price'));
+    expect(save()).toBeEnabled();
+    await userEvent.click(save());
+    await waitFor(() => expect(calls()[0]?.body).toEqual({ proxySymbol: null }));
+    unmount();
+
+    open(held);
+    await userEvent.click(radio('Institution price'));
+    await userEvent.type(screen.getByLabelText(/Follow a similar fund/), 'FOLW');
+    await userEvent.click(save());
+    await waitFor(() => expect(calls()[1]?.body).toEqual({ proxySymbol: 'FOLW' }));
+  });
+
+  describe('for a fund priced by its institution', () => {
+    const fund = makeSecurityItem({
+      id: 'sec-p',
+      label: 'PLAN',
+      name: 'Example Plan Trust',
+      pricing: Pricing.Institution,
+      priceSymbol: null,
+      proxySymbol: 'PRXY',
+      latest: { price: 28.34, date: '2026-10-10' },
     });
 
-    it('stops following', async () => {
+    it('shows the followed fund, and stops following when it is cleared', async () => {
       replies['PATCH /api/investments/securities/sec-p'] = ok({ security: {} });
-      const following = {
-        ...fund,
-        institution: { ...quote, proxy: { symbol: 'PRXY', name: 'Proxy Fund' } },
-      };
-      render(
-        <SetSymbolModal hint={hint} security={following} onClose={vi.fn()} onSaved={vi.fn()} />
+      open(fund);
+      expect(currently()).toHaveTextContent(
+        'Currently Institution · follows PRXY · $28.34 on Oct 10'
       );
-      expect(screen.getByText(/Following/)).toHaveTextContent('Following PRXY · Proxy Fund');
-      await userEvent.click(screen.getByRole('button', { name: 'Stop following' }));
+      expect(radio('Institution price')).toBeChecked();
+      expect(screen.getByText(/stays the real price/)).toHaveTextContent(
+        'The institution’s price stays the real price. On days without one, this holding moves with the fund you pick.'
+      );
+      const field = screen.getByLabelText(/Follow a similar fund/);
+      expect(field).toHaveValue('PRXY');
+      expect(save()).toBeDisabled();
+      await userEvent.clear(field);
+      await userEvent.click(save());
       await waitFor(() => expect(calls()[0]?.body).toEqual({ proxySymbol: null }));
     });
   });
 
-  it('offers no fund to follow for a security its institution does not price', () => {
-    render(<SetSymbolModal hint={hint} security={security} onClose={vi.fn()} onSaved={vi.fn()} />);
-    expect(screen.queryByText('No public ticker? Follow a similar fund')).not.toBeInTheDocument();
+  it('selects nothing for a security with no price source', () => {
+    open(makeSecurityItem({ pricing: Pricing.None, latest: null }));
+    expect(screen.queryAllByRole('radio', { checked: true })).toHaveLength(0);
+    expect(save()).toBeDisabled();
+  });
+
+  it('describes each source, and marks the fund to follow optional', async () => {
+    open({ ...market, hasInstitutionPrice: true });
+    expect(radio('Institution price')).toHaveAccessibleDescription(
+      'The price your institution reports for it.'
+    );
+    expect(radio('Market symbol')).toHaveAccessibleDescription(
+      'Daily closes from the market data provider.'
+    );
+    expect(radio('Manual price')).toHaveAccessibleDescription(
+      'A price per unit you enter. It stays until you change it.'
+    );
+    const group = screen.getByRole('radiogroup', { name: 'Price it with' });
+    expect(group).toHaveAttribute('aria-labelledby');
+    expect(group).not.toHaveAttribute('aria-label');
+    await userEvent.click(radio('Institution price'));
+    expect(screen.getByText('· optional')).toBeInTheDocument();
+  });
+
+  it("focuses an option's field on a click on its head, not on arrow keys", async () => {
+    open(market);
+    await userEvent.click(screen.getByText('Manual price'));
+    expect(screen.getByLabelText('Price per unit')).toHaveFocus();
+    radio('Manual price').focus();
+    await userEvent.keyboard('{ArrowUp}');
+    expect(radio('Market symbol')).toBeChecked();
+    expect(radio('Market symbol')).toHaveFocus();
+  });
+
+  it('announces an error', async () => {
+    open(market);
+    await userEvent.clear(screen.getByLabelText('Symbol'));
+    await userEvent.click(save());
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a symbol');
+  });
+
+  it('cannot be cancelled while saving', async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    global.fetch = vi.fn(async () => {
+      await gate; // the PATCH stays in flight
+      return { ok: true, status: 200, json: async () => ({ security: {} }) } as Response;
+    }) as unknown as typeof fetch;
+    const onSaved = vi.fn();
+    open(market, onSaved);
+    await userEvent.type(screen.getByLabelText('Symbol'), '.TO');
+    await userEvent.click(save());
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    release();
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+  });
+
+  it('cancels without sending anything', async () => {
+    const onClose = vi.fn();
+    render(<PriceWindow hint={hint} security={market} onClose={onClose} onSaved={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onClose).toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
