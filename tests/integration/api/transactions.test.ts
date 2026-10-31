@@ -67,8 +67,8 @@ describe('transactions API integration', () => {
 
     it('filters by date range', async () => {
       const now = new Date();
-      const lastMonth = new Date(now);
-      lastMonth.setMonth(lastMonth.getMonth() - 1);
+      // Mid-month, so a 31st doesn't roll "last month" forward into this one.
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15);
 
       await prisma.transaction.createMany({
         data: [
