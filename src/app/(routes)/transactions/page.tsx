@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/cn';
@@ -8,46 +8,20 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
-import { Modal } from '@/components/ui/modal';
+import { DRAWER_PUSH_CLASS } from '@/components/ui/drawer';
 import { ds } from '@/lib/design-system';
 import { formatAmountCompact, getCurrencyFlag } from '@/lib/currency';
 import { triggerSync } from '@/lib/cloud-sync';
 import { FilterRibbon } from '@/components/filter-ribbon';
-import { TagInput, getTagColors } from '@/components/tag-input';
 import type { TagDef } from '@/components/tag-input';
+import { CategorySelect } from '@/components/transactions/category-select';
 import { SubscriptionsTab } from '@/components/subscriptions-tab';
-
-type Tx = {
-  id: string;
-  date: string;
-  merchant: string;
-  amount: number;
-  category?: { id: string; name: string } | null;
-  account?: { id: string; name: string; currency?: string } | null;
-  confidenceScore: number;
-  isTransfer: boolean;
-  note?: string | null;
-  tags?: string[];
-  isOffset?: boolean;
-  linkedTransactionId?: string | null;
-  linkedTransaction?: Tx | null;
-  offsetTransactions?: Tx[];
-  parentTransactionId?: string | null;
-  isSplitParent?: boolean;
-  parentTransaction?: {
-    id: string;
-    amount: number;
-    merchant: string;
-    splitParts?: {
-      id: string;
-      amount: number;
-      categoryId: string | null;
-      note: string | null;
-      category?: { id: string; name: string } | null;
-    }[];
-  } | null;
-};
+import {
+  TransactionDrawer,
+  type TransactionDrawerHandle,
+} from '@/components/transactions/transaction-drawer';
+import { applyFields } from '@/components/transactions/types';
+import type { Category, Tx, TxFields } from '@/components/transactions/types';
 
 type Queue = {
   uncategorized: Tx[];
@@ -57,12 +31,43 @@ type Queue = {
   outliers: Tx[];
 };
 
-type Category = {
-  id: string;
-  name: string;
-  type: string;
-  parentId?: string | null;
-};
+type OpenOpts = { startLinking?: boolean };
+type DrawerTarget = { mode: 'edit'; id: string; linkRequest?: number } | { mode: 'new' } | null;
+
+const QUEUE_ORDER = [
+  'uncategorized',
+  'lowConfidence',
+  'unlinkedReturns',
+  'highConfidence',
+  'outliers',
+] as const;
+
+// A transaction can sit in several review sections; paging visits it once, at its first.
+function reviewList(queue: Queue | null): Tx[] {
+  const seen = new Set<string>();
+  return QUEUE_ORDER.flatMap((key) => queue?.[key] ?? []).filter((tx) => {
+    if (seen.has(tx.id)) return false;
+    seen.add(tx.id);
+    return true;
+  });
+}
+
+// Reaches past the page's filter, e.g. to a refund's original from months back.
+async function fetchLastYear(): Promise<Tx[] | null> {
+  try {
+    const res = await fetch('/api/transactions?preset=last-12-months');
+    const data: { transactions?: Tx[] } = await res.json();
+    return data.transactions ?? [];
+  } catch {
+    return null;
+  }
+}
+
+const patchRow = (list: Tx[], id: string, fields: TxFields, categories: Category[]) =>
+  list.map((t) => (t.id === id ? applyFields(t, fields, categories) : t));
+
+const SELECTED_ROW_STYLE = { background: 'color-mix(in srgb, var(--accent) 9%, transparent)' };
+const SELECTED_BAR_STYLE = { boxShadow: 'inset 3px 0 0 var(--accent)' };
 
 type UserSettings = {
   baseCurrency: string;
@@ -71,13 +76,6 @@ type UserSettings = {
 const formatCurrency = (amount: number, currency?: string, baseCurrency: string = 'USD') => {
   return formatAmountCompact(amount, currency || 'USD', baseCurrency);
 };
-
-// Strip emojis for sorting purposes
-const stripEmojis = (str: string) =>
-  str.replace(/[\p{Emoji}\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F]/gu, '').trim();
-
-const sortByName = (a: { name: string }, b: { name: string }) =>
-  stripEmojis(a.name).localeCompare(stripEmojis(b.name));
 
 function TransactionsPageContent() {
   const searchParams = useSearchParams();
@@ -89,33 +87,20 @@ function TransactionsPageContent() {
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [pendingCategories, setPendingCategories] = useState<Record<string, string>>({});
   const [pendingNotes, setPendingNotes] = useState<Record<string, string>>({});
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<Tx | null>(null);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [newTransaction, setNewTransaction] = useState({
-    date: new Date().toISOString().split('T')[0],
-    amount: '',
-    merchant: '',
-    categoryId: '',
-    note: '',
-    accountId: '',
-    tags: [] as string[],
-  });
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
-
-  const [splitModalOpen, setSplitModalOpen] = useState(false);
-  const [splitParts, setSplitParts] = useState<
-    { amount: string; categoryId: string; note: string }[]
-  >([
-    { amount: '', categoryId: '', note: '' },
-    { amount: '', categoryId: '', note: '' },
-  ]);
-
-  // Return tracking state
-  const [returnModalOpen, setReturnModalOpen] = useState(false);
-  const [returnTransaction, setReturnTransaction] = useState<Tx | null>(null);
-  const [potentialMatches, setPotentialMatches] = useState<any[]>([]);
-  const [loadingMatches, setLoadingMatches] = useState(false);
+  const [drawer, setDrawer] = useState<DrawerTarget>(null);
+  const [drawerSnapshot, setDrawerSnapshot] = useState<Tx | null>(null);
+  const drawerRef = useRef<TransactionDrawerHandle>(null);
+  // An id the drawer asked for that the lists don't hold yet, and the refresh that should bring it.
+  const [pendingOpen, setPendingOpen] = useState<{
+    id: string;
+    opts?: OpenOpts;
+    after: number;
+  } | null>(null);
+  const refreshesStarted = useRef(0);
+  const [refreshesDone, setRefreshesDone] = useState(0);
+  // Bumped per link request so asking again on the already-open transaction reopens the search.
+  const linkRequests = useRef(0);
 
   // Tag state
   const [availableTags, setAvailableTags] = useState<TagDef[]>([]);
@@ -308,6 +293,7 @@ function TransactionsPageContent() {
   };
 
   const refreshTransactionsAndQueue = async () => {
+    const seq = ++refreshesStarted.current;
     const queryParams = new URLSearchParams();
     const preset = searchParams.get('preset');
     const account = searchParams.get('account');
@@ -327,13 +313,19 @@ function TransactionsPageContent() {
 
     const queryString = queryParams.toString();
 
-    const [queueData, txData] = await Promise.all([
-      fetch('/api/review-queue').then((r) => r.json()),
-      fetch(`/api/transactions${queryString ? `?${queryString}` : ''}`).then((r) => r.json()),
-    ]);
-
-    setQueue(queueData);
-    setTransactions(txData.transactions ?? []);
+    try {
+      const [queueData, txData] = await Promise.all([
+        fetch('/api/review-queue').then((r) => r.json()),
+        fetch(`/api/transactions${queryString ? `?${queryString}` : ''}`).then((r) => r.json()),
+      ]);
+      setQueue(queueData);
+      setTransactions(txData.transactions ?? []);
+    } catch (err) {
+      console.error('Failed to refresh transactions', err);
+    } finally {
+      // A pending open waits on this count, so a failed refresh must advance it too.
+      setRefreshesDone((done) => Math.max(done, seq));
+    }
   };
 
   const setPendingCategory = (transactionId: string, categoryId: string) => {
@@ -350,175 +342,109 @@ function TransactionsPageContent() {
     }));
   };
 
-  const openEditModal = (transaction: Tx) => {
-    setEditingTransaction(transaction);
-    setEditModalOpen(true);
-  };
+  const drawerList = tab === 'review' ? reviewList(queue) : transactions;
+  const openId = drawer?.mode === 'edit' ? drawer.id : null;
+  const listedTx = openId
+    ? (drawerList.find((t) => t.id === openId) ?? transactions.find((t) => t.id === openId))
+    : undefined;
+  // A refresh can drop the open transaction from every list; the drawer stays on it regardless.
+  const drawerTx = listedTx ?? (drawerSnapshot?.id === openId ? drawerSnapshot : null);
 
-  const closeEditModal = () => {
-    setEditModalOpen(false);
-    setEditingTransaction(null);
-  };
+  useEffect(() => {
+    if (listedTx) setDrawerSnapshot(listedTx);
+  }, [listedTx]);
 
-  const updateTransaction = async () => {
-    if (!editingTransaction) return;
+  const isListed = (id: string) =>
+    drawerList.some((t) => t.id === id) || transactions.some((t) => t.id === id);
 
-    try {
-      await fetch(`/api/transactions/${editingTransaction.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: editingTransaction.date,
-          amount: editingTransaction.amount,
-          merchant: editingTransaction.merchant,
-          categoryId: editingTransaction.category?.id || null,
-          note: editingTransaction.note,
-          tags: editingTransaction.tags || [],
-        }),
-      });
+  const editTarget = (id: string, opts?: OpenOpts): DrawerTarget =>
+    opts?.startLinking
+      ? { mode: 'edit', id, linkRequest: ++linkRequests.current }
+      : { mode: 'edit', id };
 
-      closeEditModal();
-      refreshTransactionsAndQueue(); // Refresh data
-      triggerSync();
-    } catch (error) {
-      alert('Failed to update transaction');
-    }
-  };
-
-  const deleteTransaction = async () => {
-    if (!editingTransaction) return;
-
-    if (
-      !confirm(
-        `Are you sure you want to delete this transaction?\n\n${editingTransaction.merchant} - $${Math.abs(editingTransaction.amount).toFixed(2)}\n\nThis cannot be undone.`
-      )
-    ) {
+  // Ids outside the lists (new split parts, an unsplit original, an older refund original)
+  // resolve after a refresh or a wider lookup; meanwhile the drawer stays where it is.
+  const onDrawerOpen = (id: string, opts?: OpenOpts) => {
+    if (drawer?.mode === 'edit' && !isListed(id)) {
+      if (refreshesDone >= refreshesStarted.current) void refreshTransactionsAndQueue();
+      setPendingOpen({ id, opts, after: refreshesStarted.current });
       return;
     }
+    setPendingOpen(null);
+    setDrawer(editTarget(id, opts));
+  };
 
-    try {
-      const response = await fetch(`/api/transactions/${editingTransaction.id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        alert('Failed to delete transaction');
-        return;
+  const pendingListed = pendingOpen ? isListed(pendingOpen.id) : false;
+  const currentListed = openId ? isListed(openId) : false;
+  useEffect(() => {
+    if (!pendingOpen) return;
+    const { id, opts } = pendingOpen;
+    if (pendingListed) {
+      setDrawer(editTarget(id, opts));
+      setPendingOpen(null);
+      return;
+    }
+    if (refreshesDone < pendingOpen.after) return;
+    // Still missing after the refresh: look wider; the snapshot then carries it outside the list.
+    let stale = false;
+    void fetchLastYear().then((year) => {
+      if (stale) return;
+      const tx = year?.find((t) => t.id === id);
+      if (tx) {
+        setDrawerSnapshot(tx);
+        setDrawer(editTarget(id, opts));
+      } else if (year && !currentListed && !year.some((t) => t.id === openId)) {
+        // A miss stays on the current transaction, unless that is gone too (e.g. after unsplit).
+        setDrawer(null);
       }
+      setPendingOpen(null);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [pendingOpen, pendingListed, refreshesDone, openId, currentListed]);
 
-      closeEditModal();
-      refreshTransactionsAndQueue(); // Refresh data
-      triggerSync();
-    } catch (error) {
-      alert('Failed to delete transaction');
-    }
-  };
+  const drawerState =
+    drawer?.mode === 'new'
+      ? drawer
+      : drawer && drawerTx
+        ? { mode: 'edit' as const, tx: drawerTx, linkRequest: drawer.linkRequest }
+        : null;
+  // Layout follows what is shown: an opened id that never loads leaves the page unpushed.
+  const drawerOpen = drawerState !== null;
 
-  const openSplitModal = () => {
-    if (!editingTransaction) return;
-    const absAmount = Math.abs(editingTransaction.amount);
-    setSplitParts([
-      { amount: String(absAmount), categoryId: editingTransaction.category?.id || '', note: '' },
-      { amount: '', categoryId: '', note: '' },
-    ]);
-    setSplitModalOpen(true);
-  };
-
-  const addSplitPart = () => {
-    setSplitParts([...splitParts, { amount: '', categoryId: '', note: '' }]);
-  };
-
-  const removeSplitPart = (index: number) => {
-    if (splitParts.length <= 2) return;
-    setSplitParts(splitParts.filter((_, i) => i !== index));
-  };
-
-  const updateSplitPart = (
-    index: number,
-    field: 'amount' | 'categoryId' | 'note',
-    value: string
-  ) => {
-    const updated = [...splitParts];
-    updated[index] = { ...updated[index], [field]: value };
-    setSplitParts(updated);
-  };
-
-  const splitPartsSum = splitParts.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-  const splitOriginalAbs = editingTransaction ? Math.abs(editingTransaction.amount) : 0;
-  const splitSumMatches = Math.abs(splitPartsSum - splitOriginalAbs) < 0.01;
-  const splitIsExpense = editingTransaction ? editingTransaction.amount < 0 : true;
-
-  const submitSplit = async () => {
-    if (!editingTransaction || !splitSumMatches) return;
-
-    try {
-      const sign = splitIsExpense ? -1 : 1;
-      await fetch('/api/transactions/split', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transactionId: editingTransaction.id,
-          parts: splitParts.map((p) => ({
-            amount: (parseFloat(p.amount) || 0) * sign,
-            categoryId: p.categoryId || null,
-            note: p.note || null,
-          })),
-        }),
-      });
-
-      setSplitModalOpen(false);
-      closeEditModal();
-      refreshTransactionsAndQueue();
-      triggerSync();
-    } catch (_err) {
-      alert('Failed to split transaction');
-    }
-  };
-
-  const unsplitTransaction = async (parentId: string) => {
-    if (
-      !confirm('This will remove all split parts and restore the original transaction. Continue?')
-    )
+  // Opens go through the drawer so a pending edit is saved before it switches.
+  // Clicking the row that is already open closes the drawer.
+  const openTransaction = (id: string, opts?: OpenOpts) => {
+    if (!opts && drawerState?.mode === 'edit' && drawerState.tx.id === id) {
+      void drawerRef.current?.close();
       return;
-
-    try {
-      await fetch('/api/transactions/unsplit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transactionId: parentId }),
-      });
-
-      closeEditModal();
-      refreshTransactionsAndQueue();
-      triggerSync();
-    } catch (_err) {
-      alert('Failed to unsplit transaction');
     }
+    void drawerRef.current?.open(id, opts);
+  };
+  const openNewTransaction = () => void drawerRef.current?.openNew();
+
+  // Applied to the current rows, not the drawer's copy: a queued save may hold a stale one.
+  const onRowSaved = (id: string, fields: TxFields) => {
+    const patch = (list: Tx[]) => patchRow(list, id, fields, categories);
+    setTransactions(patch);
+    setQueue(
+      (prev) =>
+        prev && {
+          uncategorized: patch(prev.uncategorized),
+          lowConfidence: patch(prev.lowConfidence),
+          highConfidence: patch(prev.highConfidence),
+          unlinkedReturns: patch(prev.unlinkedReturns),
+          outliers: patch(prev.outliers),
+        }
+    );
+    setDrawerSnapshot((prev) => prev && patch([prev])[0]);
   };
 
-  const toggleTransfer = async () => {
-    if (!editingTransaction) return;
-
-    try {
-      await fetch(`/api/transactions/${editingTransaction.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          isTransfer: !editingTransaction.isTransfer,
-          transferGroupId: null,
-        }),
-      });
-
-      setEditingTransaction({
-        ...editingTransaction,
-        isTransfer: !editingTransaction.isTransfer,
-      });
-
-      refreshTransactionsAndQueue();
-      triggerSync();
-    } catch (error) {
-      alert('Failed to update transfer status');
-    }
+  const closeDrawer = () => {
+    setPendingOpen(null);
+    setDrawer(null);
+    refreshTransactionsAndQueue();
   };
 
   const submitAllCategories = async () => {
@@ -557,52 +483,6 @@ function TransactionsPageContent() {
     triggerSync();
   };
 
-  const createTransaction = async () => {
-    if (!newTransaction.accountId || !newTransaction.merchant || !newTransaction.amount) {
-      alert('Please fill in account, merchant, and amount');
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: newTransaction.date,
-          amount: parseFloat(newTransaction.amount),
-          merchant: newTransaction.merchant,
-          accountId: newTransaction.accountId,
-          categoryId: newTransaction.categoryId || null,
-          note: newTransaction.note || null,
-          tags: newTransaction.tags.length > 0 ? newTransaction.tags : undefined,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('Failed to create transaction:', error);
-        alert(`Failed to create transaction: ${error.error || 'Unknown error'}`);
-        return;
-      }
-
-      setCreateModalOpen(false);
-      setNewTransaction({
-        date: new Date().toISOString().split('T')[0],
-        amount: '',
-        merchant: '',
-        categoryId: '',
-        note: '',
-        accountId: '',
-        tags: [],
-      });
-      refreshTransactionsAndQueue();
-      triggerSync();
-    } catch (error) {
-      console.error('Failed to create transaction:', error);
-      alert('Failed to create transaction');
-    }
-  };
-
   const confirmCategory = async (transactionId: string) => {
     try {
       await fetch(`/api/transactions/${transactionId}`, {
@@ -614,41 +494,6 @@ function TransactionsPageContent() {
       triggerSync();
     } catch (error) {
       alert('Failed to confirm category');
-    }
-  };
-
-  // Return tracking handlers
-  const openReturnModal = async (transaction: Tx) => {
-    setReturnTransaction(transaction);
-    setReturnModalOpen(true);
-    setLoadingMatches(true);
-    setPotentialMatches([]);
-
-    try {
-      const res = await fetch(`/api/transactions/${transaction.id}/returns`);
-      const data = await res.json();
-      setPotentialMatches(data.matches || []);
-    } catch (error) {
-      console.error('Failed to load potential matches:', error);
-    } finally {
-      setLoadingMatches(false);
-    }
-  };
-
-  const linkReturn = async (originalTransactionId: string) => {
-    if (!returnTransaction) return;
-
-    try {
-      await fetch(`/api/transactions/${returnTransaction.id}/returns`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ originalTransactionId }),
-      });
-      setReturnModalOpen(false);
-      refreshTransactionsAndQueue();
-      triggerSync();
-    } catch (error) {
-      alert('Failed to link return');
     }
   };
 
@@ -713,8 +558,11 @@ function TransactionsPageContent() {
             return (
               <div
                 key={tx.id}
-                className={`p-4 rounded-lg border ${hasPendingChanges ? `${ds.status.success.border} ${ds.status.success.bg}` : `${ds.border.default} ${ds.bg.primary}`} ${ds.border.hover} hover:shadow-sm transition-all cursor-pointer space-y-3`}
-                onClick={() => openEditModal(tx)}
+                className={cn(
+                  `p-4 rounded-lg border ${hasPendingChanges ? `${ds.status.success.border} ${ds.status.success.bg}` : `${ds.border.default} ${ds.bg.primary}`} ${ds.border.hover} hover:shadow-sm transition-all cursor-pointer space-y-3`,
+                  openId === tx.id && 'ring-1 ring-[var(--accent)]'
+                )}
+                onClick={() => openTransaction(tx.id)}
               >
                 {/* Transaction Header */}
                 <div className="flex items-center justify-between">
@@ -798,32 +646,13 @@ function TransactionsPageContent() {
                       Category
                     </label>
                     <div className="flex gap-2">
-                      <Select
+                      <CategorySelect
+                        categories={categories}
                         className="flex-1 text-sm"
+                        placeholder="Select category..."
                         value={pendingCategories[tx.id] || ''}
-                        onChange={(e) => setPendingCategory(tx.id, e.target.value)}
-                      >
-                        <option value="">Select category...</option>
-                        {categories
-                          .filter((c) => !c.parentId) // Get all groups
-                          .sort(sortByName)
-                          .map((group) => {
-                            const groupCategories = categories
-                              .filter((c) => c.parentId === group.id)
-                              .sort(sortByName);
-                            if (groupCategories.length === 0) return null;
-
-                            return (
-                              <optgroup key={group.id} label={group.name}>
-                                {groupCategories.map((cat) => (
-                                  <option key={cat.id} value={cat.id}>
-                                    {cat.name}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            );
-                          })}
-                      </Select>
+                        onChange={(id) => setPendingCategory(tx.id, id ?? '')}
+                      />
                       {tx.category && !hasPendingCategory && (
                         <button
                           className="text-[var(--green)] hover:text-[var(--green)] hover:bg-[var(--green)]/10 p-2 rounded-lg transition-colors"
@@ -886,7 +715,7 @@ function TransactionsPageContent() {
                       className={`text-xs ${ds.status.info.text} hover:${ds.status.info.bg} px-2 py-1 rounded transition-colors`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        openReturnModal(tx);
+                        openTransaction(tx.id, { startLinking: true });
                       }}
                     >
                       🔗 Link Transaction
@@ -917,7 +746,7 @@ function TransactionsPageContent() {
   ] as const;
 
   return (
-    <div className="space-y-4">
+    <div className={cn('space-y-4', drawerOpen && DRAWER_PUSH_CLASS)}>
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-[var(--text-primary)]">Transactions</h1>
       </div>
@@ -1005,7 +834,7 @@ function TransactionsPageContent() {
               )}
               <Button
                 className="bg-[var(--accent)] text-white hover:bg-[var(--accent)] py-2 px-4 text-sm"
-                onClick={() => setCreateModalOpen(true)}
+                onClick={openNewTransaction}
               >
                 + New Transaction
               </Button>
@@ -1032,32 +861,13 @@ function TransactionsPageContent() {
                     : 'Select All'}
                 </button>
                 <div className="flex items-center gap-2">
-                  <Select
+                  <CategorySelect
+                    categories={categories}
                     className="w-48"
+                    placeholder="Set category..."
                     value={bulkCategory}
-                    onChange={(e) => setBulkCategory(e.target.value)}
-                  >
-                    <option value="">Set category...</option>
-                    {categories
-                      .filter((c) => !c.parentId)
-                      .sort(sortByName)
-                      .map((group) => {
-                        const groupCategories = categories
-                          .filter((c) => c.parentId === group.id)
-                          .sort(sortByName);
-                        if (groupCategories.length === 0) return null;
-
-                        return (
-                          <optgroup key={group.id} label={group.name}>
-                            {groupCategories.map((cat) => (
-                              <option key={cat.id} value={cat.id}>
-                                {cat.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        );
-                      })}
-                  </Select>
+                    onChange={(id) => setBulkCategory(id ?? '')}
+                  />
                   <Button
                     className="!bg-[var(--accent)] hover:!bg-[var(--accent)] text-white py-2 px-3 text-xs"
                     disabled={!bulkCategory}
@@ -1121,7 +931,7 @@ function TransactionsPageContent() {
                   <th className="px-3 py-2 w-[100px]">Date</th>
                   <th className="px-3 py-2">Merchant</th>
                   <th className="px-3 py-2 w-[200px] whitespace-nowrap">Category</th>
-                  <th className="px-3 py-2 w-[150px]">Account</th>
+                  <th className={cn('px-3 py-2 w-[150px]', drawerOpen && 'hidden')}>Account</th>
                   <th className="px-3 py-2 w-[120px] text-right">Amount</th>
                   <th className="w-8" />
                 </tr>
@@ -1142,21 +952,24 @@ function TransactionsPageContent() {
                               : ''
                     }`}
                     style={
-                      selectMode && selectedTransactions.has(tx.id)
-                        ? { boxShadow: 'inset 3px 0 0 var(--accent)' }
-                        : undefined
+                      openId === tx.id
+                        ? SELECTED_ROW_STYLE
+                        : selectMode && selectedTransactions.has(tx.id)
+                          ? SELECTED_BAR_STYLE
+                          : undefined
                     }
                     onClick={selectMode ? () => toggleSelection(tx.id) : undefined}
                   >
                     <td
                       className="px-3 py-2 text-[var(--text-muted)] whitespace-nowrap"
-                      onClick={selectMode ? undefined : () => openEditModal(tx)}
+                      style={openId === tx.id ? SELECTED_BAR_STYLE : undefined}
+                      onClick={selectMode ? undefined : () => openTransaction(tx.id)}
                     >
                       {tx.date.split('T')[0]}
                     </td>
                     <td
                       className="px-3 py-2"
-                      onClick={selectMode ? undefined : () => openEditModal(tx)}
+                      onClick={selectMode ? undefined : () => openTransaction(tx.id)}
                     >
                       <div className="flex items-center gap-2">
                         {tx.isOffset && <span className="text-[var(--accent)]">↩</span>}
@@ -1217,7 +1030,7 @@ function TransactionsPageContent() {
                     </td>
                     <td
                       className="px-3 py-2 whitespace-nowrap"
-                      onClick={selectMode ? undefined : () => openEditModal(tx)}
+                      onClick={selectMode ? undefined : () => openTransaction(tx.id)}
                     >
                       {tx.isTransfer ? (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]">
@@ -1238,8 +1051,11 @@ function TransactionsPageContent() {
                       )}
                     </td>
                     <td
-                      className="px-3 py-2 text-[var(--text-secondary)] text-sm"
-                      onClick={selectMode ? undefined : () => openEditModal(tx)}
+                      className={cn(
+                        'px-3 py-2 text-[var(--text-secondary)] text-sm',
+                        drawerOpen && 'hidden'
+                      )}
+                      onClick={selectMode ? undefined : () => openTransaction(tx.id)}
                     >
                       {tx.account?.name || '—'}
                     </td>
@@ -1251,7 +1067,7 @@ function TransactionsPageContent() {
                             ? 'text-[var(--green)]'
                             : 'text-[var(--red)]'
                       }`}
-                      onClick={selectMode ? undefined : () => openEditModal(tx)}
+                      onClick={selectMode ? undefined : () => openTransaction(tx.id)}
                     >
                       {tx.amount > 0 ? '+' : ''}
                       {formatCurrency(tx.amount, tx.account?.currency, userSettings?.baseCurrency)}
@@ -1285,778 +1101,29 @@ function TransactionsPageContent() {
         </Card>
       )}
 
-      {/* Transaction Edit Modal */}
-      <Modal
-        isOpen={editModalOpen}
-        title={
-          editingTransaction
-            ? `Edit Transaction: ${editingTransaction.merchant}`
-            : 'Edit Transaction'
-        }
-        onClose={closeEditModal}
-      >
-        {editingTransaction && (
-          <div className="space-y-6">
-            {/* Edit Transaction */}
-            <div className={`${ds.bg.elevated} rounded-lg p-4 border ${ds.border.default}`}>
-              <h4 className={`font-semibold ${ds.text.primary} mb-3`}>Transaction Details</h4>
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                      Date
-                    </label>
-                    <Input
-                      className="w-full"
-                      type="date"
-                      value={new Date(editingTransaction.date).toISOString().split('T')[0]}
-                      onChange={(e) =>
-                        setEditingTransaction({
-                          ...editingTransaction,
-                          date: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                      Amount
-                    </label>
-                    <Input
-                      className="w-full"
-                      step="0.01"
-                      type="number"
-                      value={editingTransaction.amount}
-                      onChange={(e) =>
-                        setEditingTransaction({
-                          ...editingTransaction,
-                          amount: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                    Merchant
-                  </label>
-                  <Input
-                    className="w-full"
-                    placeholder="Merchant name"
-                    value={editingTransaction.merchant}
-                    onChange={(e) =>
-                      setEditingTransaction({
-                        ...editingTransaction,
-                        merchant: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                    Category
-                  </label>
-                  <Select
-                    className="w-full"
-                    value={editingTransaction.category?.id || ''}
-                    onChange={(e) => {
-                      const selectedCategory = categories.find((c) => c.id === e.target.value);
-                      setEditingTransaction({
-                        ...editingTransaction,
-                        category: selectedCategory || null,
-                      });
-                    }}
-                  >
-                    <option value="">No category</option>
-                    {categories
-                      .filter((c) => !c.parentId) // Get all groups
-                      .sort(sortByName)
-                      .map((group) => {
-                        const groupCategories = categories
-                          .filter((c) => c.parentId === group.id)
-                          .sort(sortByName);
-                        if (groupCategories.length === 0) return null;
-
-                        return (
-                          <optgroup key={group.id} label={group.name}>
-                            {groupCategories.map((cat) => (
-                              <option key={cat.id} value={cat.id}>
-                                {cat.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        );
-                      })}
-                  </Select>
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium ${ds.text.secondary} mb-1`}>
-                    Account
-                  </label>
-                  <Input
-                    disabled
-                    className="w-full !bg-[var(--bg-elevated)] text-[var(--text-muted)] cursor-not-allowed opacity-75"
-                    value={editingTransaction.account?.name || 'Unknown'}
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                    Note
-                  </label>
-                  <Input
-                    className="w-full"
-                    placeholder="Add a note about this transaction..."
-                    value={editingTransaction.note || ''}
-                    onChange={(e) =>
-                      setEditingTransaction({
-                        ...editingTransaction,
-                        note: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                    Tags
-                  </label>
-                  <TagInput
-                    availableTags={availableTags}
-                    value={editingTransaction.tags || []}
-                    onChange={(tags) => setEditingTransaction({ ...editingTransaction, tags })}
-                    onCreateTag={createTag}
-                  />
-                </div>
-                <Button
-                  className="w-full !bg-[var(--accent)] hover:!bg-[var(--accent)] text-white py-3"
-                  onClick={updateTransaction}
-                >
-                  Save Changes
-                </Button>
-                {!editingTransaction.parentTransactionId &&
-                  !editingTransaction.isSplitParent &&
-                  !editingTransaction.linkedTransactionId &&
-                  (!editingTransaction.offsetTransactions ||
-                    editingTransaction.offsetTransactions.length === 0) && (
-                    <Button className="w-full py-3" variant="outline" onClick={openSplitModal}>
-                      Split Transaction
-                    </Button>
-                  )}
-              </div>
-            </div>
-
-            {/* Transaction Info */}
-            <div className={`${ds.bg.elevated} rounded-lg p-4 border ${ds.border.default}`}>
-              <h4 className={`font-semibold ${ds.text.primary} mb-3`}>Transaction Info</h4>
-              <div className={`text-sm ${ds.text.secondary} space-y-1`}>
-                <div>
-                  <strong>Confidence Score:</strong>{' '}
-                  {(editingTransaction.confidenceScore * 100).toFixed(0)}%
-                </div>
-                <div>
-                  <strong>Created:</strong> {editingTransaction.date.split('T')[0]}
-                </div>
-              </div>
-            </div>
-
-            {/* Split Context */}
-            {editingTransaction.parentTransactionId && editingTransaction.parentTransaction && (
-              <div className="bg-[var(--accent)]/10 rounded-lg p-4 border border-[var(--accent)]">
-                <h4 className="font-semibold text-[var(--accent)] mb-3">Split Transaction</h4>
-                <div className={`text-sm ${ds.text.secondary} mb-3`}>
-                  This is part of a split from the original{' '}
-                  <strong>
-                    ${Math.abs(editingTransaction.parentTransaction.amount).toFixed(2)}
-                  </strong>{' '}
-                  transaction.
-                </div>
-                {editingTransaction.parentTransaction.splitParts &&
-                  editingTransaction.parentTransaction.splitParts.length > 0 && (
-                    <div className="mb-3 space-y-1">
-                      <div className={`text-xs font-medium ${ds.text.muted} mb-1`}>All parts:</div>
-                      {editingTransaction.parentTransaction.splitParts.map((part: any) => (
-                        <div
-                          key={part.id}
-                          className={`text-sm flex justify-between ${
-                            part.id === editingTransaction.id
-                              ? 'font-semibold ' + ds.text.primary
-                              : ds.text.secondary
-                          }`}
-                        >
-                          <span>{part.category?.name || 'Uncategorized'}</span>
-                          <span>${Math.abs(part.amount).toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                <Button
-                  className="w-full py-3"
-                  variant="outline"
-                  onClick={() => unsplitTransaction(editingTransaction.parentTransactionId!)}
-                >
-                  Unsplit (Restore Original)
-                </Button>
-                <div className={`text-xs ${ds.text.muted} mt-2`}>
-                  This will remove all split parts and restore the original transaction.
-                </div>
-              </div>
-            )}
-
-            {/* Transfer Status */}
-            <div className={`${ds.bg.elevated} rounded-lg p-4 border ${ds.border.default}`}>
-              <h4 className={`font-semibold ${ds.text.primary} mb-3`}>Transfer Status</h4>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className={`text-sm ${ds.text.secondary}`}>
-                    {editingTransaction.isTransfer
-                      ? 'This transaction is marked as a transfer between accounts'
-                      : 'This transaction counts toward spending/income totals'}
-                  </span>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      editingTransaction.isTransfer
-                        ? `${ds.status.info.bg} ${ds.status.info.text}`
-                        : `${ds.bg.tertiary} ${ds.text.secondary}`
-                    }`}
-                  >
-                    {editingTransaction.isTransfer ? 'Transfer' : 'Normal'}
-                  </span>
-                </div>
-                <Button className="w-full py-3" variant="outline" onClick={toggleTransfer}>
-                  {editingTransaction.isTransfer ? 'Unmark as Transfer' : 'Mark as Transfer'}
-                </Button>
-                <div className={`text-xs ${ds.text.muted}`}>
-                  {editingTransaction.isTransfer
-                    ? 'Unmarking will include this in spending/income calculations'
-                    : 'Transfers (like credit card payments) are excluded from spending totals'}
-                </div>
-              </div>
-            </div>
-
-            {/* Linked Transaction Tracking */}
-            {!editingTransaction.isTransfer && (
-              <div className={`${ds.bg.elevated} rounded-lg p-4 border ${ds.border.default}`}>
-                <h4 className={`font-semibold ${ds.text.primary} mb-3`}>Linked Transactions</h4>
-                {editingTransaction.isOffset && editingTransaction.linkedTransactionId ? (
-                  <div className="space-y-3">
-                    <div
-                      className={`text-sm ${ds.status.purple.text} ${ds.status.purple.bg} p-3 rounded border ${ds.status.purple.border}`}
-                    >
-                      ↩ This transaction is linked to an original transaction
-                    </div>
-                    {editingTransaction.linkedTransaction && (
-                      <div
-                        className={`${ds.bg.primary} p-3 rounded border ${ds.status.purple.border}`}
-                      >
-                        <div className={`text-sm font-medium ${ds.text.primary} mb-2`}>
-                          Original Transaction:
-                        </div>
-                        <div className={`text-sm ${ds.text.primary}`}>
-                          <div>
-                            <strong>Merchant:</strong>{' '}
-                            {editingTransaction.linkedTransaction.merchant}
-                          </div>
-                          <div>
-                            <strong>Amount:</strong> $
-                            {Math.abs(editingTransaction.linkedTransaction.amount).toFixed(2)}
-                          </div>
-                          <div>
-                            <strong>Date:</strong>{' '}
-                            {editingTransaction.linkedTransaction.date.split('T')[0]}
-                          </div>
-                        </div>
-                        <Button
-                          className="w-full mt-3 py-2 text-sm"
-                          variant="outline"
-                          onClick={async () => {
-                            closeEditModal();
-                            // Fetch the full transaction with relations
-                            const res = await fetch(`/api/transactions?preset=last-12-months`);
-                            const data = await res.json();
-                            const fullTx = data.transactions.find(
-                              (t: Tx) => t.id === editingTransaction.linkedTransactionId
-                            );
-                            if (fullTx) {
-                              openEditModal(fullTx);
-                            }
-                          }}
-                        >
-                          View Original Transaction
-                        </Button>
-                      </div>
-                    )}
-                    <Button
-                      className="w-full py-3"
-                      variant="outline"
-                      onClick={() => {
-                        unlinkReturn(editingTransaction.id);
-                        closeEditModal();
-                      }}
-                    >
-                      Unlink Transaction
-                    </Button>
-                  </div>
-                ) : editingTransaction.offsetTransactions &&
-                  editingTransaction.offsetTransactions.length > 0 ? (
-                  <div className="space-y-3">
-                    <div
-                      className={`text-sm ${ds.status.purple.text} ${ds.status.purple.bg} p-3 rounded border ${ds.status.purple.border}`}
-                    >
-                      This transaction has {editingTransaction.offsetTransactions.length} linked
-                      transaction{editingTransaction.offsetTransactions.length > 1 ? 's' : ''}
-                    </div>
-                    {editingTransaction.offsetTransactions.map((ret: any) => (
-                      <div
-                        key={ret.id}
-                        className={`flex items-center justify-between p-2 ${ds.bg.primary} rounded border`}
-                      >
-                        <div className="text-sm">
-                          <div className="font-medium">
-                            ${Math.abs(ret.amount).toFixed(2)} linked
-                          </div>
-                          <div className={`text-xs ${ds.text.muted}`}>{ret.date.split('T')[0]}</div>
-                        </div>
-                        <button
-                          className="text-xs text-[var(--red)] hover:text-[var(--red)] underline"
-                          onClick={() => {
-                            unlinkReturn(ret.id);
-                            closeEditModal();
-                          }}
-                        >
-                          Unlink
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <Button
-                    className="w-full py-3"
-                    variant="outline"
-                    onClick={() => {
-                      closeEditModal();
-                      openReturnModal(editingTransaction);
-                    }}
-                  >
-                    Link Transaction
-                  </Button>
-                )}
-              </div>
-            )}
-
-            {/* Delete Transaction */}
-            <div className="bg-[var(--red)]/10 rounded-lg p-4 border border-[var(--red)] mb-2">
-              <h4 className="font-semibold text-[var(--red)] mb-3">Delete Transaction</h4>
-              <Button
-                className="w-full !bg-[var(--red)] text-white hover:!bg-[var(--red)] py-3"
-                onClick={deleteTransaction}
-              >
-                Delete Transaction
-              </Button>
-              <div className={`text-sm ${ds.status.error.text} mt-2`}>
-                <strong>Warning:</strong> This action cannot be undone
-              </div>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* Create Transaction Modal */}
-      <Modal
-        isOpen={createModalOpen}
-        title="New Transaction"
-        onClose={() => setCreateModalOpen(false)}
-      >
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>Date</label>
-              <Input
-                className="w-full"
-                type="date"
-                value={newTransaction.date}
-                onChange={(e) => setNewTransaction({ ...newTransaction, date: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>Amount</label>
-              <Input
-                className="w-full"
-                placeholder="-50.00 or 100.00"
-                step="0.01"
-                type="number"
-                value={newTransaction.amount}
-                onChange={(e) => setNewTransaction({ ...newTransaction, amount: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>Account</label>
-            <Select
-              className="w-full"
-              value={newTransaction.accountId}
-              onChange={(e) => setNewTransaction({ ...newTransaction, accountId: e.target.value })}
-            >
-              <option value="">Select account...</option>
-              {accounts.map((acc) => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>Merchant</label>
-            <Input
-              className="w-full"
-              placeholder="e.g., Starbucks, Amazon, etc."
-              value={newTransaction.merchant}
-              onChange={(e) => setNewTransaction({ ...newTransaction, merchant: e.target.value })}
-            />
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-              Category (optional)
-            </label>
-            <Select
-              className="w-full"
-              value={newTransaction.categoryId}
-              onChange={(e) => setNewTransaction({ ...newTransaction, categoryId: e.target.value })}
-            >
-              <option value="">No category</option>
-              {categories
-                .filter((c) => !c.parentId)
-                .sort(sortByName)
-                .map((group) => {
-                  const groupCategories = categories
-                    .filter((c) => c.parentId === group.id)
-                    .sort(sortByName);
-                  if (groupCategories.length === 0) return null;
-
-                  return (
-                    <optgroup key={group.id} label={group.name}>
-                      {groupCategories.map((cat) => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  );
-                })}
-            </Select>
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-              Note (optional)
-            </label>
-            <Input
-              className="w-full"
-              placeholder="Add a note..."
-              value={newTransaction.note}
-              onChange={(e) => setNewTransaction({ ...newTransaction, note: e.target.value })}
-            />
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-              Tags (optional)
-            </label>
-            <TagInput
-              availableTags={availableTags}
-              value={newTransaction.tags}
-              onChange={(tags) => setNewTransaction({ ...newTransaction, tags })}
-              onCreateTag={createTag}
-            />
-          </div>
-
-          <div className={`text-xs ${ds.text.muted} ${ds.bg.secondary} p-3 rounded border`}>
-            Use negative amounts for expenses (e.g., -50.00) and positive for income (e.g., 100.00)
-          </div>
-
-          <Button
-            className="w-full bg-[var(--accent)] text-white hover:bg-[var(--accent)] py-3"
-            onClick={createTransaction}
-          >
-            Create Transaction
-          </Button>
-        </div>
-      </Modal>
-
-      {/* Link Transaction Modal */}
-      <Modal
-        isOpen={returnModalOpen}
-        title={
-          returnTransaction ? `Link Transaction: ${returnTransaction.merchant}` : 'Link Transaction'
-        }
-        onClose={() => setReturnModalOpen(false)}
-      >
-        {returnTransaction && (
-          <div className="space-y-4">
-            <div className={`${ds.status.info.bg} p-4 rounded-lg border ${ds.status.info.border}`}>
-              <div className={`text-sm font-semibold ${ds.status.info.text} mb-2`}>
-                {returnTransaction.amount > 0 ? 'Credit/Offset' : 'Purchase/Expense'} Transaction
-              </div>
-              <div className={`text-sm ${ds.text.primary}`}>
-                <div>
-                  <strong>Merchant:</strong> {returnTransaction.merchant}
-                </div>
-                <div>
-                  <strong>Amount:</strong> ${Math.abs(returnTransaction.amount).toFixed(2)}
-                </div>
-                <div>
-                  <strong>Date:</strong> {returnTransaction.date.split('T')[0]}
-                </div>
-              </div>
-            </div>
-
-            {loadingMatches ? (
-              <div className={`text-center py-8 ${ds.text.muted}`}>
-                <div className="animate-pulse">Finding potential matches...</div>
-              </div>
-            ) : (
-              <>
-                {potentialMatches.length > 0 && (
-                  <div className="space-y-3">
-                    <div className={`text-sm font-semibold ${ds.text.primary}`}>
-                      Suggested Matches ({potentialMatches.length})
-                    </div>
-                    <div className="max-h-64 overflow-y-auto space-y-2">
-                      {potentialMatches.map((match) => (
-                        <div
-                          key={match.id}
-                          className={`p-3 border ${ds.border.default} rounded-lg hover:${ds.status.info.border} hover:${ds.status.info.bg} transition-all cursor-pointer`}
-                          onClick={() => linkReturn(match.id)}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 min-w-0">
-                              <div className={`font-medium ${ds.text.primary} truncate`}>
-                                {match.merchant}
-                              </div>
-                              <div className={`text-xs ${ds.text.muted} mt-1`}>
-                                {match.date.split('T')[0]} • {match.daysDiff} days{' '}
-                                {match.date < returnTransaction.date ? 'before' : 'after'}
-                              </div>
-                              {match.note && (
-                                <div className={`text-xs ${ds.text.secondary} mt-1 truncate`}>
-                                  {match.note}
-                                </div>
-                              )}
-                            </div>
-                            <div className="text-right ml-3">
-                              <div className={`font-semibold ${ds.text.primary}`}>
-                                ${Math.abs(match.amount).toFixed(2)}
-                              </div>
-                              <div className={`text-xs ${ds.text.muted} mt-1`}>
-                                {(match.score * 100).toFixed(0)}% match
-                              </div>
-                              {match.amountDiff > 0.01 && (
-                                <div className={`text-xs ${ds.status.warning.text} mt-1`}>
-                                  ${match.amountDiff.toFixed(2)} diff
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Manual search section */}
-                <div className={`border-t ${ds.border.default} pt-4`}>
-                  <div className={`text-sm font-semibold ${ds.text.primary} mb-3`}>
-                    {potentialMatches.length > 0
-                      ? "Can't find it? Search manually"
-                      : 'Search for Transaction'}
-                  </div>
-                  <div className="space-y-3">
-                    <Input
-                      className="w-full"
-                      id="manual-search-input"
-                      placeholder="Search by merchant name..."
-                      type="text"
-                    />
-                    <Button
-                      className="w-full bg-[var(--bg-elevated)] hover:bg-[var(--bg-elevated)] py-2"
-                      onClick={async () => {
-                        const searchInput = document.getElementById(
-                          'manual-search-input'
-                        ) as HTMLInputElement;
-                        const searchTerm = searchInput?.value || '';
-
-                        if (!searchTerm) {
-                          alert('Please enter a search term');
-                          return;
-                        }
-
-                        setLoadingMatches(true);
-                        try {
-                          const res = await fetch(
-                            `/api/transactions?merchant=${encodeURIComponent(searchTerm)}&preset=last-12-months`
-                          );
-                          const data = await res.json();
-                          const filtered = (data.transactions || []).filter(
-                            (t: any) =>
-                              t.id !== returnTransaction.id && !t.isOffset && !t.linkedTransactionId
-                            // Removed opposite sign requirement - allow linking any transactions
-                          );
-                          setPotentialMatches(
-                            filtered.map((t: any) => ({
-                              ...t,
-                              score: 0.5,
-                              amountDiff: Math.abs(
-                                Math.abs(t.amount) - Math.abs(returnTransaction.amount)
-                              ),
-                              daysDiff: Math.round(
-                                Math.abs(
-                                  new Date(t.date).getTime() -
-                                    new Date(returnTransaction.date).getTime()
-                                ) /
-                                  (1000 * 60 * 60 * 24)
-                              ),
-                            }))
-                          );
-                        } catch (error) {
-                          alert('Search failed');
-                        } finally {
-                          setLoadingMatches(false);
-                        }
-                      }}
-                    >
-                      Search
-                    </Button>
-                  </div>
-                </div>
-
-                {potentialMatches.length === 0 && !loadingMatches && (
-                  <div className={`text-center py-4 ${ds.text.muted} text-sm`}>
-                    No matches found. Try searching manually above.
-                  </div>
-                )}
-
-                <div className={`text-xs ${ds.text.muted} ${ds.bg.secondary} p-3 rounded border`}>
-                  Click a transaction to link it. Credits reduce expenses (returns, reimbursements,
-                  splits, etc.)
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </Modal>
-
-      {/* Split Transaction Modal */}
-      <Modal
-        isOpen={splitModalOpen}
-        title="Split Transaction"
-        onClose={() => setSplitModalOpen(false)}
-      >
-        {editingTransaction && (
-          <div className="space-y-4">
-            <div className={`${ds.bg.secondary} rounded-lg p-3 border ${ds.border.default}`}>
-              <div className={`text-sm ${ds.text.secondary}`}>
-                Splitting <strong>{editingTransaction.merchant}</strong> &mdash;{' '}
-                <strong>${Math.abs(editingTransaction.amount).toFixed(2)}</strong>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {splitParts.map((part, index) => (
-                <div
-                  key={index}
-                  className={`${ds.bg.secondary} rounded-lg p-3 border ${ds.border.default}`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`text-sm font-medium ${ds.text.primary}`}>
-                      Part {index + 1}
-                    </span>
-                    {splitParts.length > 2 && (
-                      <button
-                        className="text-xs text-[var(--red)] hover:underline"
-                        onClick={() => removeSplitPart(index)}
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className={`block text-xs ${ds.text.muted} mb-1`}>Amount</label>
-                      <Input
-                        placeholder="0.00"
-                        step="0.01"
-                        type="number"
-                        value={part.amount}
-                        onChange={(e) => updateSplitPart(index, 'amount', e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-xs ${ds.text.muted} mb-1`}>Category</label>
-                      <Select
-                        value={part.categoryId}
-                        onChange={(e) => updateSplitPart(index, 'categoryId', e.target.value)}
-                      >
-                        <option value="">Uncategorized</option>
-                        {categories
-                          .filter((c) => !c.parentId)
-                          .map((parent) => (
-                            <optgroup key={parent.id} label={parent.name}>
-                              {categories
-                                .filter((c) => c.parentId === parent.id)
-                                .map((child) => (
-                                  <option key={child.id} value={child.id}>
-                                    {child.name}
-                                  </option>
-                                ))}
-                            </optgroup>
-                          ))}
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <label className={`block text-xs ${ds.text.muted} mb-1`}>Note (optional)</label>
-                    <Input
-                      placeholder="Note for this part"
-                      value={part.note}
-                      onChange={(e) => updateSplitPart(index, 'note', e.target.value)}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <button className="text-sm text-[var(--accent)] hover:underline" onClick={addSplitPart}>
-              + Add another part
-            </button>
-
-            <div
-              className={`text-sm font-mono p-3 rounded border ${
-                splitSumMatches
-                  ? 'bg-[var(--green)]/10 border-[var(--green)] text-[var(--green)]'
-                  : 'bg-[var(--red)]/10 border-[var(--red)] text-[var(--red)]'
-              }`}
-            >
-              Total: ${splitPartsSum.toFixed(2)} / ${splitOriginalAbs.toFixed(2)}
-              {splitSumMatches
-                ? ' ✓'
-                : ` — $${Math.abs(splitOriginalAbs - splitPartsSum).toFixed(2)} remaining`}
-            </div>
-
-            <Button
-              className="w-full py-3 !bg-[var(--accent)] hover:!bg-[var(--accent)] text-white disabled:opacity-50"
-              disabled={!splitSumMatches || splitParts.some((p) => !p.amount)}
-              onClick={submitSplit}
-            >
-              Split Transaction
-            </Button>
-          </div>
-        )}
-      </Modal>
-
       {tab === 'subscriptions' && (
         <SubscriptionsTab accounts={accounts} categories={categories} userSettings={userSettings} />
       )}
+
+      <TransactionDrawer
+        ref={drawerRef}
+        accounts={accounts}
+        availableTags={availableTags}
+        baseCurrency={userSettings?.baseCurrency ?? 'USD'}
+        categories={categories}
+        list={drawerList}
+        state={drawerState}
+        onChanged={refreshTransactionsAndQueue}
+        onClose={closeDrawer}
+        onCreateTag={createTag}
+        onCreated={closeDrawer}
+        onNew={() => {
+          setPendingOpen(null);
+          setDrawer({ mode: 'new' });
+        }}
+        onOpen={onDrawerOpen}
+        onRowSaved={onRowSaved}
+      />
     </div>
   );
 }
