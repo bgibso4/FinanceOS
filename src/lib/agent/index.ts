@@ -13,7 +13,7 @@ export async function streamChat(prisma: PrismaClient, messages: ModelMessage[])
   const tools = createAgentTools(prisma);
 
   const result = streamText({
-    model: anthropic('claude-sonnet-4-20250514'),
+    model: anthropic('claude-sonnet-5-5'),
     system: systemPrompt,
     messages,
     tools,
