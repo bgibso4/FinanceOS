@@ -4,6 +4,7 @@ import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { SideNav } from './side-nav';
 import { ChatAnalyst } from './chat-analyst';
 import { SyncProvider } from './sync-provider';
+import { DRAWER_DISMISS, DRAWER_MOTION } from './ui/drawer';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [analystOpen, setAnalystOpen] = useState(false);
@@ -32,10 +33,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         >
           <SideNav onToggleAnalyst={toggleAnalyst} />
         </Suspense>
-        <div className="flex min-h-screen flex-1 flex-col">
-          <div className="flex-1 flex justify-center">
-            <div className="w-full max-w-[1400px] px-12 py-8">
-              <main>{children}</main>
+        <div className="flex min-h-screen flex-1 flex-col" {...DRAWER_DISMISS}>
+          {/* A page holding DRAWER_PUSH_CLASS makes room for the drawer here, so the centred
+              column re-centres in what is left: the left margin goes first, the content last. */}
+          <div
+            {...DRAWER_DISMISS}
+            className={`flex flex-1 justify-center transition-[padding] motion-reduce:transition-none ${DRAWER_MOTION} min-[1100px]:has-[.drawer-push]:pr-[540px]`}
+          >
+            <div className="w-full max-w-[1400px] px-12 py-8" {...DRAWER_DISMISS}>
+              <main {...DRAWER_DISMISS}>{children}</main>
             </div>
           </div>
         </div>

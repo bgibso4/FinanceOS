@@ -11,6 +11,7 @@ import { ChartModal } from './chart-modal';
 import { ChartSpec } from '@/lib/types';
 import { loadPinned, savePinned } from '@/lib/pinned';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   ChatConversation,
   loadConversations,
@@ -384,7 +385,9 @@ export function ChatAnalyst({ open, onClose }: Props) {
                           <div className="space-y-2">
                             {textContent && (
                               <div className="chat-markdown text-[13px] leading-[1.65] text-[var(--text-secondary)]">
-                                <ReactMarkdown>{textContent}</ReactMarkdown>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {textContent}
+                                </ReactMarkdown>
                               </div>
                             )}
 
