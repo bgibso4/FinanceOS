@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Travel Design</title>
+<style>
+:root{--bg:#f5f3f0;--surface:#ebe8e4;--card:#fff;--border:rgba(0,0,0,.08);--t1:#2a2826;--t2:#6a6460;--t3:#a8a098;--accent:#8a6040;--green:#5a7a5a;--red:#984a42;--call-bg:#f6efe4;--call-bd:#d9c3a0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0b0b;--surface:#101010;--card:#171717;--border:rgba(255,255,255,.08);--t1:#e8e4de;--t2:#9a9690;--t3:#807a74;--accent:#9a7a58;--green:#6a9a68;--red:#a06058;--call-bg:#221d15;--call-bd:#5a4a32}}
+:root[data-theme="dark"]{--bg:#0b0b0b;--surface:#101010;--card:#171717;--border:rgba(255,255,255,.08);--t1:#e8e4de;--t2:#9a9690;--t3:#807a74;--accent:#9a7a58;--green:#6a9a68;--red:#a06058;--call-bg:#221d15;--call-bd:#5a4a32}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--t1);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Inter",sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:48px 16px 96px}
+header .cap{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3)}
+h1{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:36px;line-height:1.15;margin:8px 0 12px}
+h2{font-family:Georgia,serif;font-weight:400;font-size:24px;margin:44px 0 12px;padding-top:20px;border-top:1px solid var(--border)}
+h3{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--t2);margin:24px 0 8px}
+p,li{color:var(--t1)}
+.meta{color:var(--t2);font-size:14px}
+.meta a,a{color:var(--accent)}
+code{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:var(--surface);padding:1px 5px;border-radius:5px}
+ul,ol{padding-left:22px}li{margin:4px 0}
+.call{display:inline-block;font-size:11px;letter-spacing:.04em;text-transform:uppercase;background:var(--call-bg);border:1px solid var(--call-bd);color:var(--accent);border-radius:20px;padding:0 8px;margin-left:4px;vertical-align:1px}
+.decided{display:inline-block;font-size:11px;letter-spacing:.04em;text-transform:uppercase;background:color-mix(in srgb,var(--green) 14%,transparent);color:var(--green);border-radius:20px;padding:0 8px;margin-left:4px;vertical-align:1px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin:14px 0}
+.callout{background:var(--call-bg);border:1px solid var(--call-bd);border-radius:12px;padding:14px 18px;margin:14px 0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.stat b{display:block;font-family:ui-monospace,Menlo,monospace;font-size:22px;font-weight:400}
+.stat span{font-size:13px;color:var(--t2)}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;font-size:14px;margin:14px 0}
+th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);font-weight:500;padding:10px 14px;background:var(--surface)}
+td{padding:11px 14px;border-top:1px solid var(--border);vertical-align:top}
+td:first-child{font-weight:500;white-space:nowrap}
+.yes{color:var(--green)}.no{color:var(--t3)}
+.toc{columns:2;font-size:14px;padding-left:18px;margin-top:20px}
+.toc li{margin:2px 0}
+.theme{position:fixed;top:14px;right:14px;border:1px solid var(--border);background:var(--card);color:var(--t1);border-radius:9px;padding:6px 11px;font-size:13px;cursor:pointer}
+@media (max-width:600px){.toc{columns:1}h1{font-size:28px}}
+</style>
+</head>
+<body>
+<button class="theme" onclick="var r=document.documentElement;r.dataset.theme=(r.dataset.theme==='dark'||(!r.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches))?'light':'dark'">◐</button>
+<div class="wrap">
+
+<header>
+ <div class="cap">FinanceOS · Design</div>
+ <h1>Travel: trips, a yearly view and the travel budget</h1>
+ <p class="meta">Approved in brainstorm · 2 Nov 2026 · branch <code>feat/travel</code><br>
+ Mock (approved v3, light/dark toggle): <a href="file:///Users/ben/Documents/FinanceOS-design-archive/design-mocks/travel-trips.html"><code>~/Documents/FinanceOS-design-archive/design-mocks/travel-trips.html</code></a><br>
+ <span class="call">my call</span> marks decisions Claude made · <span class="decided">decided</span> marks ones settled with you</p>
+ <ol class="toc">
+  <li><a href="#why">Why</a></li><li><a href="#data">What the data showed</a></li><li><a href="#goals">Goals, non-goals, anti-goals</a></li><li><a href="#constraints">Constraints</a></li>
+  <li><a href="#model">Data model</a></li><li><a href="#convert">Converting trip tags</a></li><li><a href="#suggest">Suggestions</a></li><li><a href="#travel">Travel page</a></li>
+  <li><a href="#trip">Trip page</a></li><li><a href="#drawer">Trip drawer</a></li><li><a href="#txdrawer">Transaction drawer change</a></li><li><a href="#budget">Travel budget</a></li>
+  <li><a href="#analyst">Finance Analyst</a></li><li><a href="#builder">Left to the builder</a></li><li><a href="#testing">Testing</a></li>
+ </ol>
+</header>
+
+<h2 id="why">Why</h2>
+<p>Travel is a large part of your life, and today trips are tracked with tags. Of the 9 tags, 7 are trips ("2026 - Whistler", …). That has three problems:</p>
+<ol>
+ <li><b>Tagging is one transaction at a time.</b> Flights and lodging are booked 2 weeks to 4 months early, and friends' settle-ups and refunds arrive up to 3 weeks after, so finding a trip's transactions means hunting.</li>
+ <li><b>The tag list grows with every trip</b>, crowding out the tags that aren't trips.</li>
+ <li><b>Analysis goes through the Finance Analyst.</b> You ask it things like "compare the costs of my trips this year, with a category breakdown of each". That should be built in.</li>
+</ol>
+<p>You also keep a yearly travel budget as a Goal ("2026 Travel Budget", $10,000, which counts the Travel category group). It belongs with the trips.</p>
+
+<h2 id="data">What the data showed</h2>
+<p class="meta">dev.db, Nov 2025 – Oct 2026</p>
+<div class="stats">
+ <div class="stat"><b>7 of 9</b><span>tags are trips</span></div>
+ <div class="stat"><b>227</b><span>trip-tagged transactions</span></div>
+ <div class="stat"><b>94%</b><span>of trip spend is in the Travel categories</span></div>
+ <div class="stat"><b>$2.2k</b><span>Travel spend on no trip (small trips left untagged)</span></div>
+</div>
+<ul>
+ <li>Inside a trip's dates, about a third of the transactions are not trip spending: salary, gym, subscriptions, groceries at home. <b>Dates alone are not enough.</b></li>
+ <li>Paying friends (e.g. Adrian Fekete "Whis", −$1,280) is categorized as Lodging or Food. The app cannot tell that money went to a friend.</li>
+</ul>
+
+<h2 id="goals">Goals, non-goals, anti-goals</h2>
+<h3>Goals</h3>
+<ul>
+ <li>A <b>trip</b> is a first-class thing: name, start and end dates, optional note. It replaces trip tags.</li>
+ <li><b>Adding transactions to a trip is a review, not a hunt.</b> The app suggests candidates with fixed, explainable rules, and you tick them. Nothing is added automatically.</li>
+ <li>A <b>Travel page</b>: the year's trips, cost per day, totals, where the money went, and the travel budget, with a year-over-year comparison.</li>
+ <li>A <b>trip page</b>: totals, per day, booked ahead, money back, the category breakdown and every transaction, each one editable through the shared transaction drawer.</li>
+ <li>The <b>travel budget is owned by Travel</b>: created, changed and prompted for there.</li>
+</ul>
+<h3>Non-goals</h3>
+<ul>
+ <li>Side-by-side trip comparison ("not too much comparison side by side"). One yearly list is enough.</li>
+ <li>Automatically assigning transactions to trips: no AI, no auto-add.</li>
+ <li>Detecting money paid to friends.</li>
+ <li>Moving Analytics from its modal to the shared transaction drawer. It's a follow-up on the same principle.</li>
+ <li>Other time ranges in Analytics, and spend in one category across many periods. Those are separate projects.</li>
+</ul>
+<h3>Anti-goals</h3>
+<ul>
+ <li>A <b>read-only</b> transaction list. If you see a wrong row, you must be able to fix it right there.</li>
+ <li>A new colour palette. Use only the existing design tokens (<code>src/app/globals.css</code>, light and <code>.dark</code>).</li>
+ <li>Nagging. The budget prompt must be easy to put off.</li>
+</ul>
+
+<h2 id="constraints">Constraints</h2>
+<ul>
+ <li><b>One transaction editor.</b> Every transaction row in Travel opens the existing <code>TransactionDrawer</code> (<code>src/components/transactions/transaction-drawer.tsx</code>), fully editable, with ‹ › stepping through the list being shown. No bespoke editor and no modal.</li>
+ <li>Push drawers over modals (the existing <code>Drawer</code>, <code>DRAWER_PUSH_CLASS</code>).</li>
+ <li>Design tokens only. Everything works in light and dark.</li>
+ <li>Schema changes go through <code>prisma db push</code>, not <code>migrate dev</code>, which fails with P3006 on this repo.</li>
+ <li><b>Cloud sync lists each table explicitly</b> (<code>src/lib/cloud-sync/sync.ts</code>, <code>types.ts</code>). Every new table and column must be added to export, import and the Zod payload schema, or it is silently lost on another device.</li>
+ <li>Vendor-neutral naming: no bank or aggregator names in domain code.</li>
+ <li>Amounts: negative = spend, positive = money in. Dates are stored in UTC.</li>
+ <li><b>Currency</b> <span class="call">my call</span>: every Travel figure (trip totals, per day, category bars, the budget) converts to the base currency the way Analytics does (<code>src/lib/analytics.ts</code>, <code>convertAmount</code>). 27 of the 227 trip transactions are on CAD accounts.</li>
+ <li><b>Net, not gross</b> <span class="call">my call</span>: every Travel figure, the budget included, is spend net of money in. A $72 payback lowers the trip total and the budget's spent figure by $72. Tag goals today add absolute values instead.</li>
+ <li>PR against <code>main</code>; no stacked PRs.</li>
+</ul>
+<div class="card"><b>Naming.</b> The page and nav item are <b>Travel</b> (<code>/travel</code>), placed after Analytics in the side nav. The individual items are <b>trips</b> ("+ New trip").</div>
+
+<h2 id="model">Data model</h2>
+<ul>
+ <li><b>Trip</b>: id, name, startDate, endDate (inclusive calendar days), note (optional), createdAt.</li>
+ <li><b>Transaction → trip</b>: each transaction is on <b>at most one</b> trip, via a nullable trip reference on Transaction. Deleting a trip clears it from its transactions and keeps the transactions.</li>
+ <li><b>Dismissed suggestions</b>: the (trip, transaction) pairs you left unticked in a review, so they aren't suggested again for that trip.</li>
+ <li><b>Split transactions</b>: the parts are what get assigned and counted, never the split parent. Goals use the same rule (<code>isSplitParent: false</code>).</li>
+</ul>
+
+<h2 id="convert">Converting the existing trip tags</h2>
+<p>This runs once.</p>
+<ol>
+ <li>A tag is a trip when its name matches <code>^\d{4} - </code> <span class="call">my call</span>. That catches exactly the 7 trip tags: Austria/Italy, Bayfield, California, Costa Rica, Miami, Mt Tremblant and Whistler. Each becomes a trip, with the "2026 - " prefix dropped, and its transactions are assigned to it.</li>
+ <li>A trip's dates come from its own Travel-category spending, excluding Flights and Lodging because those are booked early. If it has none, they come from all of its transactions. The trip page shows <b>"Check these dates"</b> until you confirm or edit them.</li>
+ <li><b>Safety</b> <span class="call">my call</span>: the conversion copies <code>dev.db</code> to a timestamped backup first, prints a dry-run summary (trips, counts, guessed dates) before it writes, and is idempotent.</li>
+ <li>The converted tags are removed from their transactions and deleted. Green Card and Tax Deductable are untouched. No goal may be left pointing at a deleted tag.</li>
+</ol>
+
+<h2 id="suggest">Suggestions</h2>
+<p>Suggestions are step 2 of creating a trip, and what "Review suggestions" opens. Candidates are transactions <b>not on any trip</b>, not transfers between your own accounts, not split parents, and not dismissed for this trip. They come in this order:</p>
+<table>
+ <tr><th>Group</th><th>Rule</th><th>Pre-ticked</th></tr>
+ <tr><td>Booked before</td><td>Flights or Lodging in the 4 months before the start date</td><td class="yes">Yes</td></tr>
+ <tr><td>During</td><td>Travel category group, dated start–end</td><td class="yes">Yes</td></tr>
+ <tr><td>Other spending during</td><td>Any other spending dated start–end, except income and recurring transactions such as subscriptions</td><td class="no">No</td></tr>
+ <tr><td>After</td><td>The 3 weeks after the end date: money coming in (except income categories and recurring), plus Travel-category spending such as late rental-car bills, or Anthony "Bills" −$165, which is filed under Drinks and Food</td><td class="yes">Yes</td></tr>
+</table>
+<ul>
+ <li>Each row shows the merchant, date, category, amount and why it's suggested (e.g. "46 days before"). The footer button is <b>Add N transactions</b>, where N is the number ticked.</li>
+ <li>Rows left unticked are recorded as dismissed for that trip. You can still add one later from its transaction drawer.</li>
+ <li><b>"Review suggestions · N"</b> on the trip page opens the same list with only the current candidates. N is the number not yet added or dismissed, and the button is hidden at 0.</li>
+ <li>Nothing is ever added without a tick.</li>
+ <li><b>Editing trip dates</b> <span class="call">my call</span>: dismissals stay dismissed and assigned transactions stay assigned. The trip page groups each transaction against the current dates.</li>
+</ul>
+
+<h2 id="travel">Travel page <span class="meta">· /travel · mock A</span></h2>
+<ul>
+ <li><b>Header</b>: a "Travel" caption, the year as the title, a year chip (‹ 2026 ▾ ›) that works like the Analytics month picker but for years, and <b>+ New trip</b>.</li>
+ <li><b>Three cards</b>:
+  <ul>
+   <li><b>Travel budget</b>: spent, target, a bar that turns red when over, and "$X over" or "$X left". With no budget for the year, it offers to set one.</li>
+   <li><b>Trips</b>: the count of trips starting that year and their total days.</li>
+   <li><b>vs last year</b>: this year's budget-spent figure against last year's, or "—" with a note when there's no previous year.</li>
+  </ul></li>
+ <li><b>Trip list, biggest total first.</b> Columns: Trip · Dates · Where it went · Per day · Total.
+  <ul>
+   <li><b>Where it went</b> is a split bar of the trip's categories in <b>one hue at decreasing strength</b>: the darkest shade is that trip's biggest category. A legend names the top three with percentages, and hovering a segment shows its category and amount.</li>
+   <li>Per day = total ÷ days (inclusive). Clicking a row opens the trip page.</li>
+  </ul></li>
+ <li><b>"Not on a trip" row</b> below the trips: Travel-category spending that year on no trip, with total and count. It opens a list whose rows open the transaction drawer.</li>
+</ul>
+
+<h2 id="trip">Trip page <span class="meta">· /travel/[id] · mock C</span></h2>
+<ul>
+ <li><b>Header</b>: a "Travel · 2026" caption, the name, dates and day count, <b>Edit trip</b>, and <b>Review suggestions · N</b> when N &gt; 0.</li>
+ <li><b>Four cards</b>:
+  <ul>
+   <li><b>Total</b>: net of money in, with the transaction count.</li>
+   <li><b>Per day</b>: with that year's average per day across trips.</li>
+   <li><b>Booked ahead</b>: spend dated before the start date.</li>
+   <li><b>Money back</b>: incoming money on the trip, with the count and "already taken off the total".</li>
+  </ul></li>
+ <li><b>By category</b>: bars in the same tonal scale, biggest first.</li>
+ <li><b>Transactions</b>: the Transactions table's columns (Date, Merchant, Category, Amount), grouped into <b>Before / During / After</b>. Clicking a row pushes in the shared transaction drawer. The open row is highlighted, and ‹ › step through this trip's transactions.</li>
+</ul>
+
+<h2 id="drawer">Trip drawer <span class="meta">· mock B</span></h2>
+<p>One push drawer for <b>New trip</b> and <b>Edit trip</b>.</p>
+<ol>
+ <li><b>Details</b>: Name, Leave, Return and an optional Note, with Cancel / Next: find transactions. A trip can be created before you go, and suggestions then appear as transactions arrive.</li>
+ <li><b>Add transactions</b>: the suggestions list.</li>
+</ol>
+<p><b>Edit trip</b> opens step 1 filled in, with <b>Delete trip</b> at the bottom. It uses the same inline confirm as Delete transaction, and deleting keeps the transactions.</p>
+
+<h2 id="txdrawer">Transaction drawer change</h2>
+<p><code>DetailsSection</code> gains a <b>Trip</b> field: a select of trips, most recent first, plus "None". It saves immediately, like category and tags. That's how a transaction joins or leaves a trip from anywhere, including the Transactions page and the review queue.</p>
+
+<h2 id="budget">Travel budget</h2>
+<p><b>Travel owns it.</b> It is still stored as a <code>Goal</code>, so progress and pace come from one place (<code>src/lib/goals.ts</code>), through a new tracking method.</p>
+<div class="callout">
+ <b>Which year spending belongs to: by trip</b> <span class="decided">decided</span><br>
+ A trip belongs to the year it <b>starts</b> in, and all its transactions count there, whatever their dates. That includes flights booked the December before and settle-ups in the next January. Travel-category spending on no trip counts in the year it happened. So the page adds up: <b>budget spent = that year's trip totals + "Not on a trip"</b>. A booking made before its trip exists counts in its own year under "Not on a trip", and moves to the trip's year once added. Only the travel budget works this way. Analytics, the other goals and Reports keep counting by transaction date.
+</div>
+<ul>
+ <li><b>What it counts</b>: every transaction on a trip starting in that year, <b>plus</b> every Travel-category transaction on no trip dated in that year, each counted once. Lazy small trips still count through their category, and trip spend outside the Travel categories (green fees, a spa) counts through the trip.</li>
+ <li><b>Where it's managed</b>: created and edited only from the Travel page's budget card, as one budget per calendar year. You set the amount only; the dates are fixed to the year. The Goals page still lists it, marked "Managed in Travel" with a link, and it can't be edited there.</li>
+ <li><b>The existing "2026 Travel Budget"</b> switches to the new tracking method during the conversion.</li>
+ <li><b>Yearly prompt</b>: when the current year has no travel budget, a slim app-wide banner says "Set your &lt;year&gt; travel budget" and links to Travel. <b>Not now</b> hides it for 14 days <span class="call">my call</span>. It disappears once a budget exists.</li>
+</ul>
+
+<h2 id="analyst">Finance Analyst</h2>
+<p><code>queryTransactions</code> filters by tag today. It must also filter by trip, and the analyst needs a way to list trips, so trip questions keep working once trip tags are gone.</p>
+
+<h2 id="builder">Left to the builder</h2>
+<ul>
+ <li>API shape, file layout, component split, and whether the trip list and the trip page share loaders.</li>
+ <li>How the conversion runs, as a script or on first visit to Travel. It must be idempotent and must go through sync.</li>
+ <li>Whether the year picker is extracted from Analytics or the pattern is copied. DRY is preferred.</li>
+ <li>How the shades are generated from <code>--accent</code>. The mock uses <code>color-mix</code>.</li>
+ <li>Empty states: no trips in a year, a trip with no transactions.</li>
+</ul>
+
+<h2 id="testing">Testing</h2>
+<ul>
+ <li><b>Unit</b>:
+  <ul>
+   <li>each suggestion group's window and categories, and the exclusions: already on a trip, dismissed, transfers, split parents;</li>
+   <li>per-day and total maths, Money back, booked ahead;</li>
+   <li>the budget's counting rule, by trip year, with no double counting;</li>
+   <li>the tag conversion and its date guess.</li>
+  </ul></li>
+ <li><b>Component</b>:
+  <ul>
+   <li>the trip drawer's steps, Add N, and that unticked rows are dismissed;</li>
+   <li>the review button's count, and that it's hidden at 0;</li>
+   <li>a trip page row opens the shared transaction drawer;</li>
+   <li>the Trip field saves immediately;</li>
+   <li>the Goals page shows the budget as managed in Travel.</li>
+  </ul></li>
+ <li><b>Integration</b>: a sync round-trip includes trips, assignments and dismissals.</li>
+</ul>
+
+</div>
+</body>
+</html>
