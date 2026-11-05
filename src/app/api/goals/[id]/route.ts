@@ -20,7 +20,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const body = await req.json();
   const parsed = updateGoalSchema.parse(body);
-  if (parsed.trackingMethod === 'travel') {
+  const existing = await prisma.goal.findUniqueOrThrow({ where: { id } });
+  if (parsed.trackingMethod === 'travel' || existing.trackingMethod === 'travel') {
     return NextResponse.json({ error: TRAVEL_GOAL_ERROR }, { status: 400 });
   }
 

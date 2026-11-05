@@ -145,6 +145,19 @@ describe('travel trips API', () => {
     expect((await testPrisma.transaction.findUnique({ where: { id: t.id } }))?.tripId).toBeNull();
   });
 
+  it('patchTransactionRejectsSplitParent', async () => {
+    const id = await newTrip();
+    const t = await tx(-10);
+    await testPrisma.transaction.update({ where: { id: t.id }, data: { isSplitParent: true } });
+    const res = await patchTx(req('PATCH', { tripId: id }), ctx(t.id));
+    expect(res.status).toBe(400);
+    expect((await testPrisma.transaction.findUnique({ where: { id: t.id } }))?.tripId).toBeNull();
+  });
+
+  it('suggestionsForMissingTripIs404', async () => {
+    expect((await getSuggestions(req('GET'), ctx('nope'))).status).toBe(404);
+  });
+
   it('splitPartsInheritTripAndUnsplitKeepsIt', async () => {
     const id = await newTrip();
     const t = await tx(-10, '2026-01-15', { tripId: id });

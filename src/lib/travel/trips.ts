@@ -72,7 +72,8 @@ export class TripStore {
     });
   }
 
-  private async require(id: string): Promise<void> {
+  /** Throws TripNotFoundError when there is no such trip. */
+  async require(id: string): Promise<void> {
     if (!(await this.prisma.trip.findUnique({ where: { id }, select: { id: true } }))) {
       throw new TripNotFoundError();
     }

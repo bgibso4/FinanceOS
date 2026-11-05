@@ -11,7 +11,8 @@ const assignSchema = z.object({ add: z.array(z.string()), dismiss: z.array(z.str
 export async function GET(_request: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
-    const { suggester } = await getTravelServices();
+    const { suggester, trips } = await getTravelServices();
+    await trips.require(id);
     return NextResponse.json({ suggestions: await suggester.suggest(id) });
   } catch (error) {
     return travelErrorResponse(error, 'Failed to load suggestions');

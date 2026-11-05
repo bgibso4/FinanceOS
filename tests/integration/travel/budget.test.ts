@@ -16,6 +16,11 @@ vi.mock('@/lib/prisma', () => ({
 
 import { POST as createGoal } from '@/app/api/goals/route';
 import { PATCH as patchGoal } from '@/app/api/goals/[id]/route';
+import { GET as getTravel } from '@/app/api/travel/route';
+import { GET as getBudget, PUT as putBudget } from '@/app/api/travel/budget/route';
+
+const jsonReq = (method: string, body?: unknown, url = 'http://localhost/api/x') =>
+  new NextRequest(url, { method, body: body === undefined ? undefined : JSON.stringify(body) });
 
 describe('TravelBudget', () => {
   beforeAll(async () => {
@@ -103,5 +108,56 @@ describe('TravelBudget', () => {
     expect(await budget.status()).toEqual({ year: 2027, hasBudget: false });
     await budget.set(2027, 1000);
     expect(await budget.status()).toEqual({ year: 2027, hasBudget: true });
+  });
+
+  it('goalsApiLeavesTravelGoalsUnchanged', async () => {
+    const { budget } = services();
+    await budget.set(2026, 1000);
+    const before = await testPrisma.goal.findFirstOrThrow();
+    for (const body of [{ trackingMethod: 'tag' }, { name: 'x' }, { startDate: '2025-01-01' }]) {
+      const res = await patchGoal(jsonReq('PATCH', body), {
+        params: Promise.resolve({ id: before.id }),
+      });
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe('Travel budgets are managed in Travel');
+    }
+    expect(await testPrisma.goal.findFirstOrThrow()).toEqual(before);
+  });
+
+  it('travelRouteValidatesYearAndReturnsViewWithBudget', async () => {
+    for (const y of ['abc', '1.5', '99999']) {
+      const res = await getTravel(
+        jsonReq('GET', undefined, `http://localhost/api/travel?year=${y}`)
+      );
+      expect(res.status).toBe(400);
+    }
+    const none = await (
+      await getTravel(jsonReq('GET', undefined, 'http://localhost/api/travel?year=2026'))
+    ).json();
+    expect(none.view.year).toBe(2026);
+    expect(none.budget).toBeNull();
+    await services().budget.set(2026, 900);
+    const some = await (
+      await getTravel(jsonReq('GET', undefined, 'http://localhost/api/travel?year=2026'))
+    ).json();
+    expect(some.budget).toEqual({ target: 900, spent: 0 });
+  });
+
+  it('budgetRouteSavesPositiveAmountsAndReportsStatus', async () => {
+    for (const body of [
+      { year: 2026, amount: 0 },
+      { year: 2026, amount: -5 },
+      { year: 2026 },
+      { amount: 5 },
+    ]) {
+      expect((await putBudget(jsonReq('PUT', body))).status).toBe(400);
+    }
+    expect(await testPrisma.goal.count()).toBe(0);
+    const ok = await putBudget(jsonReq('PUT', { year: 2026, amount: 1200 }));
+    expect(await ok.json()).toEqual({ success: true });
+    expect((await testPrisma.goal.findFirstOrThrow()).targetAmount).toBe(1200);
+    const status = await (await getBudget()).json();
+    expect(status.year).toBe(new Date().getUTCFullYear());
+    expect(typeof status.hasBudget).toBe('boolean');
   });
 });
