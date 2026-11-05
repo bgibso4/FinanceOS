@@ -45,7 +45,7 @@ const suggestions = [
 type Call = { url: string; method: string; body: unknown };
 let calls: Call[];
 
-function mockFetch(overrides: Record<string, unknown> = {}) {
+function mockFetch(overrides: Record<string, unknown> = {}, failing: string[] = []) {
   calls = [];
   vi.stubGlobal(
     'fetch',
@@ -53,6 +53,8 @@ function mockFetch(overrides: Record<string, unknown> = {}) {
       const method = init?.method ?? 'GET';
       calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
       const key = `${method} ${url}`;
+      if (failing.includes(key))
+        return { ok: false, status: 500, json: async () => ({ error: 'Test boom' }) };
       const body =
         key in overrides
           ? overrides[key]
@@ -72,7 +74,15 @@ function setup(mode: Parameters<typeof TripDrawer>[0]['mode']) {
   const onClose = vi.fn();
   const onSaved = vi.fn();
   const onDeleted = vi.fn();
-  render(<TripDrawer mode={mode} onClose={onClose} onDeleted={onDeleted} onSaved={onSaved} />);
+  render(
+    <TripDrawer
+      baseCurrency="USD"
+      mode={mode}
+      onClose={onClose}
+      onDeleted={onDeleted}
+      onSaved={onSaved}
+    />
+  );
   return { onClose, onSaved, onDeleted };
 }
 
@@ -195,5 +205,62 @@ describe('TripDrawer', () => {
     expect(calls).toEqual([
       { url: '/api/travel/trips/trip1/suggestions', method: 'GET', body: undefined },
     ]);
+  });
+
+  it('showsShortDatesAndForeignCurrencyAmounts', async () => {
+    const foreign = sug('f1', 'during', true, 'Test Foreign');
+    foreign.tx.account = { id: 'a2', name: 'Test CAD', currency: 'CAD' } as never;
+    mockFetch({ 'GET /api/travel/trips/trip1/suggestions': { suggestions: [foreign] } });
+    setup({ kind: 'review', trip });
+    const row = (await screen.findByText('Test Foreign')).closest('label')!;
+    expect(row.textContent).toContain('May 12 · Test Cat · test reason');
+    expect(row.textContent).toMatch(/CA\$|CAD/);
+  });
+
+  it('failedPostKeepsTicks', async () => {
+    mockFetch({}, ['POST /api/travel/trips/trip1/suggestions']);
+    const user = userEvent.setup();
+    const { onSaved } = setup({ kind: 'review', trip });
+    await screen.findByText('Test b1');
+    await user.click(screen.getByText('Test o1'));
+    await user.click(screen.getByRole('button', { name: 'Add 4 transactions' }));
+    expect((await screen.findAllByText('Test boom')).length).toBeGreaterThan(0);
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(triggerSync).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Add 4 transactions' })).toBeTruthy();
+  });
+
+  it('failedLoadShowsRetryAndDoesNotSubmit', async () => {
+    mockFetch({}, ['GET /api/travel/trips/trip1/suggestions']);
+    const user = userEvent.setup();
+    const { onSaved } = setup({ kind: 'review', trip });
+    const retry = await screen.findByRole('button', { name: 'Retry' });
+    expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Add / })).toBeNull();
+    mockFetch();
+    await user.click(retry);
+    expect(await screen.findByText('Test b1')).toBeTruthy();
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+  });
+
+  it('emptyLoadSaysNothingToReviewAndDoneJustCloses', async () => {
+    mockFetch({ 'GET /api/travel/trips/trip1/suggestions': { suggestions: [] } });
+    const user = userEvent.setup();
+    const { onClose, onSaved } = setup({ kind: 'review', trip });
+    expect(await screen.findByText('Nothing to review')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(onClose).toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(calls.some((c) => c.method === 'POST')).toBe(false);
+  });
+
+  it('failedSaveShowsError', async () => {
+    mockFetch({}, ['PATCH /api/travel/trips/trip1']);
+    const user = userEvent.setup();
+    const { onSaved } = setup({ kind: 'edit', trip });
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Test boom');
+    expect(onSaved).not.toHaveBeenCalled();
   });
 });

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Drawer } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { DeleteZone } from '@/components/transactions/delete-zone';
+import { SECTION_CARD, SECTION_HEAD } from '@/components/investments/account-drawer';
 import { ERROR, FIELD_LABEL, errorText, sendJson } from '@/components/investments/editor-kit';
 import { triggerSync } from '@/lib/cloud-sync';
 import type { Suggestion, TripRecord } from '@/lib/travel/types';
@@ -17,6 +18,7 @@ export type TripDrawerMode =
   | null;
 
 type TripDrawerProps = {
+  baseCurrency: string;
   mode: TripDrawerMode;
   onClose: () => void;
   onSaved: (tripId: string) => void;
@@ -28,7 +30,7 @@ const TRIPS_URL = '/api/travel/trips';
 
 const plural = (n: number) => `${n} transaction${n === 1 ? '' : 's'}`;
 
-export function TripDrawer({ mode, onClose, onSaved, onDeleted }: TripDrawerProps) {
+export function TripDrawer({ baseCurrency, mode, onClose, onSaved, onDeleted }: TripDrawerProps) {
   const existing = mode && mode.kind !== 'new' ? mode.trip : null;
   const [trip, setTrip] = useState<TripRecord | null>(existing);
   const [name, setName] = useState('');
@@ -39,6 +41,8 @@ export function TripDrawer({ mode, onClose, onSaved, onDeleted }: TripDrawerProp
   const [ticked, setTicked] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // False until the suggestions arrive: review opens on step 2 before the fetch returns.
+  const [loaded, setLoaded] = useState(false);
 
   const kind = mode?.kind;
   const existingId = existing?.id;
@@ -50,6 +54,7 @@ export function TripDrawer({ mode, onClose, onSaved, onDeleted }: TripDrawerProp
     );
     setSuggestions(list);
     setTicked(new Set(list.filter((s) => s.preTicked).map((s) => s.tx.id)));
+    setLoaded(true);
     setStep(2);
   };
 
@@ -64,6 +69,7 @@ export function TripDrawer({ mode, onClose, onSaved, onDeleted }: TripDrawerProp
     setTicked(new Set());
     setError(null);
     setPending(false);
+    setLoaded(false);
     setStep(1);
     if (kind === 'review' && existingId) {
       setStep(2);
@@ -110,6 +116,10 @@ export function TripDrawer({ mode, onClose, onSaved, onDeleted }: TripDrawerProp
       const saved = await saveDetails();
       if (saved) await loadSuggestions(saved.id);
     });
+
+  const retry = () => {
+    if (trip) run(() => loadSuggestions(trip.id));
+  };
 
   const submit = () =>
     run(async () => {
@@ -181,9 +191,16 @@ export function TripDrawer({ mode, onClose, onSaved, onDeleted }: TripDrawerProp
             >
               {inReview ? 'Cancel' : 'Back'}
             </Button>
-            <Button className={BUTTON} disabled={pending} type="button" onClick={submit}>
-              {count === 0 ? 'Done' : `Add ${plural(count)}`}
-            </Button>
+            {loaded && suggestions.length === 0 && (
+              <Button className={BUTTON} type="button" onClick={onClose}>
+                Done
+              </Button>
+            )}
+            {loaded && suggestions.length > 0 && (
+              <Button className={BUTTON} disabled={pending} type="button" onClick={submit}>
+                {count === 0 ? 'Done' : `Add ${plural(count)}`}
+              </Button>
+            )}
           </>
         )}
       </div>
@@ -207,37 +224,42 @@ export function TripDrawer({ mode, onClose, onSaved, onDeleted }: TripDrawerProp
       onClose={onClose}
     >
       {step === 1 ? (
-        <div className="flex flex-col gap-4">
-          <div>
-            <label className={FIELD_LABEL} htmlFor="trip-name">
-              Name
-            </label>
-            <Input id="trip-name" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={FIELD_LABEL} htmlFor="trip-start">
-                Leave
-              </label>
-              <Input
-                id="trip-start"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
+        <div>
+          <section className={SECTION_CARD}>
+            <h3 className={SECTION_HEAD}>Trip</h3>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className={FIELD_LABEL} htmlFor="trip-name">
+                  Name
+                </label>
+                <Input id="trip-name" value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={FIELD_LABEL} htmlFor="trip-start">
+                    Leave
+                  </label>
+                  <Input
+                    id="trip-start"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className={FIELD_LABEL} htmlFor="trip-end">
+                    Return
+                  </label>
+                  <Input
+                    id="trip-end"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className={FIELD_LABEL} htmlFor="trip-end">
-                Return
-              </label>
-              <Input
-                id="trip-end"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
-          </div>
+          </section>
           {isEdit && (
             <div className="mt-4">
               <DeleteZone
@@ -249,7 +271,30 @@ export function TripDrawer({ mode, onClose, onSaved, onDeleted }: TripDrawerProp
           )}
         </div>
       ) : (
-        <SuggestionList suggestions={suggestions} ticked={ticked} onToggle={toggle} />
+        <>
+          {!loaded && error && (
+            <div className="flex flex-col items-start gap-3 text-sm text-[var(--text-secondary)]">
+              <span>Could not load suggestions.</span>
+              <Button className={BUTTON} disabled={pending} type="button" onClick={retry}>
+                Retry
+              </Button>
+            </div>
+          )}
+          {!loaded && !error && (
+            <p className="text-sm text-[var(--text-muted)]">Finding transactions…</p>
+          )}
+          {loaded && suggestions.length === 0 && (
+            <p className="text-sm text-[var(--text-muted)]">Nothing to review</p>
+          )}
+          {loaded && suggestions.length > 0 && (
+            <SuggestionList
+              baseCurrency={baseCurrency}
+              suggestions={suggestions}
+              ticked={ticked}
+              onToggle={toggle}
+            />
+          )}
+        </>
       )}
     </Drawer>
   );

@@ -1,5 +1,6 @@
 'use client';
 
+import { SECTION_CARD, SECTION_HEAD } from '@/components/investments/account-drawer';
 import { formatAmountCompact } from '@/lib/currency';
 import type { Suggestion, SuggestionGroup } from '@/lib/travel/types';
 
@@ -10,32 +11,43 @@ const GROUPS: { group: SuggestionGroup; heading: string }[] = [
   { group: 'after', heading: 'After · money back & late charges, 3 weeks' },
 ];
 
-const money = (s: Suggestion) => {
+const money = (s: Suggestion, baseCurrency: string) => {
   const { amount, account } = s.tx;
-  return `${amount < 0 ? '−' : '+'}${formatAmountCompact(Math.abs(amount), account?.currency ?? 'USD')}`;
+  return `${amount < 0 ? '−' : '+'}${formatAmountCompact(Math.abs(amount), account?.currency ?? baseCurrency, baseCurrency)}`;
 };
 
+const shortDate = (date: Date | string) =>
+  new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+
 type SuggestionListProps = {
+  baseCurrency: string;
   suggestions: Suggestion[];
   ticked: ReadonlySet<string>;
   onToggle: (txId: string) => void;
 };
 
-export function SuggestionList({ suggestions, ticked, onToggle }: SuggestionListProps) {
+export function SuggestionList({
+  baseCurrency,
+  suggestions,
+  ticked,
+  onToggle,
+}: SuggestionListProps) {
   return (
-    <div className="flex flex-col gap-5">
+    <div>
       {GROUPS.map(({ group, heading }) => {
         const rows = suggestions.filter((s) => s.group === group);
         if (rows.length === 0) return null;
         return (
-          <section key={group}>
-            <h4 className="mb-2 text-[11.5px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+          <section key={group} className={SECTION_CARD}>
+            <h3
+              className={`${SECTION_HEAD} !text-[11.5px] uppercase tracking-wide !text-[var(--text-muted)]`}
+            >
               {heading}
-            </h4>
-            <ul className="divide-y divide-[var(--border)] rounded-lg border border-[var(--border)]">
+            </h3>
+            <ul className="divide-y divide-[var(--border)]">
               {rows.map((s) => (
                 <li key={s.tx.id}>
-                  <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-[var(--bg-card)]">
+                  <label className="flex cursor-pointer items-center gap-3 py-2.5 hover:bg-[var(--bg-elevated)]">
                     <input
                       checked={ticked.has(s.tx.id)}
                       className="h-4 w-4 accent-[var(--accent)]"
@@ -47,11 +59,11 @@ export function SuggestionList({ suggestions, ticked, onToggle }: SuggestionList
                         {s.tx.merchant}
                       </span>
                       <span className="block truncate text-[12px] text-[var(--text-muted)]">
-                        {`${String(s.tx.date).slice(0, 10)} · ${s.tx.category?.name ?? 'Uncategorized'} · ${s.reason}`}
+                        {`${shortDate(s.tx.date)} · ${s.tx.category?.name ?? 'Uncategorized'} · ${s.reason}`}
                       </span>
                     </span>
                     <span className="shrink-0 text-sm tabular-nums text-[var(--text-primary)]">
-                      {money(s)}
+                      {money(s, baseCurrency)}
                     </span>
                   </label>
                 </li>
