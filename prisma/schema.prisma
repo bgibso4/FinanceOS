@@ -185,6 +185,11 @@ model Transaction {
   splitParts          Transaction[] @relation("TransactionSplit")
   investmentLinks    InvestmentTransaction[] @relation("InvestmentTransferLink")
 
+  // Travel
+  tripId             String?
+  trip               Trip?       @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  tripDismissals     TripDismissal[]
+
   createdAt          DateTime    @default(now())
 
   @@index([date])
@@ -192,7 +197,28 @@ model Transaction {
   @@index([importHash])
   @@index([linkedTransactionId])
   @@index([parentTransactionId])
+  @@index([tripId])
   @@unique([accountId, externalId])
+}
+
+model Trip {
+  id           String            @id @default(uuid())
+  name         String
+  startDate    String // YYYY-MM-DD, inclusive
+  endDate      String // YYYY-MM-DD, inclusive
+  createdAt    DateTime          @default(now())
+  transactions Transaction[]
+  dismissals   TripDismissal[]
+}
+
+model TripDismissal {
+  tripId        String
+  transactionId String
+  createdAt     DateTime    @default(now())
+  trip          Trip        @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@id([tripId, transactionId])
 }
 
 model MonthlySnapshot {

@@ -13,6 +13,8 @@ import type {
   SyncMetadata,
   AccountExport,
   TransactionExport,
+  TripExport,
+  TripDismissalExport,
   CategoryExport,
   RuleExport,
   CategoryBudgetExport,
@@ -101,6 +103,8 @@ export async function exportDatabase(): Promise<SyncPayload> {
     securityEvents,
     holdingSnapshots,
     investmentTransactions,
+    trips,
+    tripDismissals,
   ] = await Promise.all([
     getPrisma().account.findMany(),
     getPrisma().transaction.findMany(),
@@ -120,6 +124,8 @@ export async function exportDatabase(): Promise<SyncPayload> {
     getPrisma().securityEvent.findMany(),
     getPrisma().holdingSnapshot.findMany(),
     getPrisma().investmentTransaction.findMany(),
+    getPrisma().trip.findMany(),
+    getPrisma().tripDismissal.findMany(),
   ]);
 
   // Transform to export format (convert dates to ISO strings)
@@ -160,6 +166,7 @@ export async function exportDatabase(): Promise<SyncPayload> {
         linkedTransactionId: t.linkedTransactionId,
         isSplitParent: t.isSplitParent,
         parentTransactionId: t.parentTransactionId,
+        tripId: t.tripId,
         createdAt: t.createdAt.toISOString(),
       })
     ),
@@ -365,6 +372,22 @@ export async function exportDatabase(): Promise<SyncPayload> {
       linkedTransactionId: r.linkedTransactionId,
       createdAt: r.createdAt.toISOString(),
     })),
+    trips: trips.map(
+      (t): TripExport => ({
+        id: t.id,
+        name: t.name,
+        startDate: t.startDate,
+        endDate: t.endDate,
+        createdAt: t.createdAt.toISOString(),
+      })
+    ),
+    tripDismissals: tripDismissals.map(
+      (d): TripDismissalExport => ({
+        tripId: d.tripId,
+        transactionId: d.transactionId,
+        createdAt: d.createdAt.toISOString(),
+      })
+    ),
   };
 
   const checksum = await generateChecksum(data);
@@ -388,6 +411,8 @@ export async function exportDatabase(): Promise<SyncPayload> {
       securityEvents: data.securityEvents?.length ?? 0,
       holdingSnapshots: data.holdingSnapshots?.length ?? 0,
       investmentTransactions: data.investmentTransactions?.length ?? 0,
+      trips: data.trips?.length ?? 0,
+      tripDismissals: data.tripDismissals?.length ?? 0,
     },
     checksum,
   };
@@ -451,7 +476,9 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
     await tx.securityPrice.deleteMany();
     await tx.security.deleteMany();
     await tx.recurringTransaction.deleteMany();
+    await tx.tripDismissal.deleteMany();
     await tx.transaction.deleteMany();
+    await tx.trip.deleteMany();
     await tx.goal.deleteMany();
     await tx.categoryBudget.deleteMany();
     await tx.rule.deleteMany();
@@ -568,6 +595,19 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
       return 0;
     });
 
+    // Trips before the transactions that point at them
+    for (const trip of data.trips ?? []) {
+      await tx.trip.create({
+        data: {
+          id: trip.id,
+          name: trip.name,
+          startDate: trip.startDate,
+          endDate: trip.endDate,
+          createdAt: new Date(trip.createdAt),
+        },
+      });
+    }
+
     for (const txn of sortedTransactions) {
       await tx.transaction.create({
         data: {
@@ -589,7 +629,18 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
           linkedTransactionId: txn.linkedTransactionId,
           isSplitParent: txn.isSplitParent ?? false,
           parentTransactionId: txn.parentTransactionId ?? null,
+          tripId: txn.tripId ?? null,
           createdAt: new Date(txn.createdAt),
+        },
+      });
+    }
+
+    for (const d of data.tripDismissals ?? []) {
+      await tx.tripDismissal.create({
+        data: {
+          tripId: d.tripId,
+          transactionId: d.transactionId,
+          createdAt: new Date(d.createdAt),
         },
       });
     }
