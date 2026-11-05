@@ -11,6 +11,7 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('@/lib/cloud-sync', () => ({ triggerSync: vi.fn() }));
 
+import { triggerSync } from '@/lib/cloud-sync';
 import TravelPage from '@/app/(routes)/travel/page';
 import type { TripSummary, YearView } from '@/lib/travel/types';
 
@@ -123,8 +124,20 @@ function held(body: unknown) {
 
 beforeEach(() => {
   push.mockReset();
+  vi.mocked(triggerSync).mockClear();
   search = 'year=2026';
 });
+
+/** The open drawer's title: the first heading in the one dialog there may be. */
+const dialogTitle = () =>
+  within(screen.getByRole('dialog')).getAllByRole('heading', { level: 3 })[0].textContent;
+
+/** Expands Not on a trip and opens its one row. */
+async function openLooseRow() {
+  await userEvent.click(await screen.findByRole('button', { name: /Not on a trip/ }));
+  await userEvent.click(await screen.findByText('Test Airline'));
+  await waitFor(() => expect(dialogTitle()).toBe('Test Airline'));
+}
 
 describe('TravelPage', () => {
   it('listsTripsBiggestFirst', async () => {
@@ -167,6 +180,7 @@ describe('TravelPage', () => {
         body: { year: 2026, amount: 5000 },
       })
     );
+    await waitFor(() => expect(triggerSync).toHaveBeenCalledTimes(1));
   });
 
   it('editLinkReopensTheInput', async () => {
@@ -211,10 +225,57 @@ describe('TravelPage', () => {
     const drawer = await screen.findByRole('dialog');
     const before = [callsTo('/api/travel?').length, callsTo('/api/travel/not-on-trip').length];
     await userEvent.click(within(drawer).getByRole('button', { name: 'Transfer' }));
+    // Every save reloads, and a transfer change also asks for a reload of its own.
     await waitFor(() => {
-      expect(callsTo('/api/travel?')).toHaveLength(before[0] + 1);
-      expect(callsTo('/api/travel/not-on-trip')).toHaveLength(before[1] + 1);
+      expect(callsTo('/api/travel?').length).toBeGreaterThan(before[0]);
+      expect(callsTo('/api/travel/not-on-trip').length).toBeGreaterThan(before[1]);
     });
+  });
+
+  it('savedEditRefreshesNotOnATripAndTheYearFigures', async () => {
+    let saved = false;
+    const after: YearView = { ...baseView, notOnTrip: { spend: 200, count: 2 }, spent: 4800 };
+    mockApi({
+      replies: {
+        'PATCH /api/transactions/l1': () => {
+          saved = true;
+          return Promise.resolve({ body: {} });
+        },
+        'GET /api/travel?year=2026': () =>
+          Promise.resolve({ body: { view: saved ? after : baseView, budget: null } }),
+      },
+    });
+    render(<TravelPage />);
+    await openLooseRow();
+    const before = callsTo('/api/travel/not-on-trip').length;
+    const amount = within(screen.getByRole('dialog')).getByLabelText('Amount');
+    await userEvent.clear(amount);
+    await userEvent.type(amount, '-75');
+    expect(await screen.findByText('$4,800', {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Not on a trip · \$200/ })).toBeInTheDocument();
+    await waitFor(() => expect(callsTo('/api/travel/not-on-trip').length).toBeGreaterThan(before));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('newTripClosesAnOpenTransactionFirst', async () => {
+    mockApi();
+    render(<TravelPage />);
+    await openLooseRow();
+    await userEvent.click(screen.getByRole('button', { name: '+ New trip' }));
+    await waitFor(() => expect(dialogTitle()).toBe('New trip'));
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+  });
+
+  it('openingARowClosesTheNewTripDrawer', async () => {
+    mockApi();
+    render(<TravelPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /Not on a trip/ }));
+    const row = await screen.findByText('Test Airline');
+    await userEvent.click(screen.getByRole('button', { name: '+ New trip' }));
+    await waitFor(() => expect(dialogTitle()).toBe('New trip'));
+    await userEvent.click(row);
+    await waitFor(() => expect(dialogTitle()).toBe('Test Airline'));
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
   });
 
   it('referenceDataFailureIsShownNotSwallowed', async () => {
@@ -260,6 +321,7 @@ describe('TravelPage', () => {
     await userEvent.type(await screen.findByLabelText('Travel budget amount'), '5000');
     await userEvent.click(screen.getByRole('button', { name: 'Set budget' }));
     expect(await screen.findByText('Test budget boom')).toBeInTheDocument();
+    expect(triggerSync).not.toHaveBeenCalled();
   });
 
   it('overBudgetBarIsRed', async () => {

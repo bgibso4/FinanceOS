@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { triggerSync } from '@/lib/cloud-sync';
 import { errorText, sendJson } from '@/lib/send-json';
 import { fmtMoney } from '@/components/investments/format';
 
@@ -31,6 +32,7 @@ export function BudgetCard({ year, spent, target, currency, onSaved }: BudgetCar
     setError(null);
     try {
       await sendJson('/api/travel/budget', 'PUT', { year, amount: value });
+      triggerSync();
       setEditing(false);
       onSaved();
     } catch (e) {

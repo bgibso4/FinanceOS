@@ -25,8 +25,8 @@ export type OpenOpts = { startLinking?: boolean };
 export type TransactionDrawerHandle = {
   open(id: string, opts?: OpenOpts): Promise<void>;
   openNew(): Promise<void>;
-  /** Saves the pending edit, then closes; stays open if that save fails. */
-  close(): Promise<void>;
+  /** Saves the pending edit, then closes; stays open and answers false if that save fails. */
+  close(): Promise<boolean>;
 };
 
 /** linkRequest is set, and bumped on each request, when the refunds search should open. */
@@ -82,7 +82,9 @@ export function TransactionDrawer({
   );
 
   const close = useCallback(async () => {
-    if (await flushRef.current()) onClose();
+    if (!(await flushRef.current())) return false;
+    onClose();
+    return true;
   }, [onClose]);
 
   // Each New starts a blank form; the old one keeps its key while it slides out.
@@ -102,12 +104,21 @@ export function TransactionDrawer({
     [open, onNew, close]
   );
 
+  // A save can take the open row out of the list; stepping carries on from where it stood.
+  const lastPlace = useRef<{ id: string; index: number } | null>(null);
+  if (tx && index >= 0) lastPlace.current = { id: tx.id, index };
+
   const step = useCallback(
     async (delta: -1 | 1) => {
-      const target = index < 0 ? undefined : list[index + delta];
+      const place = lastPlace.current;
+      let at = -1;
+      if (index >= 0) at = index + delta;
+      // Its next row has moved up into its old place.
+      else if (place && place.id === tx?.id) at = delta > 0 ? place.index : place.index - 1;
+      const target = list[at];
       if (target) await open(target.id);
     },
-    [index, list, open]
+    [index, list, open, tx?.id]
   );
 
   const stepRef = useRef(step);

@@ -110,20 +110,32 @@ function TravelPageContent() {
     if (expanded && loose === null && !looseError) void loadLoose();
   }, [expanded, loose, looseError, loadLoose]);
 
+  const reload = async () => {
+    await Promise.all([loadYear(), loose === null ? undefined : loadLoose()]);
+  };
+
   const drawer = useTransactionDrawer({
     list: loose ?? [],
     lookup: loose ?? [],
-    refresh: async () => {
-      await Promise.all([loadYear(), loose === null ? undefined : loadLoose()]);
-    },
+    refresh: reload,
     categories: refs.categories,
-    patchRows: (patch) => setLoose((prev) => prev && patch(prev)),
+    patchRows: (patch) => {
+      setLoose((prev) => prev && patch(prev));
+      // The row is right already; the figures come from the server.
+      void reload();
+    },
   });
 
   const closeNewTrip = () => {
     setNewTrip(false);
     // The drawer creates the trip at step 1, so any way out may leave one behind.
     void loadYear();
+  };
+
+  // One drawer at a time: both sit in the same spot, so the later one would hide the other.
+  const openRow = (id: string) => {
+    if (newTrip) closeNewTrip();
+    drawer.openTransaction(id);
   };
 
   const view = data?.view;
@@ -146,7 +158,7 @@ function TravelPageContent() {
             value={String(year)}
             onChange={(value) => router.push(`/travel?year=${value}`)}
           />
-          <Button onClick={() => setNewTrip(true)}>+ New trip</Button>
+          <Button onClick={() => void drawer.closeThen(() => setNewTrip(true))}>+ New trip</Button>
         </div>
       </div>
 
@@ -193,7 +205,7 @@ function TravelPageContent() {
                   baseCurrency={currency}
                   openId={drawer.openId}
                   rows={loose}
-                  onOpen={drawer.openTransaction}
+                  onOpen={openRow}
                 />
               )}
             </NotOnTrip>

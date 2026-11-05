@@ -53,16 +53,28 @@ const transactions = [
 type Call = { url: string; method: string };
 let calls: Call[];
 
+type AfterSave = { trip: TripSummary; perDayAverage: number; rows?: typeof transactions };
+
 function mockApi({
   suggestionCount = 3,
   tripReply,
   yearOk = true,
+  rows = transactions,
+  tripOverride = trip,
+  patchOk = true,
+  afterSave,
 }: {
   suggestionCount?: number;
   tripReply?: { ok: boolean; status: number; body: unknown };
   yearOk?: boolean;
+  rows?: typeof transactions;
+  tripOverride?: TripSummary;
+  patchOk?: boolean;
+  /** What the server holds once a transaction PATCH has gone through. */
+  afterSave?: AfterSave;
 } = {}) {
   calls = [];
+  let saved = false;
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -73,15 +85,25 @@ function mockApi({
         status,
         json: async () => body,
       });
+      if (url.startsWith('/api/transactions/') && method === 'PATCH') {
+        if (!patchOk) return reply({ error: 'Test save boom' }, false, 500);
+        saved = true;
+        return reply({});
+      }
+      const current = saved ? afterSave : undefined;
       if (url === '/api/travel/trips/t1' && method === 'GET')
         return tripReply
           ? reply(tripReply.body, tripReply.ok, tripReply.status)
-          : reply({ trip, transactions, suggestionCount });
+          : reply({
+              trip: current?.trip ?? tripOverride,
+              transactions: current?.rows ?? rows,
+              suggestionCount,
+            });
       if (url === '/api/travel/trips/t1' && method === 'DELETE') return reply({ success: true });
       if (url === '/api/travel/trips/t1/suggestions') return reply({ suggestions: [] });
       if (url === '/api/travel?year=2026')
         return yearOk
-          ? reply({ view: { perDayAverage: 298 }, budget: null })
+          ? reply({ view: { perDayAverage: current?.perDayAverage ?? 298 }, budget: null })
           : reply({ error: 'Test year boom' }, false, 500);
       if (url === '/api/categories')
         return reply({
@@ -100,6 +122,17 @@ function mockApi({
 }
 
 beforeEach(() => push.mockReset());
+
+/** Edits the open transaction's amount; the autosave debounce then sends it. */
+async function editAmount(value: string) {
+  const amount = within(screen.getByRole('dialog')).getByLabelText('Amount');
+  await userEvent.clear(amount);
+  await userEvent.type(amount, value);
+}
+
+/** The open drawer's title: the first heading in the one dialog there may be. */
+const dialogTitle = () =>
+  within(screen.getByRole('dialog')).getAllByRole('heading', { level: 3 })[0].textContent;
 
 describe('TripPage', () => {
   it('showsStatsAndCategories', async () => {
@@ -199,6 +232,107 @@ describe('TripPage', () => {
         calls.filter((c) => c.url === '/api/travel/trips/t1' && c.method === 'GET')
       ).toHaveLength(before + 1)
     );
+  });
+
+  it('savedEditRefreshesTheFiguresAndTheAverage', async () => {
+    mockApi({
+      afterSave: {
+        trip: {
+          ...trip,
+          spend: 2500,
+          perDay: 278,
+          bookedAhead: 15,
+          categories: [{ categoryId: 'c1', name: 'Test Lodging', spend: 1111, share: 1 }],
+        },
+        perDayAverage: 310,
+      },
+    });
+    render(<TripPage />);
+    await userEvent.click(await screen.findByText('Test Before Airline'));
+    await editAmount('-25');
+    expect(await screen.findByText('$2,500', {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByText('$278')).toBeInTheDocument();
+    expect(screen.getByText('$15')).toBeInTheDocument();
+    expect(screen.getByText('$1,111')).toBeInTheDocument();
+    expect(await screen.findByText('2026 trips average $310')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['{ArrowDown}', 'Test After Shop'],
+    ['{ArrowUp}', 'Test Before Airline'],
+  ])('arrow %s still steps after a save takes the row off the trip', async (key, next) => {
+    mockApi({
+      afterSave: {
+        trip: { ...trip, spend: 2500 },
+        perDayAverage: 298,
+        rows: transactions.filter((t) => t.id !== 'x2'),
+      },
+    });
+    render(<TripPage />);
+    await userEvent.click(await screen.findByText('Test During Cafe'));
+    await editAmount('-25');
+    await screen.findByText('$2,500', {}, { timeout: 3000 });
+    await waitFor(() => expect(screen.getAllByText('Test During Cafe')).toHaveLength(1));
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getAllByRole('heading', { level: 3 })[0]
+    );
+    await userEvent.keyboard(key);
+    await waitFor(() => expect(dialogTitle()).toBe(next));
+  });
+
+  it.each([
+    ['Edit trip', 'Edit trip'],
+    ['Review suggestions', 'Review suggestions · 3'],
+  ])('%s closes an open transaction first', async (_label, button) => {
+    mockApi();
+    render(<TripPage />);
+    await userEvent.click(await screen.findByText('Test Before Airline'));
+    await screen.findByRole('dialog');
+    await userEvent.click(screen.getByRole('button', { name: button }));
+    await waitFor(() => expect(dialogTitle()).toBe('Test Whistler'));
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+  });
+
+  it('openingTheTripDrawerSavesThePendingEditFirst', async () => {
+    mockApi();
+    render(<TripPage />);
+    await userEvent.click(await screen.findByText('Test Before Airline'));
+    await editAmount('-25');
+    await userEvent.click(screen.getByRole('button', { name: 'Edit trip' }));
+    await waitFor(() => expect(dialogTitle()).toBe('Test Whistler'));
+    expect(calls.filter((c) => c.method === 'PATCH')).toHaveLength(1);
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+  });
+
+  it('aFailedSaveKeepsTheTransactionOpenInsteadOfTheTripDrawer', async () => {
+    mockApi({ patchOk: false });
+    render(<TripPage />);
+    await userEvent.click(await screen.findByText('Test Before Airline'));
+    await editAmount('-25');
+    await userEvent.click(screen.getByRole('button', { name: 'Edit trip' }));
+    await waitFor(() => expect(calls.filter((c) => c.method === 'PATCH')).toHaveLength(1));
+    expect(await screen.findByText(/Couldn't save/)).toBeInTheDocument();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(dialogTitle()).toBe('Test Before Airline');
+  });
+
+  it('openingARowClosesAnOpenTripDrawer', async () => {
+    mockApi();
+    render(<TripPage />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit trip' }));
+    await waitFor(() => expect(dialogTitle()).toBe('Test Whistler'));
+    await userEvent.click(screen.getByText('Test During Cafe'));
+    await waitFor(() => expect(dialogTitle()).toBe('Test During Cafe'));
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+  });
+
+  it('aTripWithNoTransactionsSaysSo', async () => {
+    mockApi({ rows: [], tripOverride: { ...trip, txCount: 0, categories: [] } });
+    render(<TripPage />);
+    expect(await screen.findByText('No transactions on this trip yet')).toBeInTheDocument();
+    expect(screen.queryByText('By category')).not.toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
   it('deleteReturnsToYear', async () => {

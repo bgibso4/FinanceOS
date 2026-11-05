@@ -57,14 +57,25 @@ function TripPageContent({ id }: { id: string }) {
   }, [loadTrip]);
 
   const startYear = data?.trip.startDate.slice(0, 4);
-  useEffect(() => {
+  const loadYearAverage = useCallback(async () => {
     if (!startYear) return;
     const seq = ++yearRequests.current;
-    sendJson<{ view: YearView }>(`/api/travel?year=${startYear}`, 'GET')
-      .then(({ view }) => seq === yearRequests.current && setYearAverage(view.perDayAverage))
+    try {
+      const { view } = await sendJson<{ view: YearView }>(`/api/travel?year=${startYear}`, 'GET');
+      if (seq === yearRequests.current) setYearAverage(view.perDayAverage);
+    } catch (e) {
       // The comparison is a nicety: without it the card just has no second line.
-      .catch((e) => console.warn('Failed to load the year average', e));
+      console.warn('Failed to load the year average', e);
+    }
   }, [startYear]);
+
+  useEffect(() => {
+    void loadYearAverage();
+  }, [loadYearAverage]);
+
+  const reload = async () => {
+    await Promise.all([loadTrip(), loadYearAverage()]);
+  };
 
   const trip = data?.trip;
   const groups = data && trip ? groupByTripDates(trip, data.transactions) : [];
@@ -72,16 +83,27 @@ function TripPageContent({ id }: { id: string }) {
     // Arrow keys step in the order the rows are shown.
     list: groups.flatMap((g) => g.rows),
     lookup: data?.transactions ?? [],
-    refresh: loadTrip,
+    refresh: reload,
     categories: refs.categories,
-    patchRows: (patch) =>
-      setData((prev) => prev && { ...prev, transactions: patch(prev.transactions) }),
+    patchRows: (patch) => {
+      setData((prev) => prev && { ...prev, transactions: patch(prev.transactions) });
+      // The row is right already; the figures come from the server.
+      void reload();
+    },
   });
 
   const closeTripDrawer = () => {
     setTripMode(null);
     // Editing, reviewing or leaving may all have changed the trip.
-    void loadTrip();
+    void reload();
+  };
+
+  // One drawer at a time: both sit in the same spot, so the later one would hide the other.
+  const openTripDrawer = (mode: 'edit' | 'review') =>
+    void drawer.closeThen(() => setTripMode(mode));
+  const openRow = (id: string) => {
+    if (tripMode) closeTripDrawer();
+    drawer.openTransaction(id);
   };
 
   if (tripError === NOT_FOUND) {
@@ -122,11 +144,11 @@ function TripPageContent({ id }: { id: string }) {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setTripMode('edit')}>
+              <Button variant="outline" onClick={() => openTripDrawer('edit')}>
                 Edit trip
               </Button>
               {data.suggestionCount > 0 && (
-                <Button onClick={() => setTripMode('review')}>
+                <Button onClick={() => openTripDrawer('review')}>
                   {`Review suggestions · ${data.suggestionCount}`}
                 </Button>
               )}
@@ -135,20 +157,26 @@ function TripPageContent({ id }: { id: string }) {
 
           <TripStats currency={currency} trip={trip} yearAverage={yearAverage} />
 
-          <div className="grid items-start gap-3 lg:grid-cols-[240px_1fr]">
-            <CategoryBreakdown currency={currency} trip={trip} />
-            <Card className="px-1.5 py-1">
-              <TransactionTable
-                compact
-                availableTags={refs.availableTags}
-                baseCurrency={currency}
-                groups={groups}
-                openId={drawer.openId}
-                rows={data.transactions}
-                onOpen={drawer.openTransaction}
-              />
+          {data.transactions.length === 0 ? (
+            <Card className="p-8 text-center text-sm text-[var(--text-muted)]">
+              No transactions on this trip yet
             </Card>
-          </div>
+          ) : (
+            <div className="grid items-start gap-3 lg:grid-cols-[240px_1fr]">
+              <CategoryBreakdown currency={currency} trip={trip} />
+              <Card className="px-1.5 py-1">
+                <TransactionTable
+                  compact
+                  availableTags={refs.availableTags}
+                  baseCurrency={currency}
+                  groups={groups}
+                  openId={drawer.openId}
+                  rows={data.transactions}
+                  onOpen={openRow}
+                />
+              </Card>
+            </div>
+          )}
         </>
       )}
 

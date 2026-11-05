@@ -30,6 +30,8 @@ type UseTransactionDrawer = {
   isOpen: boolean;
   openTransaction: (id: string, opts?: OpenOpts) => void;
   openNew: () => void;
+  /** Runs `next` once the drawer is shut; a failed save keeps it open and `next` never runs. */
+  closeThen: (next: () => void) => Promise<void>;
   drawerProps: Omit<
     TransactionDrawerProps,
     'accounts' | 'availableTags' | 'baseCurrency' | 'categories' | 'onCreateTag'
@@ -192,6 +194,9 @@ export function useTransactionDrawer({
     void ref.current?.open(id, opts);
   };
   const openNew = () => void ref.current?.openNew();
+  const closeThen = async (next: () => void) => {
+    if (!isOpen || (await ref.current?.close())) next();
+  };
 
   // Applied to the current rows, not the drawer's copy: a queued save may hold a stale one.
   const onRowSaved = (id: string, fields: TxFields) => {
@@ -213,6 +218,7 @@ export function useTransactionDrawer({
     isOpen,
     openTransaction,
     openNew,
+    closeThen,
     drawerProps: {
       state,
       list,
