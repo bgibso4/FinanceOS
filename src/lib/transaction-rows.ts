@@ -1,4 +1,4 @@
-import type { Tx } from '@/components/transactions/types';
+import type { Prisma } from '@prisma/client';
 
 export const TX_ROW_INCLUDE = {
   category: true,
@@ -23,3 +23,8 @@ export function toTxRow<T extends { amount: unknown; tags: string | null }>(
 ): Omit<T, 'tags' | 'amount'> & { amount: number; tags: string[] } {
   return { ...t, amount: Number(t.amount), tags: t.tags ? JSON.parse(t.tags) : [] };
 }
+
+/** A transaction as `toTxRow` shapes it server-side (`date` is still a `Date`; JSON turns it into the client `Tx`). */
+export type TxRow = ReturnType<
+  typeof toTxRow<Prisma.TransactionGetPayload<{ include: typeof TX_ROW_INCLUDE }>>
+>;

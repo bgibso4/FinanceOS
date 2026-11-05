@@ -1,3 +1,5 @@
+import type { TxRow } from '@/lib/transaction-rows';
+
 export type TripRecord = { id: string; name: string; startDate: string; endDate: string };
 
 export type CategorySlice = {
@@ -27,4 +29,13 @@ export type YearView = {
   perDayAverage: number;
   previousYearSpent: number | null;
   firstYear: number | null;
+};
+
+export type SuggestionGroup = 'before' | 'during' | 'other' | 'after';
+
+export type Suggestion = {
+  tx: TxRow;
+  group: SuggestionGroup;
+  preTicked: boolean;
+  reason: string;
 };
