@@ -4,10 +4,10 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { DRAWER_PUSH_CLASS } from '@/components/ui/drawer';
 import { PeriodPicker } from '@/components/ui/period-picker';
 import { BudgetCard } from '@/components/travel/budget-card';
+import { SummaryCard } from '@/components/travel/summary-card';
 import { monthYear } from '@/components/travel/format';
 import { NotOnTrip, TripList } from '@/components/travel/trip-list';
 import { TripDrawer } from '@/components/travel/trip-drawer';
@@ -21,28 +21,6 @@ import { errorText, sendJson } from '@/lib/send-json';
 import type { YearView } from '@/lib/travel/types';
 
 type TravelResponse = { view: YearView; budget: { target: number; spent: number } | null };
-
-function SummaryCard({
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  tone?: string;
-}) {
-  return (
-    <Card className="p-5">
-      <div className="text-[var(--text-secondary)]">{label}</div>
-      <div className={cn('mt-1 font-mono text-2xl', tone ?? 'text-[var(--text-primary)]')}>
-        {value}
-      </div>
-      {sub && <div className="mt-0.5 text-xs text-[var(--text-muted)]">{sub}</div>}
-    </Card>
-  );
-}
 
 function lastYearCard(view: YearView) {
   const label = `vs ${view.year - 1}`;
