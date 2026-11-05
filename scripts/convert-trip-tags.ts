@@ -13,11 +13,7 @@ const APPLY = process.argv.includes('--apply');
 
 async function main() {
   const plan = await buildTripConversionPlan(prisma);
-  if (!plan.trips.length && !plan.skipped.length && !plan.travelGoalIds.length) {
-    console.warn('Nothing to convert.');
-    return;
-  }
-
+  const nothing = !plan.trips.length && !plan.skipped.length && !plan.travelGoalIds.length;
   console.warn(`\n=== Trip tag conversion (${APPLY ? 'APPLY' : 'DRY RUN'}) ===\n`);
   for (const t of plan.trips)
     console.warn(
@@ -25,8 +21,12 @@ async function main() {
     );
   for (const s of plan.skipped)
     console.warn(`SKIP tag "${s.tagName}": ${s.reason}; left untouched`);
-  console.warn(`GOALS switching to travel tracking: ${plan.travelGoalIds.length}`);
+  for (const n of plan.travelGoalNames) console.warn(`GOAL "${n}" switches to travel tracking`);
   for (const w of plan.warnings) console.warn(`WARNING ${w}`);
+  if (nothing) {
+    console.warn('Nothing to convert.');
+    return;
+  }
 
   if (!APPLY) {
     console.warn('\nDry run only. Re-run with --apply to write.');

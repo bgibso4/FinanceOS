@@ -121,7 +121,7 @@ describe('trip tag conversion', () => {
     await applyTripConversionPlan(prisma, await buildTripConversionPlan(prisma));
 
     const trip = await prisma.trip.findFirstOrThrow({ where: { name: 'Miami' } });
-    expect(trip).toMatchObject({ startDate: '2026-03-02', endDate: '2026-03-03' });
+    expect(trip).toMatchObject({ startDate: '2026-03-02', endDate: '2026-03-02' });
     const ra = await prisma.transaction.findUniqueOrThrow({ where: { id: a.id } });
     expect(ra.tripId).toBe(trip.id);
     expect(JSON.parse(ra.tags!)).toEqual(['Tax Deductable']);
@@ -170,6 +170,124 @@ describe('trip tag conversion', () => {
     );
   });
 
+  it('rowOnTwoTripTagsGoesToEarliestTagWithWarning', async () => {
+    const { account } = await seed();
+    await prisma.tag.createMany({ data: [{ name: '2026 - Miami' }, { name: '2026 - Austria' }] });
+    const both = await prisma.transaction.create({
+      data: tx(account.id, '2026-03-02', ['2026 - Miami', '2026 - Austria']),
+    });
+    await prisma.transaction.create({ data: tx(account.id, '2026-06-10', ['2026 - Miami']) });
+    await prisma.transaction.create({ data: tx(account.id, '2026-02-01', ['2026 - Austria']) });
+    const plan = await buildTripConversionPlan(prisma);
+    const austria = plan.trips.find((t) => t.name === 'Austria')!;
+    const miami = plan.trips.find((t) => t.name === 'Miami')!;
+    expect(austria.transactionIds).toContain(both.id);
+    expect(miami.transactionIds).not.toContain(both.id);
+    expect(miami).toMatchObject({ startDate: '2026-06-10', endDate: '2026-06-10' });
+    expect(plan.warnings.join('\n')).toContain(both.id);
+    expect(plan.warnings.join('\n')).toContain('2026 - Miami');
+    await applyTripConversionPlan(prisma, plan);
+    const after = await prisma.transaction.findUniqueOrThrow({ where: { id: both.id } });
+    expect(after.tripId).toBe(
+      (await prisma.trip.findFirstOrThrow({ where: { name: 'Austria' } })).id
+    );
+    expect(JSON.parse(after.tags!)).toEqual([]);
+  });
+
+  it('datesUseSpendingNotLaterRefunds', async () => {
+    const { account, food } = await seed();
+    await prisma.tag.create({ data: { name: '2026 - Miami' } });
+    const t = ['2026 - Miami'];
+    await prisma.transaction.create({
+      data: tx(account.id, '2026-03-02', t, { categoryId: food.id }),
+    });
+    await prisma.transaction.create({
+      data: tx(account.id, '2026-05-02', t, { categoryId: food.id, amount: 40 }),
+    });
+    const [trip] = (await buildTripConversionPlan(prisma)).trips;
+    expect(trip).toMatchObject({ startDate: '2026-03-02', endDate: '2026-03-02' });
+    expect(trip.transactionIds).toHaveLength(2);
+  });
+
+  it('splitPartLandsOnTripAndNullTagsAreIgnored', async () => {
+    const { account, food } = await seed();
+    await prisma.tag.create({ data: { name: '2026 - Miami' } });
+    const t = ['2026 - Miami'];
+    const parent = await prisma.transaction.create({
+      data: tx(account.id, '2026-03-01', t, { isSplitParent: true }),
+    });
+    const part = await prisma.transaction.create({
+      data: tx(account.id, '2026-03-01', t, {
+        categoryId: food.id,
+        parentTransactionId: parent.id,
+      }),
+    });
+    await prisma.transaction.create({ data: { ...tx(account.id, '2026-03-02', []), tags: null } });
+    const plan = await buildTripConversionPlan(prisma);
+    expect(plan.trips[0].transactionIds).toEqual([part.id]);
+    await applyTripConversionPlan(prisma, plan);
+    expect((await prisma.transaction.findUniqueOrThrow({ where: { id: part.id } })).tripId).toBe(
+      (await prisma.trip.findFirstOrThrow()).id
+    );
+  });
+
+  it('substringTagNamesDoNotMatchAndQuotesWork', async () => {
+    const { account } = await seed();
+    await prisma.tag.createMany({
+      data: [{ name: '2026 - Rome' }, { name: '2026 - Rome "Old" \\ Town' }],
+    });
+    await prisma.transaction.create({
+      data: tx(account.id, '2026-03-02', ['2026 - Rome "Old" \\ Town']),
+    });
+    const plan = await buildTripConversionPlan(prisma);
+    expect(plan.trips.map((t) => t.name)).toEqual(['Rome "Old" \\ Town']);
+    expect(plan.skipped.map((s) => s.tagName)).toEqual(['2026 - Rome']);
+  });
+
+  it('malformedTagsWarnInsteadOfBeingSwallowed', async () => {
+    const { account } = await seed();
+    await prisma.tag.create({ data: { name: '2026 - Miami' } });
+    const bad = await prisma.transaction.create({
+      data: { ...tx(account.id, '2026-03-02', []), tags: '["2026 - Miami"' },
+    });
+    const plan = await buildTripConversionPlan(prisma);
+    expect(plan.warnings.join('\n')).toContain(bad.id);
+  });
+
+  it('onlyBudgetNamedGoalsSwitch', async () => {
+    const { travel } = await seed();
+    const budget = await prisma.goal.create({
+      data: createGoalData({
+        name: '2026 Travel Budget',
+        categoryId: travel.id,
+        startDate: '2026-01-01',
+      }),
+    });
+    await prisma.goal.create({
+      data: createGoalData({ name: 'Honeymoon', categoryId: travel.id, startDate: '2026-01-01' }),
+    });
+    await prisma.goal.create({
+      data: createGoalData({
+        name: '2027 Travel Budget',
+        trackingMethod: 'travel',
+        startDate: '2027-01-01',
+      }),
+    });
+    await prisma.goal.create({
+      data: createGoalData({
+        name: '2027 Travel Budget',
+        categoryId: travel.id,
+        startDate: '2027-01-01',
+      }),
+    });
+    const plan = await buildTripConversionPlan(prisma);
+    expect(plan.travelGoalIds).toEqual([budget.id]);
+    expect(plan.travelGoalNames).toEqual(['2026 Travel Budget']);
+    const w = plan.warnings.join('\n');
+    expect(w).toContain('Honeymoon');
+    expect(w).toContain('duplicate');
+  });
+
   it('tagReferencedByGoalIsSkippedAndListed', async () => {
     const { account } = await seed();
     const tag = await prisma.tag.create({ data: { name: '2026 - Miami' } });
@@ -208,7 +326,13 @@ describe('trip tag conversion', () => {
     await prisma.transaction.create({ data: tx(account.id, '2026-03-02', ['2026 - Miami']) });
     await applyTripConversionPlan(prisma, await buildTripConversionPlan(prisma));
     const plan = await buildTripConversionPlan(prisma);
-    expect(plan).toEqual({ trips: [], travelGoalIds: [], skipped: [], warnings: [] });
+    expect(plan).toEqual({
+      trips: [],
+      travelGoalIds: [],
+      travelGoalNames: [],
+      skipped: [],
+      warnings: [],
+    });
     await applyTripConversionPlan(prisma, plan);
     expect(await prisma.trip.count()).toBe(1);
   });

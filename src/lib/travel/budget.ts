@@ -2,7 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import { systemClock, type Clock } from '@/lib/clock';
 import { calculateGoalProgress } from '@/lib/goals';
 
-const budgetName = (year: number) => `${year} Travel Budget`;
+export const budgetName = (year: number) => `${year} Travel Budget`;
 
 /** A year's Travel budget, stored as a spending goal so Goals shows the same figures. */
 export class TravelBudget {

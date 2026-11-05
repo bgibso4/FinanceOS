@@ -5,6 +5,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { ChartSpec } from '@/lib/types';
 import { getAccountBalances } from '@/lib/balances';
 import { createTravelServices } from '@/lib/travel/services';
+import { parseTags } from '@/lib/transaction-rows';
 
 // ---------------------------------------------------------------------------
 // 1. executeGetCategories
@@ -513,16 +514,6 @@ export async function executeListTrips(prisma: PrismaClient): Promise<
 // ---------------------------------------------------------------------------
 // Helper
 // ---------------------------------------------------------------------------
-
-function parseTags(tags: string | null | undefined): string[] {
-  if (!tags) return [];
-  try {
-    const parsed = JSON.parse(tags);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
 
 // ---------------------------------------------------------------------------
 // AI SDK Tool Definitions

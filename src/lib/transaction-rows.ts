@@ -28,3 +28,19 @@ export function toTxRow<T extends { amount: unknown; tags: string | null }>(
 export type TxRow = ReturnType<
   typeof toTxRow<Prisma.TransactionGetPayload<{ include: typeof TX_ROW_INCLUDE }>>
 >;
+
+/** Parse a row's `tags` JSON; null when it is present but malformed. Non-string entries are dropped. */
+export function parseTagsStrict(raw: string | null | undefined): string[] | null {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((t): t is string => typeof t === 'string') : [];
+  } catch {
+    return null;
+  }
+}
+
+/** Like `parseTagsStrict`, but a malformed value reads as no tags. */
+export function parseTags(raw: string | null | undefined): string[] {
+  return parseTagsStrict(raw) ?? [];
+}
