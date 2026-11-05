@@ -7,6 +7,9 @@ import { useEffect, useState } from 'react';
 const SNOOZE_KEY = 'travelBudgetBannerSnoozedUntil';
 const SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
 
+const isTravelPath = (pathname: string) =>
+  pathname === '/travel' || pathname.startsWith('/travel/');
+
 function isSnoozed(): boolean {
   try {
     return Number(localStorage.getItem(SNOOZE_KEY)) > Date.now();
@@ -20,8 +23,16 @@ export function BudgetBanner() {
   const pathname = usePathname();
   const [year, setYear] = useState<number | null>(null);
 
+  const onTravel = isTravelPath(pathname);
+
+  // Re-check on every navigation: the shell outlives pages, so a budget set on /travel
+  // must clear the banner elsewhere, and snooze expiry or a new year are picked up.
   useEffect(() => {
-    if (isSnoozed()) return;
+    if (onTravel) return;
+    if (isSnoozed()) {
+      setYear(null);
+      return;
+    }
     let cancelled = false;
     fetch('/api/travel/budget')
       .then((res) => {
@@ -29,15 +40,18 @@ export function BudgetBanner() {
         return res.json() as Promise<{ year: number; hasBudget: boolean }>;
       })
       .then((status) => {
-        if (!cancelled && !status.hasBudget) setYear(status.year);
+        if (!cancelled) setYear(status.hasBudget ? null : status.year);
       })
-      .catch((error) => console.warn('Travel budget banner unavailable', error));
+      .catch((error) => {
+        if (!cancelled) setYear(null);
+        console.warn('Travel budget banner unavailable', error);
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [pathname, onTravel]);
 
-  if (year === null || pathname.startsWith('/travel')) return null;
+  if (year === null || onTravel) return null;
 
   const snooze = () => {
     try {

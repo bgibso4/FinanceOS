@@ -70,6 +70,24 @@ describe('BudgetBanner', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
+  it('disappearsAfterBudgetSetOnTravelPage', async () => {
+    pathname = '/travel';
+    respond({ year: 2026, hasBudget: false });
+    const { rerender } = render(<BudgetBanner />);
+    expect(fetch).not.toHaveBeenCalled();
+
+    pathname = '/goals';
+    rerender(<BudgetBanner />);
+    expect(await screen.findByRole('link')).toBeInTheDocument();
+
+    pathname = '/travel';
+    rerender(<BudgetBanner />);
+    respond({ year: 2026, hasBudget: true });
+    pathname = '/goals';
+    rerender(<BudgetBanner />);
+    await waitFor(() => expect(screen.queryByRole('link')).not.toBeInTheDocument());
+  });
+
   it('showsNothingAndWarnsWhenStatusFails', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     respond({}, false);
