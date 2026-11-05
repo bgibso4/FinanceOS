@@ -6,12 +6,13 @@ import { TagInput, type TagDef } from '@/components/tag-input';
 import { SECTION_CARD, SECTION_HEAD } from '@/components/investments/account-drawer';
 import { FIELD_LABEL, HINT } from '@/components/investments/editor-kit';
 import { CategorySelect } from './category-select';
-import type { Category, Tx, TxFields } from './types';
+import type { Category, TripOption, Tx, TxFields } from './types';
 
 type Props = {
   tx: Tx;
   categories: Category[];
   availableTags: TagDef[];
+  trips: TripOption[];
   onCreateTag: (name: string) => Promise<TagDef | null>;
   onEdit: (f: TxFields, opts?: { immediate?: boolean }) => void;
   splitSlot?: React.ReactNode;
@@ -22,14 +23,26 @@ const SEGMENT =
   'h-9 flex-1 text-sm text-[var(--text-secondary)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent)]';
 const SEGMENT_ON =
   'bg-[color-mix(in_srgb,var(--accent)_14%,var(--bg-base))] text-[var(--text-primary)] font-medium';
+const SELECT =
+  'h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 text-sm text-[var(--text-primary)] shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]';
 const SPLIT_BUTTON =
   'h-10 shrink-0 rounded-lg border border-dashed border-[var(--border-hover)] px-3 text-sm text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]';
+
+const MONTH_YEAR = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
+/** Trip dates are YYYY-MM-DD strings; read them as UTC so the month never shifts. */
+const tripLabel = (t: TripOption) => `${t.name} · ${MONTH_YEAR.format(new Date(t.startDate))}`;
 
 /** Parent remounts with key={tx.id}, so local state is never re-synced mid-edit. */
 export function DetailsSection({
   tx,
   categories,
   availableTags,
+  trips,
   onCreateTag,
   onEdit,
   splitSlot,
@@ -41,7 +54,10 @@ export function DetailsSection({
   const [date, setDate] = useState(tx.date.slice(0, 10));
   const [categoryId, setCategoryId] = useState(tx.category?.id ?? '');
   const [tags, setTags] = useState(tx.tags ?? []);
+  const [tripId, setTripId] = useState(tx.tripId ?? '');
   const isSplitPart = Boolean(tx.parentTransactionId);
+  // The API refuses a trip on a split parent; its parts carry the trips.
+  const showTrip = !tx.isSplitParent && (trips.length > 0 || Boolean(tx.tripId));
 
   const segment = (label: string, isTransfer: boolean) => (
     <button
@@ -170,6 +186,29 @@ export function DetailsSection({
             onCreateTag={onCreateTag}
           />
         </div>
+        {showTrip && (
+          <div>
+            <label className={FIELD_LABEL} htmlFor="tx-trip">
+              Trip
+            </label>
+            <select
+              className={SELECT}
+              id="tx-trip"
+              value={tripId}
+              onChange={(e) => {
+                setTripId(e.target.value);
+                onEdit({ tripId: e.target.value || null }, { immediate: true });
+              }}
+            >
+              <option value="">None</option>
+              {trips.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {tripLabel(t)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
     </section>
   );

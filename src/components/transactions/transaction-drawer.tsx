@@ -239,6 +239,7 @@ function EditBody({
   categories,
   availableTags,
   baseCurrency,
+  trips,
   linkRequest,
   flushRef,
   open,
@@ -330,6 +331,7 @@ function EditBody({
         availableTags={availableTags}
         categories={categories}
         splitSlot={splitSlot}
+        trips={trips}
         tx={tx}
         onCreateTag={onCreateTag}
         onEdit={autosave.edit}

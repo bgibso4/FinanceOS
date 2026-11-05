@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DetailsSection } from '@/components/transactions/details-section';
-import type { Category, Tx } from '@/components/transactions/types';
+import type { Category, TripOption, Tx } from '@/components/transactions/types';
 
 const tx: Tx = {
   id: 't1',
@@ -26,12 +26,18 @@ const categories: Category[] = [
 const HINT_ONE = 'Money moving between your own accounts, like a card payment.';
 const HINT_TWO = "Transfers are left out of spending totals, so the category isn't counted.";
 
+const trips: TripOption[] = [
+  { id: 't1', name: 'Japan', startDate: '2026-03-01' },
+  { id: 't2', name: 'Lisbon', startDate: '2026-01-10' },
+];
+
 function setup(overrides: Partial<Tx> = {}, props: Record<string, unknown> = {}) {
   const onEdit = vi.fn();
   render(
     <DetailsSection
       availableTags={[]}
       categories={categories}
+      trips={trips}
       tx={{ ...tx, ...overrides }}
       onCreateTag={vi.fn()}
       onEdit={onEdit}
@@ -104,6 +110,7 @@ describe('DetailsSection', () => {
       <DetailsSection
         availableTags={[]}
         categories={categories}
+        trips={[]}
         tx={tx}
         onCreateTag={vi.fn()}
         onEdit={vi.fn()}
@@ -128,5 +135,45 @@ describe('DetailsSection', () => {
     await userEvent.click(screen.getByRole('button', { name: /Split/ }));
     expect(onStartSplit).toHaveBeenCalled();
     expect(screen.getByText('slot')).toBeInTheDocument();
+  });
+
+  describe('Trip field', () => {
+    it('tripSelectShowsCurrentTrip', () => {
+      setup({ tripId: 't2' });
+      const select = screen.getByLabelText('Trip') as HTMLSelectElement;
+      expect(select.value).toBe('t2');
+      expect(Array.from(select.options).map((o) => o.textContent)).toEqual([
+        'None',
+        'Japan · Mar 2026',
+        'Lisbon · Jan 2026',
+      ]);
+    });
+
+    it('choosingATripSavesImmediately', async () => {
+      const onEdit = setup();
+      await userEvent.selectOptions(screen.getByLabelText('Trip'), 't1');
+      expect(onEdit).toHaveBeenCalledWith({ tripId: 't1' }, { immediate: true });
+    });
+
+    it('choosingNoneClearsTrip', async () => {
+      const onEdit = setup({ tripId: 't1' });
+      await userEvent.selectOptions(screen.getByLabelText('Trip'), '');
+      expect(onEdit).toHaveBeenCalledWith({ tripId: null }, { immediate: true });
+    });
+
+    it('hiddenWithNoTrips', () => {
+      setup({}, { trips: [] });
+      expect(screen.queryByLabelText('Trip')).toBeNull();
+    });
+
+    it('shownWithNoTripsWhenTransactionHasOne', () => {
+      setup({ tripId: 't1' }, { trips: [] });
+      expect(screen.getByLabelText('Trip')).toBeTruthy();
+    });
+
+    it('hiddenOnSplitParents', () => {
+      setup({ isSplitParent: true });
+      expect(screen.queryByLabelText('Trip')).toBeNull();
+    });
   });
 });
