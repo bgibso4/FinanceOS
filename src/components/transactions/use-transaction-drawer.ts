@@ -47,12 +47,10 @@ async function fetchLastYear(): Promise<Tx[] | null> {
   }
 }
 
-// Null means no answer, so the caller keeps what it has. A 404 is expected, not a failure:
-// the trips API may not be there.
+// Null means no answer, so the caller keeps what it has.
 async function fetchTrips(): Promise<TripOption[] | null> {
   try {
     const res = await fetch('/api/travel/trips');
-    if (res.status === 404) return null;
     if (!res.ok) {
       console.warn(`Failed to load trips: HTTP ${res.status}`);
       return null;

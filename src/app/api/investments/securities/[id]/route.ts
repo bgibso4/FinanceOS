@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getInvestmentServices } from '@/lib/investments/services';
-import { investmentErrorResponse, parseJsonBody } from '../../_lib/http';
+import { investmentErrorResponse } from '../../_lib/http';
+import { parseJsonBody } from '@/lib/http';
 
 const bodySchema = z.union([
   z.object({ priceSymbol: z.string().trim().min(1).max(20) }),

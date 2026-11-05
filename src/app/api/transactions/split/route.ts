@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
             isTransfer: parent.isTransfer,
             confidenceScore: 1.0,
             parentTransactionId: parent.id,
+            tripId: parent.tripId,
           },
         })
       )

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getInvestmentServices } from '@/lib/investments/services';
-import { investmentErrorResponse, parseJsonBody } from '../../../_lib/http';
+import { investmentErrorResponse } from '../../../_lib/http';
+import { parseJsonBody } from '@/lib/http';
 
 const bodySchema = z.object({
   holdings: z.array(z.object({ securityId: z.string().min(1), quantity: z.number() })),

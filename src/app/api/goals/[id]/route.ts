@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { calculateGoalProgress } from '@/lib/goals';
+import { calculateGoalProgress, TRAVEL_GOAL_ERROR } from '@/lib/goals';
 
 const updateGoalSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   type: z.enum(['spending', 'saving']).optional(),
   targetAmount: z.number().positive().optional(),
-  trackingMethod: z.enum(['category', 'tag', 'account']).optional(),
+  trackingMethod: z.enum(['category', 'tag', 'account', 'travel']).optional(),
   categoryId: z.string().nullable().optional(),
   tagId: z.string().nullable().optional(),
   accountId: z.string().nullable().optional(),
@@ -20,6 +20,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const body = await req.json();
   const parsed = updateGoalSchema.parse(body);
+  if (parsed.trackingMethod === 'travel') {
+    return NextResponse.json({ error: TRAVEL_GOAL_ERROR }, { status: 400 });
+  }
 
   const goal = await prisma.goal.update({
     where: { id },

@@ -23,6 +23,7 @@ const reply = (body: unknown, status = 200) =>
 // Failures worth reporting: each should warn, and neither wipe nor invent trips.
 const FAILURES: [string, () => Promise<Response>][] = [
   ['a 500', async () => reply({ trips: [trip] }, 500)],
+  ['a 404', async () => reply({}, 404)],
   ['a network error', async () => Promise.reject(new Error('Test network failure'))],
   [
     'an unparseable body',
@@ -34,7 +35,6 @@ const FAILURES: [string, () => Promise<Response>][] = [
       }) as unknown as Response,
   ],
 ];
-const NOT_FOUND = async () => reply({}, 404);
 
 function setup() {
   return renderHook(() =>
@@ -123,22 +123,6 @@ describe('useTransactionDrawer trips', () => {
     const { result } = await settleReload(respond);
     expect(result.current.drawerProps.trips).toEqual([trip]);
     expect(consoleWarn).toHaveBeenCalledTimes(1);
-    consoleWarn.mockRestore();
-  });
-
-  it('a 404 on first load gives no trips, quietly', async () => {
-    const consoleWarn = vi.spyOn(console, 'warn');
-    const { result } = await settleFirstLoad(NOT_FOUND);
-    expect(result.current.drawerProps.trips).toEqual([]);
-    expect(consoleWarn).not.toHaveBeenCalled();
-    consoleWarn.mockRestore();
-  });
-
-  it('a 404 on reload keeps the previous trips, quietly', async () => {
-    const consoleWarn = vi.spyOn(console, 'warn');
-    const { result } = await settleReload(NOT_FOUND);
-    expect(result.current.drawerProps.trips).toEqual([trip]);
-    expect(consoleWarn).not.toHaveBeenCalled();
     consoleWarn.mockRestore();
   });
 

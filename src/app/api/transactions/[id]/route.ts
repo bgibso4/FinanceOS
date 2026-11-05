@@ -25,6 +25,7 @@ const updateSchema = z.object({
   confidenceScore: z.number().optional(),
   isOffset: z.boolean().optional(),
   linkedTransactionId: z.string().nullable().optional(),
+  tripId: z.string().nullable().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

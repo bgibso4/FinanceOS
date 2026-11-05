@@ -1,6 +1,10 @@
 import type { PrismaClient, Goal } from '@prisma/client';
 import { getAccountBalance } from '@/lib/balances';
 import { categoryIdsInGroup } from '@/lib/categories';
+import { TravelTotals } from '@/lib/travel/totals';
+
+/** Travel budgets are created by the Travel feature, never through the Goals API. */
+export const TRAVEL_GOAL_ERROR = 'Travel budgets are managed in Travel';
 
 export type GoalProgress = {
   currentAmount: number;
@@ -74,6 +78,11 @@ export const GOAL_TRACKERS: Record<string, GoalTracker> = {
   tag: (goal, prisma) => (goal.tagId ? calculateTagProgress(goal, prisma) : Promise.resolve(0)),
   account: (goal, prisma) =>
     goal.accountId ? calculateAccountProgress(goal, prisma) : Promise.resolve(0),
+  // Imports totals.ts directly: services.ts and budget.ts import this file.
+  travel: (goal, prisma) =>
+    goal.startDate
+      ? new TravelTotals(prisma).budgetSpent(Number(goal.startDate.slice(0, 4)))
+      : Promise.resolve(0),
 };
 
 function buildDateFilter(goal: Goal): Record<string, unknown> {
