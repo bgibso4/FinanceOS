@@ -137,6 +137,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
       <a href="#txdrawer"><span class="toc-n">7</span><span>Transaction drawer</span></a>
       <a href="#budget"><span class="toc-n">8</span><span>Travel budget</span></a>
       <a href="#analyst"><span class="toc-n">9</span><span>Finance Analyst</span></a>
+      <a href="#engineering"><span class="toc-n">10</span><span>Engineering</span></a>
       <div class="toc-label">Build</div>
       <a href="#builder"><span class="toc-n"></span><span>Left to the builder</span></a>
       <a href="#testing"><span class="toc-n"></span><span>Testing</span></a>
@@ -153,7 +154,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
         <div><b>Where</b>Branch <code>feat/travel</code> off <code>main</code>. New routes <code>/travel</code> and <code>/travel/[id]</code>; Travel goes after Analytics in the side nav.</div>
         <div><b>Builds on</b>The shared <code>TransactionDrawer</code> and push <code>Drawer</code>, <code>Goal</code> + <code>src/lib/goals.ts</code>, the Analytics month picker, and cloud sync.</div>
       </div>
-      <div class="stats"><span><b>9</b>design sections</span><span><b>8</b>decisions agreed</span><span><b>8</b>calls to check</span></div>
+      <div class="stats"><span><b>10</b>design sections</span><span><b>9</b>decisions agreed</span><span><b>8</b>calls to check</span></div>
     </header>
 
     <section id="mine">
@@ -164,7 +165,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>Currency</div><div class="dec-text">Everything converts to your base currency the way Analytics does (<code>convertAmount</code>). 27 of the 227 trip transactions are on CAD accounts.</div></div><div class="trefs"><a class="tref" href="#constraints">Constraints</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M3</span>The "After" group</div><div class="dec-text">The 3 weeks after a trip suggest incoming money (never income categories or recurring transactions like paychecks) <strong>plus</strong> Travel-category spending, such as late charges or Anthony's −$165 "Bills".</div></div><div class="trefs"><a class="tref" href="#suggest">Suggestions</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M4</span>Which tags are trips</div><div class="dec-text">A tag whose name starts with a year and a dash (<code>^\d{4} - </code>). That matches exactly your 7 trip tags and not Green Card or Tax Deductable.</div></div><div class="trefs"><a class="tref" href="#convert">Conversion</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M5</span>A safe conversion</div><div class="dec-text">It backs up <code>dev.db</code> first, prints a dry-run summary before writing, and running it twice changes nothing.</div></div><div class="trefs"><a class="tref" href="#convert">Conversion</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M5</span>A safe conversion</div><div class="dec-text">A one-off script that backs up <code>dev.db</code> first, prints a dry-run summary (trips, counts, guessed dates) before writing, and changes nothing if run twice. You fix any wrong dates afterwards with Edit trip.</div></div><div class="trefs"><a class="tref" href="#convert">Conversion</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M6</span>Editing trip dates</div><div class="dec-text">Dismissed suggestions stay dismissed and transactions already on the trip stay on it. They're grouped Before / During / After against the new dates.</div></div><div class="trefs"><a class="tref" href="#suggest">Suggestions</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M7</span>Unticked means "not this trip"</div><div class="dec-text">Anything left unticked in a review isn't suggested for that trip again. You can still add it from its transaction drawer.</div></div><div class="trefs"><a class="tref" href="#suggest">Suggestions</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M8</span>"Not now" on the budget banner</div><div class="dec-text">It hides the banner for <strong>14 days</strong>.</div></div><div class="trefs"><a class="tref" href="#budget">Budget</a></div></li>
@@ -183,6 +184,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
         <li class="decision"><div><div class="dec-name"><span class="dec-id">A6</span>Travel owns the budget</div><div class="dec-text">It's created and changed only on the Travel page, still stored as a Goal, and shown read-only on Goals. A yearly app-wide banner prompts until it's set.</div></div><div class="trefs"><a class="tref" href="#budget">Budget</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">A7</span>Budget counts trips plus Travel spending on no trip</div><div class="dec-text">Your lazy small trips still count through their category, and trip spend in other categories counts through the trip. Each transaction is counted once.</div></div><div class="trefs"><a class="tref" href="#budget">Budget</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">A8</span>Spending counts in the trip's year</div><div class="dec-text">A trip belongs to the year it starts in, so December flights for a February trip count in February's year. Spending on no trip counts by its own date. Only the travel budget works this way.</div></div><div class="trefs"><a class="tref" href="#budget">Budget</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A9</span>DRY &gt; YAGNI &gt; SOLID, applied</div><div class="dec-text">Shared transaction table, drawer hook and period picker. One budget calculation. Note field, "Check these dates" and segment hover cut. Suggestion rules as objects, wired in one composition root like investments.</div></div><div class="trefs"><a class="tref" href="#engineering">Engineering</a></div></li>
       </ul></div>
     </section>
 
@@ -247,7 +249,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
     <section id="model">
       <h2>1 · Data model</h2>
       <div class="card"><ul>
-        <li><strong>Trip</strong>: id, name, startDate, endDate (inclusive calendar days), note (optional), createdAt.</li>
+        <li><strong>Trip</strong>: id, name, startDate, endDate (inclusive calendar days), createdAt. No note field, which nobody asked for.</li>
         <li><strong>Transaction → trip</strong>: each transaction is on <strong>at most one</strong> trip, via a nullable trip reference on Transaction. Deleting a trip clears it from its transactions and keeps them.</li>
         <li><strong>Dismissed suggestions</strong>: the (trip, transaction) pairs left unticked in a review.</li>
         <li><strong>Split transactions</strong>: the parts are assigned and counted, never the split parent (<code>isSplitParent: false</code>, as goals do).</li>
@@ -256,10 +258,10 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
 
     <section id="convert">
       <h2>2 · Converting the existing trip tags</h2>
-      <p class="lede">This runs once, through sync.</p>
+      <p class="lede">A one-off script, run once. Its writes reach other devices through normal sync.</p>
       <div class="card"><ol class="numbered">
         <li><div>Tags matching <code>^\d{4} - </code> become trips <span class="chip mine">M4</span>: Austria/Italy, Bayfield, California, Costa Rica, Miami, Mt Tremblant and Whistler. The "2026 - " prefix is dropped and each tag's transactions are assigned to its trip.</div></li>
-        <li><div>Dates come from the trip's Travel-category spending, <strong>excluding Flights and Lodging</strong> because those are booked early. If there's none, they come from all of its transactions. The trip page shows <strong>"Check these dates"</strong> until you confirm or edit them.</div></li>
+        <li><div>Dates come from the trip's Travel-category spending, <strong>excluding Flights and Lodging</strong> because those are booked early. If there's none, they come from all of its transactions. The dry run lists every guessed date, and you correct any wrong ones with Edit trip. Nothing extra is stored for this.</div></li>
         <li><div>A backup, a dry-run summary, and safe to run twice <span class="chip mine">M5</span>.</div></li>
         <li><div>The converted tags are removed from their transactions and deleted. No goal may be left pointing at a deleted tag. The "2026 Travel Budget" switches to the new tracking method.</div></li>
       </ol></div>
@@ -298,7 +300,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
           </ul></li>
         <li><strong>Trip list, biggest total first</strong>: Trip · Dates · Where it went · Per day · Total.
           <ul>
-            <li><strong>Where it went</strong> is a split bar in one hue at decreasing strength <span class="chip agreed">A4</span>. A legend names the top three with their percentages, and hovering a segment shows its category and amount.</li>
+            <li><strong>Where it went</strong> is a split bar in one hue at decreasing strength <span class="chip agreed">A4</span>. A legend names the top three with their percentages. There are no hover details.</li>
             <li>Per day = total ÷ days (inclusive). A row opens the trip page.</li>
           </ul></li>
         <li><strong>Not on a trip</strong>: a row under the trips for Travel-category spending that year on no trip, with total and count. It opens a list whose rows open the transaction drawer.</li>
@@ -326,7 +328,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
       <h2>6 · Trip drawer</h2>
       <p class="lede">Mock B. One push drawer for New trip and Edit trip.</p>
       <div class="card"><ol class="numbered">
-        <li><div><strong>Details</strong>: Name, Leave, Return and an optional Note, with Cancel / Next: find transactions. A trip can be created before you go, and suggestions then build up as transactions arrive.</div></li>
+        <li><div><strong>Details</strong>: Name, Leave and Return (the mock's Note field is cut), with Cancel / Next: find transactions. A trip can be created before you go, and suggestions then build up as transactions arrive.</div></li>
         <li><div><strong>Add transactions</strong>: the suggestions list.</div></li>
       </ol></div>
       <div class="callout"><b>Edit trip</b>opens step 1 filled in, with <strong>Delete trip</strong> at the bottom. It uses the same inline confirm as Delete transaction, and deleting keeps the transactions.</div>
@@ -359,12 +361,41 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
       </ul></div>
     </section>
 
+    <section id="engineering">
+      <h2>10 · Engineering</h2>
+      <p class="lede">DRY &gt; YAGNI &gt; SOLID, in that order <span class="chip agreed">A9</span>. Every task in the plan is judged against this.</p>
+      <h3 class="sub">DRY: extract, don't copy</h3>
+      <div class="card"><ul>
+        <li><strong>Shared <code>TransactionTable</code></strong>, pulled out of <code>transactions/page.tsx</code>: the Date / Merchant / Category / Account / Amount rows, the open-row highlight, and optional group headings for Before / During / After. Transactions and the trip page both use it, and Analytics will later.</li>
+        <li><strong>A shared drawer hook</strong>, pulled out of the Transactions page: the drawer's state and handle, open, close, step through the shown list, update a row in place after a save, and refresh. Any page with a transaction list gets the drawer from this hook.</li>
+        <li><strong>A shared period picker</strong>, pulled out of Analytics' month picker, with a month mode and a year mode. Analytics switches to it too.</li>
+        <li><strong>One budget calculation.</strong> The Travel budget card and Goals both call <code>calculateGoalProgress</code>. The travel tracking method gets its yearly figure from <code>TravelService</code>, the same code that builds the page's trip totals and Not on a trip, so the card and the page can't disagree.</li>
+        <li><strong>One "categories in a group" helper</strong>, pulled out of <code>goals.ts</code> (a group means its child categories). The category goal, suggestions and the budget all use it.</li>
+        <li><strong>Reuse what exists</strong>: recurring transactions come from <code>src/lib/recurring.ts</code>, currency from <code>getCurrencySettings</code> / <code>convertAmount</code>, and the push drawer is the existing <code>Drawer</code>.</li>
+      </ul></div>
+      <h3 class="sub">YAGNI: cut</h3>
+      <div class="card"><ul>
+        <li>The trip <strong>Note</strong> field.</li>
+        <li><strong>"Check these dates"</strong> and any stored "dates confirmed" flag. The conversion's dry run covers it.</li>
+        <li>A conversion that runs <strong>on first visit</strong>. It's a script.</li>
+        <li><strong>Hover details</strong> on the bar segments.</li>
+        <li><strong>Interfaces with only one implementation</strong>, such as a trip repository.</li>
+        <li><strong>Kept on purpose</strong>: the dismissed-suggestions table, because without it the review count could never reach 0.</li>
+      </ul></div>
+      <h3 class="sub">SOLID: shape of <code>src/lib/travel/</code></h3>
+      <div class="card"><ul>
+        <li><strong><code>TripSuggester</code></strong> runs a list of <strong>suggestion rule objects</strong>, one per group: Before, During, Other during, After. Each rule says which transactions it matches, whether they're pre-ticked, and why. Adding a group means adding a rule, not editing a switch. This is the same pattern as <code>RecurringDetectionStrategy</code>.</li>
+        <li><strong><code>TravelService</code></strong> handles trip totals, per day, Money back, booked ahead, the year view, Not on a trip, and the budget's yearly figure. The database, clock and currency settings are passed in.</li>
+        <li><strong><code>createTravelServices</code></strong> is the one place these are wired together, like <code>createInvestmentServices</code>. Routes take services from it, and tests pass in a fixed clock and a test database instead of mocking modules.</li>
+        <li><strong>Goal tracking becomes a lookup table</strong> with one calculator per method (category, tag, account, travel), replacing the if/else chain in <code>goals.ts</code>. Travel's calculator plugs in without touching the others.</li>
+        <li>Each file does one job: rules, service, routes and components stay separate. Pages render, and they don't calculate.</li>
+      </ul></div>
+    </section>
+
     <section id="builder">
       <h2>Left to the builder</h2>
       <div class="card"><ul>
         <li>API shape, file layout, component split, and whether the trip list and trip page share loaders.</li>
-        <li>How the conversion runs, as a script or on first visit to Travel. It must be safe to run twice and must go through sync.</li>
-        <li>Whether the year picker is extracted from Analytics or copied. DRY is preferred.</li>
         <li>How the shades come from <code>--accent</code>. The mock uses <code>color-mix</code>.</li>
         <li>Empty states: no trips in a year, a trip with no transactions.</li>
       </ul></div>
