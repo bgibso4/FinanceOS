@@ -47,15 +47,21 @@ async function fetchLastYear(): Promise<Tx[] | null> {
   }
 }
 
-// The Trip field is optional: anything but a good answer just means no trips to offer.
-async function fetchTrips(): Promise<TripOption[]> {
+// Null means no answer, so the caller keeps what it has. A 404 is expected, not a failure:
+// the trips API may not be there.
+async function fetchTrips(): Promise<TripOption[] | null> {
   try {
     const res = await fetch('/api/travel/trips');
-    if (!res.ok) return [];
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      console.warn(`Failed to load trips: HTTP ${res.status}`);
+      return null;
+    }
     const data: { trips?: TripOption[] } = await res.json();
     return data.trips ?? [];
-  } catch {
-    return [];
+  } catch (err) {
+    console.warn('Failed to load trips', err);
+    return null;
   }
 }
 
@@ -169,7 +175,7 @@ export function useTransactionDrawer({
   const loadTrips = () => {
     const seq = ++tripRequests.current;
     void fetchTrips().then((loaded) => {
-      if (seq === tripRequests.current) setTrips(loaded);
+      if (loaded && seq === tripRequests.current) setTrips(loaded);
     });
   };
   useEffect(loadTrips, []);

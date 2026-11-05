@@ -17,7 +17,24 @@ const categories: Category[] = [];
 const fetchMock = () => vi.mocked(global.fetch);
 const tripGets = () =>
   fetchMock().mock.calls.filter(([url]) => String(url) === '/api/travel/trips').length;
-const reply = (body: unknown, ok = true) => ({ ok, json: async () => body }) as Response;
+const reply = (body: unknown, status = 200) =>
+  ({ ok: status < 400, status, json: async () => body }) as Response;
+
+// Failures worth reporting: each should warn, and neither wipe nor invent trips.
+const FAILURES: [string, () => Promise<Response>][] = [
+  ['a 500', async () => reply({ trips: [trip] }, 500)],
+  ['a network error', async () => Promise.reject(new Error('Test network failure'))],
+  [
+    'an unparseable body',
+    async () =>
+      ({
+        ok: true,
+        status: 200,
+        json: () => Promise.reject(new Error('Test bad JSON')),
+      }) as unknown as Response,
+  ],
+];
+const NOT_FOUND = async () => reply({}, 404);
 
 function setup() {
   return renderHook(() =>
@@ -75,27 +92,62 @@ describe('useTransactionDrawer trips', () => {
     expect(result.current.drawerProps.trips).toEqual([trip]);
   });
 
-  it.each<[string, () => Promise<Response>]>([
-    ['a non-OK response', async () => reply({ trips: [trip] }, false)],
-    ['a network error', async () => Promise.reject(new Error('Test network failure'))],
-    ['a missing trips key', async () => reply({})],
-    [
-      'an unparseable body',
-      async () =>
-        ({
-          ok: true,
-          json: () => Promise.reject(new Error('Test bad JSON')),
-        }) as unknown as Response,
-    ],
-  ])('%s gives no trips, silently', async (_name, respond) => {
+  async function settleFirstLoad(respond: () => Promise<Response>) {
     fetchMock().mockImplementation(respond);
-    const consoleError = vi.spyOn(console, 'error');
-    const { result } = setup();
+    const hook = setup();
     await waitFor(() => expect(tripGets()).toBe(1));
     await act(async () => {});
+    return hook;
+  }
+
+  async function settleReload(respond: () => Promise<Response>) {
+    const hook = setup();
+    await waitFor(() => expect(hook.result.current.drawerProps.trips).toEqual([trip]));
+    fetchMock().mockImplementation(respond);
+    act(() => hook.result.current.drawerProps.onOpen('t1'));
+    await waitFor(() => expect(tripGets()).toBe(2));
+    await act(async () => {});
+    return hook;
+  }
+
+  it.each(FAILURES)('%s on first load warns and gives no trips', async (_name, respond) => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { result } = await settleFirstLoad(respond);
     expect(result.current.drawerProps.trips).toEqual([]);
-    expect(consoleError).not.toHaveBeenCalled();
-    consoleError.mockRestore();
+    expect(consoleWarn).toHaveBeenCalledTimes(1);
+    consoleWarn.mockRestore();
+  });
+
+  it.each(FAILURES)('%s on reload warns and keeps the previous trips', async (_name, respond) => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { result } = await settleReload(respond);
+    expect(result.current.drawerProps.trips).toEqual([trip]);
+    expect(consoleWarn).toHaveBeenCalledTimes(1);
+    consoleWarn.mockRestore();
+  });
+
+  it('a 404 on first load gives no trips, quietly', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn');
+    const { result } = await settleFirstLoad(NOT_FOUND);
+    expect(result.current.drawerProps.trips).toEqual([]);
+    expect(consoleWarn).not.toHaveBeenCalled();
+    consoleWarn.mockRestore();
+  });
+
+  it('a 404 on reload keeps the previous trips, quietly', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn');
+    const { result } = await settleReload(NOT_FOUND);
+    expect(result.current.drawerProps.trips).toEqual([trip]);
+    expect(consoleWarn).not.toHaveBeenCalled();
+    consoleWarn.mockRestore();
+  });
+
+  it('a missing trips key gives no trips, quietly', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn');
+    const { result } = await settleFirstLoad(async () => reply({}));
+    expect(result.current.drawerProps.trips).toEqual([]);
+    expect(consoleWarn).not.toHaveBeenCalled();
+    consoleWarn.mockRestore();
   });
 });
 
