@@ -61,6 +61,7 @@ function setup(state: Props['state'], log: string[] = []) {
       categories={categories}
       list={list}
       state={state}
+      trips={[]}
       onCreateTag={vi.fn().mockResolvedValue(null)}
       {...props}
     />

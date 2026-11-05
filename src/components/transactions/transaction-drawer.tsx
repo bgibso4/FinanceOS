@@ -17,9 +17,9 @@ import { SplitEditor } from './split-editor';
 import { SplitSummary } from './split-summary';
 import { signedMoney } from './split-bar';
 import { useAutosave } from './use-autosave';
-import type { Account, Category, Tx, TxFields } from './types';
+import type { Account, Category, TripOption, Tx, TxFields } from './types';
 
-type OpenOpts = { startLinking?: boolean };
+export type OpenOpts = { startLinking?: boolean };
 
 /** For page-level openers (row clicks, New): each saves the pending edit before switching. */
 export type TransactionDrawerHandle = {
@@ -32,13 +32,14 @@ export type TransactionDrawerHandle = {
 /** linkRequest is set, and bumped on each request, when the refunds search should open. */
 export type DrawerState = { mode: 'edit'; tx: Tx; linkRequest?: number } | { mode: 'new' } | null;
 
-type Props = {
+export type TransactionDrawerProps = {
   state: DrawerState;
   list: Tx[];
   categories: Category[];
   accounts: Account[];
   availableTags: TagDef[];
   baseCurrency: string;
+  trips: TripOption[];
   onCreateTag: (name: string) => Promise<TagDef | null>;
   onOpen: (id: string, opts?: OpenOpts) => void;
   /** Called by the handle's openNew once pending edits are saved. */
@@ -64,7 +65,7 @@ function headerAmount(amount: number, currency: string | undefined, baseCurrency
 export function TransactionDrawer({
   ref,
   ...props
-}: Props & { ref?: React.Ref<TransactionDrawerHandle> }) {
+}: TransactionDrawerProps & { ref?: React.Ref<TransactionDrawerHandle> }) {
   const { state, list, onOpen, onNew, onClose } = props;
   const tx = state?.mode === 'edit' ? state.tx : null;
   const index = tx ? list.findIndex((t) => t.id === tx.id) : -1;
@@ -150,7 +151,7 @@ function EditDrawer({
   close,
   flushRef,
   ...props
-}: Props & {
+}: TransactionDrawerProps & {
   tx: Tx | null;
   index: number;
   step: (delta: -1 | 1) => Promise<void>;
@@ -201,7 +202,7 @@ function NewDrawer({
   onCreated,
   close,
   isOpen,
-}: Props & { close: () => void; isOpen: boolean }) {
+}: TransactionDrawerProps & { close: () => void; isOpen: boolean }) {
   const { body, footer } = useNewTransactionForm({
     accounts,
     categories,
@@ -223,7 +224,7 @@ function NewDrawer({
   );
 }
 
-type EditBodyProps = Props & {
+type EditBodyProps = TransactionDrawerProps & {
   tx: Tx;
   index: number;
   linkRequest?: number;
