@@ -3,6 +3,7 @@
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { SideNav } from './side-nav';
 import { ChatAnalyst } from './chat-analyst';
+import { BudgetBanner } from './travel/budget-banner';
 import { SyncProvider } from './sync-provider';
 import { DRAWER_DISMISS, DRAWER_MOTION } from './ui/drawer';
 
@@ -41,6 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className={`flex flex-1 justify-center transition-[padding] motion-reduce:transition-none ${DRAWER_MOTION} min-[1100px]:has-[.drawer-push]:pr-[540px]`}
           >
             <div className="w-full max-w-[1400px] px-12 py-8" {...DRAWER_DISMISS}>
+              <BudgetBanner />
               <main {...DRAWER_DISMISS}>{children}</main>
             </div>
           </div>

@@ -12,6 +12,7 @@ import {
   Moon,
   PanelLeft,
   PanelLeftClose,
+  Plane,
   Settings,
   Sparkles,
   Sun,
@@ -25,6 +26,7 @@ import type { LucideIcon } from 'lucide-react';
 const links: NavLink[] = [
   { href: '/', label: 'Dashboard', icon: LayoutGrid },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/travel', label: 'Travel', icon: Plane },
   {
     href: '/transactions',
     label: 'Transactions',
