@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { parseFilters, resolveDateRange } from '@/lib/filters';
+import { TX_ROW_INCLUDE, toTxRow } from '@/lib/transaction-rows';
 import { autoCategorize, normalizeMerchant } from '@/lib/categorization';
 
 const createSchema = z.object({
@@ -35,22 +36,7 @@ export async function GET(req: NextRequest) {
   const transactions = await prisma.transaction.findMany({
     where,
     orderBy: { date: 'desc' },
-    include: {
-      category: true,
-      account: true,
-      linkedTransaction: true,
-      offsetTransactions: true,
-      parentTransaction: {
-        select: {
-          id: true,
-          amount: true,
-          merchant: true,
-          splitParts: {
-            select: { id: true, amount: true, categoryId: true, note: true, category: true },
-          },
-        },
-      },
-    },
+    include: TX_ROW_INCLUDE,
   });
 
   // Filter by date string to handle timezone issues
@@ -77,11 +63,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const shaped = filtered.map((tx) => ({
-    ...tx,
-    amount: Number(tx.amount),
-    tags: tx.tags ? JSON.parse(tx.tags) : [],
-  }));
+  const shaped = filtered.map(toTxRow);
 
   return NextResponse.json({ transactions: shaped });
 }

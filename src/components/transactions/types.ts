@@ -15,6 +15,7 @@ export type Tx = {
   offsetTransactions?: Tx[];
   parentTransactionId?: string | null;
   isSplitParent?: boolean;
+  tripId?: string | null;
   parentTransaction?: {
     id: string;
     amount: number;
@@ -46,7 +47,10 @@ export type TxFields = {
   note?: string | null;
   tags?: string[];
   isTransfer?: boolean;
+  tripId?: string | null;
 };
+
+export type TripOption = { id: string; name: string; startDate: string };
 
 export function validateFields(f: TxFields): string | null {
   if (f.merchant !== undefined && !f.merchant.trim()) return "Merchant can't be empty · not saved";

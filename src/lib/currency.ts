@@ -3,6 +3,8 @@
  * Handles formatting, conversion, and display logic
  */
 
+import type { PrismaClient } from '@prisma/client';
+
 export type Currency = 'USD' | 'CAD';
 
 export type ExchangeRate = {
@@ -212,4 +214,25 @@ export function formatExchangeRate(rate: number): string {
 export function isValidCurrency(currency: string): boolean {
   const validCurrencies = ['USD', 'CAD', 'EUR', 'GBP', 'JPY'];
   return validCurrencies.includes(currency);
+}
+
+export type CurrencySettings = { rateMap: Map<string, number>; baseCurrency: string };
+
+/** Exchange rates and base currency from the database. */
+export async function loadCurrencySettings(prisma: PrismaClient): Promise<CurrencySettings> {
+  const [rates, settings] = await Promise.all([
+    prisma.exchangeRate.findMany(),
+    prisma.userSettings.findFirst(),
+  ]);
+  return {
+    rateMap: parseExchangeRates(rates),
+    baseCurrency: settings?.baseCurrency || 'USD',
+  };
+}
+
+/** Convert an amount in `currency` (default USD) to the base currency. */
+export function toBase(amount: number, currency: string | undefined, s: CurrencySettings): number {
+  const from = currency || 'USD';
+  if (from === s.baseCurrency) return amount;
+  return convertAmount(amount, from, s.baseCurrency, s.rateMap);
 }
