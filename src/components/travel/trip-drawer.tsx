@@ -8,6 +8,8 @@ import { DeleteZone } from '@/components/transactions/delete-zone';
 import { SECTION_CARD, SECTION_HEAD } from '@/components/investments/account-drawer';
 import { ERROR, FIELD_LABEL, errorText, sendJson } from '@/components/investments/editor-kit';
 import { triggerSync } from '@/lib/cloud-sync';
+import { plural } from '@/lib/plural';
+import { TRIP_DATES_ERROR, tripDatesInOrder } from '@/lib/travel/dates';
 import type { Suggestion, TripRecord } from '@/lib/travel/types';
 import { SuggestionList } from './suggestion-list';
 
@@ -27,8 +29,6 @@ type TripDrawerProps = {
 
 const BUTTON = 'h-10 px-[18px] text-sm';
 const TRIPS_URL = '/api/travel/trips';
-
-const plural = (n: number) => `${n} transaction${n === 1 ? '' : 's'}`;
 
 export function TripDrawer({ baseCurrency, mode, onClose, onSaved, onDeleted }: TripDrawerProps) {
   const existing = mode && mode.kind !== 'new' ? mode.trip : null;
@@ -94,6 +94,10 @@ export function TripDrawer({ baseCurrency, mode, onClose, onSaved, onDeleted }: 
   const saveDetails = async (): Promise<TripRecord | null> => {
     if (!name.trim() || !startDate || !endDate) {
       setError('Give the trip a name and both dates.');
+      return null;
+    }
+    if (!tripDatesInOrder({ startDate, endDate })) {
+      setError(TRIP_DATES_ERROR);
       return null;
     }
     const body = { name, startDate, endDate };
@@ -203,7 +207,7 @@ export function TripDrawer({ baseCurrency, mode, onClose, onSaved, onDeleted }: 
             )}
             {loaded && suggestions.length > 0 && (
               <Button className={BUTTON} disabled={pending} type="button" onClick={submit}>
-                {count === 0 ? 'Done' : `Add ${plural(count)}`}
+                {count === 0 ? 'Dismiss all' : `Add ${plural(count, 'transaction')}`}
               </Button>
             )}
           </>

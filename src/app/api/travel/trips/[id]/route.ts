@@ -18,7 +18,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
       prisma.transaction.findMany({
         where: { tripId: id, isSplitParent: false },
         include: TX_ROW_INCLUDE,
-        orderBy: { date: 'desc' },
+        orderBy: { date: 'asc' },
       }),
       suggester.count(id),
     ]);

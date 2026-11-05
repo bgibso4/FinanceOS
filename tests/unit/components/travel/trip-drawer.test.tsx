@@ -162,14 +162,26 @@ describe('TripDrawer', () => {
     expect(triggerSync).toHaveBeenCalled();
   });
 
-  it('doneWithNothingTickedDismissesAll', async () => {
+  it('returnBeforeLeaveSaysSoWithoutCallingTheApi', async () => {
+    const user = userEvent.setup();
+    setup({ kind: 'new' });
+    await user.type(screen.getByLabelText('Name'), 'Test Porto');
+    await user.type(screen.getByLabelText('Leave'), '2026-05-17');
+    await user.type(screen.getByLabelText('Return'), '2026-05-10');
+    await user.click(screen.getByRole('button', { name: 'Next: find transactions' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent("Return can't be before Leave.");
+    expect(calls.filter((c) => c.method === 'POST')).toEqual([]);
+  });
+
+  it('nothingTickedOffersDismissAll', async () => {
     const user = userEvent.setup();
     const { onSaved } = setup({ kind: 'review', trip });
     await screen.findByText('Test b1');
     for (const m of ['Test b1', 'Test d1', 'Test a1']) await user.click(screen.getByText(m));
-    const done = screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement;
-    expect(done.disabled).toBe(false);
-    await user.click(done);
+    expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
+    const dismissAll = screen.getByRole('button', { name: 'Dismiss all' }) as HTMLButtonElement;
+    expect(dismissAll.disabled).toBe(false);
+    await user.click(dismissAll);
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
     expect(calls.find((c) => c.method === 'POST')!.body).toEqual({
       add: [],

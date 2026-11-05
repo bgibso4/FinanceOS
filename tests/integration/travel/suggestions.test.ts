@@ -128,13 +128,50 @@ describe('TripSuggester', () => {
     expect(await suggester.suggest(tripId)).toEqual([]);
   });
 
-  it('paybackFiveDaysAfterIsTicked', async () => {
+  it('paybackFiveDaysAfterIsUnticked', async () => {
     await tx('2026-01-26', 50, shopId);
     expect(await only()).toMatchObject({
       group: 'after',
-      preTicked: true,
+      preTicked: false,
       reason: '5 days after',
     });
+  });
+
+  it('travelMoneyBackAfterIsTicked', async () => {
+    await tx('2026-01-26', 50, foodId);
+    expect(await only()).toMatchObject({ group: 'after', preTicked: true });
+  });
+
+  it('afterGroupListsTravelRowsBeforeOtherMoneyIn', async () => {
+    await tx('2026-01-23', 50, shopId, { merchant: 'Payback' });
+    await tx('2026-01-30', -20, foodId, { merchant: 'Late charge' });
+    const s = await suggester.suggest(tripId);
+    expect(s.map((x) => [x.tx.merchant, x.group, x.preTicked])).toEqual([
+      ['Late charge', 'after', true],
+      ['Payback', 'after', false],
+    ]);
+  });
+
+  it('recurringMoneyInAfterIsHidden', async () => {
+    await prisma.recurringTransaction.create({
+      data: {
+        merchantPattern: 'dividend',
+        merchantDisplay: 'Dividend',
+        accountId,
+        frequency: 'monthly',
+        expectedAmount: 15,
+        medianIntervalDays: 30,
+        confidence: 0.9,
+        intervalRegularity: 0.9,
+        amountConsistency: 0.9,
+        transactionCount: 6,
+        firstSeenDate: new Date('2025-01-01'),
+        lastSeenDate: new Date('2026-01-01'),
+        status: 'active',
+      },
+    });
+    await tx('2026-01-26', 15, shopId, { merchant: 'Dividend' });
+    expect(await suggester.suggest(tripId)).toEqual([]);
   });
 
   it('travelSettleUpAfterIsTicked', async () => {

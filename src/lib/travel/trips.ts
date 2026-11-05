@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { isoDateSchema } from '@/lib/http';
+import { TRIP_DATES_ERROR, tripDatesInOrder } from './dates';
 import type { TripRecord } from './types';
 
 export const tripInputSchema = z
@@ -9,10 +10,7 @@ export const tripInputSchema = z
     startDate: isoDateSchema,
     endDate: isoDateSchema,
   })
-  .refine((t) => t.endDate >= t.startDate, {
-    message: 'End date must not be before start date',
-    path: ['endDate'],
-  });
+  .refine(tripDatesInOrder, { message: TRIP_DATES_ERROR, path: ['endDate'] });
 
 export type TripInput = z.infer<typeof tripInputSchema>;
 

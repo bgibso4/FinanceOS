@@ -457,8 +457,11 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
 
   // A payload from a build without investment support has no investment arrays. Importing it
   // would delete every local investment row and restore pre-migration accounts, so refuse it
-  // when there is investment data to lose.
-  if (data.accountBalances === undefined && (await hasLocalInvestmentData())) {
+  // when there is investment data to lose. The same goes for a payload from before trips.
+  if (
+    (data.accountBalances === undefined && (await hasLocalInvestmentData())) ||
+    (data.trips === undefined && (await getPrisma().trip.findFirst({ select: { id: true } })))
+  ) {
     throw new Error(
       'Cloud data is from an older FinanceOS version; update the other device and push again'
     );

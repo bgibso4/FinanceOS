@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { systemClock, type Clock } from '@/lib/clock';
-import { findTravelGroup } from '@/lib/categories';
+import { findTravelGroup, travelCategoryIds } from '@/lib/categories';
+import { isoDay } from '@/lib/investments/dates';
 import { TX_ROW_INCLUDE, toTxRow } from '@/lib/transaction-rows';
 import { loadCurrencySettings, toBase, type CurrencySettings } from '@/lib/currency';
 import { dayEnd, dayStart, tripDays } from './dates';
@@ -29,9 +30,8 @@ export class TravelTotals {
   }
 
   async year(year: number): Promise<YearView> {
-    const [{ trips, notOnTrip, spent }, previous, first, latestTrip] = await Promise.all([
+    const [{ trips, notOnTrip, spent }, first, latestTrip] = await Promise.all([
       this.yearFigures(year),
-      this.hasHistoryBefore(year),
       this.prisma.transaction.findFirst({
         where: { isSplitParent: false },
         orderBy: { date: 'asc' },
@@ -41,6 +41,8 @@ export class TravelTotals {
     ]);
     const daysAway = trips.reduce((n, t) => n + t.days, 0);
     const tripSpend = trips.reduce((n, t) => n + t.spend, 0);
+    // A part-covered year would compare a few months against this whole one.
+    const coversPreviousYear = first !== null && first.date <= dayEnd(`${year - 1}-01-01`);
     return {
       year,
       trips,
@@ -48,8 +50,8 @@ export class TravelTotals {
       spent,
       daysAway,
       perDayAverage: daysAway > 0 ? tripSpend / daysAway : 0,
-      previousYearSpent: previous ? (await this.yearFigures(year - 1)).spent : null,
-      firstDate: first ? first.date.toISOString().slice(0, 10) : null,
+      previousYearSpent: coversPreviousYear ? (await this.yearFigures(year - 1)).spent : null,
+      firstDate: first ? isoDay(first.date) : null,
       lastYear: Math.max(
         this.clock.now().getUTCFullYear(),
         latestTrip ? Number(latestTrip.startDate.slice(0, 4)) : 0
@@ -92,7 +94,7 @@ export class TravelTotals {
     return {
       tripId: null,
       isSplitParent: false,
-      categoryId: { in: [group.id, ...group.categoryIds] },
+      categoryId: { in: travelCategoryIds(group) },
       date: { gte: dayStart(`${year}-01-01`), lte: dayEnd(`${year}-12-31`) },
     };
   }
@@ -112,14 +114,6 @@ export class TravelTotals {
       include: TX_ROW_INCLUDE,
     });
     return txs.map(toTxRow);
-  }
-
-  private async hasHistoryBefore(year: number): Promise<boolean> {
-    const earlier = await this.prisma.transaction.findFirst({
-      where: { isSplitParent: false, date: { lt: dayStart(`${year}-01-01`) } },
-      select: { id: true },
-    });
-    return earlier !== null;
   }
 
   private async rows(where: object): Promise<Row[]> {

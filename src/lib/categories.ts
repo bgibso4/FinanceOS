@@ -31,6 +31,11 @@ export async function findTravelGroup(prisma: PrismaClient): Promise<TravelGroup
   return { id: group.id, categoryIds: children.map((c) => c.id), flightsAndLodgingIds };
 }
 
+/** Every category that counts as Travel: the group and its children. No group, none. */
+export function travelCategoryIds(group: TravelGroup | null): string[] {
+  return group ? [group.id, ...group.categoryIds] : [];
+}
+
 export function isIncomeCategory(c: { type: string } | null | undefined): boolean {
   return c?.type === 'income';
 }

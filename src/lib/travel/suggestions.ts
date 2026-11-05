@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
-import { findTravelGroup, isIncomeCategory } from '@/lib/categories';
+import { findTravelGroup, isIncomeCategory, travelCategoryIds } from '@/lib/categories';
+import { isoDay } from '@/lib/investments/dates';
 import { TX_ROW_INCLUDE, toTxRow } from '@/lib/transaction-rows';
 import { addDays, dayEnd, dayStart, daysBetween } from './dates';
 import type { Suggestion, SuggestionGroup, TripRecord } from './types';
@@ -20,8 +21,6 @@ export interface SuggestionRule {
   reason(c: Candidate, trip: TripRecord): string;
 }
 
-const isoDay = (d: Date) => d.toISOString().slice(0, 10);
-
 const inTravel = (c: Candidate, ctx: RuleContext) =>
   c.categoryId !== null && ctx.travelCategoryIds.has(c.categoryId);
 const isRecurring = (c: Candidate, ctx: RuleContext) =>
@@ -31,6 +30,12 @@ const recurringKey = (accountId: string, merchant: string) => `${accountId}|${me
 const dayCount = (n: number, rel: 'before' | 'after') => `${n} ${n === 1 ? 'day' : 'days'} ${rel}`;
 const duringTrip = () => 'During the trip';
 const tripWindow = (t: TripRecord) => ({ from: t.startDate, to: t.endDate });
+const afterWindow = (t: TripRecord) => ({
+  from: addDays(t.endDate, 1),
+  to: addDays(t.endDate, 21),
+});
+const daysAfter = (c: Candidate, t: TripRecord) =>
+  dayCount(daysBetween(t.endDate, isoDay(c.date)), 'after');
 
 export class BookedBeforeRule implements SuggestionRule {
   group = 'before' as const;
@@ -62,22 +67,30 @@ export class OtherDuringRule implements SuggestionRule {
   reason = duringTrip;
 }
 
-export class AfterRule implements SuggestionRule {
+export class AfterTravelRule implements SuggestionRule {
   group = 'after' as const;
   preTicked = true;
-  window = (t: TripRecord) => ({ from: addDays(t.endDate, 1), to: addDays(t.endDate, 21) });
+  window = afterWindow;
+  matches = inTravel;
+  reason = daysAfter;
+}
+
+/** Money coming in after a trip may have nothing to do with it, so it is offered, not assumed. */
+export class AfterMoneyInRule implements SuggestionRule {
+  group = 'after' as const;
+  preTicked = false;
+  window = afterWindow;
   matches = (c: Candidate, ctx: RuleContext) =>
-    inTravel(c, ctx) ||
-    (Number(c.amount) > 0 && !isIncomeCategory(c.category) && !isRecurring(c, ctx));
-  reason = (c: Candidate, t: TripRecord) =>
-    dayCount(daysBetween(t.endDate, isoDay(c.date)), 'after');
+    Number(c.amount) > 0 && !isIncomeCategory(c.category) && !isRecurring(c, ctx);
+  reason = daysAfter;
 }
 
 export const defaultRules = (): SuggestionRule[] => [
   new BookedBeforeRule(),
   new DuringRule(),
   new OtherDuringRule(),
-  new AfterRule(),
+  new AfterTravelRule(),
+  new AfterMoneyInRule(),
 ];
 
 /** Proposes unlinked transactions for a trip. The user reviews; nothing is linked here. */
@@ -145,7 +158,7 @@ export class TripSuggester {
       }),
     ]);
     return {
-      travelCategoryIds: new Set(group ? [group.id, ...group.categoryIds] : []),
+      travelCategoryIds: new Set(travelCategoryIds(group)),
       flightsAndLodgingIds: new Set(group?.flightsAndLodgingIds ?? []),
       recurringKeys: new Set(recurring.map((r) => recurringKey(r.accountId, r.merchantPattern))),
     };

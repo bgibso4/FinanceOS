@@ -1,3 +1,4 @@
+import { isoDay } from '@/lib/investments/dates';
 import type { TripRecord } from './types';
 
 const DAY_MS = 86_400_000;
@@ -15,9 +16,12 @@ export const daysBetween = (a: string, b: string): number =>
 /** Days in a trip, both ends included. */
 export const tripDays = (t: TripRecord): number => daysBetween(t.startDate, t.endDate) + 1;
 
-/** A trip belongs to the year it starts in. */
-export const tripYear = (t: TripRecord): number => Number(t.startDate.slice(0, 4));
+export const TRIP_DATES_ERROR = "Return can't be before Leave.";
+
+/** A trip may start and end on one day, never end first. */
+export const tripDatesInOrder = (t: { startDate: string; endDate: string }): boolean =>
+  t.endDate >= t.startDate;
 
 export function addDays(iso: string, n: number): string {
-  return new Date(dayStart(iso).getTime() + n * DAY_MS).toISOString().slice(0, 10);
+  return isoDay(new Date(dayStart(iso).getTime() + n * DAY_MS));
 }

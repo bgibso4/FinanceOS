@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
-import { findTravelGroup } from '@/lib/categories';
+import { findTravelGroup, travelCategoryIds } from '@/lib/categories';
+import { isoDay } from '@/lib/investments/dates';
 import { parseTags, parseTagsStrict } from '@/lib/transaction-rows';
 import { budgetName } from '@/lib/travel/budget';
 
@@ -23,8 +24,6 @@ export interface TripConversionPlan {
   skipped: { tagName: string; reason: string }[];
   warnings: string[];
 }
-
-const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
 /** Every row carrying the tag, split parents included (the tag row is deleted, so all must be stripped). */
 async function rowsWithTag(
@@ -63,7 +62,7 @@ export async function buildTripConversionPlan(prisma: PrismaClient): Promise<Tri
     warnings: [],
   };
   const group = await findTravelGroup(prisma);
-  const travelIds = new Set([group?.id, ...(group?.categoryIds ?? [])]);
+  const travelIds = new Set(travelCategoryIds(group));
   const excluded = new Set(group?.flightsAndLodgingIds ?? []);
   const tripTags = (await prisma.tag.findMany())
     .filter((t) => TRIP_TAG.test(t.name))

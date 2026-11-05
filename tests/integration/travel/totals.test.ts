@@ -194,11 +194,19 @@ describe('TravelTotals', () => {
   });
 
   it('previous year spent when history exists', async () => {
-    await tx('2025-05-03', -80);
+    await tx('2025-01-01', -80);
     await tx('2026-05-03', -30);
     const y = await totals.year(2026);
     expect(y.previousYearSpent).toBe(80);
-    expect(y.firstDate).toBe('2025-05-03');
+    expect(y.firstDate).toBe('2025-01-01');
+  });
+
+  it('no previous year figure when history starts mid previous year', async () => {
+    await tx('2025-11-03', -80);
+    await tx('2026-05-03', -30);
+    const y = await totals.year(2026);
+    expect(y.previousYearSpent).toBeNull();
+    expect(y.firstDate).toBe('2025-11-03');
   });
 
   it('firstDate is null with no transactions', async () => {

@@ -66,8 +66,8 @@ describe('cloud-sync trips', () => {
     expect(dismissals[0]).toMatchObject({ tripId: trip.id, transactionId: other.id });
   });
 
-  it('oldPayloadWithoutTripsImports', async () => {
-    await seedTrip();
+  /** A payload as a build from before trips would have written it. */
+  async function oldPayload() {
     const payload = await exportDatabase();
     const data = { ...payload.data } as Record<string, unknown>;
     delete data.trips;
@@ -75,16 +75,35 @@ describe('cloud-sync trips', () => {
     // old payloads have no tripId on transactions either
     data.transactions = payload.data.transactions.map(({ tripId: _t, ...rest }) => rest);
     const oldData = data as typeof payload.data;
-    const old = {
+    return {
       ...payload,
       data: oldData,
       metadata: { ...payload.metadata, checksum: await generateChecksum(oldData) },
     };
+  }
+
+  it('oldPayloadImportsWhenThereAreNoLocalTrips', async () => {
+    await seedTrip();
+    const old = await oldPayload();
+    await prisma.trip.deleteMany();
 
     await importDatabase(old);
 
     expect(await prisma.trip.count()).toBe(0);
     expect(await prisma.tripDismissal.count()).toBe(0);
     expect(await prisma.transaction.count()).toBe(2);
+  });
+
+  it('oldPayloadIsRefusedWhenThereAreLocalTrips', async () => {
+    const { trip, inTrip } = await seedTrip();
+    const old = await oldPayload();
+
+    await expect(importDatabase(old)).rejects.toThrow('older FinanceOS version');
+
+    expect((await prisma.trip.findMany()).map((t) => t.id)).toEqual([trip.id]);
+    expect(await prisma.tripDismissal.count()).toBe(1);
+    expect((await prisma.transaction.findUnique({ where: { id: inTrip.id } }))?.tripId).toBe(
+      trip.id
+    );
   });
 });

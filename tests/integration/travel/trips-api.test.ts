@@ -84,6 +84,15 @@ describe('travel trips API', () => {
     expect((await res.json()).name).toBe('Kyoto');
   });
 
+  it('tripDetailListsRowsOldestFirst', async () => {
+    const id = await newTrip();
+    await tx(-1, '2026-01-16', { tripId: id });
+    await tx(-2, '2026-01-14', { tripId: id });
+    await tx(-3, '2026-01-15', { tripId: id });
+    const { transactions } = await (await getTrip(req('GET'), ctx(id))).json();
+    expect(transactions.map((t: { amount: number }) => t.amount)).toEqual([-2, -3, -1]);
+  });
+
   it('tripDetailReturnsSummaryRowsAndCount', async () => {
     const id = await newTrip();
     await tx(-100, '2026-01-15', { tripId: id });
