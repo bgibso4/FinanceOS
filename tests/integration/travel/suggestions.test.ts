@@ -11,7 +11,6 @@ describe('TripSuggester', () => {
   let tripId: string;
   let travelId: string;
   let flightsId: string;
-  let lodgingId: string;
   let foodId: string;
   let salaryId: string;
   let shopId: string;
@@ -30,7 +29,7 @@ describe('TripSuggester', () => {
     accountId = (await prisma.account.create({ data: createAccountData() })).id;
     travelId = await cat('Travel');
     flightsId = await cat('Flights', { parentId: travelId });
-    lodgingId = await cat('Lodging', { parentId: travelId });
+    await cat('Lodging', { parentId: travelId });
     foodId = await cat('Food', { parentId: travelId });
     const incomeId = await cat('Income', { type: 'income' });
     salaryId = await cat('Salary', { type: 'income', parentId: incomeId });
@@ -133,14 +132,18 @@ describe('TripSuggester', () => {
     await tx('2026-01-26', 50, shopId);
     expect(await only()).toMatchObject({
       group: 'after',
-      preTicked: false,
+      preTicked: true,
       reason: '5 days after',
     });
   });
 
   it('travelSettleUpAfterIsTicked', async () => {
     await tx('2026-01-31', -165, foodId);
-    expect(await only()).toMatchObject({ group: 'after', reason: '10 days after' });
+    expect(await only()).toMatchObject({
+      group: 'after',
+      preTicked: true,
+      reason: '10 days after',
+    });
   });
 
   it('salaryAfterIsHidden', async () => {
@@ -177,16 +180,40 @@ describe('TripSuggester', () => {
     await tx('2026-01-26', 50, null);
     const s = await suggester.suggest(tripId);
     expect(s.map((x) => x.group)).toEqual(['other', 'after']);
-    expect(lodgingId).toBeTruthy();
   });
 
   it('ordersByGroupThenDate', async () => {
     await tx('2026-01-26', 50, shopId);
     await tx('2026-01-16', -10, shopId);
     await tx('2026-01-14', -20, foodId);
-    await tx('2026-01-02', -500, lodgingId);
+    await tx('2026-01-02', -500, flightsId);
     const s = await suggester.suggest(tripId);
     expect(s.map((x) => x.group)).toEqual(['before', 'during', 'other', 'after']);
+  });
+
+  it.each([
+    ['2025-09-15', true],
+    ['2025-09-14', false],
+  ])('before window edge %s suggested=%s', async (date, expected) => {
+    await tx(date, -900, flightsId);
+    expect((await suggester.suggest(tripId)).length).toBe(expected ? 1 : 0);
+  });
+
+  it.each([
+    ['2026-02-11', true],
+    ['2026-02-12', false],
+  ])('after window edge %s suggested=%s', async (date, expected) => {
+    await tx(date, 50, shopId);
+    expect((await suggester.suggest(tripId)).length).toBe(expected ? 1 : 0);
+  });
+
+  it('sayssingularDayAtOneDay', async () => {
+    await tx('2026-01-12', -900, flightsId);
+    await tx('2026-01-22', 50, shopId);
+    expect((await suggester.suggest(tripId)).map((s) => s.reason)).toEqual([
+      '1 day before',
+      '1 day after',
+    ]);
   });
 
   it('countMatchesSuggest', async () => {

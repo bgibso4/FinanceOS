@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { findTravelGroup, isIncomeCategory } from '@/lib/categories';
 import { TX_ROW_INCLUDE, toTxRow } from '@/lib/transaction-rows';
-import { addDays, dayEnd, dayStart } from './dates';
+import { addDays, dayEnd, dayStart, daysBetween } from './dates';
 import type { Suggestion, SuggestionGroup, TripRecord } from './types';
 
 type Candidate = Prisma.TransactionGetPayload<{ include: typeof TX_ROW_INCLUDE }>;
@@ -20,10 +20,7 @@ export interface SuggestionRule {
   reason(c: Candidate, trip: TripRecord): string;
 }
 
-const DAY_MS = 86_400_000;
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
-const daysBetween = (a: string, b: string) =>
-  Math.round((dayStart(b).getTime() - dayStart(a).getTime()) / DAY_MS);
 
 const inTravel = (c: Candidate, ctx: RuleContext) =>
   c.categoryId !== null && ctx.travelCategoryIds.has(c.categoryId);
@@ -31,6 +28,7 @@ const isRecurring = (c: Candidate, ctx: RuleContext) =>
   ctx.recurringKeys.has(recurringKey(c.accountId, c.merchantNormalized));
 const recurringKey = (accountId: string, merchant: string) => `${accountId}|${merchant}`;
 
+const dayCount = (n: number, rel: 'before' | 'after') => `${n} ${n === 1 ? 'day' : 'days'} ${rel}`;
 const duringTrip = () => 'During the trip';
 const tripWindow = (t: TripRecord) => ({ from: t.startDate, to: t.endDate });
 
@@ -41,7 +39,7 @@ export class BookedBeforeRule implements SuggestionRule {
   matches = (c: Candidate, ctx: RuleContext) =>
     c.categoryId !== null && ctx.flightsAndLodgingIds.has(c.categoryId);
   reason = (c: Candidate, t: TripRecord) =>
-    `${daysBetween(isoDay(c.date), t.startDate)} days before`;
+    dayCount(daysBetween(isoDay(c.date), t.startDate), 'before');
 }
 
 export class DuringRule implements SuggestionRule {
@@ -66,12 +64,13 @@ export class OtherDuringRule implements SuggestionRule {
 
 export class AfterRule implements SuggestionRule {
   group = 'after' as const;
-  preTicked = false;
+  preTicked = true;
   window = (t: TripRecord) => ({ from: addDays(t.endDate, 1), to: addDays(t.endDate, 21) });
   matches = (c: Candidate, ctx: RuleContext) =>
     inTravel(c, ctx) ||
     (Number(c.amount) > 0 && !isIncomeCategory(c.category) && !isRecurring(c, ctx));
-  reason = (c: Candidate, t: TripRecord) => `${daysBetween(t.endDate, isoDay(c.date))} days after`;
+  reason = (c: Candidate, t: TripRecord) =>
+    dayCount(daysBetween(t.endDate, isoDay(c.date)), 'after');
 }
 
 export const defaultRules = (): SuggestionRule[] => [
