@@ -2,7 +2,9 @@
 
 import { SECTION_CARD, SECTION_HEAD } from '@/components/investments/account-drawer';
 import { formatAmountCompact } from '@/lib/currency';
+import { isoDay } from '@/lib/investments/dates';
 import type { Suggestion, SuggestionGroup } from '@/lib/travel/types';
+import { shortDate } from './format';
 
 const GROUPS: { group: SuggestionGroup; heading: string }[] = [
   { group: 'before', heading: 'Booked before · Flights & Lodging, up to 4 months ahead' },
@@ -15,9 +17,6 @@ const money = (s: Suggestion, baseCurrency: string) => {
   const { amount, account } = s.tx;
   return `${amount < 0 ? '−' : '+'}${formatAmountCompact(Math.abs(amount), account?.currency ?? baseCurrency, baseCurrency)}`;
 };
-
-const shortDate = (date: Date | string) =>
-  new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
 type SuggestionListProps = {
   baseCurrency: string;
@@ -59,7 +58,7 @@ export function SuggestionList({
                         {s.tx.merchant}
                       </span>
                       <span className="block truncate text-[12px] text-[var(--text-muted)]">
-                        {`${shortDate(s.tx.date)} · ${s.tx.category?.name ?? 'Uncategorized'} · ${s.reason}`}
+                        {`${shortDate(isoDay(new Date(s.tx.date)))} · ${s.tx.category?.name ?? 'Uncategorized'} · ${s.reason}`}
                       </span>
                     </span>
                     <span className="shrink-0 text-sm tabular-nums text-[var(--text-primary)]">

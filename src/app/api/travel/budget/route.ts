@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { parseJsonBody } from '@/lib/http';
 import { getTravelServices } from '@/lib/travel/services';
-import { travelErrorResponse } from '../_lib/http';
+import { travelErrorResponse, yearSchema } from '../_lib/http';
 
 const budgetSchema = z.object({
-  year: z.number().int().min(1900).max(9999),
+  year: yearSchema,
   amount: z.number().positive(),
 });
 

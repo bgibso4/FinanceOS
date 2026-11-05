@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTravelServices } from '@/lib/travel/services';
-import { travelErrorResponse } from '../_lib/http';
+import { travelErrorResponse, yearSchema } from '../_lib/http';
 
 /** The transactions behind a year's "Not on a trip" figure. */
 export async function GET(request: NextRequest) {
   const year = Number(request.nextUrl.searchParams.get('year'));
-  if (!Number.isInteger(year) || year < 1900 || year > 9999) {
+  if (!yearSchema.safeParse(year).success) {
     return NextResponse.json({ error: 'Invalid year' }, { status: 400 });
   }
   try {

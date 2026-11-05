@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTravelServices } from '@/lib/travel/services';
-import { travelErrorResponse } from './_lib/http';
+import { travelErrorResponse, yearSchema } from './_lib/http';
 
 /** One year of Travel: its trips, totals and budget. */
 export async function GET(request: NextRequest) {
   const raw = request.nextUrl.searchParams.get('year');
   const year = raw === null ? new Date().getUTCFullYear() : Number(raw);
-  if (!Number.isInteger(year) || year < 1900 || year > 9999) {
+  if (!yearSchema.safeParse(year).success) {
     return NextResponse.json({ error: 'Invalid year' }, { status: 400 });
   }
   try {
