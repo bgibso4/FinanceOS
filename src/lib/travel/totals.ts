@@ -1,5 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
+import { systemClock, type Clock } from '@/lib/clock';
 import { findTravelGroup } from '@/lib/categories';
+import { TX_ROW_INCLUDE, toTxRow } from '@/lib/transaction-rows';
 import { loadCurrencySettings, toBase, type CurrencySettings } from '@/lib/currency';
 import { dayEnd, dayStart, tripDays } from './dates';
 import type { CategorySlice, TripRecord, TripSummary, YearView } from './types';
@@ -14,7 +16,10 @@ type Row = {
 
 /** Every Travel figure: net (signed sum, spend = −sum) and in the base currency. */
 export class TravelTotals {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly clock: Clock = systemClock
+  ) {}
 
   async trip(id: string): Promise<TripSummary | null> {
     const trip = await this.prisma.trip.findUnique({ where: { id } });
@@ -24,7 +29,7 @@ export class TravelTotals {
   }
 
   async year(year: number): Promise<YearView> {
-    const [{ trips, notOnTrip, spent }, previous, first] = await Promise.all([
+    const [{ trips, notOnTrip, spent }, previous, first, latestTrip] = await Promise.all([
       this.yearFigures(year),
       this.hasHistoryBefore(year),
       this.prisma.transaction.findFirst({
@@ -32,6 +37,7 @@ export class TravelTotals {
         orderBy: { date: 'asc' },
         select: { date: true },
       }),
+      this.prisma.trip.findFirst({ orderBy: { startDate: 'desc' }, select: { startDate: true } }),
     ]);
     const daysAway = trips.reduce((n, t) => n + t.days, 0);
     const tripSpend = trips.reduce((n, t) => n + t.spend, 0);
@@ -43,7 +49,11 @@ export class TravelTotals {
       daysAway,
       perDayAverage: daysAway > 0 ? tripSpend / daysAway : 0,
       previousYearSpent: previous ? (await this.yearFigures(year - 1)).spent : null,
-      firstYear: first ? first.date.getUTCFullYear() : null,
+      firstDate: first ? first.date.toISOString().slice(0, 10) : null,
+      lastYear: Math.max(
+        this.clock.now().getUTCFullYear(),
+        latestTrip ? Number(latestTrip.startDate.slice(0, 4)) : 0
+      ),
     };
   }
 
@@ -75,15 +85,33 @@ export class TravelTotals {
     };
   }
 
-  /** Travel-group rows on no trip, dated in the year. None when there is no Travel group. */
-  private async looseTravelRows(year: number): Promise<Row[]> {
+  /** The one definition of "not on a trip": Travel-group, no trip, dated in the year. Null without a Travel group. */
+  private async looseWhere(year: number) {
     const group = await findTravelGroup(this.prisma);
-    if (!group) return [];
-    return this.rows({
+    if (!group) return null;
+    return {
       tripId: null,
+      isSplitParent: false,
       categoryId: { in: [group.id, ...group.categoryIds] },
       date: { gte: dayStart(`${year}-01-01`), lte: dayEnd(`${year}-12-31`) },
+    };
+  }
+
+  private async looseTravelRows(year: number): Promise<Row[]> {
+    const where = await this.looseWhere(year);
+    return where ? this.rows(where) : [];
+  }
+
+  /** The transactions behind `notOnTrip`, newest first, shaped like the Transactions list. */
+  async notOnTripTransactions(year: number) {
+    const where = await this.looseWhere(year);
+    if (!where) return [];
+    const txs = await this.prisma.transaction.findMany({
+      where,
+      orderBy: { date: 'desc' },
+      include: TX_ROW_INCLUDE,
     });
+    return txs.map(toTxRow);
   }
 
   private async hasHistoryBefore(year: number): Promise<boolean> {

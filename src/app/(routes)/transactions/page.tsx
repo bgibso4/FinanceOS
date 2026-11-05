@@ -15,6 +15,7 @@ import { FilterRibbon } from '@/components/filter-ribbon';
 import type { TagDef } from '@/components/tag-input';
 import { CategorySelect } from '@/components/transactions/category-select';
 import { SubscriptionsTab } from '@/components/subscriptions-tab';
+import { postTag } from '@/components/transactions/create-tag';
 import { TransactionDrawer } from '@/components/transactions/transaction-drawer';
 import { TransactionTable, formatCurrency } from '@/components/transactions/transaction-table';
 import { useTransactionDrawer } from '@/components/transactions/use-transaction-drawer';
@@ -196,19 +197,10 @@ function TransactionsPageContent() {
   };
 
   const createTag = async (name: string): Promise<TagDef | null> => {
-    try {
-      const res = await fetch('/api/tags', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, color: 'blue' }),
-      });
-      if (!res.ok) return null;
-      const tag = await res.json();
+    const tag = await postTag(name);
+    if (tag)
       setAvailableTags((prev) => [...prev, tag].sort((a, b) => a.name.localeCompare(b.name)));
-      return tag;
-    } catch {
-      return null;
-    }
+    return tag;
   };
 
   useEffect(() => {

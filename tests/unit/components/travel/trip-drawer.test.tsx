@@ -255,6 +255,17 @@ describe('TripDrawer', () => {
     expect(calls.some((c) => c.method === 'POST')).toBe(false);
   });
 
+  it('newTripDoneWithNothingToReviewOpensTheTrip', async () => {
+    mockFetch({ 'GET /api/travel/trips/trip1/suggestions': { suggestions: [] } });
+    const user = userEvent.setup();
+    const { onClose, onSaved } = setup({ kind: 'new' });
+    await fillAndNext(user);
+    await screen.findByText('Nothing to review');
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(onSaved).toHaveBeenCalledWith('trip1');
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('failedSaveShowsError', async () => {
     mockFetch({}, ['PATCH /api/travel/trips/trip1']);
     const user = userEvent.setup();

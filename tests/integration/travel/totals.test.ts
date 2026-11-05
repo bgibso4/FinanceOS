@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import { setupTestDb, teardownTestDb, resetTestDb } from '../../helpers/db';
 import { createAccountData, createCategoryData } from '../../helpers/factories';
 import { TravelTotals } from '@/lib/travel/totals';
+import { fixedClock } from '@/lib/clock';
 
 describe('TravelTotals', () => {
   let prisma: PrismaClient;
@@ -189,7 +190,7 @@ describe('TravelTotals', () => {
     await tx('2026-05-03', -30);
     const y = await totals.year(2026);
     expect(y.previousYearSpent).toBeNull();
-    expect(y.firstYear).toBe(2026);
+    expect(y.firstDate).toBe('2026-05-03');
   });
 
   it('previous year spent when history exists', async () => {
@@ -197,12 +198,12 @@ describe('TravelTotals', () => {
     await tx('2026-05-03', -30);
     const y = await totals.year(2026);
     expect(y.previousYearSpent).toBe(80);
-    expect(y.firstYear).toBe(2025);
+    expect(y.firstDate).toBe('2025-05-03');
   });
 
-  it('firstYear is null with no transactions', async () => {
+  it('firstDate is null with no transactions', async () => {
     const y = await totals.year(2026);
-    expect(y.firstYear).toBeNull();
+    expect(y.firstDate).toBeNull();
     expect(y.previousYearSpent).toBeNull();
   });
 
@@ -213,5 +214,39 @@ describe('TravelTotals', () => {
     await tx('2026-05-03', -999, { isSplitParent: true });
     expect((await totals.trip(t.id))?.spend).toBe(60);
     expect((await totals.year(2026)).notOnTrip).toEqual({ spend: 0, count: 0 });
+  });
+
+  it('notOnTripTransactionsSumToNotOnTripSpend', async () => {
+    const t = await trip('2026-03-05', '2026-03-08');
+    await tx('2026-03-06', -60, { tripId: t.id });
+    await tx('2026-04-01', -200, { categoryId: flightsId });
+    await tx('2026-05-02', -30, { categoryId: travelId });
+    await tx('2026-06-02', 10, { categoryId: flightsId });
+    await tx('2026-06-03', -999, { categoryId: null });
+    await tx('2025-12-31', -77, { categoryId: flightsId });
+    await tx('2026-07-01', -500, { categoryId: flightsId, isSplitParent: true });
+    const rows = await totals.notOnTripTransactions(2026);
+    const { notOnTrip } = await totals.year(2026);
+    expect(rows).toHaveLength(notOnTrip.count);
+    expect(-rows.reduce((n, r) => n + r.amount, 0)).toBe(notOnTrip.spend);
+    expect(rows.map((r) => r.amount)).toEqual([10, -30, -200]);
+    expect(rows[0].category?.name).toBe('Flights');
+  });
+
+  it('notOnTripTransactionsEmptyWithoutTravelGroup', async () => {
+    await prisma.category.deleteMany({ where: { parentId: travelId } });
+    await prisma.transaction.deleteMany();
+    await prisma.category.delete({ where: { id: travelId } });
+    await tx('2026-04-01', -200, { categoryId: null });
+    expect(await totals.notOnTripTransactions(2026)).toEqual([]);
+  });
+
+  it('lastYearIsTheLaterOfTodayAndTheLatestTrip', async () => {
+    const clock = fixedClock('2026-11-05T00:00:00.000Z');
+    const withClock = new TravelTotals(prisma, clock);
+    expect((await withClock.year(2026)).lastYear).toBe(2026);
+    await trip('2027-02-01', '2027-02-05');
+    await trip('2026-02-01', '2026-02-05');
+    expect((await withClock.year(2026)).lastYear).toBe(2027);
   });
 });

@@ -41,18 +41,24 @@ const baseView: YearView = {
   daysAway: 12,
   perDayAverage: 383,
   previousYearSpent: 4000,
-  firstYear: 2025,
+  firstDate: '2025-11-03',
+  lastYear: 2026,
 };
 
-const categories = [
-  { id: 'g', name: 'Travel', type: 'expense', parentId: null },
-  { id: 'g1', name: 'Test Flights', type: 'expense', parentId: 'g' },
-  { id: 'x', name: 'Test Dining', type: 'expense', parentId: null },
-];
-const loose = (id: string, tripId: string | null, merchant: string) => ({
+const emptyView: YearView = {
+  ...baseView,
+  year: 2027,
+  trips: [],
+  notOnTrip: { spend: 0, count: 0 },
+  spent: 0,
+  daysAway: 0,
+  previousYearSpent: null,
+};
+
+const loose = (id: string, merchant: string) => ({
   id,
   merchant,
-  tripId,
+  tripId: null,
   date: '2026-03-04T00:00:00.000Z',
   amount: -125,
   confidenceScore: 1,
@@ -63,28 +69,56 @@ const loose = (id: string, tripId: string | null, merchant: string) => ({
 
 type Call = { url: string; method: string; body: unknown };
 let calls: Call[];
+const callsTo = (prefix: string) => calls.filter((c) => c.url.startsWith(prefix));
 
-function mockApi(view: YearView = baseView, budget: unknown = null) {
+type Reply = { ok?: boolean; body: unknown };
+type Mock = {
+  view?: YearView;
+  budget?: unknown;
+  /** Per-URL replies (keyed `METHOD url`); a function may return a promise to hold a response back. */
+  replies?: Record<string, Reply | (() => Promise<Reply>)>;
+};
+
+function mockApi({ view = baseView, budget = null, replies = {} }: Mock = {}) {
   calls = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
       const method = init?.method ?? 'GET';
       calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      const custom = replies[`${method} ${url}`];
+      if (custom) {
+        const r = typeof custom === 'function' ? await custom() : custom;
+        return { ok: r.ok ?? true, status: r.ok === false ? 500 : 200, json: async () => r.body };
+      }
       let body: unknown = {};
       if (url.startsWith('/api/travel?')) body = { view, budget };
-      else if (url === '/api/categories') body = { categories };
+      else if (url === '/api/categories')
+        body = {
+          categories: [
+            { id: 'g', name: 'Travel', type: 'expense', parentId: null },
+            { id: 'g1', name: 'Test Flights', type: 'expense', parentId: 'g' },
+          ],
+        };
       else if (url === '/api/accounts') body = { accounts: [{ id: 'a1', name: 'Test Card' }] };
       else if (url === '/api/settings') body = { settings: { baseCurrency: 'USD' } };
       else if (url === '/api/tags') body = { tags: [] };
-      else if (url === '/api/travel/trips') body = { trips: [] };
-      else if (url.startsWith('/api/transactions?'))
-        body = {
-          transactions: [loose('l1', null, 'Test Airline'), loose('l2', 't2', 'Test On Trip')],
-        };
+      else if (method === 'GET' && url === '/api/travel/trips') body = { trips: [] };
+      else if (url.startsWith('/api/travel/not-on-trip?'))
+        body = { transactions: [loose('l1', 'Test Airline')] };
+      else if (method === 'POST' && url === '/api/travel/trips')
+        body = { id: 'trip9', name: 'Test Lisbon', startDate: '2026-05-10', endDate: '2026-05-17' };
+      else if (url === '/api/travel/trips/trip9/suggestions') body = { suggestions: [] };
       return { ok: true, status: 200, json: async () => body };
     })
   );
+}
+
+/** A reply held back until `release` is called. */
+function held(body: unknown) {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  return { reply: async (): Promise<Reply> => (await gate, { body }), release };
 }
 
 beforeEach(() => {
@@ -107,7 +141,7 @@ describe('TravelPage', () => {
   });
 
   it('budgetCardShowsOver', async () => {
-    mockApi(baseView, { target: 4000, spent: 4850 });
+    mockApi({ budget: { target: 4000, spent: 4850 } });
     render(<TravelPage />);
     expect(await screen.findByText('$850 over')).toBeInTheDocument();
     expect(screen.getByText(/of \$4,000/)).toBeInTheDocument();
@@ -115,7 +149,7 @@ describe('TravelPage', () => {
   });
 
   it('budgetCardShowsLeft', async () => {
-    mockApi(baseView, { target: 6000, spent: 4850 });
+    mockApi({ budget: { target: 6000, spent: 4850 } });
     render(<TravelPage />);
     expect(await screen.findByText('$1,150 left')).toBeInTheDocument();
   });
@@ -136,7 +170,7 @@ describe('TravelPage', () => {
   });
 
   it('editLinkReopensTheInput', async () => {
-    mockApi(baseView, { target: 4000, spent: 4850 });
+    mockApi({ budget: { target: 4000, spent: 4850 } });
     render(<TravelPage />);
     await userEvent.click(await screen.findByRole('button', { name: 'Edit' }));
     expect(screen.getByLabelText('Travel budget amount')).toHaveValue(4000);
@@ -150,10 +184,10 @@ describe('TravelPage', () => {
   });
 
   it('noPreviousYearShowsDash', async () => {
-    mockApi({ ...baseView, previousYearSpent: null, firstYear: 2026 });
+    mockApi({ view: { ...baseView, previousYearSpent: null } });
     render(<TravelPage />);
     expect(await screen.findByText('—')).toBeInTheDocument();
-    expect(screen.getByText(/History starts 2026/)).toBeInTheDocument();
+    expect(screen.getByText('History starts Nov 2025')).toBeInTheDocument();
   });
 
   it('notOnTripRowOpensSharedDrawer', async () => {
@@ -161,16 +195,145 @@ describe('TravelPage', () => {
     render(<TravelPage />);
     await userEvent.click(await screen.findByRole('button', { name: /Not on a trip/ }));
     const row = await screen.findByText('Test Airline');
-    // Only Travel-group rows that sit on no trip are listed.
-    expect(screen.queryByText('Test On Trip')).not.toBeInTheDocument();
-    const url = calls.find((c) => c.url.startsWith('/api/transactions?'))!.url;
-    const params = new URLSearchParams(url.split('?')[1]);
-    expect(params.getAll('category').sort()).toEqual(['g', 'g1']);
-    expect(params.get('startDate')).toBe('2026-01-01');
-    expect(params.get('endDate')).toBe('2026-12-31');
+    expect(callsTo('/api/travel/not-on-trip').map((c) => c.url)).toEqual([
+      '/api/travel/not-on-trip?year=2026',
+    ]);
     await userEvent.click(row);
     const drawer = await screen.findByRole('dialog');
     expect(within(drawer).getAllByText('Test Airline').length).toBeGreaterThan(0);
+  });
+
+  it('editingInTheDrawerRefreshesYearAndRows', async () => {
+    mockApi();
+    render(<TravelPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /Not on a trip/ }));
+    await userEvent.click(await screen.findByText('Test Airline'));
+    const drawer = await screen.findByRole('dialog');
+    const before = [callsTo('/api/travel?').length, callsTo('/api/travel/not-on-trip').length];
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Transfer' }));
+    await waitFor(() => {
+      expect(callsTo('/api/travel?')).toHaveLength(before[0] + 1);
+      expect(callsTo('/api/travel/not-on-trip')).toHaveLength(before[1] + 1);
+    });
+  });
+
+  it('referenceDataFailureIsShownNotSwallowed', async () => {
+    mockApi({ replies: { 'GET /api/categories': { ok: false, body: {} } } });
+    render(<TravelPage />);
+    expect(await screen.findByText('Could not load categories.')).toBeInTheDocument();
+  });
+
+  it('missingCurrencyShowsNoGuessedFigures', async () => {
+    mockApi({ replies: { 'GET /api/settings': { ok: false, body: {} } } });
+    render(<TravelPage />);
+    expect(await screen.findByText('Could not load settings.')).toBeInTheDocument();
+    expect(screen.queryByText('Test Big')).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$/)).not.toBeInTheDocument();
+  });
+
+  it('failedYearLoadShowsError', async () => {
+    mockApi({
+      replies: { 'GET /api/travel?year=2026': { ok: false, body: { error: 'Test boom' } } },
+    });
+    render(<TravelPage />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Test boom');
+    expect(screen.queryByText('Test Big')).not.toBeInTheDocument();
+  });
+
+  it('failedLooseLoadDoesNotHideAsYearReloads', async () => {
+    mockApi({
+      replies: {
+        'GET /api/travel/not-on-trip?year=2026': { ok: false, body: { error: 'Test loose boom' } },
+      },
+    });
+    render(<TravelPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /Not on a trip/ }));
+    expect(await screen.findByText('Test loose boom')).toBeInTheDocument();
+    expect(callsTo('/api/travel/not-on-trip')).toHaveLength(1);
+  });
+
+  it('failedBudgetSaveShowsError', async () => {
+    mockApi({
+      replies: { 'PUT /api/travel/budget': { ok: false, body: { error: 'Test budget boom' } } },
+    });
+    render(<TravelPage />);
+    await userEvent.type(await screen.findByLabelText('Travel budget amount'), '5000');
+    await userEvent.click(screen.getByRole('button', { name: 'Set budget' }));
+    expect(await screen.findByText('Test budget boom')).toBeInTheDocument();
+  });
+
+  it('overBudgetBarIsRed', async () => {
+    mockApi({ budget: { target: 4000, spent: 4850 } });
+    render(<TravelPage />);
+    const bar = await screen.findByTestId('budget-bar');
+    expect(bar.style.background).toBe('var(--red)');
+    expect(bar.style.width).toBe('100%');
+  });
+
+  it('unchangedSpendingIsNeutral', async () => {
+    mockApi({ view: { ...baseView, previousYearSpent: 4850 } });
+    render(<TravelPage />);
+    expect(await screen.findByText('+0%')).toHaveClass('text-[var(--text-muted)]');
+  });
+
+  it('steppingToAFutureTripYearIsAllowed', async () => {
+    mockApi({ view: { ...baseView, lastYear: 2027 } });
+    render(<TravelPage />);
+    await screen.findByText('Test Big');
+    await userEvent.click(screen.getByRole('button', { name: 'Next period' }));
+    expect(push).toHaveBeenCalledWith('/travel?year=2027');
+  });
+
+  it('stopsAtLastYear', async () => {
+    mockApi();
+    render(<TravelPage />);
+    await screen.findByText('Test Big');
+    expect(screen.getByRole('button', { name: 'Next period' })).toBeDisabled();
+  });
+
+  it('slowerOlderYearCannotOverwriteTheNewer', async () => {
+    const old = held({ view: baseView, budget: null });
+    mockApi({
+      replies: {
+        'GET /api/travel?year=2026': old.reply,
+        'GET /api/travel?year=2027': { body: { view: emptyView, budget: null } },
+      },
+    });
+    const { rerender } = render(<TravelPage />);
+    await waitFor(() => expect(callsTo('/api/travel?year=2026')).toHaveLength(1));
+    search = 'year=2027';
+    rerender(<TravelPage />);
+    expect(await screen.findByText('No trips in 2027 yet')).toBeInTheDocument();
+    old.release();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByText('Test Big')).not.toBeInTheDocument();
+    expect(screen.getByText('No trips in 2027 yet')).toBeInTheDocument();
+  });
+
+  it('staleNotOnTripRowsCannotLandInANewYear', async () => {
+    const old = held({ transactions: [loose('s1', 'Test Stale 2026')] });
+    const fresh = held({ transactions: [loose('f1', 'Test Fresh 2027')] });
+    const v2027 = { ...baseView, year: 2027, notOnTrip: { spend: 90, count: 1 } };
+    mockApi({
+      replies: {
+        'GET /api/travel?year=2027': { body: { view: v2027, budget: null } },
+        'GET /api/travel/not-on-trip?year=2026': old.reply,
+        'GET /api/travel/not-on-trip?year=2027': fresh.reply,
+      },
+    });
+    const { rerender } = render(<TravelPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /Not on a trip/ }));
+    await waitFor(() => expect(callsTo('/api/travel/not-on-trip')).toHaveLength(1));
+    search = 'year=2027';
+    rerender(<TravelPage />);
+    await screen.findByRole('heading', { name: '2027' });
+    await userEvent.click(await screen.findByRole('button', { name: /Not on a trip/ }));
+    old.release();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByText('Test Stale 2026')).not.toBeInTheDocument();
+    fresh.release();
+    expect(await screen.findByText('Test Fresh 2027')).toBeInTheDocument();
+    expect(screen.queryByText('Test Stale 2026')).not.toBeInTheDocument();
   });
 
   it('newTripOpensDrawer', async () => {
@@ -180,17 +343,30 @@ describe('TravelPage', () => {
     expect(await screen.findByRole('heading', { name: 'New trip' })).toBeInTheDocument();
   });
 
+  it('savingANewTripOpensIt', async () => {
+    mockApi();
+    render(<TravelPage />);
+    await userEvent.click(await screen.findByRole('button', { name: '+ New trip' }));
+    await userEvent.type(await screen.findByLabelText('Name'), 'Test Lisbon');
+    await userEvent.type(screen.getByLabelText('Leave'), '2026-05-10');
+    await userEvent.type(screen.getByLabelText('Return'), '2026-05-17');
+    await userEvent.click(screen.getByRole('button', { name: 'Next: find transactions' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Done' }));
+    expect(push).toHaveBeenCalledWith('/travel/trip9');
+  });
+
+  it('leavingANewTripDrawerReloadsTheYear', async () => {
+    mockApi();
+    render(<TravelPage />);
+    await userEvent.click(await screen.findByRole('button', { name: '+ New trip' }));
+    const before = callsTo('/api/travel?').length;
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(callsTo('/api/travel?')).toHaveLength(before + 1));
+  });
+
   it('emptyYearShowsEmptyState', async () => {
     search = 'year=2027';
-    mockApi({
-      ...baseView,
-      year: 2027,
-      trips: [],
-      notOnTrip: { spend: 0, count: 0 },
-      spent: 0,
-      daysAway: 0,
-      previousYearSpent: null,
-    });
+    mockApi({ view: emptyView });
     render(<TravelPage />);
     expect(await screen.findByText('No trips in 2027 yet')).toBeInTheDocument();
   });

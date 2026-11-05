@@ -48,4 +48,28 @@ describe('PeriodPicker', () => {
     await userEvent.click(screen.getByRole('button', { name: '2025' }));
     expect(onChange).toHaveBeenCalledWith('2025');
   });
+
+  it('yearModeHonoursMaxYear', async () => {
+    const onChange = vi.fn();
+    render(
+      <PeriodPicker
+        maxYear={2028}
+        minYear={2026}
+        mode="year"
+        now={NOW}
+        value="2027"
+        onChange={onChange}
+      />
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Next period' }));
+    expect(onChange).toHaveBeenCalledWith('2028');
+    await userEvent.click(screen.getByRole('button', { name: /2027/ }));
+    expect(screen.getByRole('button', { name: '2028' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '2029' })).not.toBeInTheDocument();
+  });
+
+  it('yearModeStopsAtMaxYear', () => {
+    render(<PeriodPicker maxYear={2027} mode="year" now={NOW} value="2027" onChange={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Next period' })).toBeDisabled();
+  });
 });

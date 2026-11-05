@@ -192,7 +192,12 @@ export function TripDrawer({ baseCurrency, mode, onClose, onSaved, onDeleted }: 
               {inReview ? 'Cancel' : 'Back'}
             </Button>
             {loaded && suggestions.length === 0 && (
-              <Button className={BUTTON} type="button" onClick={onClose}>
+              <Button
+                className={BUTTON}
+                type="button"
+                // A new trip already exists by now; "Done" takes you to it.
+                onClick={() => (kind === 'new' && trip ? onSaved(trip.id) : onClose())}
+              >
                 Done
               </Button>
             )}

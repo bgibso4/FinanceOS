@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { errorText, sendJson } from '@/lib/send-json';
-import { money } from './format';
+import { fmtMoney } from '@/components/investments/format';
 
 type BudgetCardProps = {
   year: number;
@@ -48,8 +48,8 @@ export function BudgetCard({ year, spent, target, currency, onSaved }: BudgetCar
           <span className="flex items-center gap-3 text-xs">
             <span className={over ? 'text-[var(--red)]' : 'text-[var(--green)]'}>
               {over
-                ? `${money(spent - target, currency)} over`
-                : `${money(target - spent, currency)} left`}
+                ? `${fmtMoney(spent - target, { currency })} over`
+                : `${fmtMoney(target - spent, { currency })} left`}
             </span>
             <button
               className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
@@ -65,9 +65,9 @@ export function BudgetCard({ year, spent, target, currency, onSaved }: BudgetCar
         )}
       </div>
       <div className="mt-1 font-mono text-2xl text-[var(--text-primary)]">
-        {money(spent, currency)}
+        {fmtMoney(spent, { currency })}
         {target !== null && (
-          <span className="ml-1 text-sm text-[var(--text-muted)]">{`of ${money(target, currency)}`}</span>
+          <span className="ml-1 text-sm text-[var(--text-muted)]">{`of ${fmtMoney(target, { currency })}`}</span>
         )}
       </div>
       {showInput ? (
@@ -95,7 +95,14 @@ export function BudgetCard({ year, spent, target, currency, onSaved }: BudgetCar
             Set budget
           </Button>
           {editing && (
-            <Button type="button" variant="ghost" onClick={() => setEditing(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setEditing(false);
+                setError(null);
+              }}
+            >
               Cancel
             </Button>
           )}
@@ -104,8 +111,9 @@ export function BudgetCard({ year, spent, target, currency, onSaved }: BudgetCar
         <div className="my-3 h-[7px] overflow-hidden rounded-full bg-[var(--track-bg)]">
           <i
             className="block h-full rounded-full"
+            data-testid="budget-bar"
             style={{
-              width: `${Math.min(100, (spent / (target ?? 1)) * 100)}%`,
+              width: `${Math.max(0, Math.min(100, (spent / (target ?? 1)) * 100))}%`,
               background: over ? 'var(--red)' : 'var(--accent)',
               opacity: over ? 0.6 : 0.55,
             }}

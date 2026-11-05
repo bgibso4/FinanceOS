@@ -28,7 +28,10 @@ export type YearView = {
   daysAway: number;
   perDayAverage: number;
   previousYearSpent: number | null;
-  firstYear: number | null;
+  /** Date of the earliest transaction, 'YYYY-MM-DD' (UTC); null with no history. */
+  firstDate: string | null;
+  /** Latest year worth browsing: the later of this year and the latest trip's start year. */
+  lastYear: number;
 };
 
 export type SuggestionGroup = 'before' | 'during' | 'other' | 'after';

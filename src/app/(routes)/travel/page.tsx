@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/cn';
 import { Button } from '@/components/ui/button';
@@ -8,41 +8,19 @@ import { Card } from '@/components/ui/card';
 import { DRAWER_PUSH_CLASS } from '@/components/ui/drawer';
 import { PeriodPicker } from '@/components/ui/period-picker';
 import { BudgetCard } from '@/components/travel/budget-card';
-import { plural } from '@/components/travel/format';
+import { monthYear } from '@/components/travel/format';
 import { NotOnTrip, TripList } from '@/components/travel/trip-list';
 import { TripDrawer } from '@/components/travel/trip-drawer';
 import { TransactionDrawer } from '@/components/transactions/transaction-drawer';
 import { TransactionTable } from '@/components/transactions/transaction-table';
-import type { Category, Tx } from '@/components/transactions/types';
+import type { Tx } from '@/components/transactions/types';
 import { useDrawerReferenceData } from '@/components/transactions/use-drawer-reference-data';
 import { useTransactionDrawer } from '@/components/transactions/use-transaction-drawer';
-import { sendJson, errorText } from '@/lib/send-json';
+import { plural } from '@/lib/plural';
+import { errorText, sendJson } from '@/lib/send-json';
 import type { YearView } from '@/lib/travel/types';
 
 type TravelResponse = { view: YearView; budget: { target: number; spent: number } | null };
-
-/** The Travel group and its children, as the totals count them. */
-function travelCategoryIds(categories: Category[]): string[] {
-  const group = categories.find((c) => c.name === 'Travel' && c.type === 'expense' && !c.parentId);
-  if (!group) return [];
-  return [group.id, ...categories.filter((c) => c.parentId === group.id).map((c) => c.id)];
-}
-
-/** Travel-group transactions on no trip, dated in the year: the rows behind "Not on a trip". */
-async function fetchLoose(year: number, categoryIds: string[]): Promise<Tx[]> {
-  if (categoryIds.length === 0) return [];
-  const params = new URLSearchParams({
-    preset: 'custom',
-    startDate: `${year}-01-01`,
-    endDate: `${year}-12-31`,
-  });
-  categoryIds.forEach((id) => params.append('category', id));
-  const { transactions } = await sendJson<{ transactions?: Tx[] }>(
-    `/api/transactions?${params}`,
-    'GET'
-  );
-  return (transactions ?? []).filter((tx) => !tx.tripId);
-}
 
 function SummaryCard({
   label,
@@ -71,17 +49,23 @@ function lastYearCard(view: YearView) {
   const { previousYearSpent: prev } = view;
   if (prev === null || prev <= 0) {
     const sub =
-      prev === null && view.firstYear !== null
-        ? `History starts ${view.firstYear}`
+      prev === null && view.firstDate !== null
+        ? `History starts ${monthYear(view.firstDate)}`
         : `No travel spending in ${view.year - 1}`;
     return <SummaryCard label={label} sub={sub} tone="text-[var(--text-muted)]" value="—" />;
   }
   const change = Math.round(((view.spent - prev) / prev) * 100);
+  // More travel spending than last year reads as a warning, less as a win.
+  const tone =
+    change === 0
+      ? 'text-[var(--text-muted)]'
+      : change > 0
+        ? 'text-[var(--red)]'
+        : 'text-[var(--green)]';
   return (
     <SummaryCard
       label={label}
-      // More travel spending than last year reads as a warning, less as a win.
-      tone={change > 0 ? 'text-[var(--red)]' : 'text-[var(--green)]'}
+      tone={tone}
       value={`${change < 0 ? '−' : '+'}${Math.abs(change)}%`}
     />
   );
@@ -95,41 +79,58 @@ function TravelPageContent() {
     Number.isInteger(parsedYear) && parsedYear > 0 ? parsedYear : new Date().getFullYear();
 
   const [data, setData] = useState<TravelResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [yearError, setYearError] = useState<string | null>(null);
+  const [looseError, setLooseError] = useState<string | null>(null);
   const [newTrip, setNewTrip] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [loose, setLoose] = useState<Tx[] | null>(null);
+  // Only the latest request of each kind may land, so a slow older year can't overwrite a newer.
+  const yearRequests = useRef(0);
+  const looseRequests = useRef(0);
 
-  const refs = useDrawerReferenceData();
+  const { refs, currency, error: refsError } = useDrawerReferenceData();
 
   const loadYear = useCallback(async () => {
+    const seq = ++yearRequests.current;
     try {
-      setData(await sendJson<TravelResponse>(`/api/travel?year=${year}`, 'GET'));
-      setError(null);
+      const next = await sendJson<TravelResponse>(`/api/travel?year=${year}`, 'GET');
+      if (seq !== yearRequests.current) return;
+      setData(next);
+      setYearError(null);
     } catch (e) {
-      setError(errorText(e));
+      if (seq === yearRequests.current) setYearError(errorText(e));
     }
   }, [year]);
 
   const loadLoose = useCallback(async () => {
+    const seq = ++looseRequests.current;
     try {
-      setLoose(await fetchLoose(year, travelCategoryIds(refs.categories)));
+      const { transactions } = await sendJson<{ transactions: Tx[] }>(
+        `/api/travel/not-on-trip?year=${year}`,
+        'GET'
+      );
+      if (seq !== looseRequests.current) return;
+      setLoose(transactions);
+      setLooseError(null);
     } catch (e) {
-      setError(errorText(e));
+      if (seq === looseRequests.current) setLooseError(errorText(e));
     }
-  }, [year, refs.categories]);
+  }, [year]);
 
   useEffect(() => {
+    // A new year drops the old one's figures and orphans anything still in flight for it.
+    looseRequests.current++;
     setData(null);
     setLoose(null);
+    setLooseError(null);
     setExpanded(false);
     void loadYear();
   }, [loadYear]);
 
-  // Loaded on first expand, once the categories that define the Travel group are known.
+  // Loaded on first expand.
   useEffect(() => {
-    if (expanded && loose === null && refs.categories.length > 0) void loadLoose();
-  }, [expanded, loose, refs.categories, loadLoose]);
+    if (expanded && loose === null && !looseError) void loadLoose();
+  }, [expanded, loose, looseError, loadLoose]);
 
   const drawer = useTransactionDrawer({
     list: loose ?? [],
@@ -141,9 +142,14 @@ function TravelPageContent() {
     patchRows: (patch) => setLoose((prev) => prev && patch(prev)),
   });
 
-  const setYear = (value: string) => router.push(`/travel?year=${value}`);
+  const closeNewTrip = () => {
+    setNewTrip(false);
+    // The drawer creates the trip at step 1, so any way out may leave one behind.
+    void loadYear();
+  };
+
   const view = data?.view;
-  const currency = refs.baseCurrency;
+  const errors = [refsError, yearError, looseError].filter(Boolean);
 
   return (
     <div className={cn('space-y-4', (drawer.isOpen || newTrip) && DRAWER_PUSH_CLASS)}>
@@ -156,24 +162,29 @@ function TravelPageContent() {
         </div>
         <div className="flex items-center gap-2.5">
           <PeriodPicker
-            minYear={view?.firstYear ?? undefined}
+            maxYear={view?.lastYear}
+            minYear={view?.firstDate ? Number(view.firstDate.slice(0, 4)) : undefined}
             mode="year"
             value={String(year)}
-            onChange={setYear}
+            onChange={(value) => router.push(`/travel?year=${value}`)}
           />
           <Button onClick={() => setNewTrip(true)}>+ New trip</Button>
         </div>
       </div>
 
-      {error && <p className="text-sm text-[var(--red)]">{error}</p>}
+      {errors.map((message) => (
+        <p key={message} className="text-sm text-[var(--red)]" role="alert">
+          {message}
+        </p>
+      ))}
 
-      {view && (
+      {view && currency && (
         <>
           <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_1fr]">
             <BudgetCard
               currency={currency}
-              spent={view.spent}
-              target={data?.budget?.target ?? null}
+              spent={data?.budget?.spent ?? view.spent}
+              target={data.budget?.target ?? null}
               year={year}
               onSaved={loadYear}
             />
@@ -195,24 +206,28 @@ function TravelPageContent() {
               spend={view.notOnTrip.spend}
               onToggle={() => setExpanded(!expanded)}
             >
-              <TransactionTable
-                compact
-                availableTags={refs.availableTags}
-                baseCurrency={currency}
-                openId={drawer.openId}
-                rows={loose ?? []}
-                onOpen={drawer.openTransaction}
-              />
+              {loose === null ? (
+                !looseError && <p className="p-3 text-sm text-[var(--text-muted)]">Loading…</p>
+              ) : (
+                <TransactionTable
+                  compact
+                  availableTags={refs.availableTags}
+                  baseCurrency={currency}
+                  openId={drawer.openId}
+                  rows={loose}
+                  onOpen={drawer.openTransaction}
+                />
+              )}
             </NotOnTrip>
           )}
         </>
       )}
 
       <TripDrawer
-        baseCurrency={currency}
+        baseCurrency={currency ?? refs.baseCurrency}
         mode={newTrip ? { kind: 'new' } : null}
-        onClose={() => setNewTrip(false)}
-        onDeleted={() => setNewTrip(false)}
+        onClose={closeNewTrip}
+        onDeleted={closeNewTrip}
         onSaved={(id) => router.push(`/travel/${id}`)}
       />
       <TransactionDrawer ref={drawer.ref} {...refs} {...drawer.drawerProps} />

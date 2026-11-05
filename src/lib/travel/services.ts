@@ -18,7 +18,7 @@ export function createTravelServices(deps: {
   clock?: Clock;
 }): TravelServices {
   return {
-    totals: new TravelTotals(deps.prisma),
+    totals: new TravelTotals(deps.prisma, deps.clock),
     suggester: new TripSuggester(deps.prisma),
     trips: new TripStore(deps.prisma),
     budget: new TravelBudget(deps.prisma, deps.clock),

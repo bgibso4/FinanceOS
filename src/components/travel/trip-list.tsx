@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import type { TripSummary } from '@/lib/travel/types';
-import { dateRange, money, plural } from './format';
+import { fmtMoney } from '@/components/investments/format';
+import { plural } from '@/lib/plural';
+import { dateRange } from './format';
 import { TonalBar } from './tonal-bar';
 
 const TH = 'px-3 py-2 text-xs font-normal text-[var(--text-muted)]';
@@ -58,10 +60,10 @@ export function TripList({ trips, year, currency }: TripListProps) {
                 <TonalBar slices={trip.categories} />
               </td>
               <td className="px-3 py-3 text-right font-mono text-[var(--text-secondary)]">
-                {money(trip.perDay, currency)}
+                {fmtMoney(trip.perDay, { currency })}
               </td>
               <td className="px-3 py-3 text-right font-mono text-[var(--text-primary)]">
-                {money(trip.spend, currency)}
+                {fmtMoney(trip.spend, { currency })}
               </td>
             </tr>
           ))}
@@ -91,7 +93,7 @@ export function NotOnTrip({
   children,
 }: NotOnTripProps) {
   return (
-    <Card className="mt-3">
+    <Card>
       <button
         aria-expanded={expanded}
         className="flex w-full items-center justify-between px-5 py-3 text-left text-sm"
@@ -99,7 +101,7 @@ export function NotOnTrip({
         onClick={onToggle}
       >
         <span className="font-medium text-[var(--text-primary)]">
-          {`Not on a trip · ${money(spend, currency)} · ${plural(count, 'transaction')}`}
+          {`Not on a trip · ${fmtMoney(spend, { currency })} · ${plural(count, 'transaction')}`}
         </span>
         <span className="text-[var(--text-muted)]">{expanded ? '▴' : '▾'}</span>
       </button>

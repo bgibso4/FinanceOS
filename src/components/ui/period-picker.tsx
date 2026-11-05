@@ -12,13 +12,15 @@ type PeriodPickerProps = {
   onChange: (value: string) => void;
   /** First year listed in year mode (defaults to the current year). */
   minYear?: number;
+  /** Last year selectable in year mode (defaults to the current year). */
+  maxYear?: number;
   now?: Date;
 };
 
 const monthValue = (year: number, monthIndex: number) =>
   `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
 
-export function PeriodPicker({ mode, value, onChange, minYear, now }: PeriodPickerProps) {
+export function PeriodPicker({ mode, value, onChange, minYear, maxYear, now }: PeriodPickerProps) {
   const [open, setOpen] = useState(false);
   const [pickerYear, setPickerYear] = useState(0);
   const today = now ?? new Date();
@@ -37,16 +39,18 @@ export function PeriodPicker({ mode, value, onChange, minYear, now }: PeriodPick
   const nextIsFuture =
     mode === 'month'
       ? new Date(year, month) > today // start of the next month
-      : year + 1 > today.getFullYear();
+      : year + 1 > (maxYear ?? today.getFullYear());
 
   const select = (next: string) => {
     onChange(next);
     setOpen(false);
   };
 
+  const firstYear = minYear ?? today.getFullYear();
+  const lastYear = maxYear ?? today.getFullYear();
   const years = Array.from(
-    { length: Math.max(0, today.getFullYear() - (minYear ?? today.getFullYear()) + 1) },
-    (_, i) => (minYear ?? today.getFullYear()) + i
+    { length: Math.max(0, lastYear - firstYear + 1) },
+    (_, i) => firstYear + i
   );
 
   return (
