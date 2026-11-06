@@ -26,7 +26,6 @@ import type { LucideIcon } from 'lucide-react';
 const links: NavLink[] = [
   { href: '/', label: 'Dashboard', icon: LayoutGrid },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { href: '/travel', label: 'Travel', icon: Plane },
   {
     href: '/transactions',
     label: 'Transactions',
@@ -48,6 +47,7 @@ const links: NavLink[] = [
     ],
   },
   { href: '/investments', label: 'Investments', icon: TrendingUp },
+  { href: '/travel', label: 'Travel', icon: Plane },
   { href: '/goals', label: 'Goals', icon: Target },
   {
     href: '/settings',
