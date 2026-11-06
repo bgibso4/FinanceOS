@@ -163,7 +163,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
       <div class="decisions"><ul>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M1</span>Net, not gross</div><div class="dec-text">Every Travel figure, the budget included, is spend <strong>net of money in</strong>. A $72 payback lowers the trip total and the budget by $72. Tag goals today add absolute values instead.</div></div><div class="trefs"><a class="tref" href="#constraints">Constraints</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>Currency</div><div class="dec-text">Everything converts to your base currency the way Analytics does (<code>convertAmount</code>). 27 of the 227 trip transactions are on CAD accounts.</div></div><div class="trefs"><a class="tref" href="#constraints">Constraints</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M3</span>The "After" group</div><div class="dec-text">The 3 weeks after a trip suggest incoming money (never income categories or recurring transactions like paychecks) <strong>plus</strong> Travel-category spending, such as late charges or Anthony's −$165 "Bills".</div></div><div class="trefs"><a class="tref" href="#suggest">Suggestions</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M3</span>The "After" group</div><div class="dec-text">The 3 weeks after a trip suggest incoming money (never income categories or recurring transactions like paychecks) <strong>plus</strong> Travel-category spending, such as late charges or Anthony's −$165 "Bills". Only the Travel-category rows start ticked; other incoming money starts unticked, because on real data ticking it counted rent and gym money as trip paybacks.</div></div><div class="trefs"><a class="tref" href="#suggest">Suggestions</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M4</span>Which tags are trips</div><div class="dec-text">A tag whose name starts with a year and a dash (<code>^\d{4} - </code>). That matches exactly your 7 trip tags and not Green Card or Tax Deductable.</div></div><div class="trefs"><a class="tref" href="#convert">Conversion</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M5</span>A safe conversion</div><div class="dec-text">A one-off script that backs up <code>dev.db</code> first, prints a dry-run summary (trips, counts, guessed dates) before writing, and changes nothing if run twice. You fix any wrong dates afterwards with Edit trip.</div></div><div class="trefs"><a class="tref" href="#convert">Conversion</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M6</span>Editing trip dates</div><div class="dec-text">Dismissed suggestions stay dismissed and transactions already on the trip stay on it. They're grouped Before / During / After against the new dates.</div></div><div class="trefs"><a class="tref" href="#suggest">Suggestions</a></div></li>
@@ -275,11 +275,12 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
         <tr><td>Booked before</td><td>Flights or Lodging in the 4 months before the start date</td><td class="yes">Yes</td></tr>
         <tr><td>During</td><td>Travel category group, dated start–end</td><td class="yes">Yes</td></tr>
         <tr><td>Other spending during</td><td>Any other spending dated start–end, except income and recurring transactions such as subscriptions</td><td class="no">No</td></tr>
-        <tr><td>After</td><td>The 3 weeks after the end date: incoming money (except income categories and recurring) plus Travel-category spending <span class="chip mine">M3</span></td><td class="yes">Yes</td></tr>
+        <tr><td>After: Travel</td><td>Travel-category transactions in the 3 weeks after the end date <span class="chip mine">M3</span></td><td class="yes">Yes</td></tr>
+        <tr><td>After: other money in</td><td>Any other incoming money in those 3 weeks, except income categories and recurring. Friend paybacks land here. <span class="chip mine">M3</span></td><td class="no">No</td></tr>
       </table>
       <h3 class="sub">How the list behaves</h3>
       <div class="card"><ul>
-        <li>Each row shows the merchant, date, category, amount and why it's suggested (e.g. "46 days before"). The footer button is <strong>Add N transactions</strong>, where N is the number ticked.</li>
+        <li>Each row shows the merchant, date, category, amount and why it's suggested (e.g. "46 days before"). The footer button is <strong>Add N transactions</strong>, where N is the number ticked, or <strong>Dismiss all</strong> when nothing is ticked.</li>
         <li>Unticked rows are dismissed for that trip <span class="chip mine">M7</span>.</li>
         <li><strong>Review suggestions · N</strong> on the trip page reopens the list with only new candidates: ones not yet added or dismissed, such as a late rental-car bill. The button is hidden at 0.</li>
         <li>Editing a trip's dates keeps what you added and what you dismissed <span class="chip mine">M6</span>.</li>
@@ -296,7 +297,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
           <ul>
             <li><strong>Travel budget</strong>: spent, target, a bar (red when over), "$X over" or "$X left". With no budget for the year, it offers to set one.</li>
             <li><strong>Trips</strong>: the number of trips starting that year and their total days.</li>
-            <li><strong>vs last year</strong>: this year's budget-spent figure against last year's, or "—" with a note when there's no earlier year.</li>
+            <li><strong>vs last year</strong>: this year's budget-spent figure against last year's, or "—" with a note unless history reaches January 1 of last year, so a partial year is never compared.</li>
           </ul></li>
         <li><strong>Trip list, biggest total first</strong>: Trip · Dates · Where it went · Per day · Total.
           <ul>
