@@ -1,42 +1,19 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
-import { Modal } from '@/components/ui/modal';
+import { DRAWER_PUSH_CLASS } from '@/components/ui/drawer';
 import { PeriodPicker } from '@/components/ui/period-picker';
 import { ChartRenderer, PIE_COLORS } from '@/components/chart-renderer';
+import { TransactionDrawer } from '@/components/transactions/transaction-drawer';
+import { TransactionTable } from '@/components/transactions/transaction-table';
+import type { Category, Tx } from '@/components/transactions/types';
+import { useDrawerReferenceData } from '@/components/transactions/use-drawer-reference-data';
+import { useTransactionDrawer } from '@/components/transactions/use-transaction-drawer';
+import { cn } from '@/lib/cn';
 import { ds } from '@/lib/design-system';
-import {
-  getCurrencySymbol,
-  formatAmountCompact,
-  parseExchangeRates,
-  convertAmount,
-} from '@/lib/currency';
-
-type Category = {
-  id: string;
-  name: string;
-  type: string;
-  parentId?: string | null;
-};
-
-type Tx = {
-  id: string;
-  date: string;
-  merchant: string;
-  amount: number;
-  category?: { id: string; name: string } | null;
-  confidenceScore: number;
-  isTransfer: boolean;
-  note?: string | null;
-  account?: { id: string; name: string } | null;
-  isOffset?: boolean;
-  linkedTransaction?: Tx | null;
-  offsetTransactions?: Tx[];
-};
+import { getCurrencySymbol } from '@/lib/currency';
+import { sendJson } from '@/lib/send-json';
 
 type CategoryAnalytics = {
   category: string;
@@ -71,12 +48,14 @@ const formatCurrencyWithSymbol = (amount: number, baseCurrency: string = 'USD') 
   return `$${formatted}`;
 };
 
-// Strip emojis for sorting purposes
-const stripEmojis = (str: string) =>
-  str.replace(/[\p{Emoji}\p{Emoji_Presentation}\p{Extended_Pictographic}\uFE0F]/gu, '').trim();
-
-const sortByName = (a: { name: string }, b: { name: string }) =>
-  stripEmojis(a.name).localeCompare(stripEmojis(b.name));
+const monthRange = (month: string) => {
+  const [year, monthNumber] = month.split('-');
+  const lastDay = new Date(parseInt(year), parseInt(monthNumber), 0).getDate();
+  return {
+    startDate: `${year}-${monthNumber}-01`,
+    endDate: `${year}-${monthNumber}-${String(lastDay).padStart(2, '0')}`,
+  };
+};
 
 export default function AnalyticsPage() {
   // Month selector - default to current month
@@ -85,254 +64,102 @@ export default function AnalyticsPage() {
     `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   );
 
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [categoryAnalytics, setCategoryAnalytics] = useState<CategoryAnalytics[]>([]);
+  const { refs, error: refsError } = useDrawerReferenceData();
+  const { baseCurrency, categories } = refs;
+  const [spendByCategory, setSpendByCategory] = useState<CategoryAnalytics[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [categoryTransactions, setCategoryTransactions] = useState<Tx[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
-  const [baseCurrency, setBaseCurrency] = useState<string>('USD');
-  const [exchangeRates, setExchangeRates] = useState<Map<string, number>>(new Map());
+  // The row the drawer is on stays listed until you leave it, so a save can't lose your place.
+  const [heldRowId, setHeldRowId] = useState<string | null>(null);
+  // Only the latest request of each kind may land.
+  const figureRequests = useRef(0);
+  const rowRequests = useRef(0);
 
-  // Edit modal state
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<Tx | null>(null);
+  const categoryIdFor = (name: string) => categories.find((c) => c.name === name)?.id;
+  const categoryAnalytics = spendByCategory.map((cat) => ({
+    ...cat,
+    categoryId: categoryIdFor(cat.category),
+  }));
+  const expandedCategoryId = expandedCategory ? categoryIdFor(expandedCategory) : undefined;
 
-  // Return tracking state
-  const [returnModalOpen, setReturnModalOpen] = useState(false);
-  const [returnTransaction, setReturnTransaction] = useState<Tx | null>(null);
-  const [potentialMatches, setPotentialMatches] = useState<
-    (Tx & { score: number; amountDiff: number; daysDiff: number })[]
-  >([]);
-  const [loadingMatches, setLoadingMatches] = useState(false);
-
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const loadFigures = useCallback(async () => {
+    const seq = ++figureRequests.current;
+    const { startDate, endDate } = monthRange(selectedMonth);
+    const [budgetData, analyticsData] = await Promise.all([
+      sendJson<{ budgets?: Budget[] }>(`/api/budgets/${selectedMonth}`, 'GET'),
+      sendJson<{ spendByCategory?: CategoryAnalytics[] }>(
+        `/api/analytics/dashboard?preset=custom&startDate=${startDate}&endDate=${endDate}`,
+        'GET'
+      ),
+    ]);
+    if (seq !== figureRequests.current) return;
+    setBudgets(budgetData.budgets ?? []);
+    setSpendByCategory(analyticsData.spendByCategory ?? []);
   }, [selectedMonth]);
 
-  const loadData = async () => {
-    const [year, month] = selectedMonth.split('-');
-    const startDate = `${year}-${month}-01`;
-    const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-    const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+  const loadRows = useCallback(async () => {
+    if (!expandedCategory) return;
+    const seq = ++rowRequests.current;
+    const queryParams = new URLSearchParams({ preset: 'custom', ...monthRange(selectedMonth) });
+    if (expandedCategoryId) queryParams.set('category', expandedCategoryId);
+    try {
+      const data = await sendJson<{ transactions?: Tx[] }>(
+        `/api/transactions?${queryParams.toString()}`,
+        'GET'
+      );
+      if (seq === rowRequests.current) setCategoryTransactions(data.transactions ?? []);
+    } catch (err) {
+      console.error('Failed to load transactions:', err);
+    } finally {
+      if (seq === rowRequests.current) setLoadingTransactions(false);
+    }
+  }, [expandedCategory, expandedCategoryId, selectedMonth]);
 
-    const [settingsData, ratesData, catData, budgetData, analyticsData] = await Promise.all([
-      fetch('/api/settings').then((r) => r.json()),
-      fetch('/api/exchange-rates').then((r) => r.json()),
-      fetch('/api/categories').then((r) => r.json()),
-      fetch(`/api/budgets/${selectedMonth}`).then((r) => r.json()),
-      fetch(
-        `/api/analytics/dashboard?preset=custom&startDate=${startDate}&endDate=${endDate}`
-      ).then((r) => r.json()),
-    ]);
+  useEffect(() => {
+    loadFigures().catch((err) => console.error('Failed to load analytics:', err));
+  }, [loadFigures]);
 
-    setBaseCurrency(settingsData.settings?.baseCurrency || 'USD');
-    setExchangeRates(parseExchangeRates(ratesData.rates || []));
-    setCategories(catData.categories ?? []);
-    setBudgets(budgetData.budgets ?? []);
+  useEffect(() => {
+    setCategoryTransactions([]);
+    setLoadingTransactions(Boolean(expandedCategory));
+    void loadRows();
+  }, [expandedCategory, loadRows]);
 
-    const categoryMap = new Map(catData.categories?.map((c: Category) => [c.name, c.id]) ?? []);
-    const enrichedAnalytics = (analyticsData.spendByCategory ?? []).map(
-      (cat: CategoryAnalytics) => ({
-        ...cat,
-        categoryId: categoryMap.get(cat.category),
-      })
+  // Matches what the figures count; with no category id ("Uncategorized") the API returns them all.
+  const list = categoryTransactions.filter(
+    (t) =>
+      t.id === heldRowId ||
+      (!t.isOffset && !t.isTransfer && (expandedCategoryId !== undefined || !t.category))
+  );
+
+  const drawer = useTransactionDrawer({
+    list,
+    lookup: list,
+    refresh: async () => {
+      await Promise.all([loadFigures(), loadRows()]);
+    },
+    categories,
+    patchRows: (patch) => {
+      setCategoryTransactions(patch);
+      // The row is right already; the figures come from the server.
+      loadFigures().catch((err) => console.error('Failed to load analytics:', err));
+    },
+  });
+
+  useEffect(() => setHeldRowId(drawer.openId), [drawer.openId]);
+
+  // One list at a time: the drawer steps through the open category's rows.
+  const toggleCategory = (categoryName: string) =>
+    void drawer.closeThen(() =>
+      setExpandedCategory((current) => (current === categoryName ? null : categoryName))
     );
-
-    setCategoryAnalytics(enrichedAnalytics);
-  };
 
   // Helper to get budget for a category
   const getBudget = (categoryId?: string) => {
     if (!categoryId) return null;
     return budgets.find((b) => b.categoryId === categoryId);
-  };
-
-  const loadCategoryTransactions = async (categoryName: string, categoryId?: string) => {
-    setLoadingTransactions(true);
-    try {
-      const [year, month] = selectedMonth.split('-');
-      const startDate = `${year}-${month}-01`;
-      // Get last day of the selected month
-      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-      const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
-
-      const queryParams = new URLSearchParams();
-      queryParams.set('preset', 'custom');
-      if (categoryId) {
-        queryParams.set('category', categoryId);
-      }
-      queryParams.set('startDate', startDate);
-      queryParams.set('endDate', endDate);
-
-      const res = await fetch(`/api/transactions?${queryParams.toString()}`);
-      const data = await res.json();
-
-      // Filter out offset transactions and transfers to match analytics aggregation
-      let filtered = (data.transactions || []).filter((t: Tx) => !t.isOffset && !t.isTransfer);
-
-      // When no categoryId is provided (e.g. "Uncategorized"), the API returns all
-      // transactions for the date range. Filter to only uncategorized ones.
-      if (!categoryId) {
-        filtered = filtered.filter((t: Tx) => !t.category);
-      }
-
-      setCategoryTransactions(filtered);
-    } catch (err) {
-      console.error('Failed to load transactions:', err);
-      setCategoryTransactions([]);
-    } finally {
-      setLoadingTransactions(false);
-    }
-  };
-
-  const toggleCategory = async (categoryName: string, categoryId?: string) => {
-    if (expandedCategory === categoryName) {
-      setExpandedCategory(null);
-      setCategoryTransactions([]);
-    } else {
-      setExpandedCategory(categoryName);
-      await loadCategoryTransactions(categoryName, categoryId);
-    }
-  };
-
-  const openEditModal = (transaction: Tx) => {
-    setEditingTransaction(transaction);
-    setEditModalOpen(true);
-  };
-
-  const closeEditModal = () => {
-    setEditModalOpen(false);
-    setEditingTransaction(null);
-  };
-
-  const updateTransaction = async () => {
-    if (!editingTransaction) return;
-
-    try {
-      await fetch(`/api/transactions/${editingTransaction.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: editingTransaction.date,
-          amount: editingTransaction.amount,
-          merchant: editingTransaction.merchant,
-          categoryId: editingTransaction.category?.id || null,
-          note: editingTransaction.note,
-          isTransfer: editingTransaction.isTransfer,
-        }),
-      });
-
-      closeEditModal();
-      if (expandedCategory) {
-        const cat = categoryAnalytics.find((c) => c.category === expandedCategory);
-        await loadCategoryTransactions(expandedCategory, cat?.categoryId);
-      }
-      loadData();
-    } catch (_error) {
-      alert('Failed to update transaction');
-    }
-  };
-
-  const deleteTransaction = async () => {
-    if (!editingTransaction) return;
-    if (!confirm('Are you sure you want to delete this transaction?')) return;
-
-    try {
-      await fetch(`/api/transactions/${editingTransaction.id}`, {
-        method: 'DELETE',
-      });
-
-      closeEditModal();
-      if (expandedCategory) {
-        const cat = categoryAnalytics.find((c) => c.category === expandedCategory);
-        await loadCategoryTransactions(expandedCategory, cat?.categoryId);
-      }
-      loadData();
-    } catch (_error) {
-      alert('Failed to delete transaction');
-    }
-  };
-
-  const toggleTransfer = async () => {
-    if (!editingTransaction) return;
-
-    try {
-      await fetch(`/api/transactions/${editingTransaction.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          isTransfer: !editingTransaction.isTransfer,
-          transferGroupId: null,
-        }),
-      });
-
-      setEditingTransaction({
-        ...editingTransaction,
-        isTransfer: !editingTransaction.isTransfer,
-      });
-
-      loadData();
-      if (expandedCategory) {
-        const cat = categoryAnalytics.find((c) => c.category === expandedCategory);
-        await loadCategoryTransactions(expandedCategory, cat?.categoryId);
-      }
-    } catch (_error) {
-      alert('Failed to update transfer status');
-    }
-  };
-
-  const openReturnModal = async (transaction: Tx) => {
-    setReturnTransaction(transaction);
-    setReturnModalOpen(true);
-    setLoadingMatches(true);
-    setPotentialMatches([]);
-
-    try {
-      const res = await fetch(`/api/transactions/${transaction.id}/returns`);
-      const data = await res.json();
-      setPotentialMatches(data.matches || []);
-    } catch (err) {
-      console.error('Failed to load potential matches:', err);
-    } finally {
-      setLoadingMatches(false);
-    }
-  };
-
-  const linkReturn = async (originalTransactionId: string) => {
-    if (!returnTransaction) return;
-
-    try {
-      await fetch(`/api/transactions/${returnTransaction.id}/returns`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ originalTransactionId }),
-      });
-      setReturnModalOpen(false);
-      loadData();
-      if (expandedCategory) {
-        const cat = categoryAnalytics.find((c) => c.category === expandedCategory);
-        await loadCategoryTransactions(expandedCategory, cat?.categoryId);
-      }
-    } catch (_error) {
-      alert('Failed to link return');
-    }
-  };
-
-  const unlinkReturn = async (transactionId: string) => {
-    try {
-      await fetch(`/api/transactions/${transactionId}/returns`, {
-        method: 'DELETE',
-      });
-      loadData();
-      if (expandedCategory) {
-        const cat = categoryAnalytics.find((c) => c.category === expandedCategory);
-        await loadCategoryTransactions(expandedCategory, cat?.categoryId);
-      }
-    } catch (_error) {
-      alert('Failed to unlink return');
-    }
   };
 
   // Calculate totals
@@ -343,7 +170,13 @@ export default function AnalyticsPage() {
     prevTotalSpending > 0 ? ((totalSpending - prevTotalSpending) / prevTotalSpending) * 100 : 0;
 
   return (
-    <div className="space-y-6">
+    <div className={cn('space-y-6', drawer.isOpen && DRAWER_PUSH_CLASS)}>
+      {refsError && (
+        <p className="text-sm text-[var(--red)]" role="alert">
+          {refsError}
+        </p>
+      )}
+
       {/* Header with Month Selector */}
       <div className="flex items-center justify-between">
         <div>
@@ -360,7 +193,11 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        <PeriodPicker mode="month" value={selectedMonth} onChange={setSelectedMonth} />
+        <PeriodPicker
+          mode="month"
+          value={selectedMonth}
+          onChange={(month) => void drawer.closeThen(() => setSelectedMonth(month))}
+        />
       </div>
 
       {/* Summary Stats */}
@@ -557,7 +394,7 @@ export default function AnalyticsPage() {
                             {/* Category Header */}
                             <div
                               className={`p-4 cursor-pointer transition-all ${isExpanded ? ds.bg.secondary : ds.bg.hover}`}
-                              onClick={() => toggleCategory(cat.category, cat.categoryId)}
+                              onClick={() => toggleCategory(cat.category)}
                             >
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
@@ -703,174 +540,20 @@ export default function AnalyticsPage() {
                                   <div className={`p-4 text-center ${ds.text.muted}`}>
                                     Loading transactions...
                                   </div>
-                                ) : categoryTransactions.length === 0 ? (
+                                ) : list.length === 0 ? (
                                   <div className={`p-4 text-center ${ds.text.muted}`}>
                                     No transactions found
                                   </div>
                                 ) : (
                                   <div className="max-h-96 overflow-y-auto">
-                                    <table className="w-full">
-                                      <thead className={`${ds.table.header} sticky top-0`}>
-                                        <tr className={`text-left text-xs ${ds.text.muted}`}>
-                                          <th className="p-3 font-medium">Date</th>
-                                          <th className="p-3 font-medium">Merchant</th>
-                                          <th className="p-3 font-medium">Account</th>
-                                          <th className="p-3 font-medium text-right">Amount</th>
-                                          <th className="p-3 font-medium w-10" />
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {categoryTransactions.map((tx) => (
-                                          <React.Fragment key={tx.id}>
-                                            <tr
-                                              className={`border-t ${ds.table.row} cursor-pointer`}
-                                              onClick={() => openEditModal(tx)}
-                                            >
-                                              <td className={`p-3 text-sm ${ds.text.secondary}`}>
-                                                {tx.date.split('T')[0]}
-                                              </td>
-                                              <td className="p-3">
-                                                <div className="flex items-center gap-2">
-                                                  {tx.isOffset && (
-                                                    <span className={ds.status.info.text}>↩</span>
-                                                  )}
-                                                  <div className="flex-1">
-                                                    <div
-                                                      className={`font-medium ${ds.text.primary}`}
-                                                    >
-                                                      {tx.merchant}
-                                                    </div>
-                                                    {tx.note && (
-                                                      <div
-                                                        className={`text-xs ${ds.text.muted} truncate max-w-xs`}
-                                                      >
-                                                        {tx.note}
-                                                      </div>
-                                                    )}
-                                                    {tx.isOffset && tx.linkedTransaction && (
-                                                      <div
-                                                        className={`text-xs ${ds.status.info.text} mt-1`}
-                                                      >
-                                                        Offsets{' '}
-                                                        {tx.linkedTransaction.date.split('T')[0]}{' '}
-                                                        transaction
-                                                      </div>
-                                                    )}
-                                                    {!tx.isOffset &&
-                                                      tx.offsetTransactions &&
-                                                      tx.offsetTransactions.length > 0 && (
-                                                        <div
-                                                          className={`text-xs ${ds.status.purple.text} mt-1`}
-                                                        >
-                                                          Offset $
-                                                          {tx.offsetTransactions
-                                                            .reduce(
-                                                              (sum, r) => sum + Math.abs(r.amount),
-                                                              0
-                                                            )
-                                                            .toFixed(2)}
-                                                          {tx.offsetTransactions[0] &&
-                                                            ` on ${tx.offsetTransactions[0].date.split('T')[0]}`}
-                                                        </div>
-                                                      )}
-                                                  </div>
-                                                </div>
-                                              </td>
-                                              <td className={`p-3 text-sm ${ds.text.secondary}`}>
-                                                {tx.account?.name || '—'}
-                                              </td>
-                                              <td
-                                                className={`p-3 text-sm font-semibold text-right ${
-                                                  tx.amount >= 0
-                                                    ? 'text-[var(--green)]'
-                                                    : 'text-[var(--red)]'
-                                                }`}
-                                              >
-                                                {(() => {
-                                                  const accountCurrency = 'USD'; // Default since account.currency doesn't exist in type
-                                                  const isBaseCurrency =
-                                                    accountCurrency === baseCurrency;
-                                                  const convertedAmount = isBaseCurrency
-                                                    ? tx.amount
-                                                    : convertAmount(
-                                                        tx.amount,
-                                                        accountCurrency,
-                                                        baseCurrency,
-                                                        exchangeRates
-                                                      );
-
-                                                  // Calculate net amount if there are linked transactions
-                                                  const hasLinked =
-                                                    !tx.isOffset &&
-                                                    tx.offsetTransactions &&
-                                                    tx.offsetTransactions.length > 0;
-                                                  const linkedTotal =
-                                                    hasLinked && tx.offsetTransactions
-                                                      ? tx.offsetTransactions.reduce(
-                                                          (sum, r) => sum + r.amount,
-                                                          0
-                                                        )
-                                                      : 0;
-                                                  const netAmount = convertedAmount + linkedTotal;
-
-                                                  return (
-                                                    <>
-                                                      {/* Show NET as main amount */}
-                                                      {netAmount >= 0 ? '+' : ''}
-                                                      {formatCurrencyWithSymbol(
-                                                        Math.abs(netAmount),
-                                                        baseCurrency
-                                                      )}
-
-                                                      {/* Show original currency if different */}
-                                                      {!isBaseCurrency && (
-                                                        <div
-                                                          className={`text-xs ${ds.text.muted} font-normal mt-1`}
-                                                        >
-                                                          {formatAmountCompact(
-                                                            Math.abs(tx.amount),
-                                                            accountCurrency,
-                                                            baseCurrency
-                                                          )}
-                                                        </div>
-                                                      )}
-
-                                                      {/* Show gross amount if there are linked transactions */}
-                                                      {hasLinked && (
-                                                        <div
-                                                          className={`text-xs ${ds.text.muted} font-normal mt-1`}
-                                                        >
-                                                          Original:{' '}
-                                                          {formatCurrencyWithSymbol(
-                                                            Math.abs(convertedAmount),
-                                                            baseCurrency
-                                                          )}
-                                                        </div>
-                                                      )}
-                                                    </>
-                                                  );
-                                                })()}
-                                              </td>
-                                              <td className={`p-3 ${ds.text.muted}`}>
-                                                <svg
-                                                  className="w-4 h-4"
-                                                  fill="none"
-                                                  stroke="currentColor"
-                                                  viewBox="0 0 24 24"
-                                                >
-                                                  <path
-                                                    d="M9 5l7 7-7 7"
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                  />
-                                                </svg>
-                                              </td>
-                                            </tr>
-                                          </React.Fragment>
-                                        ))}
-                                      </tbody>
-                                    </table>
+                                    <TransactionTable
+                                      availableTags={refs.availableTags}
+                                      baseCurrency={baseCurrency}
+                                      compact={drawer.isOpen}
+                                      openId={drawer.openId}
+                                      rows={list}
+                                      onOpen={drawer.openTransaction}
+                                    />
                                   </div>
                                 )}
                               </div>
@@ -887,461 +570,7 @@ export default function AnalyticsPage() {
         </CardContent>
       </Card>
 
-      {/* Transaction Edit Modal */}
-      <Modal
-        isOpen={editModalOpen}
-        title={
-          editingTransaction
-            ? `Edit Transaction: ${editingTransaction.merchant}`
-            : 'Edit Transaction'
-        }
-        onClose={closeEditModal}
-      >
-        {editingTransaction && (
-          <div className="space-y-6">
-            {/* Edit Transaction */}
-            <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
-              <h4 className={`font-semibold ${ds.text.primary} mb-3`}>Transaction Details</h4>
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                      Date
-                    </label>
-                    <Input
-                      className="w-full"
-                      type="date"
-                      value={new Date(editingTransaction.date).toISOString().split('T')[0]}
-                      onChange={(e) =>
-                        setEditingTransaction({
-                          ...editingTransaction,
-                          date: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                      Amount
-                    </label>
-                    <Input
-                      className="w-full"
-                      step="0.01"
-                      type="number"
-                      value={editingTransaction.amount}
-                      onChange={(e) =>
-                        setEditingTransaction({
-                          ...editingTransaction,
-                          amount: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                    Merchant
-                  </label>
-                  <Input
-                    className="w-full"
-                    placeholder="Merchant name"
-                    value={editingTransaction.merchant}
-                    onChange={(e) =>
-                      setEditingTransaction({
-                        ...editingTransaction,
-                        merchant: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                    Category
-                  </label>
-                  <Select
-                    className="w-full"
-                    value={editingTransaction.category?.id || ''}
-                    onChange={(e) => {
-                      const selectedCategory = categories.find((c) => c.id === e.target.value);
-                      setEditingTransaction({
-                        ...editingTransaction,
-                        category: selectedCategory
-                          ? { id: selectedCategory.id, name: selectedCategory.name }
-                          : null,
-                      });
-                    }}
-                  >
-                    <option value="">No category</option>
-                    {categories
-                      .filter((c) => !c.parentId)
-                      .sort(sortByName)
-                      .map((group) => {
-                        const groupCategories = categories
-                          .filter((c) => c.parentId === group.id)
-                          .sort(sortByName);
-                        if (groupCategories.length === 0) return null;
-
-                        return (
-                          <optgroup key={group.id} label={group.name}>
-                            {groupCategories.map((cat) => (
-                              <option key={cat.id} value={cat.id}>
-                                {cat.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        );
-                      })}
-                  </Select>
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium ${ds.text.secondary} mb-1`}>
-                    Account
-                  </label>
-                  <Input
-                    disabled
-                    className="w-full !bg-[var(--bg-elevated)] text-[var(--text-muted)] cursor-not-allowed opacity-75"
-                    value={editingTransaction.account?.name || 'Unknown'}
-                  />
-                </div>
-                <div>
-                  <label className={`block text-sm font-medium ${ds.text.primary} mb-1`}>
-                    Note
-                  </label>
-                  <Input
-                    className="w-full"
-                    placeholder="Add a note about this transaction..."
-                    value={editingTransaction.note || ''}
-                    onChange={(e) =>
-                      setEditingTransaction({
-                        ...editingTransaction,
-                        note: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <Button
-                  className="w-full bg-[var(--accent)] hover:bg-[var(--accent)] py-3"
-                  onClick={updateTransaction}
-                >
-                  Save Changes
-                </Button>
-              </div>
-            </div>
-
-            {/* Transaction Info */}
-            <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
-              <h4 className={`font-semibold ${ds.text.primary} mb-3`}>Transaction Info</h4>
-              <div className={`text-sm ${ds.text.secondary} space-y-1`}>
-                <div>
-                  <strong>Confidence Score:</strong>{' '}
-                  {(editingTransaction.confidenceScore * 100).toFixed(0)}%
-                </div>
-              </div>
-            </div>
-
-            {/* Transfer Status */}
-            <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
-              <h4 className={`font-semibold ${ds.status.info.text} mb-3`}>Transfer Status</h4>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className={`text-sm ${ds.text.secondary}`}>
-                    {editingTransaction.isTransfer
-                      ? 'This transaction is marked as a transfer between accounts'
-                      : 'This transaction counts toward spending/income totals'}
-                  </span>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      editingTransaction.isTransfer
-                        ? `${ds.status.info.bg} ${ds.status.info.text}`
-                        : `${ds.bg.tertiary} ${ds.text.secondary}`
-                    }`}
-                  >
-                    {editingTransaction.isTransfer ? 'Transfer' : 'Normal'}
-                  </span>
-                </div>
-                <Button
-                  className="w-full py-3 !bg-[var(--accent)] hover:!bg-[var(--accent)] text-white"
-                  onClick={toggleTransfer}
-                >
-                  {editingTransaction.isTransfer ? 'Unmark as Transfer' : 'Mark as Transfer'}
-                </Button>
-                <div className={`text-xs ${ds.text.muted}`}>
-                  {editingTransaction.isTransfer
-                    ? 'Unmarking will include this in spending/income calculations'
-                    : 'Transfers (like credit card payments) are excluded from spending totals'}
-                </div>
-              </div>
-            </div>
-
-            {/* Linked Transaction Tracking */}
-            {!editingTransaction.isTransfer && (
-              <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
-                <h4 className={`font-semibold ${ds.status.purple.text} mb-3`}>
-                  Linked Transactions
-                </h4>
-                {editingTransaction.isOffset && editingTransaction.linkedTransaction ? (
-                  <div className="space-y-3">
-                    <div
-                      className={`text-sm ${ds.status.purple.text} ${ds.status.purple.bg} p-3 rounded border ${ds.status.purple.border}`}
-                    >
-                      ↩ This transaction is linked to an original transaction
-                    </div>
-                    {editingTransaction.linkedTransaction && (
-                      <div
-                        className={`${ds.bg.primary} p-3 rounded border ${ds.status.purple.border}`}
-                      >
-                        <div className={`text-sm font-medium ${ds.text.primary} mb-2`}>
-                          Original Transaction:
-                        </div>
-                        <div className={`text-sm ${ds.text.primary}`}>
-                          <div>
-                            <strong>Merchant:</strong>{' '}
-                            {editingTransaction.linkedTransaction.merchant}
-                          </div>
-                          <div>
-                            <strong>Amount:</strong> $
-                            {Math.abs(editingTransaction.linkedTransaction.amount).toFixed(2)}
-                          </div>
-                          <div>
-                            <strong>Date:</strong>{' '}
-                            {editingTransaction.linkedTransaction.date.split('T')[0]}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    <Button
-                      className="w-full !bg-[var(--accent)] hover:!bg-[var(--accent)] py-3 text-white"
-                      onClick={() => {
-                        unlinkReturn(editingTransaction.id);
-                        closeEditModal();
-                      }}
-                    >
-                      Unlink Transaction
-                    </Button>
-                  </div>
-                ) : editingTransaction.offsetTransactions &&
-                  editingTransaction.offsetTransactions.length > 0 ? (
-                  <div className="space-y-3">
-                    <div
-                      className={`text-sm ${ds.status.purple.text} ${ds.status.purple.bg} p-3 rounded border ${ds.status.purple.border}`}
-                    >
-                      This transaction has {editingTransaction.offsetTransactions.length} linked
-                      transaction{editingTransaction.offsetTransactions.length > 1 ? 's' : ''}
-                    </div>
-                    {editingTransaction.offsetTransactions.map((ret: Tx) => (
-                      <div
-                        key={ret.id}
-                        className={`flex items-center justify-between p-2 ${ds.bg.primary} rounded border`}
-                      >
-                        <div className="text-sm">
-                          <div className="font-medium">
-                            ${Math.abs(ret.amount).toFixed(2)} linked
-                          </div>
-                          <div className={`text-xs ${ds.text.muted}`}>{ret.date.split('T')[0]}</div>
-                        </div>
-                        <button
-                          className="text-xs text-[var(--red)] hover:text-[var(--red)] underline"
-                          onClick={() => {
-                            unlinkReturn(ret.id);
-                            closeEditModal();
-                          }}
-                        >
-                          Unlink
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <Button
-                    className="w-full !bg-[var(--accent)] hover:!bg-[var(--accent)] py-3 text-white"
-                    onClick={() => {
-                      closeEditModal();
-                      openReturnModal(editingTransaction);
-                    }}
-                  >
-                    🔗 Link Transaction
-                  </Button>
-                )}
-              </div>
-            )}
-
-            {/* Delete */}
-            <div className={`${ds.bg.secondary} rounded-lg p-4 border ${ds.border.default}`}>
-              <h4 className={`font-semibold ${ds.status.error.text} mb-3`}>Danger Zone</h4>
-              <Button
-                className="w-full !bg-[var(--red)] hover:!bg-[var(--red)] py-3 text-white"
-                onClick={deleteTransaction}
-              >
-                Delete Transaction
-              </Button>
-              <div className={`text-sm ${ds.text.secondary} mt-2`}>
-                This action cannot be undone
-              </div>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* Link Transaction Modal */}
-      <Modal
-        isOpen={returnModalOpen}
-        title={
-          returnTransaction ? `Link Transaction: ${returnTransaction.merchant}` : 'Link Transaction'
-        }
-        onClose={() => setReturnModalOpen(false)}
-      >
-        {returnTransaction && (
-          <div className="space-y-4">
-            <div className={`${ds.status.info.bg} p-4 rounded-lg border ${ds.status.info.border}`}>
-              <div className={`text-sm font-semibold ${ds.status.info.text} mb-2`}>
-                {returnTransaction.amount > 0 ? 'Credit/Offset' : 'Purchase/Expense'} Transaction
-              </div>
-              <div className={`text-sm ${ds.text.primary}`}>
-                <div>
-                  <strong>Merchant:</strong> {returnTransaction.merchant}
-                </div>
-                <div>
-                  <strong>Amount:</strong> ${Math.abs(returnTransaction.amount).toFixed(2)}
-                </div>
-                <div>
-                  <strong>Date:</strong> {returnTransaction.date.split('T')[0]}
-                </div>
-              </div>
-            </div>
-
-            {loadingMatches ? (
-              <div className={`text-center py-8 ${ds.text.muted}`}>
-                <div className="animate-pulse">Finding potential matches...</div>
-              </div>
-            ) : (
-              <>
-                {potentialMatches.length > 0 && (
-                  <div className="space-y-3">
-                    <div className={`text-sm font-semibold ${ds.text.primary}`}>
-                      Suggested Matches ({potentialMatches.length})
-                    </div>
-                    <div className="max-h-64 overflow-y-auto space-y-2">
-                      {potentialMatches.map((match) => (
-                        <div
-                          key={match.id}
-                          className={`p-3 border ${ds.border.default} rounded-lg hover:${ds.status.info.border} hover:${ds.status.info.bg} transition-all cursor-pointer`}
-                          onClick={() => linkReturn(match.id)}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 min-w-0">
-                              <div className={`font-medium ${ds.text.primary} truncate`}>
-                                {match.merchant}
-                              </div>
-                              <div className={`text-xs ${ds.text.muted} mt-1`}>
-                                {match.date.split('T')[0]} • {match.daysDiff} days{' '}
-                                {match.date < returnTransaction.date ? 'before' : 'after'}
-                              </div>
-                              {match.note && (
-                                <div className={`text-xs ${ds.text.secondary} mt-1 truncate`}>
-                                  {match.note}
-                                </div>
-                              )}
-                            </div>
-                            <div className="text-right ml-3">
-                              <div className={`font-semibold ${ds.text.primary}`}>
-                                ${Math.abs(match.amount).toFixed(2)}
-                              </div>
-                              <div className={`text-xs ${ds.text.muted} mt-1`}>
-                                {(match.score * 100).toFixed(0)}% match
-                              </div>
-                              {match.amountDiff > 0.01 && (
-                                <div className={`text-xs ${ds.status.warning.text} mt-1`}>
-                                  ${match.amountDiff.toFixed(2)} diff
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Manual search section */}
-                <div className={`border-t ${ds.border.default} pt-4`}>
-                  <div className={`text-sm font-semibold ${ds.text.primary} mb-3`}>
-                    {potentialMatches.length > 0
-                      ? "Can't find it? Search manually"
-                      : 'Search for Transaction'}
-                  </div>
-                  <div className="space-y-3">
-                    <Input
-                      className="w-full"
-                      id="analytics-manual-search-input"
-                      placeholder="Search by merchant name..."
-                      type="text"
-                    />
-                    <Button
-                      className="w-full bg-[var(--bg-elevated)] hover:bg-[var(--bg-elevated)] py-2"
-                      onClick={async () => {
-                        const searchInput = document.getElementById(
-                          'analytics-manual-search-input'
-                        ) as HTMLInputElement;
-                        const searchTerm = searchInput?.value || '';
-
-                        if (!searchTerm) {
-                          alert('Please enter a search term');
-                          return;
-                        }
-
-                        setLoadingMatches(true);
-                        try {
-                          const res = await fetch(
-                            `/api/transactions?merchant=${encodeURIComponent(searchTerm)}&preset=last-12-months`
-                          );
-                          const data = await res.json();
-                          const filtered = (data.transactions || []).filter(
-                            (t: Tx) =>
-                              t.id !== returnTransaction.id && !t.isOffset && !t.linkedTransaction
-                          );
-                          setPotentialMatches(
-                            filtered.map((t: Tx) => ({
-                              ...t,
-                              score: 0.5,
-                              amountDiff: Math.abs(
-                                Math.abs(t.amount) - Math.abs(returnTransaction.amount)
-                              ),
-                              daysDiff: Math.round(
-                                Math.abs(
-                                  new Date(t.date).getTime() -
-                                    new Date(returnTransaction.date).getTime()
-                                ) /
-                                  (1000 * 60 * 60 * 24)
-                              ),
-                            }))
-                          );
-                        } catch (_error) {
-                          alert('Search failed');
-                        } finally {
-                          setLoadingMatches(false);
-                        }
-                      }}
-                    >
-                      Search
-                    </Button>
-                  </div>
-                </div>
-
-                {potentialMatches.length === 0 && !loadingMatches && (
-                  <div className={`text-center py-4 ${ds.text.muted} text-sm`}>
-                    No matches found. Try searching manually above.
-                  </div>
-                )}
-
-                <div className={`text-xs ${ds.text.muted} ${ds.bg.secondary} p-3 rounded border`}>
-                  Click a transaction to link it. Credits reduce expenses (returns, reimbursements,
-                  splits, etc.)
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </Modal>
+      <TransactionDrawer ref={drawer.ref} {...refs} {...drawer.drawerProps} />
     </div>
   );
 }

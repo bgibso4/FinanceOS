@@ -102,7 +102,8 @@ export function Drawer({
       aria-hidden={open ? undefined : true}
       aria-labelledby={titleId}
       aria-modal="false"
-      className={`fixed bottom-0 right-0 top-0 z-40 flex w-[min(540px,100vw)] flex-col border-l border-[var(--border-hover)] bg-[var(--bg-elevated)] shadow-[-18px_0_40px_rgba(0,0,0,0.22)] outline-none transition-transform motion-reduce:transition-none ${DRAWER_MOTION} ${
+      // !mt-0: pages render this inside a space-y column, whose margin would push it down.
+      className={`fixed bottom-0 right-0 top-0 z-40 !mt-0 flex w-[min(540px,100vw)] flex-col border-l border-[var(--border-hover)] bg-[var(--bg-elevated)] shadow-[-18px_0_40px_rgba(0,0,0,0.22)] outline-none transition-transform motion-reduce:transition-none ${DRAWER_MOTION} ${
         shown ? 'translate-x-0' : 'translate-x-full'
       }`}
       inert={!open}
