@@ -64,7 +64,7 @@ export function CategoryBreakdown({ trip, currency }: Pick<TripStatsProps, 'trip
               <i
                 className="block h-full"
                 style={{
-                  width: `${biggest > 0 ? +((slice.spend / biggest) * 100).toFixed(2) : 0}%`,
+                  width: `${biggest > 0 ? Math.max(+((slice.spend / biggest) * 100).toFixed(2), 0) : 0}%`,
                   background: tonalShade(rank),
                 }}
               />

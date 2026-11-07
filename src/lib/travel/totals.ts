@@ -155,6 +155,8 @@ function toRow(
   };
 }
 
+const HALF_A_CENT = 0.005;
+
 const spendOf = (rows: Row[]): number => -rows.reduce((n, r) => n + r.amount, 0) || 0;
 
 function summarize(trip: TripRecord, rows: Row[]): TripSummary {
@@ -178,11 +180,13 @@ function summarize(trip: TripRecord, rows: Row[]): TripSummary {
   };
 }
 
-/** Spending rows only, grouped by category, biggest first, as shares of the positive spend. */
+/**
+ * Each category net of its credits, biggest first, so the list adds up to the trip's spend.
+ * Fully refunded categories drop out. One that nets to a credit stays, with no share of the bar.
+ */
 function slices(rows: Row[]): CategorySlice[] {
   const byCategory = new Map<string | null, CategorySlice>();
   for (const r of rows) {
-    if (r.amount >= 0) continue;
     const slice = byCategory.get(r.categoryId) ?? {
       categoryId: r.categoryId,
       name: r.categoryName ?? 'Uncategorized',
@@ -192,7 +196,9 @@ function slices(rows: Row[]): CategorySlice[] {
     slice.spend -= r.amount;
     byCategory.set(r.categoryId, slice);
   }
-  const all = [...byCategory.values()].sort((a, b) => b.spend - a.spend);
-  const total = all.reduce((n, s) => n + s.spend, 0);
-  return all.map((s) => ({ ...s, share: s.spend / total }));
+  const all = [...byCategory.values()]
+    .filter((s) => Math.abs(s.spend) >= HALF_A_CENT)
+    .sort((a, b) => b.spend - a.spend);
+  const spending = all.reduce((n, s) => n + Math.max(s.spend, 0), 0);
+  return all.map((s) => ({ ...s, share: s.spend > 0 ? s.spend / spending : 0 }));
 }

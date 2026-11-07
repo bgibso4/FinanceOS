@@ -26,6 +26,14 @@ describe('TonalBar', () => {
     slice('Test Spa', 0.1),
   ];
 
+  it('aCategoryWithNoShareGetsNoSegmentOrLegend', () => {
+    const { container } = render(
+      <TonalBar slices={[slice('Test Food', 1), slice('Test Credit', 0)]} />
+    );
+    expect(container.querySelectorAll('[data-segment]')).toHaveLength(1);
+    expect(screen.queryByText(/Test Credit/)).toBeNull();
+  });
+
   it('legendShowsTopThree', () => {
     render(<TonalBar slices={slices} />);
     expect(screen.getByText('Test Food 50%')).toBeInTheDocument();
