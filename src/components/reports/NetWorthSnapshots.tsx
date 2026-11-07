@@ -1,5 +1,6 @@
 'use client';
 
+import { fmtStoredDate } from '@/lib/dates';
 import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -144,13 +145,8 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-};
+const formatDate = (dateStr: string) =>
+  fmtStoredDate(dateStr, { year: 'numeric', month: 'short', day: 'numeric' });
 
 const formatPercent = (value: number) => {
   const sign = value >= 0 ? '+' : '';
@@ -165,12 +161,8 @@ const formatCompactCurrency = (amount: number) => {
   return `${sign}$${abs.toFixed(0)}`;
 };
 
-const formatShortDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
-};
+const formatShortDate = (dateStr: string) =>
+  fmtStoredDate(dateStr, { month: 'short', day: 'numeric' });
 
 // Projection chart: historical solid line + projected dashed line
 function ForecastChart({

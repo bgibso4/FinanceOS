@@ -1,3 +1,4 @@
+import { storedToday } from '@/lib/dates';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAccountBalance } from '@/lib/balances';
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
       const { balance } = await getAccountBalance(prisma, accountId);
       const { enteredBalances } = await getInvestmentServices();
       const accountBalance = await enteredBalances.record(accountId, {
-        date: new Date(),
+        date: storedToday(),
         balance: balance + amount,
       });
       return NextResponse.json({ accountBalance });
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
     // Create the adjustment transaction
     const transaction = await prisma.transaction.create({
       data: {
-        date: new Date(),
+        date: storedToday(),
         amount,
         accountId,
         merchant: 'Balance Adjustment',

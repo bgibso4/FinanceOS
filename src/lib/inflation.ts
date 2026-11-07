@@ -91,7 +91,7 @@ export function adjustSnapshotsForInflation(
   inflationFactor: number;
 }> {
   return snapshots.map((s) => {
-    const fromYear = new Date(s.date).getFullYear();
+    const fromYear = new Date(s.date).getUTCFullYear();
     const factor = getCumulativeInflationFactor(fromYear, toYear, rates);
     return {
       ...s,

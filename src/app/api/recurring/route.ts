@@ -1,3 +1,5 @@
+import { storedToday } from '@/lib/dates';
+import { isoDay } from '@/lib/investments/dates';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest) {
   };
 
   const monthlyEquivalent = normalizeToMonthly(Math.abs(parsed.expectedAmount), parsed.frequency);
-  const now = new Date();
+  const today = storedToday();
 
   const recurring = await prisma.recurringTransaction.create({
     data: {
@@ -70,14 +72,14 @@ export async function POST(req: NextRequest) {
       intervalRegularity: 1.0,
       amountConsistency: 1.0,
       transactionCount: 0,
-      firstSeenDate: now,
-      lastSeenDate: now,
+      firstSeenDate: today,
+      lastSeenDate: today,
       status: parsed.status,
       nextExpectedDate: null,
       isManualOverride: true,
       manuallyCreated: true,
       priceHistory: JSON.stringify([
-        { date: now.toISOString().split('T')[0], amount: Math.abs(parsed.expectedAmount) },
+        { date: isoDay(today), amount: Math.abs(parsed.expectedAmount) },
       ]),
     },
     include: {

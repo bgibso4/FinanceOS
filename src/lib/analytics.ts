@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
-import { endOfMonth, isAfter, isBefore, startOfMonth, subMonths } from 'date-fns';
+import { isAfter, isBefore } from 'date-fns';
+import { utcMonthRange } from './dates';
 import { FilterParams } from './types';
 import { loadCurrencySettings, toBase } from './currency';
 
@@ -396,8 +397,10 @@ export async function dashboardAnalytics(
 
   const rollingWindow: number[] = [];
   for (let i = 0; i < 3; i++) {
-    const windowStart = startOfMonth(subMonths(endDate, i));
-    const windowEnd = endOfMonth(windowStart);
+    const { start: windowStart, end: windowEnd } = utcMonthRange(
+      endDate.getUTCFullYear(),
+      endDate.getUTCMonth() - i
+    );
     const windowTx = transactions.filter(
       (tx) => !isBefore(tx.date, windowStart) && !isAfter(tx.date, windowEnd)
     );
@@ -462,8 +465,7 @@ function buildTrendAlerts(
 
 export async function monthlySnapshot(prisma: PrismaClient, month: string) {
   const [year, m] = month.split('-').map((n) => parseInt(n, 10));
-  const start = new Date(year, m - 1, 1);
-  const end = endOfMonth(start);
+  const { start, end } = utcMonthRange(year, m - 1);
 
   // Get cash_flow accounts for budgeting (excludes balance_only accounts like investments)
   const cashFlowAccounts = await prisma.account.findMany({

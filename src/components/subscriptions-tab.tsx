@@ -1,5 +1,6 @@
 'use client';
 
+import { fmtCalendarDay } from '@/lib/dates';
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -465,9 +466,7 @@ export function SubscriptionsTab({ categories, accounts, userSettings }: Subscri
                               </span>
                             </td>
                             <td className={`px-4 py-2.5 ${ds.text.secondary}`}>
-                              {item.nextExpectedDate
-                                ? new Date(item.nextExpectedDate).toLocaleDateString()
-                                : '—'}
+                              {item.nextExpectedDate ? fmtCalendarDay(item.nextExpectedDate) : '—'}
                             </td>
                             <td className="px-4 py-2.5 text-right">
                               <div className="flex items-center justify-end gap-1">
