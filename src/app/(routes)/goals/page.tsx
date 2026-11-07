@@ -1,6 +1,7 @@
 'use client';
 
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -68,8 +69,11 @@ function GoalCard({
   goal: GoalWithProgress;
   onEdit: (goal: GoalWithProgress) => void;
 }) {
-  const trackingLabel =
-    goal.trackingMethod === 'category'
+  const isTravel = goal.trackingMethod === 'travel';
+  const travelYear = goal.startDate?.slice(0, 4) ?? String(new Date().getFullYear());
+  const trackingLabel = isTravel
+    ? 'Managed in Travel'
+    : goal.trackingMethod === 'category'
       ? `${goal.category?.name ?? 'Unknown'} category`
       : goal.trackingMethod === 'tag'
         ? `${goal.tag?.name ?? 'Unknown'} tag`
@@ -79,12 +83,24 @@ function GoalCard({
   const cappedPercentage = Math.min(goal.percentage, 100);
 
   return (
-    <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => onEdit(goal)}>
+    <Card
+      className={isTravel ? undefined : 'cursor-pointer hover:shadow-md transition-shadow'}
+      onClick={isTravel ? undefined : () => onEdit(goal)}
+    >
       <CardContent className="pt-5 pb-4">
         <div className="flex items-start justify-between mb-3">
           <div>
             <h3 className={`font-semibold ${ds.text.primary}`}>{goal.name}</h3>
-            <p className={`text-xs ${ds.text.muted} mt-0.5`}>{trackingLabel}</p>
+            {isTravel ? (
+              <Link
+                className={`text-xs ${ds.status.info.text} mt-0.5 hover:underline`}
+                href={`/travel?year=${travelYear}`}
+              >
+                {trackingLabel}
+              </Link>
+            ) : (
+              <p className={`text-xs ${ds.text.muted} mt-0.5`}>{trackingLabel}</p>
+            )}
           </div>
           <span
             className={`text-xs font-medium px-2 py-0.5 rounded-full ${

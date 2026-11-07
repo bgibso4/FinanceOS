@@ -47,6 +47,7 @@ export const TransactionExportSchema = z.object({
   linkedTransactionId: z.string().nullable(),
   isSplitParent: z.boolean().optional().default(false),
   parentTransactionId: z.string().nullable().optional().default(null),
+  tripId: z.string().nullable().optional(),
   createdAt: z.string(), // ISO 8601
 });
 export type TransactionExport = z.infer<typeof TransactionExportSchema>;
@@ -259,6 +260,22 @@ export const InvestmentTransactionExportSchema = z.object({
   createdAt: z.string(),
 });
 
+export const TripExportSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  startDate: z.string(), // YYYY-MM-DD
+  endDate: z.string(), // YYYY-MM-DD
+  createdAt: z.string(),
+});
+export type TripExport = z.infer<typeof TripExportSchema>;
+
+export const TripDismissalExportSchema = z.object({
+  tripId: z.string(),
+  transactionId: z.string(),
+  createdAt: z.string(),
+});
+export type TripDismissalExport = z.infer<typeof TripDismissalExportSchema>;
+
 export const SyncDataSchema = z.object({
   accounts: z.array(AccountExportSchema),
   transactions: z.array(TransactionExportSchema),
@@ -279,6 +296,8 @@ export const SyncDataSchema = z.object({
   securityEvents: z.array(SecurityEventExportSchema).optional(),
   holdingSnapshots: z.array(HoldingSnapshotExportSchema).optional(),
   investmentTransactions: z.array(InvestmentTransactionExportSchema).optional(),
+  trips: z.array(TripExportSchema).optional(),
+  tripDismissals: z.array(TripDismissalExportSchema).optional(),
 });
 export type SyncData = z.infer<typeof SyncDataSchema>;
 
@@ -335,6 +354,8 @@ export const SyncMetadataSchema = z.object({
     securityEvents: z.number().optional(),
     holdingSnapshots: z.number().optional(),
     investmentTransactions: z.number().optional(),
+    trips: z.number().optional(),
+    tripDismissals: z.number().optional(),
   }),
   checksum: z.string(), // SHA-256 of JSON data
 });

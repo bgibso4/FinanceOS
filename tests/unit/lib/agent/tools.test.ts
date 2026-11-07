@@ -17,6 +17,7 @@ import {
   executeGetMonthlyTrend,
   executeGetCashFlow,
   executeGetRecurringTransactions,
+  executeListTrips,
 } from '@/lib/agent/tools';
 
 describe('agent tools', () => {
@@ -251,6 +252,58 @@ describe('agent tools', () => {
     it('returns empty array when no recurring transactions exist', async () => {
       const result = await executeGetRecurringTransactions(prisma, {});
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('trips', () => {
+    let tripId: string;
+
+    beforeEach(async () => {
+      const trip = await prisma.trip.create({
+        data: { name: 'Whistler 2026', startDate: '2026-01-09', endDate: '2026-01-12' },
+      });
+      tripId = trip.id;
+      await prisma.transaction.create({
+        data: createTransactionData(accountId, {
+          merchant: 'Whistler Hotel',
+          amount: -400,
+          date: new Date('2026-01-10'),
+          tripId,
+        }),
+      });
+    });
+
+    it('queryTransactionsFiltersByTrip', async () => {
+      const result = await executeQueryTransactions(prisma, {
+        startDate: '2026-01-01',
+        endDate: '2026-01-31',
+        trip: 'whistler 2026',
+      });
+      expect(result.transactions.map((t) => t.merchant)).toEqual(['Whistler Hotel']);
+    });
+
+    it('rowsCarryTripName', async () => {
+      const result = await executeQueryTransactions(prisma, {
+        startDate: '2026-01-01',
+        endDate: '2026-01-31',
+      });
+      const byMerchant = Object.fromEntries(result.transactions.map((t) => [t.merchant, t.trip]));
+      expect(byMerchant['Whistler Hotel']).toBe('Whistler 2026');
+      expect(byMerchant['Uber']).toBeNull();
+    });
+
+    it('listTripsReturnsSummaries', async () => {
+      const result = await executeListTrips(prisma);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        name: 'Whistler 2026',
+        startDate: '2026-01-09',
+        endDate: '2026-01-12',
+        spend: 400,
+      });
+      expect(result[0].perDay).toBeGreaterThan(0);
+      expect(result[0].topCategories.length).toBeLessThanOrEqual(3);
+      expect(result[0]).not.toHaveProperty('id');
     });
   });
 });

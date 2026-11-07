@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { calculateGoalProgress } from '@/lib/goals';
+import { calculateGoalProgress, TRAVEL_GOAL_ERROR } from '@/lib/goals';
 
 const createGoalSchema = z.object({
   name: z.string().min(1).max(100),
   type: z.enum(['spending', 'saving']),
   targetAmount: z.number().positive(),
-  trackingMethod: z.enum(['category', 'tag', 'account']),
+  trackingMethod: z.enum(['category', 'tag', 'account', 'travel']),
   categoryId: z.string().optional(),
   tagId: z.string().optional(),
   accountId: z.string().optional(),
@@ -40,6 +40,9 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const parsed = createGoalSchema.parse(body);
 
+  if (parsed.trackingMethod === 'travel') {
+    return NextResponse.json({ error: TRAVEL_GOAL_ERROR }, { status: 400 });
+  }
   if (parsed.trackingMethod === 'category' && !parsed.categoryId) {
     return NextResponse.json(
       { error: 'categoryId is required for category tracking' },

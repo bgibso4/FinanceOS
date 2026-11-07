@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { isoDay } from '@/lib/investments/dates';
 import { getInvestmentServices } from '@/lib/investments/services';
-import { investmentErrorResponse, isoDateSchema, parseJsonBody } from '../../../_lib/http';
+import { investmentErrorResponse } from '../../../_lib/http';
+import { isoDateSchema, parseJsonBody } from '@/lib/http';
 
 const single = z.object({ date: isoDateSchema, balance: z.number() });
 const bodySchema = z.union([single, z.object({ balances: z.array(single).min(1).max(1000) })]);

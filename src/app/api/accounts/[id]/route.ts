@@ -5,7 +5,8 @@ import { TRACKING_MODES } from '@/lib/account-defaults';
 import { BalanceSource } from '@/lib/investments/codes';
 import { checkAccountUpdate, InvestmentInputError } from '@/lib/investments/account-guard';
 import { getInvestmentServices } from '@/lib/investments/services';
-import { investmentErrorResponse, parseJsonBody } from '@/app/api/investments/_lib/http';
+import { investmentErrorResponse } from '@/app/api/investments/_lib/http';
+import { parseJsonBody } from '@/lib/http';
 
 const updateSchema = z.object({
   name: z.string().optional(),

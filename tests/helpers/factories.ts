@@ -60,6 +60,7 @@ export interface TransactionData {
   importHash?: string;
   isOffset?: boolean;
   linkedTransactionId?: string;
+  tripId?: string;
 }
 
 export function createTransactionData(

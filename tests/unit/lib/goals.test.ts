@@ -297,4 +297,12 @@ describe('calculateGoalProgress', () => {
       expect(progress.paceStatus).toBeNull();
     });
   });
+
+  it('unknownTrackingMethodCountsZero', async () => {
+    const goal = await prisma.goal.create({
+      data: createGoalData({ name: 'Mystery', trackingMethod: 'astrology', targetAmount: 100 }),
+    });
+    const progress = await calculateGoalProgress(goal, prisma);
+    expect(progress.currentAmount).toBe(0);
+  });
 });

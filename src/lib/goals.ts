@@ -1,5 +1,10 @@
 import type { PrismaClient, Goal } from '@prisma/client';
 import { getAccountBalance } from '@/lib/balances';
+import { categoryIdsInGroup } from '@/lib/categories';
+import { TravelTotals } from '@/lib/travel/totals';
+
+/** Travel budgets are created by the Travel feature, never through the Goals API. */
+export const TRAVEL_GOAL_ERROR = 'Travel budgets are managed in Travel';
 
 export type GoalProgress = {
   currentAmount: number;
@@ -13,15 +18,8 @@ export async function calculateGoalProgress(
   prisma: PrismaClient,
   now: Date = new Date()
 ): Promise<GoalProgress> {
-  let currentAmount = 0;
-
-  if (goal.trackingMethod === 'category' && goal.categoryId) {
-    currentAmount = await calculateCategoryProgress(goal, prisma);
-  } else if (goal.trackingMethod === 'tag' && goal.tagId) {
-    currentAmount = await calculateTagProgress(goal, prisma);
-  } else if (goal.trackingMethod === 'account' && goal.accountId) {
-    currentAmount = await calculateAccountProgress(goal, prisma);
-  }
+  const tracker = GOAL_TRACKERS[goal.trackingMethod];
+  const currentAmount = tracker ? await tracker(goal, prisma) : 0;
 
   const percentage = goal.targetAmount > 0 ? (currentAmount / goal.targetAmount) * 100 : 0;
   const remaining = Math.max(0, goal.targetAmount - currentAmount);
@@ -31,13 +29,7 @@ export async function calculateGoalProgress(
 }
 
 async function calculateCategoryProgress(goal: Goal, prisma: PrismaClient): Promise<number> {
-  // Check if this category is a group (has children)
-  const children = await prisma.category.findMany({
-    where: { parentId: goal.categoryId! },
-    select: { id: true },
-  });
-
-  const categoryIds = children.length > 0 ? children.map((c) => c.id) : [goal.categoryId!];
+  const categoryIds = await categoryIdsInGroup(prisma, goal.categoryId!);
 
   const dateFilter = buildDateFilter(goal);
 
@@ -76,6 +68,22 @@ async function calculateAccountProgress(goal: Goal, prisma: PrismaClient): Promi
   const { balance } = await getAccountBalance(prisma, goal.accountId!);
   return Math.abs(balance);
 }
+
+export type GoalTracker = (goal: Goal, prisma: PrismaClient) => Promise<number>;
+
+// A tracker whose target id is unset counts zero, as before.
+export const GOAL_TRACKERS: Record<string, GoalTracker> = {
+  category: (goal, prisma) =>
+    goal.categoryId ? calculateCategoryProgress(goal, prisma) : Promise.resolve(0),
+  tag: (goal, prisma) => (goal.tagId ? calculateTagProgress(goal, prisma) : Promise.resolve(0)),
+  account: (goal, prisma) =>
+    goal.accountId ? calculateAccountProgress(goal, prisma) : Promise.resolve(0),
+  // Imports totals.ts directly: services.ts and budget.ts import this file.
+  travel: (goal, prisma) =>
+    goal.startDate
+      ? new TravelTotals(prisma).budgetSpent(Number(goal.startDate.slice(0, 4)))
+      : Promise.resolve(0),
+};
 
 function buildDateFilter(goal: Goal): Record<string, unknown> {
   const filter: Record<string, unknown> = {};

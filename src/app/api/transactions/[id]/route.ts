@@ -25,12 +25,27 @@ const updateSchema = z.object({
   confidenceScore: z.number().optional(),
   isOffset: z.boolean().optional(),
   linkedTransactionId: z.string().nullable().optional(),
+  tripId: z.string().nullable().optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await req.json();
   const parsed = updateSchema.parse(body);
+
+  // Split parents are never on a trip: their parts carry it.
+  if (parsed.tripId) {
+    const target = await prisma.transaction.findUniqueOrThrow({
+      where: { id },
+      select: { isSplitParent: true },
+    });
+    if (target.isSplitParent) {
+      return NextResponse.json(
+        { error: 'A split transaction cannot join a trip' },
+        { status: 400 }
+      );
+    }
+  }
 
   // If editing a split part's amount, enforce sum constraint
   if (parsed.amount !== undefined) {

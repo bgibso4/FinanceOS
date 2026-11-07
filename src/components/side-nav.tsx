@@ -12,6 +12,7 @@ import {
   Moon,
   PanelLeft,
   PanelLeftClose,
+  Plane,
   Settings,
   Sparkles,
   Sun,
@@ -46,6 +47,7 @@ const links: NavLink[] = [
     ],
   },
   { href: '/investments', label: 'Investments', icon: TrendingUp },
+  { href: '/travel', label: 'Travel', icon: Plane },
   { href: '/goals', label: 'Goals', icon: Target },
   {
     href: '/settings',

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
+import { PeriodPicker } from '@/components/ui/period-picker';
 import { ChartRenderer, PIE_COLORS } from '@/components/chart-renderer';
 import { ds } from '@/lib/design-system';
 import {
@@ -76,13 +77,6 @@ const stripEmojis = (str: string) =>
 
 const sortByName = (a: { name: string }, b: { name: string }) =>
   stripEmojis(a.name).localeCompare(stripEmojis(b.name));
-
-// Get month name
-const getMonthName = (month: string) => {
-  const [year, m] = month.split('-');
-  const date = new Date(parseInt(year), parseInt(m) - 1);
-  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-};
 
 export default function AnalyticsPage() {
   // Month selector - default to current month
@@ -348,46 +342,6 @@ export default function AnalyticsPage() {
   const overallChange =
     prevTotalSpending > 0 ? ((totalSpending - prevTotalSpending) / prevTotalSpending) * 100 : 0;
 
-  // Month selector state
-  const [showMonthPicker, setShowMonthPicker] = useState(false);
-  const [selectedYear, selectedMonthNum] = selectedMonth.split('-').map(Number);
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  const selectMonth = (monthIndex: number, year: number = selectedYear) => {
-    setSelectedMonth(`${year}-${String(monthIndex + 1).padStart(2, '0')}`);
-    setShowMonthPicker(false);
-  };
-
-  const goToPrevMonth = () => {
-    const newDate = new Date(selectedYear, selectedMonthNum - 2);
-    setSelectedMonth(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`);
-  };
-
-  const goToNextMonth = () => {
-    const newDate = new Date(selectedYear, selectedMonthNum);
-    const now = new Date();
-    if (newDate <= now) {
-      setSelectedMonth(
-        `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`
-      );
-    }
-  };
-
-  const [pickerYear, setPickerYear] = useState(selectedYear);
-
   return (
     <div className="space-y-6">
       {/* Header with Month Selector */}
@@ -406,101 +360,7 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* Month Selector */}
-        <div className="relative flex items-center gap-1">
-          <button
-            className={`p-2 rounded-lg transition-colors ${ds.interactive.default}`}
-            onClick={goToPrevMonth}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                d="M15 19l-7-7 7-7"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-              />
-            </svg>
-          </button>
-
-          <button
-            className={`px-4 py-2 ${ds.bg.primary} border ${ds.border.default} rounded-lg font-semibold ${ds.text.primary} ${ds.bg.hover} transition-colors min-w-[180px] text-center flex items-center justify-center gap-2`}
-            onClick={() => {
-              setPickerYear(selectedYear);
-              setShowMonthPicker(!showMonthPicker);
-            }}
-          >
-            {getMonthName(selectedMonth)}
-            <svg
-              className={`w-4 h-4 transition-transform ${showMonthPicker ? 'rotate-180' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                d="M19 9l-7 7-7-7"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-              />
-            </svg>
-          </button>
-
-          <button
-            className={`p-2 rounded-lg transition-colors ${ds.interactive.default}`}
-            onClick={goToNextMonth}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
-            </svg>
-          </button>
-
-          {/* Month Picker Dropdown */}
-          {showMonthPicker && (
-            <div
-              className={`absolute top-full right-0 mt-2 ${ds.bg.primary} border ${ds.border.default} rounded-xl shadow-lg p-4 z-50`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <button
-                  className={`p-1 rounded ${ds.interactive.default}`}
-                  onClick={() => setPickerYear(pickerYear - 1)}
-                >
-                  ←
-                </button>
-                <span className={`font-semibold ${ds.text.primary}`}>{pickerYear}</span>
-                <button
-                  className={`p-1 rounded ${ds.interactive.default}`}
-                  onClick={() => setPickerYear(pickerYear + 1)}
-                >
-                  →
-                </button>
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                {months.map((month, idx) => {
-                  const monthStr = `${pickerYear}-${String(idx + 1).padStart(2, '0')}`;
-                  const isSelected = monthStr === selectedMonth;
-                  const isFuture = new Date(pickerYear, idx) > new Date();
-
-                  return (
-                    <button
-                      key={month}
-                      className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                        isSelected
-                          ? 'bg-[var(--accent)] text-white'
-                          : isFuture
-                            ? `${ds.text.muted} cursor-not-allowed`
-                            : `${ds.text.secondary} ${ds.bg.hover}`
-                      }`}
-                      disabled={isFuture}
-                      onClick={() => !isFuture && selectMonth(idx, pickerYear)}
-                    >
-                      {month}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
+        <PeriodPicker mode="month" value={selectedMonth} onChange={setSelectedMonth} />
       </div>
 
       {/* Summary Stats */}

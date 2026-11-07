@@ -1,11 +1,12 @@
 import { BalanceSource } from '@/lib/investments/codes';
 import type { AccountSummary } from '@/lib/investments/overview';
+import { plural } from '@/lib/plural';
 import { daysBetween, fmtDay, fmtSyncTime } from './format';
 
 export type NoticeKind = 'reauth' | 'waiting' | 'stale' | 'unpriced';
 export type NoticeView = { kind: NoticeKind; tone: 'warn' | 'err'; lead: string; text: string };
 
-export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+export { plural };
 
 const NOTICE_RULES: {
   kind: NoticeKind;

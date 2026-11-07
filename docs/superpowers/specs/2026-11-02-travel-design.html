@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Travel Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f2f2f7; --surface: #ffffff; --fill: #e9e9ee; --ink: #1c1c1e; --ink-2: #6e6e73; --ink-3: #8a8a8e; --line: #d8d8dc;
+  --tint: #1c1c1e; --on-tint: #ffffff; --soon: #ad500e; --done: #2f7d4f; --info: #3f6fa3;
+  --serif: "Source Serif 4", "New York", ui-serif, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+    --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+  --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+h1, h2, h3 { text-wrap: balance; }
+.layout { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+.brand { font: 700 15px/1.2 var(--serif); }
+.brand span { display: block; font: 400 13px/1.4 var(--sans); color: var(--ink-2); margin-top: 2px; }
+.overall { background: var(--surface); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.overall b { font: 700 17px/1.2 var(--serif); color: var(--ink); }
+.toc { display: flex; flex-direction: column; gap: 1px; }
+.toc-label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin: 6px 0 6px 10px; }
+.toc a { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; text-decoration: none; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.toc a:hover { background: var(--surface); color: var(--ink); }
+.toc a.active { background: var(--surface); color: var(--ink); font-weight: 600; }
+.toc-n { width: 20px; text-align: right; color: var(--ink-3); font-size: 13px; flex: none; font-variant-numeric: tabular-nums; }
+.theme { align-self: flex-start; background: none; border: 0; color: var(--ink-3); font: 13px var(--sans); cursor: pointer; padding: 4px 10px; }
+.theme:hover { color: var(--ink); }
+main { padding: 48px 0 120px; display: flex; flex-direction: column; gap: 48px; min-width: 0; }
+.eyebrow { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.eyebrow .pill { background: var(--surface); border-radius: 99px; padding: 3px 10px; font-weight: 600; color: var(--ink); }
+h1 { font: 700 44px/1.08 var(--serif); letter-spacing: -0.6px; margin: 12px 0 14px; }
+.goal { font-size: 19px; line-height: 1.5; max-width: 66ch; margin: 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 24px; }
+.meta div { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; line-height: 1.5; }
+.meta b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 4px; }
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 14px; color: var(--ink-2); }
+.stats b { font: 700 20px var(--serif); color: var(--ink); margin-right: 4px; font-variant-numeric: tabular-nums; }
+section > h2 { font: 700 26px/1.2 var(--serif); margin: 0 0 6px; letter-spacing: -0.2px; }
+section > h3.sub { font: 700 19px/1.3 var(--serif); margin: 22px 0 8px; }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 66ch; }
+.decisions { background: var(--surface); border-radius: var(--r); padding: 6px 0; border-left: 4px solid var(--soon); }
+.decisions.agreed { border-left-color: var(--done); }
+.decisions ul { list-style: none; margin: 0; padding: 0; }
+.decision { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 18px; }
+.decision + .decision { border-top: 1px solid var(--line); }
+.dec-name { font-weight: 600; }
+.dec-id { font: 700 13px var(--serif); color: var(--ink-3); margin-right: 6px; }
+.dec-text { color: var(--ink-2); font-size: 15px; max-width: 70ch; }
+.dec-text strong { color: var(--ink); }
+.trefs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 180px; }
+.tref { flex: none; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--fill); padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.tref:hover { background: var(--tint); color: var(--on-tint); }
+.card { background: var(--surface); border-radius: var(--r); padding: 6px 20px; }
+.card ul, .card ol { margin: 0; padding: 0; list-style: none; }
+.card > ul > li, .card > ol > li { padding: 11px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.card > ul > li:first-child, .card > ol > li:first-child { border-top: 0; }
+.card li ul { list-style: disc; padding-left: 20px; margin: 6px 0 0; }
+.card li ul li { padding: 2px 0; border: 0; color: var(--ink-2); }
+.card li ul li strong { color: var(--ink); }
+.numbered { counter-reset: f; }
+.numbered > li { counter-increment: f; display: grid; grid-template-columns: 28px 1fr; gap: 6px; }
+.numbered > li::before { content: counter(f); font: 700 17px/1.4 var(--serif); color: var(--soon); }
+.figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.fig { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 13px; color: var(--ink-2); }
+.fig b { display: block; font: 700 26px/1.1 var(--serif); color: var(--ink); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+table.md { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border-radius: var(--r); overflow: hidden; }
+table.md th, table.md td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--line); }
+table.md th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); border-top: 0; }
+table.md td:first-child { font-weight: 600; white-space: nowrap; }
+.yes { color: var(--done); font-weight: 600; } .no { color: var(--ink-3); }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; }
+.chip.mine { color: var(--soon); background: color-mix(in srgb, var(--soon) 13%, transparent); }
+.chip.agreed { color: var(--done); background: color-mix(in srgb, var(--done) 13%, transparent); }
+.chip.route { color: var(--info); background: color-mix(in srgb, var(--info) 13%, transparent); font-family: var(--mono); font-weight: 500; }
+.callout { background: var(--surface); border-radius: var(--r); padding: 14px 18px; border-left: 4px solid var(--done); font-size: 15px; margin-top: 12px; }
+.callout b:first-child { display: block; margin-bottom: 4px; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.col { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; }
+.col h3 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 8px; }
+.col ul { margin: 0; padding-left: 16px; } .col li { margin: 5px 0; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
+  .side { position: static; height: auto; padding: 24px 0 0; }
+  .toc { display: none; }
+  h1 { font-size: 34px; }
+  .cols { grid-template-columns: 1fr; }
+  .decision { flex-direction: column; gap: 8px; }
+  .trefs { justify-content: flex-start; max-width: none; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side" aria-label="Sections">
+    <div class="brand">FinanceOS<span>Design · Travel</span></div>
+    <div class="overall"><span>Status</span><b>Waiting on your review</b><span>Next: implementation plan</span></div>
+    <nav class="toc" aria-label="Sections">
+      <div class="toc-label">Overview</div>
+      <a href="#mine"><span class="toc-n"></span><span>Waiting on you</span></a>
+      <a href="#agreed"><span class="toc-n"></span><span>Agreed with you</span></a>
+      <a href="#why"><span class="toc-n"></span><span>Why</span></a>
+      <a href="#scope"><span class="toc-n"></span><span>Scope</span></a>
+      <a href="#constraints"><span class="toc-n"></span><span>Constraints</span></a>
+      <div class="toc-label">Design</div>
+      <a href="#model"><span class="toc-n">1</span><span>Data model</span></a>
+      <a href="#convert"><span class="toc-n">2</span><span>Converting trip tags</span></a>
+      <a href="#suggest"><span class="toc-n">3</span><span>Suggestions</span></a>
+      <a href="#travel"><span class="toc-n">4</span><span>Travel page</span></a>
+      <a href="#trip"><span class="toc-n">5</span><span>Trip page</span></a>
+      <a href="#drawer"><span class="toc-n">6</span><span>Trip drawer</span></a>
+      <a href="#txdrawer"><span class="toc-n">7</span><span>Transaction drawer</span></a>
+      <a href="#budget"><span class="toc-n">8</span><span>Travel budget</span></a>
+      <a href="#analyst"><span class="toc-n">9</span><span>Finance Analyst</span></a>
+      <a href="#engineering"><span class="toc-n">10</span><span>Engineering</span></a>
+      <div class="toc-label">Build</div>
+      <a href="#builder"><span class="toc-n"></span><span>Left to the builder</span></a>
+      <a href="#testing"><span class="toc-n"></span><span>Testing</span></a>
+    </nav>
+    <button class="theme" type="button" id="theme">◐ Light / dark</button>
+  </aside>
+  <main>
+    <header>
+      <div class="eyebrow"><span class="pill">Design</span><span>Written 2026-11-02</span><span>·</span><span>after brainstorm and an independent builder check · not started</span></div>
+      <h1>Travel</h1>
+      <p class="goal">Trips become their own thing, replacing trip tags. You add a trip's transactions by ticking suggestions, not by hunting, see each year's trips side by side with the travel budget, and dig into any one trip, editing its transactions in place.</p>
+      <div class="meta">
+        <div><b>Mock</b>Approved v3, with a light/dark toggle: <code>~/Documents/FinanceOS-design-archive/design-mocks/travel-trips.html</code></div>
+        <div><b>Where</b>Branch <code>feat/travel</code> off <code>main</code>. New routes <code>/travel</code> and <code>/travel/[id]</code>; Travel goes after Analytics in the side nav.</div>
+        <div><b>Builds on</b>The shared <code>TransactionDrawer</code> and push <code>Drawer</code>, <code>Goal</code> + <code>src/lib/goals.ts</code>, the Analytics month picker, and cloud sync.</div>
+      </div>
+      <div class="stats"><span><b>10</b>design sections</span><span><b>9</b>decisions agreed</span><span><b>8</b>calls to check</span></div>
+    </header>
+
+    <section id="mine">
+      <h2>Waiting on you</h2>
+      <p class="lede">My own calls, never discussed. Each is easy to change now; veto any you don't like.</p>
+      <div class="decisions"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M1</span>Net, not gross</div><div class="dec-text">Every Travel figure, the budget included, is spend <strong>net of money in</strong>. A $72 payback lowers the trip total and the budget by $72. Tag goals today add absolute values instead.</div></div><div class="trefs"><a class="tref" href="#constraints">Constraints</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>Currency</div><div class="dec-text">Everything converts to your base currency the way Analytics does (<code>convertAmount</code>). 27 of the 227 trip transactions are on CAD accounts.</div></div><div class="trefs"><a class="tref" href="#constraints">Constraints</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M3</span>The "After" group</div><div class="dec-text">The 3 weeks after a trip suggest incoming money (never income categories or recurring transactions like paychecks) <strong>plus</strong> Travel-category spending, such as late charges or Anthony's −$165 "Bills". Only the Travel-category rows start ticked; other incoming money starts unticked, because on real data ticking it counted rent and gym money as trip paybacks.</div></div><div class="trefs"><a class="tref" href="#suggest">Suggestions</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M4</span>Which tags are trips</div><div class="dec-text">A tag whose name starts with a year and a dash (<code>^\d{4} - </code>). That matches exactly your 7 trip tags and not Green Card or Tax Deductable.</div></div><div class="trefs"><a class="tref" href="#convert">Conversion</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M5</span>A safe conversion</div><div class="dec-text">A one-off script that backs up <code>dev.db</code> first, prints a dry-run summary (trips, counts, guessed dates) before writing, and changes nothing if run twice. You fix any wrong dates afterwards with Edit trip.</div></div><div class="trefs"><a class="tref" href="#convert">Conversion</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M6</span>Editing trip dates</div><div class="dec-text">Dismissed suggestions stay dismissed and transactions already on the trip stay on it. They're grouped Before / During / After against the new dates.</div></div><div class="trefs"><a class="tref" href="#suggest">Suggestions</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M7</span>Unticked means "not this trip"</div><div class="dec-text">Anything left unticked in a review isn't suggested for that trip again. You can still add it from its transaction drawer.</div></div><div class="trefs"><a class="tref" href="#suggest">Suggestions</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M8</span>"Not now" on the budget banner</div><div class="dec-text">It hides the banner for <strong>14 days</strong>.</div></div><div class="trefs"><a class="tref" href="#budget">Budget</a></div></li>
+      </ul></div>
+    </section>
+
+    <section id="agreed">
+      <h2>Agreed with you</h2>
+      <p class="lede">Settled in the brainstorm and the mock reviews.</p>
+      <div class="decisions agreed"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A1</span>Trips replace trip tags</div><div class="dec-text">A trip is its own record with dates, so the tag list goes back to non-trip things.</div></div><div class="trefs"><a class="tref" href="#model">Data</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A2</span>Always review, never auto-add</div><div class="dec-text">"It will be very very hard to automatically link a transaction to a trip so likely we will need to always review." Suggestions are only ever candidates you tick, and they skip anything already on a trip.</div></div><div class="trefs"><a class="tref" href="#suggest">Suggestions</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A3</span>One transaction editor</div><div class="dec-text">Every transaction row opens the same, editable <code>TransactionDrawer</code> as the Transactions page. Analytics' modal moves to it later.</div></div><div class="trefs"><a class="tref" href="#trip">Trip page</a><a class="tref" href="#txdrawer">Drawer</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A4</span>One hue, in shades</div><div class="dec-text">"Where it went" is a split bar in the accent colour: darkest is the biggest category, then lighter. Existing design tokens only, in light and dark.</div></div><div class="trefs"><a class="tref" href="#travel">Travel page</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A5</span>The year chip</div><div class="dec-text">‹ 2026 ▾ › works like the Analytics month picker, so many years of data still fit in one small control.</div></div><div class="trefs"><a class="tref" href="#travel">Travel page</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A6</span>Travel owns the budget</div><div class="dec-text">It's created and changed only on the Travel page, still stored as a Goal, and shown read-only on Goals. A yearly app-wide banner prompts until it's set.</div></div><div class="trefs"><a class="tref" href="#budget">Budget</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A7</span>Budget counts trips plus Travel spending on no trip</div><div class="dec-text">Your lazy small trips still count through their category, and trip spend in other categories counts through the trip. Each transaction is counted once.</div></div><div class="trefs"><a class="tref" href="#budget">Budget</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A8</span>Spending counts in the trip's year</div><div class="dec-text">A trip belongs to the year it starts in, so December flights for a February trip count in February's year. Spending on no trip counts by its own date. Only the travel budget works this way.</div></div><div class="trefs"><a class="tref" href="#budget">Budget</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A9</span>DRY &gt; YAGNI &gt; SOLID, applied</div><div class="dec-text">Shared transaction table, drawer hook and period picker. One budget calculation. Note field, "Check these dates" and segment hover cut. Suggestion rules as objects, wired in one composition root like investments.</div></div><div class="trefs"><a class="tref" href="#engineering">Engineering</a></div></li>
+      </ul></div>
+    </section>
+
+    <section id="why">
+      <h2>Why</h2>
+      <p class="lede">Travel is a large part of your life, and today trips are tracked with tags.</p>
+      <div class="figs">
+        <div class="fig"><b>7 of 9</b>tags are trips</div>
+        <div class="fig"><b>227</b>trip-tagged transactions</div>
+        <div class="fig"><b>94%</b>of trip spend is in the Travel categories</div>
+        <div class="fig"><b>$2.2k</b>Travel spend on no trip: small trips left untagged</div>
+      </div>
+      <div class="card"><ol class="numbered">
+        <li><div><strong>Tagging is one transaction at a time.</strong> Flights and lodging are booked 2 weeks to 4 months early, and settle-ups and refunds arrive up to 3 weeks after, so finding a trip's transactions means hunting.</div></li>
+        <li><div><strong>The tag list grows with every trip</strong>, crowding out the tags that aren't trips.</div></li>
+        <li><div><strong>Analysis goes through the Finance Analyst.</strong> "Compare the costs of my trips this year, with a category breakdown of each" should be built in.</div></li>
+        <li><div><strong>Dates alone are not enough.</strong> About a third of the transactions inside a trip's dates are salary, gym, subscriptions or groceries at home.</div></li>
+        <li><div><strong>The app can't see money paid to friends.</strong> Adrian's "Whis" −$1,280 is just a Lodging charge.</div></li>
+      </ol></div>
+    </section>
+
+    <section id="scope">
+      <h2>Scope</h2>
+      <p class="lede">What this does, what it leaves out, and what would make it a failure even if it works.</p>
+      <div class="cols">
+        <div class="col"><h3>Goals</h3><ul>
+          <li>Trips as first-class records (name, dates, note)</li>
+          <li>Adding transactions by review, not hunt</li>
+          <li>A Travel page: the year's trips and the budget</li>
+          <li>A trip page with every transaction editable</li>
+          <li>Travel owns the yearly budget</li>
+        </ul></div>
+        <div class="col"><h3>Non-goals</h3><ul>
+          <li>Side-by-side trip comparison</li>
+          <li>Auto-assigning transactions, or AI</li>
+          <li>Detecting money paid to friends</li>
+          <li>Analytics' modal → drawer (follow-up)</li>
+          <li>Other date ranges and category-over-time (separate projects)</li>
+        </ul></div>
+        <div class="col"><h3>Anti-goals</h3><ul>
+          <li>A read-only transaction list</li>
+          <li>A new colour palette</li>
+          <li>A budget prompt that nags</li>
+        </ul></div>
+      </div>
+    </section>
+
+    <section id="constraints">
+      <h2>Constraints</h2>
+      <div class="card"><ul>
+        <li><strong>One transaction editor.</strong> Every row in Travel opens the existing <code>TransactionDrawer</code>, fully editable, with ‹ › stepping through the rows shown. No bespoke editor, no modal.</li>
+        <li>Push drawers over modals: the existing <code>Drawer</code> with <code>DRAWER_PUSH_CLASS</code>.</li>
+        <li>Design tokens only (<code>src/app/globals.css</code>). Everything works in light and dark.</li>
+        <li>Schema changes use <code>prisma db push</code>, not <code>migrate dev</code>, which fails with P3006 here.</li>
+        <li><strong>Cloud sync lists each table explicitly</strong> (<code>src/lib/cloud-sync/sync.ts</code>, <code>types.ts</code>). Every new table and column goes into export, import and the Zod payload, or it's silently lost on another device.</li>
+        <li>Vendor-neutral naming in domain code. Amounts: negative = spend, positive = money in. Dates in UTC.</li>
+        <li><strong>Net, not gross</strong> <span class="chip mine">M1</span> · <strong>converted to base currency</strong> <span class="chip mine">M2</span></li>
+        <li>PR against <code>main</code>; no stacked PRs.</li>
+      </ul></div>
+    </section>
+
+    <section id="model">
+      <h2>1 · Data model</h2>
+      <div class="card"><ul>
+        <li><strong>Trip</strong>: id, name, startDate, endDate (inclusive calendar days), createdAt. No note field, which nobody asked for.</li>
+        <li><strong>Transaction → trip</strong>: each transaction is on <strong>at most one</strong> trip, via a nullable trip reference on Transaction. Deleting a trip clears it from its transactions and keeps them.</li>
+        <li><strong>Dismissed suggestions</strong>: the (trip, transaction) pairs left unticked in a review.</li>
+        <li><strong>Split transactions</strong>: the parts are assigned and counted, never the split parent (<code>isSplitParent: false</code>, as goals do).</li>
+      </ul></div>
+    </section>
+
+    <section id="convert">
+      <h2>2 · Converting the existing trip tags</h2>
+      <p class="lede">A one-off script, run once. Its writes reach other devices through normal sync.</p>
+      <div class="card"><ol class="numbered">
+        <li><div>Tags matching <code>^\d{4} - </code> become trips <span class="chip mine">M4</span>: Austria/Italy, Bayfield, California, Costa Rica, Miami, Mt Tremblant and Whistler. The "2026 - " prefix is dropped and each tag's transactions are assigned to its trip.</div></li>
+        <li><div>Dates come from the trip's Travel-category spending, <strong>excluding Flights and Lodging</strong> because those are booked early. If there's none, they come from all of its transactions. The dry run lists every guessed date, and you correct any wrong ones with Edit trip. Nothing extra is stored for this.</div></li>
+        <li><div>A backup, a dry-run summary, and safe to run twice <span class="chip mine">M5</span>.</div></li>
+        <li><div>The converted tags are removed from their transactions and deleted. No goal may be left pointing at a deleted tag. The "2026 Travel Budget" switches to the new tracking method.</div></li>
+      </ol></div>
+    </section>
+
+    <section id="suggest">
+      <h2>3 · Suggestions</h2>
+      <p class="lede">Step 2 of creating a trip, and what "Review suggestions" opens. Candidates are <strong>not on any trip</strong>, not transfers between your own accounts, not split parents, and not dismissed for this trip.</p>
+      <table class="md">
+        <tr><th>Group</th><th>Rule</th><th>Pre-ticked</th></tr>
+        <tr><td>Booked before</td><td>Flights or Lodging in the 4 months before the start date</td><td class="yes">Yes</td></tr>
+        <tr><td>During</td><td>Travel category group, dated start–end</td><td class="yes">Yes</td></tr>
+        <tr><td>Other spending during</td><td>Any other spending dated start–end, except income and recurring transactions such as subscriptions</td><td class="no">No</td></tr>
+        <tr><td>After: Travel</td><td>Travel-category transactions in the 3 weeks after the end date <span class="chip mine">M3</span></td><td class="yes">Yes</td></tr>
+        <tr><td>After: other money in</td><td>Any other incoming money in those 3 weeks, except income categories and recurring. Friend paybacks land here. <span class="chip mine">M3</span></td><td class="no">No</td></tr>
+      </table>
+      <h3 class="sub">How the list behaves</h3>
+      <div class="card"><ul>
+        <li>Each row shows the merchant, date, category, amount and why it's suggested (e.g. "46 days before"). The footer button is <strong>Add N transactions</strong>, where N is the number ticked, or <strong>Dismiss all</strong> when nothing is ticked.</li>
+        <li>Unticked rows are dismissed for that trip <span class="chip mine">M7</span>.</li>
+        <li><strong>Review suggestions · N</strong> on the trip page reopens the list with only new candidates: ones not yet added or dismissed, such as a late rental-car bill. The button is hidden at 0.</li>
+        <li>Editing a trip's dates keeps what you added and what you dismissed <span class="chip mine">M6</span>.</li>
+        <li>Nothing joins a trip without a tick.</li>
+      </ul></div>
+    </section>
+
+    <section id="travel">
+      <h2>4 · Travel page <span class="chip route">/travel</span></h2>
+      <p class="lede">Mock A.</p>
+      <div class="card"><ul>
+        <li><strong>Header</strong>: a "Travel" caption, the year as the title, the year chip <span class="chip agreed">A5</span>, and <strong>+ New trip</strong>.</li>
+        <li><strong>Three cards</strong>
+          <ul>
+            <li><strong>Travel budget</strong>: spent, target, a bar (red when over), "$X over" or "$X left". With no budget for the year, it offers to set one.</li>
+            <li><strong>Trips</strong>: the number of trips starting that year and their total days.</li>
+            <li><strong>vs last year</strong>: this year's budget-spent figure against last year's, or "—" with a note unless history reaches January 1 of last year, so a partial year is never compared.</li>
+          </ul></li>
+        <li><strong>Trip list, biggest total first</strong>: Trip · Dates · Where it went · Per day · Total.
+          <ul>
+            <li><strong>Where it went</strong> is a split bar in one hue at decreasing strength <span class="chip agreed">A4</span>. A legend names the top three with their percentages. There are no hover details.</li>
+            <li>Per day = total ÷ days (inclusive). A row opens the trip page.</li>
+          </ul></li>
+        <li><strong>Not on a trip</strong>: a row under the trips for Travel-category spending that year on no trip, with total and count. It opens a list whose rows open the transaction drawer.</li>
+      </ul></div>
+    </section>
+
+    <section id="trip">
+      <h2>5 · Trip page <span class="chip route">/travel/[id]</span></h2>
+      <p class="lede">Mock C.</p>
+      <div class="card"><ul>
+        <li><strong>Header</strong>: a "Travel · 2026" caption, the name, dates and days, <strong>Edit trip</strong>, and <strong>Review suggestions · N</strong> when N &gt; 0.</li>
+        <li><strong>Four cards</strong>
+          <ul>
+            <li><strong>Total</strong>: net, with the transaction count.</li>
+            <li><strong>Per day</strong>: with the year's average across trips.</li>
+            <li><strong>Booked ahead</strong>: spend dated before the start.</li>
+            <li><strong>Money back</strong>: incoming money on the trip, already taken off the total.</li>
+          </ul></li>
+        <li><strong>By category</strong>: bars in the same tonal scale, biggest first.</li>
+        <li><strong>Transactions</strong>: the Transactions table's columns (Date, Merchant, Category, Amount), grouped into <strong>Before / During / After</strong>. A click pushes in the shared transaction drawer <span class="chip agreed">A3</span>. The open row is highlighted, and ‹ › step through the trip's transactions.</li>
+      </ul></div>
+    </section>
+
+    <section id="drawer">
+      <h2>6 · Trip drawer</h2>
+      <p class="lede">Mock B. One push drawer for New trip and Edit trip.</p>
+      <div class="card"><ol class="numbered">
+        <li><div><strong>Details</strong>: Name, Leave and Return (the mock's Note field is cut), with Cancel / Next: find transactions. A trip can be created before you go, and suggestions then build up as transactions arrive.</div></li>
+        <li><div><strong>Add transactions</strong>: the suggestions list.</div></li>
+      </ol></div>
+      <div class="callout"><b>Edit trip</b>opens step 1 filled in, with <strong>Delete trip</strong> at the bottom. It uses the same inline confirm as Delete transaction, and deleting keeps the transactions.</div>
+    </section>
+
+    <section id="txdrawer">
+      <h2>7 · Transaction drawer change</h2>
+      <div class="card"><ul>
+        <li><code>DetailsSection</code> gains a <strong>Trip</strong> field: a select of trips, most recent first, plus "None". It saves immediately, like category and tags.</li>
+        <li>That's how a transaction joins or leaves a trip from anywhere, including the Transactions page and the review queue.</li>
+      </ul></div>
+    </section>
+
+    <section id="budget">
+      <h2>8 · Travel budget</h2>
+      <p class="lede">Travel owns it <span class="chip agreed">A6</span>. It's still stored as a <code>Goal</code>, so progress and pace come from <code>src/lib/goals.ts</code>, through a new tracking method.</p>
+      <div class="card"><ul>
+        <li><strong>What it counts</strong> <span class="chip agreed">A7</span> <span class="chip agreed">A8</span>: every transaction on a trip <strong>starting</strong> in that year, whatever its date, <strong>plus</strong> every Travel-category transaction on no trip dated in that year, each counted once. So <strong>budget spent = that year's trip totals + Not on a trip</strong>, and the page adds up.</li>
+        <li><strong>A booking made before its trip exists</strong> counts in its own year under Not on a trip, and moves to the trip's year once it's added.</li>
+        <li><strong>Only the budget works this way.</strong> Analytics, the other goals and Reports keep counting by transaction date.</li>
+        <li><strong>Managed in Travel</strong>: one budget per calendar year, amount only. Goals lists it as "Managed in Travel" with a link, and it can't be edited there.</li>
+        <li><strong>Yearly prompt</strong>: with no budget for the current year, a slim app-wide banner says "Set your &lt;year&gt; travel budget" and links to Travel. <strong>Not now</strong> hides it <span class="chip mine">M8</span>. It disappears once a budget is set.</li>
+      </ul></div>
+    </section>
+
+    <section id="analyst">
+      <h2>9 · Finance Analyst</h2>
+      <div class="card"><ul>
+        <li><code>queryTransactions</code> filters by tag today. It also needs to filter by trip, and the analyst needs a way to list trips, so trip questions keep working once trip tags are gone.</li>
+      </ul></div>
+    </section>
+
+    <section id="engineering">
+      <h2>10 · Engineering</h2>
+      <p class="lede">DRY &gt; YAGNI &gt; SOLID, in that order <span class="chip agreed">A9</span>. Every task in the plan is judged against this.</p>
+      <h3 class="sub">DRY: extract, don't copy</h3>
+      <div class="card"><ul>
+        <li><strong>Shared <code>TransactionTable</code></strong>, pulled out of <code>transactions/page.tsx</code>: the Date / Merchant / Category / Account / Amount rows, the open-row highlight, and optional group headings for Before / During / After. Transactions and the trip page both use it, and Analytics will later.</li>
+        <li><strong>A shared drawer hook</strong>, pulled out of the Transactions page: the drawer's state and handle, open, close, step through the shown list, update a row in place after a save, and refresh. Any page with a transaction list gets the drawer from this hook.</li>
+        <li><strong>A shared period picker</strong>, pulled out of Analytics' month picker, with a month mode and a year mode. Analytics switches to it too.</li>
+        <li><strong>One budget calculation.</strong> The Travel budget card and Goals both call <code>calculateGoalProgress</code>. The travel tracking method gets its yearly figure from <code>TravelService</code>, the same code that builds the page's trip totals and Not on a trip, so the card and the page can't disagree.</li>
+        <li><strong>One "categories in a group" helper</strong>, pulled out of <code>goals.ts</code> (a group means its child categories). The category goal, suggestions and the budget all use it.</li>
+        <li><strong>Reuse what exists</strong>: recurring transactions come from <code>src/lib/recurring.ts</code>, currency from <code>getCurrencySettings</code> / <code>convertAmount</code>, and the push drawer is the existing <code>Drawer</code>.</li>
+      </ul></div>
+      <h3 class="sub">YAGNI: cut</h3>
+      <div class="card"><ul>
+        <li>The trip <strong>Note</strong> field.</li>
+        <li><strong>"Check these dates"</strong> and any stored "dates confirmed" flag. The conversion's dry run covers it.</li>
+        <li>A conversion that runs <strong>on first visit</strong>. It's a script.</li>
+        <li><strong>Hover details</strong> on the bar segments.</li>
+        <li><strong>Interfaces with only one implementation</strong>, such as a trip repository.</li>
+        <li><strong>Kept on purpose</strong>: the dismissed-suggestions table, because without it the review count could never reach 0.</li>
+      </ul></div>
+      <h3 class="sub">SOLID: shape of <code>src/lib/travel/</code></h3>
+      <div class="card"><ul>
+        <li><strong><code>TripSuggester</code></strong> runs a list of <strong>suggestion rule objects</strong>, one per group: Before, During, Other during, After. Each rule says which transactions it matches, whether they're pre-ticked, and why. Adding a group means adding a rule, not editing a switch. This is the same pattern as <code>RecurringDetectionStrategy</code>.</li>
+        <li><strong><code>TravelService</code></strong> handles trip totals, per day, Money back, booked ahead, the year view, Not on a trip, and the budget's yearly figure. The database, clock and currency settings are passed in.</li>
+        <li><strong><code>createTravelServices</code></strong> is the one place these are wired together, like <code>createInvestmentServices</code>. Routes take services from it, and tests pass in a fixed clock and a test database instead of mocking modules.</li>
+        <li><strong>Goal tracking becomes a lookup table</strong> with one calculator per method (category, tag, account, travel), replacing the if/else chain in <code>goals.ts</code>. Travel's calculator plugs in without touching the others.</li>
+        <li>Each file does one job: rules, service, routes and components stay separate. Pages render, and they don't calculate.</li>
+      </ul></div>
+    </section>
+
+    <section id="builder">
+      <h2>Left to the builder</h2>
+      <div class="card"><ul>
+        <li>API shape, file layout, component split, and whether the trip list and trip page share loaders.</li>
+        <li>How the shades come from <code>--accent</code>. The mock uses <code>color-mix</code>.</li>
+        <li>Empty states: no trips in a year, a trip with no transactions.</li>
+      </ul></div>
+    </section>
+
+    <section id="testing">
+      <h2>Testing</h2>
+      <div class="cols">
+        <div class="col"><h3>Unit</h3><ul>
+          <li>Each suggestion group's window and categories, and every exclusion</li>
+          <li>Per-day and total maths, Money back, booked ahead</li>
+          <li>The budget rule: trip year, no double counting</li>
+          <li>The tag conversion and its date guess</li>
+        </ul></div>
+        <div class="col"><h3>Component</h3><ul>
+          <li>Trip drawer steps, Add N, and that unticked rows are dismissed</li>
+          <li>The review count, hidden at 0</li>
+          <li>A trip row opens the shared transaction drawer</li>
+          <li>The Trip field saves immediately</li>
+          <li>Goals shows the budget as managed in Travel</li>
+        </ul></div>
+        <div class="col"><h3>Integration</h3><ul>
+          <li>A sync round-trip carries trips, assignments and dismissals</li>
+        </ul></div>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  btn.addEventListener('click', function () {
+    var r = document.documentElement;
+    var dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (a) { a.classList.remove('active'); });
+        var a = map[e.target.id]; if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+})();
+</script>
+</body>
+</html>

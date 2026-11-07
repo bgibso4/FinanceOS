@@ -4,6 +4,8 @@ import { subMonths } from 'date-fns';
 import type { PrismaClient } from '@prisma/client';
 import type { ChartSpec } from '@/lib/types';
 import { getAccountBalances } from '@/lib/balances';
+import { createTravelServices } from '@/lib/travel/services';
+import { parseTags } from '@/lib/transaction-rows';
 
 // ---------------------------------------------------------------------------
 // 1. executeGetCategories
@@ -37,6 +39,7 @@ type QueryTransactionsParams = {
   category?: string;
   merchant?: string;
   tag?: string;
+  trip?: string;
   minAmount?: number;
   maxAmount?: number;
   limit?: number;
@@ -54,6 +57,7 @@ export async function executeQueryTransactions(
     account: string;
     note: string | null;
     tags: string[];
+    trip: string | null;
   }[];
   total: number;
 }> {
@@ -74,6 +78,10 @@ export async function executeQueryTransactions(
   if (params.tag) {
     where.tags = { contains: params.tag };
   }
+  if (params.trip) {
+    // SQLite `contains` is a LIKE, case-insensitive for ASCII, like the merchant filter above.
+    where.trip = { name: { contains: params.trip } };
+  }
   if (params.minAmount !== undefined || params.maxAmount !== undefined) {
     where.amount = {};
     if (params.minAmount !== undefined) where.amount.gte = params.minAmount;
@@ -88,6 +96,7 @@ export async function executeQueryTransactions(
       merchant: true,
       note: true,
       tags: true,
+      trip: { select: { name: true } },
       category: { select: { name: true } },
       account: { select: { name: true } },
     },
@@ -103,6 +112,7 @@ export async function executeQueryTransactions(
     account: t.account.name,
     note: t.note ?? null,
     tags: parseTags(t.tags),
+    trip: t.trip?.name ?? null,
   }));
 
   return { transactions: sanitized, total: sanitized.length };
@@ -466,17 +476,39 @@ export function executeGenerateChart(params: GenerateChartParams): ChartSpec {
 }
 
 // ---------------------------------------------------------------------------
-// Helper
+// 11. executeListTrips
 // ---------------------------------------------------------------------------
 
-function parseTags(tags: string | null | undefined): string[] {
-  if (!tags) return [];
-  try {
-    const parsed = JSON.parse(tags);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+const TOP_CATEGORIES = 3;
+
+export async function executeListTrips(prisma: PrismaClient): Promise<
+  {
+    name: string;
+    startDate: string;
+    endDate: string;
+    spend: number;
+    perDay: number;
+    topCategories: { name: string; share: number }[];
+  }[]
+> {
+  const { trips, totals } = createTravelServices({ prisma });
+  const summaries = await Promise.all((await trips.list()).map((t) => totals.trip(t.id)));
+  return summaries.flatMap((s) =>
+    s
+      ? [
+          {
+            name: s.name,
+            startDate: s.startDate,
+            endDate: s.endDate,
+            spend: s.spend,
+            perDay: s.perDay,
+            topCategories: s.categories
+              .slice(0, TOP_CATEGORIES)
+              .map((c) => ({ name: c.name, share: c.share })),
+          },
+        ]
+      : []
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -493,13 +525,14 @@ export function createAgentTools(prisma: PrismaClient) {
 
     queryTransactions: tool({
       description:
-        'Search and filter transactions by date range, category, merchant, tag, or amount. Returns up to 100 results. Use the tag filter to find transactions for trips, events, or projects.',
+        'Search and filter transactions by date range, category, merchant, tag, or amount. Returns up to 100 results. Use the trip filter for a named trip; the tag filter is for events or projects.',
       inputSchema: z.object({
         startDate: z.string().describe('Start date in YYYY-MM-DD format'),
         endDate: z.string().describe('End date in YYYY-MM-DD format'),
         category: z.string().optional().describe('Filter by category name'),
         merchant: z.string().optional().describe('Filter by merchant name (partial match)'),
-        tag: z.string().optional().describe('Filter by tag (e.g. trip name, event, project)'),
+        tag: z.string().optional().describe('Filter by tag (e.g. event, project)'),
+        trip: z.string().optional().describe('Filter by trip name (case-insensitive)'),
         minAmount: z.number().optional().describe('Minimum transaction amount'),
         maxAmount: z.number().optional().describe('Maximum transaction amount'),
         limit: z.number().optional().describe('Maximum number of results to return (default 100)'),
@@ -573,6 +606,13 @@ export function createAgentTools(prisma: PrismaClient) {
           .describe('Filter by status: active, paused, cancelled, or lapsed'),
       }),
       execute: async (params: RecurringParams) => executeGetRecurringTransactions(prisma, params),
+    }),
+
+    listTrips: tool({
+      description:
+        'List trips, newest first, with total spend, spend per day and top spending categories.',
+      inputSchema: z.object({}),
+      execute: async () => executeListTrips(prisma),
     }),
 
     generateChart: tool({

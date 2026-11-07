@@ -4,9 +4,15 @@ import { useState } from 'react';
 
 interface DeleteZoneProps {
   onDelete: () => Promise<void>;
+  label?: string;
+  confirmText?: string;
 }
 
-export function DeleteZone({ onDelete }: DeleteZoneProps) {
+export function DeleteZone({
+  onDelete,
+  label = 'Delete transaction',
+  confirmText = 'Delete this transaction for good?',
+}: DeleteZoneProps) {
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
 
@@ -39,14 +45,14 @@ export function DeleteZone({ onDelete }: DeleteZoneProps) {
         >
           <path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14M10 11v6m4-6v6" />
         </svg>
-        Delete transaction
+        {label}
       </button>
     );
   }
 
   return (
     <div className="flex flex-col items-center gap-3 text-sm">
-      <span className="text-[var(--text-secondary)]">Delete this transaction for good?</span>
+      <span className="text-[var(--text-secondary)]">{confirmText}</span>
       <div className="flex items-center gap-2">
         <button
           className="h-10 rounded-[10px] border border-[var(--border-hover)] px-5 text-[var(--text-secondary)] hover:bg-[var(--bg-card)]"

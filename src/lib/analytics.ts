@@ -1,31 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { endOfMonth, isAfter, isBefore, startOfMonth, subMonths } from 'date-fns';
 import { FilterParams } from './types';
-import { convertAmount, parseExchangeRates } from './currency';
-
-// Helper to get exchange rates and base currency from database
-async function getCurrencySettings(prisma: PrismaClient) {
-  const [rates, settings] = await Promise.all([
-    prisma.exchangeRate.findMany(),
-    prisma.userSettings.findFirst(),
-  ]);
-
-  const rateMap = parseExchangeRates(rates);
-  const baseCurrency = settings?.baseCurrency || 'USD';
-
-  return { rateMap, baseCurrency };
-}
-
-// Helper to convert transaction amount to base currency
-function convertTransactionAmount(
-  amount: number,
-  accountCurrency: string,
-  baseCurrency: string,
-  rateMap: Map<string, number>
-): number {
-  if (accountCurrency === baseCurrency) return amount;
-  return convertAmount(amount, accountCurrency, baseCurrency, rateMap);
-}
+import { loadCurrencySettings, toBase } from './currency';
 
 /**
  * Decide whether a transaction belongs to the income or spending totals.
@@ -64,7 +40,7 @@ export async function dashboardAnalytics(
   endDate: Date
 ) {
   // Get currency settings
-  const { rateMap, baseCurrency } = await getCurrencySettings(prisma);
+  const currencySettings = await loadCurrencySettings(prisma);
 
   // Get cash_flow accounts for budgeting (excludes balance_only accounts like investments)
   const cashFlowAccounts = await prisma.account.findMany({
@@ -144,18 +120,8 @@ export async function dashboardAnalytics(
     const returnAmount = returnAmounts.get(tx.id) || 0;
 
     // Convert to base currency
-    const convertedAmount = convertTransactionAmount(
-      amount,
-      accountCurrency,
-      baseCurrency,
-      rateMap
-    );
-    const convertedReturnAmount = convertTransactionAmount(
-      returnAmount,
-      accountCurrency,
-      baseCurrency,
-      rateMap
-    );
+    const convertedAmount = toBase(amount, accountCurrency, currencySettings);
+    const convertedReturnAmount = toBase(returnAmount, accountCurrency, currencySettings);
 
     const bucket = bucketForTransaction(amount, tx.category?.type);
     if (bucket === 'income') {
@@ -246,18 +212,8 @@ export async function dashboardAnalytics(
     const returnAmount = prevReturnAmounts.get(tx.id) || 0;
 
     // Convert to base currency
-    const convertedAmount = convertTransactionAmount(
-      amount,
-      accountCurrency,
-      baseCurrency,
-      rateMap
-    );
-    const convertedReturnAmount = convertTransactionAmount(
-      returnAmount,
-      accountCurrency,
-      baseCurrency,
-      rateMap
-    );
+    const convertedAmount = toBase(amount, accountCurrency, currencySettings);
+    const convertedReturnAmount = toBase(returnAmount, accountCurrency, currencySettings);
 
     const bucket = bucketForTransaction(amount, tx.category?.type);
     if (bucket === 'income') {
@@ -293,18 +249,8 @@ export async function dashboardAnalytics(
     };
 
     // Add all transactions (positive and negative) to get net amount per category
-    const convertedAmount = convertTransactionAmount(
-      txAmount,
-      accountCurrency,
-      baseCurrency,
-      rateMap
-    );
-    const convertedReturnAmount = convertTransactionAmount(
-      returnAmount,
-      accountCurrency,
-      baseCurrency,
-      rateMap
-    );
+    const convertedAmount = toBase(txAmount, accountCurrency, currencySettings);
+    const convertedReturnAmount = toBase(returnAmount, accountCurrency, currencySettings);
 
     if (txAmount < 0) {
       // For expenses, subtract any returns
@@ -338,21 +284,11 @@ export async function dashboardAnalytics(
     if (amount < 0) {
       // For expenses, subtract any returns
       const netAmount = Math.abs(amount) - returnAmount;
-      const convertedNetAmount = convertTransactionAmount(
-        netAmount,
-        accountCurrency,
-        baseCurrency,
-        rateMap
-      );
+      const convertedNetAmount = toBase(netAmount, accountCurrency, currencySettings);
       prevCategoryTotals[key] += convertedNetAmount;
     } else {
       // For income/credits, subtract from the category total
-      const convertedAmount = convertTransactionAmount(
-        amount,
-        accountCurrency,
-        baseCurrency,
-        rateMap
-      );
+      const convertedAmount = toBase(amount, accountCurrency, currencySettings);
       prevCategoryTotals[key] -= convertedAmount;
     }
   }
@@ -402,24 +338,14 @@ export async function dashboardAnalytics(
   for (const tx of transactions) {
     if (Number(tx.amount) >= 0) continue;
     const accountCurrency = tx.account?.currency || 'USD';
-    const convertedAmount = convertTransactionAmount(
-      Math.abs(Number(tx.amount)),
-      accountCurrency,
-      baseCurrency,
-      rateMap
-    );
+    const convertedAmount = toBase(Math.abs(Number(tx.amount)), accountCurrency, currencySettings);
     merchantTotals[tx.merchant] = (merchantTotals[tx.merchant] ?? 0) + convertedAmount;
   }
 
   for (const tx of prevTransactions) {
     if (Number(tx.amount) >= 0) continue;
     const accountCurrency = tx.account?.currency || 'USD';
-    const convertedAmount = convertTransactionAmount(
-      Math.abs(Number(tx.amount)),
-      accountCurrency,
-      baseCurrency,
-      rateMap
-    );
+    const convertedAmount = toBase(Math.abs(Number(tx.amount)), accountCurrency, currencySettings);
     prevMerchantTotals[tx.merchant] = (prevMerchantTotals[tx.merchant] ?? 0) + convertedAmount;
   }
 
@@ -441,12 +367,7 @@ export async function dashboardAnalytics(
     const accountCurrency = tx.account?.currency || 'USD';
     const amount = Number(tx.amount);
     const returnAmount = returnAmounts.get(tx.id) || 0;
-    const convertedAmount = convertTransactionAmount(
-      amount,
-      accountCurrency,
-      baseCurrency,
-      rateMap
-    );
+    const convertedAmount = toBase(amount, accountCurrency, currencySettings);
     const bucket = bucketForTransaction(amount, tx.category?.type);
 
     if (bucket === 'income') {
@@ -454,12 +375,7 @@ export async function dashboardAnalytics(
     } else if (amount < 0) {
       // Apply returns to reduce spending (converted)
       const netSpending = Math.abs(amount) - returnAmount;
-      const convertedNetSpending = convertTransactionAmount(
-        netSpending,
-        accountCurrency,
-        baseCurrency,
-        rateMap
-      );
+      const convertedNetSpending = toBase(netSpending, accountCurrency, currencySettings);
       monthBuckets[month].spending += convertedNetSpending;
     } else {
       // Positive in an expense category — reduces that month's spending

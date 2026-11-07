@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/cn';
@@ -10,18 +10,16 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { DRAWER_PUSH_CLASS } from '@/components/ui/drawer';
 import { ds } from '@/lib/design-system';
-import { formatAmountCompact, getCurrencyFlag } from '@/lib/currency';
 import { triggerSync } from '@/lib/cloud-sync';
 import { FilterRibbon } from '@/components/filter-ribbon';
 import type { TagDef } from '@/components/tag-input';
 import { CategorySelect } from '@/components/transactions/category-select';
 import { SubscriptionsTab } from '@/components/subscriptions-tab';
-import {
-  TransactionDrawer,
-  type TransactionDrawerHandle,
-} from '@/components/transactions/transaction-drawer';
-import { applyFields } from '@/components/transactions/types';
-import type { Category, Tx, TxFields } from '@/components/transactions/types';
+import { postTag } from '@/components/transactions/create-tag';
+import { TransactionDrawer } from '@/components/transactions/transaction-drawer';
+import { TransactionTable, formatCurrency } from '@/components/transactions/transaction-table';
+import { useTransactionDrawer } from '@/components/transactions/use-transaction-drawer';
+import type { Category, Tx } from '@/components/transactions/types';
 
 type Queue = {
   uncategorized: Tx[];
@@ -30,9 +28,6 @@ type Queue = {
   unlinkedReturns: Tx[];
   outliers: Tx[];
 };
-
-type OpenOpts = { startLinking?: boolean };
-type DrawerTarget = { mode: 'edit'; id: string; linkRequest?: number } | { mode: 'new' } | null;
 
 const QUEUE_ORDER = [
   'uncategorized',
@@ -52,29 +47,8 @@ function reviewList(queue: Queue | null): Tx[] {
   });
 }
 
-// Reaches past the page's filter, e.g. to a refund's original from months back.
-async function fetchLastYear(): Promise<Tx[] | null> {
-  try {
-    const res = await fetch('/api/transactions?preset=last-12-months');
-    const data: { transactions?: Tx[] } = await res.json();
-    return data.transactions ?? [];
-  } catch {
-    return null;
-  }
-}
-
-const patchRow = (list: Tx[], id: string, fields: TxFields, categories: Category[]) =>
-  list.map((t) => (t.id === id ? applyFields(t, fields, categories) : t));
-
-const SELECTED_ROW_STYLE = { background: 'color-mix(in srgb, var(--accent) 9%, transparent)' };
-const SELECTED_BAR_STYLE = { boxShadow: 'inset 3px 0 0 var(--accent)' };
-
 type UserSettings = {
   baseCurrency: string;
-};
-
-const formatCurrency = (amount: number, currency?: string, baseCurrency: string = 'USD') => {
-  return formatAmountCompact(amount, currency || 'USD', baseCurrency);
 };
 
 function TransactionsPageContent() {
@@ -88,19 +62,6 @@ function TransactionsPageContent() {
   const [pendingCategories, setPendingCategories] = useState<Record<string, string>>({});
   const [pendingNotes, setPendingNotes] = useState<Record<string, string>>({});
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
-  const [drawer, setDrawer] = useState<DrawerTarget>(null);
-  const [drawerSnapshot, setDrawerSnapshot] = useState<Tx | null>(null);
-  const drawerRef = useRef<TransactionDrawerHandle>(null);
-  // An id the drawer asked for that the lists don't hold yet, and the refresh that should bring it.
-  const [pendingOpen, setPendingOpen] = useState<{
-    id: string;
-    opts?: OpenOpts;
-    after: number;
-  } | null>(null);
-  const refreshesStarted = useRef(0);
-  const [refreshesDone, setRefreshesDone] = useState(0);
-  // Bumped per link request so asking again on the already-open transaction reopens the search.
-  const linkRequests = useRef(0);
 
   // Tag state
   const [availableTags, setAvailableTags] = useState<TagDef[]>([]);
@@ -236,19 +197,10 @@ function TransactionsPageContent() {
   };
 
   const createTag = async (name: string): Promise<TagDef | null> => {
-    try {
-      const res = await fetch('/api/tags', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, color: 'blue' }),
-      });
-      if (!res.ok) return null;
-      const tag = await res.json();
+    const tag = await postTag(name);
+    if (tag)
       setAvailableTags((prev) => [...prev, tag].sort((a, b) => a.name.localeCompare(b.name)));
-      return tag;
-    } catch {
-      return null;
-    }
+    return tag;
   };
 
   useEffect(() => {
@@ -292,8 +244,7 @@ function TransactionsPageContent() {
     setAvailableTags(tagsData.tags ?? []);
   };
 
-  const refreshTransactionsAndQueue = async () => {
-    const seq = ++refreshesStarted.current;
+  const loadLists = async () => {
     const queryParams = new URLSearchParams();
     const preset = searchParams.get('preset');
     const account = searchParams.get('account');
@@ -313,19 +264,12 @@ function TransactionsPageContent() {
 
     const queryString = queryParams.toString();
 
-    try {
-      const [queueData, txData] = await Promise.all([
-        fetch('/api/review-queue').then((r) => r.json()),
-        fetch(`/api/transactions${queryString ? `?${queryString}` : ''}`).then((r) => r.json()),
-      ]);
-      setQueue(queueData);
-      setTransactions(txData.transactions ?? []);
-    } catch (err) {
-      console.error('Failed to refresh transactions', err);
-    } finally {
-      // A pending open waits on this count, so a failed refresh must advance it too.
-      setRefreshesDone((done) => Math.max(done, seq));
-    }
+    const [queueData, txData] = await Promise.all([
+      fetch('/api/review-queue').then((r) => r.json()),
+      fetch(`/api/transactions${queryString ? `?${queryString}` : ''}`).then((r) => r.json()),
+    ]);
+    setQueue(queueData);
+    setTransactions(txData.transactions ?? []);
   };
 
   const setPendingCategory = (transactionId: string, categoryId: string) => {
@@ -343,109 +287,28 @@ function TransactionsPageContent() {
   };
 
   const drawerList = tab === 'review' ? reviewList(queue) : transactions;
-  const openId = drawer?.mode === 'edit' ? drawer.id : null;
-  const listedTx = openId
-    ? (drawerList.find((t) => t.id === openId) ?? transactions.find((t) => t.id === openId))
-    : undefined;
-  // A refresh can drop the open transaction from every list; the drawer stays on it regardless.
-  const drawerTx = listedTx ?? (drawerSnapshot?.id === openId ? drawerSnapshot : null);
-
-  useEffect(() => {
-    if (listedTx) setDrawerSnapshot(listedTx);
-  }, [listedTx]);
-
-  const isListed = (id: string) =>
-    drawerList.some((t) => t.id === id) || transactions.some((t) => t.id === id);
-
-  const editTarget = (id: string, opts?: OpenOpts): DrawerTarget =>
-    opts?.startLinking
-      ? { mode: 'edit', id, linkRequest: ++linkRequests.current }
-      : { mode: 'edit', id };
-
-  // Ids outside the lists (new split parts, an unsplit original, an older refund original)
-  // resolve after a refresh or a wider lookup; meanwhile the drawer stays where it is.
-  const onDrawerOpen = (id: string, opts?: OpenOpts) => {
-    if (drawer?.mode === 'edit' && !isListed(id)) {
-      if (refreshesDone >= refreshesStarted.current) void refreshTransactionsAndQueue();
-      setPendingOpen({ id, opts, after: refreshesStarted.current });
-      return;
-    }
-    setPendingOpen(null);
-    setDrawer(editTarget(id, opts));
-  };
-
-  const pendingListed = pendingOpen ? isListed(pendingOpen.id) : false;
-  const currentListed = openId ? isListed(openId) : false;
-  useEffect(() => {
-    if (!pendingOpen) return;
-    const { id, opts } = pendingOpen;
-    if (pendingListed) {
-      setDrawer(editTarget(id, opts));
-      setPendingOpen(null);
-      return;
-    }
-    if (refreshesDone < pendingOpen.after) return;
-    // Still missing after the refresh: look wider; the snapshot then carries it outside the list.
-    let stale = false;
-    void fetchLastYear().then((year) => {
-      if (stale) return;
-      const tx = year?.find((t) => t.id === id);
-      if (tx) {
-        setDrawerSnapshot(tx);
-        setDrawer(editTarget(id, opts));
-      } else if (year && !currentListed && !year.some((t) => t.id === openId)) {
-        // A miss stays on the current transaction, unless that is gone too (e.g. after unsplit).
-        setDrawer(null);
-      }
-      setPendingOpen(null);
-    });
-    return () => {
-      stale = true;
-    };
-  }, [pendingOpen, pendingListed, refreshesDone, openId, currentListed]);
-
-  const drawerState =
-    drawer?.mode === 'new'
-      ? drawer
-      : drawer && drawerTx
-        ? { mode: 'edit' as const, tx: drawerTx, linkRequest: drawer.linkRequest }
-        : null;
-  // Layout follows what is shown: an opened id that never loads leaves the page unpushed.
-  const drawerOpen = drawerState !== null;
-
-  // Opens go through the drawer so a pending edit is saved before it switches.
-  // Clicking the row that is already open closes the drawer.
-  const openTransaction = (id: string, opts?: OpenOpts) => {
-    if (!opts && drawerState?.mode === 'edit' && drawerState.tx.id === id) {
-      void drawerRef.current?.close();
-      return;
-    }
-    void drawerRef.current?.open(id, opts);
-  };
-  const openNewTransaction = () => void drawerRef.current?.openNew();
-
-  // Applied to the current rows, not the drawer's copy: a queued save may hold a stale one.
-  const onRowSaved = (id: string, fields: TxFields) => {
-    const patch = (list: Tx[]) => patchRow(list, id, fields, categories);
-    setTransactions(patch);
-    setQueue(
-      (prev) =>
-        prev && {
-          uncategorized: patch(prev.uncategorized),
-          lowConfidence: patch(prev.lowConfidence),
-          highConfidence: patch(prev.highConfidence),
-          unlinkedReturns: patch(prev.unlinkedReturns),
-          outliers: patch(prev.outliers),
-        }
-    );
-    setDrawerSnapshot((prev) => prev && patch([prev])[0]);
-  };
-
-  const closeDrawer = () => {
-    setPendingOpen(null);
-    setDrawer(null);
-    refreshTransactionsAndQueue();
-  };
+  const drawer = useTransactionDrawer({
+    list: drawerList,
+    lookup: transactions,
+    refresh: loadLists,
+    categories,
+    patchRows: (patch) => {
+      setTransactions(patch);
+      setQueue(
+        (prev) =>
+          prev && {
+            uncategorized: patch(prev.uncategorized),
+            lowConfidence: patch(prev.lowConfidence),
+            highConfidence: patch(prev.highConfidence),
+            unlinkedReturns: patch(prev.unlinkedReturns),
+            outliers: patch(prev.outliers),
+          }
+      );
+    },
+  });
+  const { openId, openTransaction } = drawer;
+  // Every refresh goes through the drawer's, so a pending open waits on one already running.
+  const refreshTransactionsAndQueue = drawer.drawerProps.onChanged;
 
   const submitAllCategories = async () => {
     const categoryUpdates = Object.entries(pendingCategories);
@@ -746,7 +609,7 @@ function TransactionsPageContent() {
   ] as const;
 
   return (
-    <div className={cn('space-y-4', drawerOpen && DRAWER_PUSH_CLASS)}>
+    <div className={cn('space-y-4', drawer.isOpen && DRAWER_PUSH_CLASS)}>
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-[var(--text-primary)]">Transactions</h1>
       </div>
@@ -834,7 +697,7 @@ function TransactionsPageContent() {
               )}
               <Button
                 className="bg-[var(--accent)] text-white hover:bg-[var(--accent)] py-2 px-4 text-sm"
-                onClick={openNewTransaction}
+                onClick={drawer.openNew}
               >
                 + New Transaction
               </Button>
@@ -925,178 +788,19 @@ function TransactionsPageContent() {
           )}
 
           <CardContent className="overflow-x-auto">
-            <table className="min-w-full text-sm table-fixed">
-              <thead className={`text-left ${ds.text.muted}`}>
-                <tr>
-                  <th className="px-3 py-2 w-[100px]">Date</th>
-                  <th className="px-3 py-2">Merchant</th>
-                  <th className="px-3 py-2 w-[200px] whitespace-nowrap">Category</th>
-                  <th className={cn('px-3 py-2 w-[150px]', drawerOpen && 'hidden')}>Account</th>
-                  <th className="px-3 py-2 w-[120px] text-right">Amount</th>
-                  <th className="w-8" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {transactions.map((tx) => (
-                  <tr
-                    key={tx.id}
-                    className={`hover:bg-[var(--bg-elevated)] cursor-pointer transition-colors ${
-                      selectMode && selectedTransactions.has(tx.id)
-                        ? 'bg-[var(--bg-elevated)]'
-                        : tx.isTransfer
-                          ? 'bg-[var(--accent)]/5'
-                          : tx.isOffset
-                            ? 'bg-[var(--accent)]/5'
-                            : tx.amount > 0
-                              ? 'bg-[var(--green)]/5'
-                              : ''
-                    }`}
-                    style={
-                      openId === tx.id
-                        ? SELECTED_ROW_STYLE
-                        : selectMode && selectedTransactions.has(tx.id)
-                          ? SELECTED_BAR_STYLE
-                          : undefined
-                    }
-                    onClick={selectMode ? () => toggleSelection(tx.id) : undefined}
-                  >
-                    <td
-                      className="px-3 py-2 text-[var(--text-muted)] whitespace-nowrap"
-                      style={openId === tx.id ? SELECTED_BAR_STYLE : undefined}
-                      onClick={selectMode ? undefined : () => openTransaction(tx.id)}
-                    >
-                      {tx.date.split('T')[0]}
-                    </td>
-                    <td
-                      className="px-3 py-2"
-                      onClick={selectMode ? undefined : () => openTransaction(tx.id)}
-                    >
-                      <div className="flex items-center gap-2">
-                        {tx.isOffset && <span className="text-[var(--accent)]">↩</span>}
-                        <div>
-                          <div className="text-[var(--text-primary)]">
-                            {tx.merchant}
-                            {tx.parentTransactionId && (
-                              <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)] font-medium">
-                                Split
-                              </span>
-                            )}
-                          </div>
-                          {tx.isOffset && tx.linkedTransaction && (
-                            <div className="text-xs text-[var(--accent)] mt-0.5">
-                              Linked to {tx.linkedTransaction.date.split('T')[0]} transaction
-                            </div>
-                          )}
-                          {!tx.isOffset &&
-                            tx.offsetTransactions &&
-                            tx.offsetTransactions.length > 0 && (
-                              <div className="text-xs text-[var(--accent)] mt-0.5">
-                                Linked $
-                                {tx.offsetTransactions
-                                  .reduce((sum: number, r: any) => sum + Math.abs(r.amount), 0)
-                                  .toFixed(2)}
-                                {tx.offsetTransactions[0] &&
-                                  ` on ${tx.offsetTransactions[0].date.split('T')[0]}`}
-                              </div>
-                            )}
-                          {tx.note && (
-                            <div className="text-xs text-[var(--text-muted)] mt-0.5 italic">
-                              {tx.note}
-                            </div>
-                          )}
-                          {tx.tags && tx.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {tx.tags.map((tagName: string) => {
-                                const tagDef = availableTags.find((t) => t.name === tagName);
-                                const tagColor = tagDef?.color || 'gray';
-                                const cssVar = `var(--tag-${tagColor})`;
-                                return (
-                                  <span
-                                    key={tagName}
-                                    className="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)]"
-                                  >
-                                    <span
-                                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                      style={{ backgroundColor: cssVar }}
-                                    />
-                                    {tagName}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td
-                      className="px-3 py-2 whitespace-nowrap"
-                      onClick={selectMode ? undefined : () => openTransaction(tx.id)}
-                    >
-                      {tx.isTransfer ? (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]">
-                          Transfer
-                        </span>
-                      ) : tx.isOffset ? (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]">
-                          Linked
-                        </span>
-                      ) : tx.category?.name ? (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--text-primary)]">
-                          {tx.category.name}
-                        </span>
-                      ) : (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--red)]/10 text-[var(--red)]">
-                          Uncategorized
-                        </span>
-                      )}
-                    </td>
-                    <td
-                      className={cn(
-                        'px-3 py-2 text-[var(--text-secondary)] text-sm',
-                        drawerOpen && 'hidden'
-                      )}
-                      onClick={selectMode ? undefined : () => openTransaction(tx.id)}
-                    >
-                      {tx.account?.name || '—'}
-                    </td>
-                    <td
-                      className={`px-3 py-2 text-right font-semibold font-mono ${
-                        tx.isTransfer
-                          ? 'text-[var(--accent)]'
-                          : tx.amount > 0
-                            ? 'text-[var(--green)]'
-                            : 'text-[var(--red)]'
-                      }`}
-                      onClick={selectMode ? undefined : () => openTransaction(tx.id)}
-                    >
-                      {tx.amount > 0 ? '+' : ''}
-                      {formatCurrency(tx.amount, tx.account?.currency, userSettings?.baseCurrency)}
-                      {!tx.isOffset &&
-                        tx.offsetTransactions &&
-                        tx.offsetTransactions.length > 0 && (
-                          <div className="text-xs text-[var(--text-muted)] font-normal mt-0.5">
-                            Net:{' '}
-                            {(() => {
-                              // Calculate net based on whether linked transactions are same sign or opposite
-                              const linkedTotal = tx.offsetTransactions.reduce(
-                                (sum: number, r: any) => sum + r.amount,
-                                0
-                              );
-                              const netAmount = tx.amount + linkedTotal;
-                              return formatCurrency(
-                                netAmount,
-                                tx.account?.currency,
-                                userSettings?.baseCurrency
-                              );
-                            })()}
-                          </div>
-                        )}
-                    </td>
-                    <td className="w-8" />
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <TransactionTable
+              availableTags={availableTags}
+              baseCurrency={userSettings?.baseCurrency ?? 'USD'}
+              compact={drawer.isOpen}
+              openId={openId}
+              rows={transactions}
+              select={{
+                active: selectMode,
+                selected: selectedTransactions,
+                toggle: toggleSelection,
+              }}
+              onOpen={openTransaction}
+            />
           </CardContent>
         </Card>
       )}
@@ -1106,23 +810,13 @@ function TransactionsPageContent() {
       )}
 
       <TransactionDrawer
-        ref={drawerRef}
+        ref={drawer.ref}
         accounts={accounts}
         availableTags={availableTags}
         baseCurrency={userSettings?.baseCurrency ?? 'USD'}
         categories={categories}
-        list={drawerList}
-        state={drawerState}
-        onChanged={refreshTransactionsAndQueue}
-        onClose={closeDrawer}
         onCreateTag={createTag}
-        onCreated={closeDrawer}
-        onNew={() => {
-          setPendingOpen(null);
-          setDrawer({ mode: 'new' });
-        }}
-        onOpen={onDrawerOpen}
-        onRowSaved={onRowSaved}
+        {...drawer.drawerProps}
       />
     </div>
   );

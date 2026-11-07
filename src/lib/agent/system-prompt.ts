@@ -21,7 +21,7 @@ Rules:
 - Show breakdowns visually. When the answer compares amounts across categories, merchants or time periods, call generateChart so the user sees it as a chart. For exact figures across several rows (e.g. charges, credits and net per category), use a markdown table. A breakdown can have both: a chart for the shape, a table for the numbers.
 - Never expose internal IDs, hashes, or technical database details to the user.
 - When the user asks about a category group (e.g. "Food & Dining"), include all child categories in that group.
-- When the user refers to a trip, event, or project by name, search for it as a tag using queryTransactions.
+- Trips (not tags) group travel spending: use listTrips for trip totals and queryTransactions with the trip filter for a trip's transactions. Search events or projects by name as a tag.
 
 ${categorySection}`;
 }

@@ -17,28 +17,29 @@ import { SplitEditor } from './split-editor';
 import { SplitSummary } from './split-summary';
 import { signedMoney } from './split-bar';
 import { useAutosave } from './use-autosave';
-import type { Account, Category, Tx, TxFields } from './types';
+import type { Account, Category, TripOption, Tx, TxFields } from './types';
 
-type OpenOpts = { startLinking?: boolean };
+export type OpenOpts = { startLinking?: boolean };
 
 /** For page-level openers (row clicks, New): each saves the pending edit before switching. */
 export type TransactionDrawerHandle = {
   open(id: string, opts?: OpenOpts): Promise<void>;
   openNew(): Promise<void>;
-  /** Saves the pending edit, then closes; stays open if that save fails. */
-  close(): Promise<void>;
+  /** Saves the pending edit, then closes; stays open and answers false if that save fails. */
+  close(): Promise<boolean>;
 };
 
 /** linkRequest is set, and bumped on each request, when the refunds search should open. */
 export type DrawerState = { mode: 'edit'; tx: Tx; linkRequest?: number } | { mode: 'new' } | null;
 
-type Props = {
+export type TransactionDrawerProps = {
   state: DrawerState;
   list: Tx[];
   categories: Category[];
   accounts: Account[];
   availableTags: TagDef[];
   baseCurrency: string;
+  trips: TripOption[];
   onCreateTag: (name: string) => Promise<TagDef | null>;
   onOpen: (id: string, opts?: OpenOpts) => void;
   /** Called by the handle's openNew once pending edits are saved. */
@@ -64,7 +65,7 @@ function headerAmount(amount: number, currency: string | undefined, baseCurrency
 export function TransactionDrawer({
   ref,
   ...props
-}: Props & { ref?: React.Ref<TransactionDrawerHandle> }) {
+}: TransactionDrawerProps & { ref?: React.Ref<TransactionDrawerHandle> }) {
   const { state, list, onOpen, onNew, onClose } = props;
   const tx = state?.mode === 'edit' ? state.tx : null;
   const index = tx ? list.findIndex((t) => t.id === tx.id) : -1;
@@ -81,7 +82,9 @@ export function TransactionDrawer({
   );
 
   const close = useCallback(async () => {
-    if (await flushRef.current()) onClose();
+    if (!(await flushRef.current())) return false;
+    onClose();
+    return true;
   }, [onClose]);
 
   // Each New starts a blank form; the old one keeps its key while it slides out.
@@ -101,12 +104,21 @@ export function TransactionDrawer({
     [open, onNew, close]
   );
 
+  // A save can take the open row out of the list; stepping carries on from where it stood.
+  const lastPlace = useRef<{ id: string; index: number } | null>(null);
+  if (tx && index >= 0) lastPlace.current = { id: tx.id, index };
+
   const step = useCallback(
     async (delta: -1 | 1) => {
-      const target = index < 0 ? undefined : list[index + delta];
+      const place = lastPlace.current;
+      let at = -1;
+      if (index >= 0) at = index + delta;
+      // Its next row has moved up into its old place.
+      else if (place && place.id === tx?.id) at = delta > 0 ? place.index : place.index - 1;
+      const target = list[at];
       if (target) await open(target.id);
     },
-    [index, list, open]
+    [index, list, open, tx?.id]
   );
 
   const stepRef = useRef(step);
@@ -150,7 +162,7 @@ function EditDrawer({
   close,
   flushRef,
   ...props
-}: Props & {
+}: TransactionDrawerProps & {
   tx: Tx | null;
   index: number;
   step: (delta: -1 | 1) => Promise<void>;
@@ -201,7 +213,7 @@ function NewDrawer({
   onCreated,
   close,
   isOpen,
-}: Props & { close: () => void; isOpen: boolean }) {
+}: TransactionDrawerProps & { close: () => void; isOpen: boolean }) {
   const { body, footer } = useNewTransactionForm({
     accounts,
     categories,
@@ -223,7 +235,7 @@ function NewDrawer({
   );
 }
 
-type EditBodyProps = Props & {
+type EditBodyProps = TransactionDrawerProps & {
   tx: Tx;
   index: number;
   linkRequest?: number;
@@ -238,6 +250,7 @@ function EditBody({
   categories,
   availableTags,
   baseCurrency,
+  trips,
   linkRequest,
   flushRef,
   open,
@@ -329,6 +342,7 @@ function EditBody({
         availableTags={availableTags}
         categories={categories}
         splitSlot={splitSlot}
+        trips={trips}
         tx={tx}
         onCreateTag={onCreateTag}
         onEdit={autosave.edit}
