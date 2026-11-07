@@ -38,14 +38,15 @@ type UseTransactionDrawer = {
   >;
 };
 
-// Reaches past the page's filter, e.g. to a refund's original from months back.
-async function fetchLastYear(): Promise<Tx[] | null> {
+// Reaches past the page's lists, e.g. to a refund's original from years back.
+// Null means it doesn't exist; undefined means no answer, so the caller keeps what it has.
+async function fetchTransaction(id: string): Promise<Tx | null | undefined> {
   try {
-    const res = await fetch('/api/transactions?preset=last-12-months');
-    const data: { transactions?: Tx[] } = await res.json();
-    return data.transactions ?? [];
+    const res = await fetch(`/api/transactions/${id}`);
+    if (res.status === 404) return null;
+    return res.ok ? ((await res.json()) as Tx) : undefined;
   } catch {
-    return null;
+    return undefined;
   }
 }
 
@@ -144,20 +145,22 @@ export function useTransactionDrawer({
       return;
     }
     if (refreshesDone < pendingOpen.after) return;
-    // Still missing after the refresh: look wider; the snapshot then carries it outside the list.
+    // Still missing after the refresh: fetch it; the snapshot then carries it outside the list.
     let stale = false;
-    void fetchLastYear().then((year) => {
+    void (async () => {
+      const tx = await fetchTransaction(id);
       if (stale) return;
-      const tx = year?.find((t) => t.id === id);
       if (tx) {
         setDrawerSnapshot(tx);
         setDrawer(editTarget(id, opts));
-      } else if (year && !currentListed && !year.some((t) => t.id === openId)) {
+      } else if (tx === null && openId && !currentListed) {
         // A miss stays on the current transaction, unless that is gone too (e.g. after unsplit).
-        setDrawer(null);
+        const current = await fetchTransaction(openId);
+        if (stale) return;
+        if (current === null) setDrawer(null);
       }
       setPendingOpen(null);
-    });
+    })();
     return () => {
       stale = true;
     };

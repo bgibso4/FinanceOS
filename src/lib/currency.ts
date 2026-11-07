@@ -236,3 +236,21 @@ export function toBase(amount: number, currency: string | undefined, s: Currency
   if (from === s.baseCurrency) return amount;
   return convertAmount(amount, from, s.baseCurrency, s.rateMap);
 }
+
+export const MINUS = '−';
+
+export const moneySymbol = (currency = 'USD') =>
+  currency === 'CAD' ? 'CA$' : getCurrencySymbol(currency);
+
+export type MoneyOpts = { cents?: boolean; currency?: string };
+
+/** `$1,234`, `CA$1,234`, `−$5` (U+2212). Whole units unless `cents`. */
+export function fmtMoney(v: number, opts: MoneyOpts = {}): string {
+  const digits = opts.cents ? 2 : 0;
+  const rounded = Number(v.toFixed(digits));
+  const body = Math.abs(rounded).toLocaleString('en-US', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+  return `${rounded < 0 ? MINUS : ''}${moneySymbol(opts.currency)}${body}`;
+}

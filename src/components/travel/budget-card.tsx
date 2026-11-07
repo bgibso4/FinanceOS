@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { triggerSync } from '@/lib/cloud-sync';
 import { errorText, sendJson } from '@/lib/send-json';
-import { fmtMoney } from '@/components/investments/format';
+import { fmtMoney } from '@/lib/currency';
 
 type BudgetCardProps = {
   year: number;

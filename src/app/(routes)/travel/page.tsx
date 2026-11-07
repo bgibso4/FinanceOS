@@ -58,17 +58,21 @@ function TravelPageContent() {
 
   const [data, setData] = useState<TravelResponse | null>(null);
   const [yearError, setYearError] = useState<string | null>(null);
-  const [looseError, setLooseError] = useState<string | null>(null);
+  const [looseFailed, setLooseFailed] = useState(false);
   const [newTrip, setNewTrip] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [loose, setLoose] = useState<Tx[] | null>(null);
   // Only the latest request of each kind may land, so a slow older year can't overwrite a newer.
   const yearRequests = useRef(0);
   const looseRequests = useRef(0);
+  // A save that started before the year changed still calls the old year's loaders.
+  const currentYear = useRef(year);
+  currentYear.current = year;
 
   const { refs, currency, error: refsError } = useDrawerReferenceData();
 
   const loadYear = useCallback(async () => {
+    if (year !== currentYear.current) return;
     const seq = ++yearRequests.current;
     try {
       const next = await sendJson<TravelResponse>(`/api/travel?year=${year}`, 'GET');
@@ -81,6 +85,7 @@ function TravelPageContent() {
   }, [year]);
 
   const loadLoose = useCallback(async () => {
+    if (year !== currentYear.current) return;
     const seq = ++looseRequests.current;
     try {
       const { transactions } = await sendJson<{ transactions: Tx[] }>(
@@ -89,9 +94,10 @@ function TravelPageContent() {
       );
       if (seq !== looseRequests.current) return;
       setLoose(transactions);
-      setLooseError(null);
+      setLooseFailed(false);
     } catch (e) {
-      if (seq === looseRequests.current) setLooseError(errorText(e));
+      console.warn('Failed to load transactions not on a trip', e);
+      if (seq === looseRequests.current) setLooseFailed(true);
     }
   }, [year]);
 
@@ -100,15 +106,15 @@ function TravelPageContent() {
     looseRequests.current++;
     setData(null);
     setLoose(null);
-    setLooseError(null);
+    setLooseFailed(false);
     setExpanded(false);
     void loadYear();
   }, [loadYear]);
 
   // Loaded on first expand.
   useEffect(() => {
-    if (expanded && loose === null && !looseError) void loadLoose();
-  }, [expanded, loose, looseError, loadLoose]);
+    if (expanded && loose === null && !looseFailed) void loadLoose();
+  }, [expanded, loose, looseFailed, loadLoose]);
 
   const reload = async () => {
     await Promise.all([loadYear(), loose === null ? undefined : loadLoose()]);
@@ -138,8 +144,14 @@ function TravelPageContent() {
     drawer.openTransaction(id);
   };
 
+  // A row opens only once its pending save lands, so a quick second click can get in first.
+  useEffect(() => {
+    if (drawer.isOpen && newTrip) closeNewTrip();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawer.isOpen, newTrip]);
+
   const view = data?.view;
-  const errors = [refsError, yearError, looseError].filter(Boolean);
+  const errors = [refsError, yearError].filter(Boolean);
 
   return (
     <div className={cn('space-y-4', (drawer.isOpen || newTrip) && DRAWER_PUSH_CLASS)}>
@@ -196,8 +208,23 @@ function TravelPageContent() {
               spend={view.notOnTrip.spend}
               onToggle={() => setExpanded(!expanded)}
             >
-              {loose === null ? (
-                !looseError && <p className="p-3 text-sm text-[var(--text-muted)]">Loading…</p>
+              {looseFailed ? (
+                <p className="p-3 text-sm text-[var(--red)]" role="alert">
+                  {"Couldn't load these transactions · "}
+                  <button
+                    className="text-[var(--accent)] underline"
+                    type="button"
+                    onClick={() => {
+                      // Back to not loaded, which loads again.
+                      setLoose(null);
+                      setLooseFailed(false);
+                    }}
+                  >
+                    Try again
+                  </button>
+                </p>
+              ) : loose === null ? (
+                <p className="p-3 text-sm text-[var(--text-muted)]">Loading…</p>
               ) : (
                 <TransactionTable
                   compact

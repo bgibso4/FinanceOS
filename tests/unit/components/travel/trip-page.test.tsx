@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const push = vi.fn();
@@ -201,6 +201,20 @@ describe('TripPage', () => {
         within(screen.getByRole('dialog')).getAllByText('Test During Cafe').length
       ).toBeGreaterThan(0)
     );
+  });
+
+  it('twoQuickClicksNeverOpenBothDrawers', async () => {
+    mockApi();
+    render(<TripPage />);
+    const row = await screen.findByText('Test Before Airline');
+
+    fireEvent.click(row);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit trip' }));
+
+    await waitFor(() => expect(screen.getAllByRole('dialog')).toHaveLength(1));
+    expect(
+      within(screen.getByRole('dialog')).getAllByText('Test Before Airline').length
+    ).toBeGreaterThan(0);
   });
 
   it('reviewButtonHiddenAtZero', async () => {

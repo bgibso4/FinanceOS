@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const push = vi.fn();
@@ -309,8 +309,32 @@ describe('TravelPage', () => {
     });
     render(<TravelPage />);
     await userEvent.click(await screen.findByRole('button', { name: /Not on a trip/ }));
-    expect(await screen.findByText('Test loose boom')).toBeInTheDocument();
+    expect(await screen.findByText(/Couldn.t load these transactions/)).toBeInTheDocument();
     expect(callsTo('/api/travel/not-on-trip')).toHaveLength(1);
+  });
+
+  it('failedLooseLoadCanBeRetriedInPlace', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let fail = true;
+    mockApi({
+      replies: {
+        'GET /api/travel/not-on-trip?year=2026': async () =>
+          fail
+            ? { ok: false, body: { error: 'Test loose boom' } }
+            : { body: { transactions: [loose('l1', 'Test Airline')] } },
+      },
+    });
+    render(<TravelPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /Not on a trip/ }));
+    const retry = await screen.findByRole('button', { name: 'Try again' });
+
+    fail = false;
+    await userEvent.click(retry);
+
+    expect(await screen.findByText('Test Airline')).toBeInTheDocument();
+    expect(screen.queryByText(/Couldn.t load these transactions/)).toBeNull();
+    expect(callsTo('/api/travel/not-on-trip')).toHaveLength(2);
+    warn.mockRestore();
   });
 
   it('failedBudgetSaveShowsError', async () => {
@@ -370,6 +394,44 @@ describe('TravelPage', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByText('Test Big')).not.toBeInTheDocument();
     expect(screen.getByText('No trips in 2027 yet')).toBeInTheDocument();
+  });
+
+  it('aSaveFinishingAfterTheYearChangedCannotBringBackTheOldYear', async () => {
+    const save = held({});
+    mockApi({
+      replies: {
+        'PATCH /api/transactions/l1': save.reply,
+        'GET /api/travel?year=2027': { body: { view: emptyView, budget: null } },
+      },
+    });
+    const { rerender } = render(<TravelPage />);
+    await openLooseRow();
+    await userEvent.click(screen.getByRole('button', { name: 'Transfer' }));
+    await waitFor(() => expect(callsTo('/api/transactions/l1')).toHaveLength(1));
+
+    search = 'year=2027';
+    rerender(<TravelPage />);
+    expect(await screen.findByText('No trips in 2027 yet')).toBeInTheDocument();
+    const gets = callsTo('/api/travel?year=2026').length;
+
+    save.release();
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(callsTo('/api/travel?year=2026')).toHaveLength(gets);
+    expect(screen.getByText('No trips in 2027 yet')).toBeInTheDocument();
+  });
+
+  it('twoQuickClicksNeverOpenBothDrawers', async () => {
+    mockApi();
+    render(<TravelPage />);
+    await userEvent.click(await screen.findByRole('button', { name: /Not on a trip/ }));
+    const row = await screen.findByText('Test Airline');
+
+    fireEvent.click(row);
+    fireEvent.click(screen.getByRole('button', { name: '+ New trip' }));
+
+    await waitFor(() => expect(dialogTitle()).toBe('Test Airline'));
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
   });
 
   it('staleNotOnTripRowsCannotLandInANewYear', async () => {

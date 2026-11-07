@@ -1,8 +1,8 @@
-import { getCurrencySymbol } from '@/lib/currency';
+import { fmtMoney, MINUS, moneySymbol, type MoneyOpts } from '@/lib/currency';
 import { BalanceSource } from '@/lib/investments/codes';
 import type { SeriesChange } from '@/lib/investments/portfolio-view';
 
-export const MINUS = '−';
+export { fmtMoney, MINUS, type MoneyOpts };
 
 /** How each balance source reads in pills, badges and the source picker. */
 export const SOURCE_LABEL: Record<BalanceSource, 'Synced' | 'Valued' | 'Manual'> = {
@@ -13,21 +13,6 @@ export const SOURCE_LABEL: Record<BalanceSource, 'Synced' | 'Valued' | 'Manual'>
 const DAY_MS = 86_400_000;
 const DEADBAND_PCT = 0.05;
 
-const symbolFor = (currency = 'USD') => (currency === 'CAD' ? 'CA$' : getCurrencySymbol(currency));
-
-export type MoneyOpts = { cents?: boolean; currency?: string };
-
-/** `$1,234`, `CA$1,234`, `−$5` (U+2212). Whole units unless `cents`. */
-export function fmtMoney(v: number, opts: MoneyOpts = {}): string {
-  const digits = opts.cents ? 2 : 0;
-  const rounded = Number(v.toFixed(digits));
-  const body = Math.abs(rounded).toLocaleString('en-US', {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
-  return `${rounded < 0 ? MINUS : ''}${symbolFor(opts.currency)}${body}`;
-}
-
 export const fmtSignedMoney = (v: number, opts: MoneyOpts = {}): string =>
   Number(v.toFixed(opts.cents ? 2 : 0)) > 0 ? `+${fmtMoney(v, opts)}` : fmtMoney(v, opts);
 
@@ -35,7 +20,7 @@ export const fmtSignedMoney = (v: number, opts: MoneyOpts = {}): string =>
 export function fmtCompact(v: number, currency?: string): string {
   if (Math.abs(v) < 1000) return fmtMoney(v, { currency });
   const k = v / 1000;
-  return `${v < 0 ? MINUS : ''}${symbolFor(currency)}${Math.abs(k).toFixed(Math.abs(v) >= 100_000 ? 0 : 1)}k`;
+  return `${v < 0 ? MINUS : ''}${moneySymbol(currency)}${Math.abs(k).toFixed(Math.abs(v) >= 100_000 ? 0 : 1)}k`;
 }
 
 /** `+1.2%`, `−3.0%`; the sign follows the rounded value, so `−0.04` reads `+0.0%`. */

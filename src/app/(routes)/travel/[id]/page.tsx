@@ -106,6 +106,12 @@ function TripPageContent({ id }: { id: string }) {
     drawer.openTransaction(id);
   };
 
+  // A row opens only once its pending save lands, so a quick second click can get in first.
+  useEffect(() => {
+    if (drawer.isOpen && tripMode) closeTripDrawer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawer.isOpen, tripMode]);
+
   if (tripError === NOT_FOUND) {
     return (
       <Card className="mx-auto max-w-md space-y-3 p-8 text-center">
