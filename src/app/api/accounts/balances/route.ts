@@ -1,24 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAccountBalances } from '@/lib/balances';
-import { convertAmount, parseExchangeRates } from '@/lib/currency';
-
-// Helper to get exchange rates and base currency from database
-async function getCurrencySettings() {
-  const [rates, settings] = await Promise.all([
-    prisma.exchangeRate.findMany(),
-    prisma.userSettings.findFirst(),
-  ]);
-
-  const rateMap = parseExchangeRates(rates);
-  const baseCurrency = settings?.baseCurrency || 'USD';
-
-  return { rateMap, baseCurrency };
-}
+import { convertAmount, loadCurrencySettings } from '@/lib/currency';
 
 export async function GET() {
   // Get currency settings for conversion
-  const { rateMap, baseCurrency } = await getCurrencySettings();
+  const { rateMap, baseCurrency } = await loadCurrencySettings(prisma);
 
   // Get all active accounts (without loading transactions)
   const accounts = await prisma.account.findMany({

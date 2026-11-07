@@ -51,7 +51,8 @@ let queue: QueueFixture;
 let log: string[];
 // When set, list GETs wait for it, holding a refresh in flight.
 let listGate: Promise<void> | null;
-let yearList: Tx[] | null;
+// Transactions that exist but are on no list the page holds.
+let lookupList: Tx[] | null;
 // When set, PATCHes wait for it, holding a save in flight.
 let patchGate: Promise<void> | null;
 let failQueue: boolean;
@@ -64,7 +65,7 @@ beforeEach(() => {
   queue = { ...emptyQueue, lowConfidence: [t1, t2] };
   log = [];
   listGate = null;
-  yearList = null;
+  lookupList = null;
   patchGate = null;
   failQueue = false;
   global.fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
@@ -81,8 +82,12 @@ beforeEach(() => {
       if (failQueue) throw new Error('Test network failure');
       return respond(queue);
     }
-    if (yearList && u === '/api/transactions?preset=last-12-months') {
-      return respond({ transactions: yearList });
+    const single = /^\/api\/transactions\/([^/?]+)$/.exec(u);
+    if (single) {
+      const found = [...(lookupList ?? []), ...txList].find((t) => t.id === single[1]);
+      return found
+        ? respond(found)
+        : ({ ok: false, status: 404, json: async () => ({}) } as Response);
     }
     if (u === '/api/transactions' || u.startsWith('/api/transactions?')) {
       return respond({ transactions: txList });
@@ -188,7 +193,7 @@ describe('Transactions page → drawer', () => {
     txList = [t2];
     const [confirm] = screen.getAllByTitle('Confirm this category');
     await userEvent.click(confirm);
-    await waitFor(() => expect(within(drawer).queryByText(/of 2/)).toBeNull());
+    await waitFor(() => expect(within(drawer).getByText('— of 1')).toBeInTheDocument());
     expect(screen.getByRole('dialog', { name: 'Test Merchant 1' })).toBeInTheDocument();
   });
 
@@ -297,7 +302,7 @@ describe('Transactions page → drawer', () => {
     await openRow('Test Merchant 1');
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     failQueue = true;
-    yearList = [parent, t2];
+    lookupList = [parent];
     await userEvent.click(screen.getByRole('button', { name: 'Unsplit · restore the original' }));
     await userEvent.click(screen.getByRole('button', { name: 'Unsplit' }));
     expect(await screen.findByRole('dialog', { name: 'Test Original' })).toBeInTheDocument();
@@ -321,8 +326,8 @@ describe('Transactions page → drawer', () => {
     expect(pageRoot()).not.toHaveClass(DRAWER_PUSH_CLASS);
   });
 
-  it('stays on the refund when its original is older than the 12-month lookup', async () => {
-    const original: Tx = { ...t1, id: 'orig', merchant: 'Test Ancient Original' };
+  it('stays on the refund when its original no longer exists', async () => {
+    const original: Tx = { ...t1, id: 'orig', merchant: 'Test Deleted Original' };
     const refund: Tx = {
       ...t1,
       amount: 42.5,
@@ -331,22 +336,21 @@ describe('Transactions page → drawer', () => {
       linkedTransaction: original,
     };
     txList = [refund, t2];
-    yearList = [refund, t2];
     render(<TransactionsPage />);
     const drawer = await openRow('Test Merchant 1');
     await userEvent.click(within(drawer).getByRole('button', { name: 'Open the original' }));
-    await waitFor(() => expect(log).toContain('GET /api/transactions?preset=last-12-months'));
+    await waitFor(() => expect(log).toContain('GET /api/transactions/orig'));
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.getByRole('dialog', { name: 'Test Merchant 1' })).toBeInTheDocument();
     expect(pageRoot()).toHaveClass(DRAWER_PUSH_CLASS);
   });
 
-  it('opens an original that is outside the list via the 12-month lookup', async () => {
+  it('opens an original that is outside the list, however old', async () => {
     const original: Tx = {
       ...t1,
       id: 'orig',
       merchant: 'Test Old Original',
-      date: '2025-12-01T00:00:00.000Z',
+      date: '2019-12-01T00:00:00.000Z',
     };
     const refund: Tx = {
       ...t1,
@@ -356,13 +360,13 @@ describe('Transactions page → drawer', () => {
       linkedTransaction: original,
     };
     txList = [refund, t2];
-    yearList = [original, refund, t2];
+    lookupList = [original];
     render(<TransactionsPage />);
     const drawer = await openRow('Test Merchant 1');
     expect(within(drawer).getByText('1 of 2')).toBeInTheDocument();
     await userEvent.click(within(drawer).getByRole('button', { name: 'Open the original' }));
     const shown = await screen.findByRole('dialog', { name: 'Test Old Original' });
-    expect(log).toContain('GET /api/transactions?preset=last-12-months');
+    expect(log).toContain('GET /api/transactions/orig');
     expect(within(shown).queryByText(/of 2/)).toBeNull();
     expect(pageRoot()).toHaveClass(DRAWER_PUSH_CLASS);
   });

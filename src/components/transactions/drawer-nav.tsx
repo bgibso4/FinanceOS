@@ -1,6 +1,9 @@
 interface DrawerNavProps {
+  /** -1 when the open row has left the list. */
   index: number;
   count: number;
+  hasPrev: boolean;
+  hasNext: boolean;
   onStep: (delta: -1 | 1) => void;
 }
 
@@ -25,19 +28,17 @@ function Chevron({ direction }: { direction: 'up' | 'down' }) {
   );
 }
 
-export function DrawerNav({ index, count, onStep }: DrawerNavProps) {
-  if (index < 0) return null;
-
+export function DrawerNav({ index, count, hasPrev, hasNext, onStep }: DrawerNavProps) {
   return (
     <div className="flex items-center gap-3">
       <span className="font-mono text-xs text-[var(--text-muted)]">
-        {index + 1} of {count}
+        {index < 0 ? '—' : index + 1} of {count}
       </span>
       <div className="flex overflow-hidden rounded-[9px] border border-[var(--border-hover)] bg-[var(--bg-elevated)]">
         <button
           aria-label="Previous transaction"
           className={stepButton}
-          disabled={index === 0}
+          disabled={!hasPrev}
           title="Previous · ↑"
           type="button"
           onClick={() => onStep(-1)}
@@ -48,7 +49,7 @@ export function DrawerNav({ index, count, onStep }: DrawerNavProps) {
         <button
           aria-label="Next transaction"
           className={stepButton}
-          disabled={index >= count - 1}
+          disabled={!hasNext}
           title="Next · ↓"
           type="button"
           onClick={() => onStep(1)}

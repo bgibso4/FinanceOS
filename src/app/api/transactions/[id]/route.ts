@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { cleanupTransferPair, createImportHash } from '@/lib/sync-common';
 import { normalizeMerchant } from '@/lib/categorization';
+import { TX_ROW_INCLUDE, toTxRow } from '@/lib/transaction-rows';
 
 const updateSchema = z.object({
   date: z
@@ -27,6 +28,18 @@ const updateSchema = z.object({
   linkedTransactionId: z.string().nullable().optional(),
   tripId: z.string().nullable().optional(),
 });
+
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const transaction = await prisma.transaction.findUnique({
+    where: { id },
+    include: TX_ROW_INCLUDE,
+  });
+  if (!transaction) {
+    return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
+  }
+  return NextResponse.json(toTxRow(transaction));
+}
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

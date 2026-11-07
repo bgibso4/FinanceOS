@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import type { TripSummary } from '@/lib/travel/types';
-import { fmtMoney } from '@/components/investments/format';
+import { fmtMoney } from '@/lib/currency';
 import { plural } from '@/lib/plural';
 import { dateRange } from './format';
 import { TonalBar } from './tonal-bar';

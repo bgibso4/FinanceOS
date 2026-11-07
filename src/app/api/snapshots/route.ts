@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { getAccountBalances } from '@/lib/balances';
-import { convertAmount, parseExchangeRates } from '@/lib/currency';
+import { convertAmount, loadCurrencySettings } from '@/lib/currency';
 
 const createSnapshotSchema = z.object({
   date: z.string().optional(), // ISO date string, defaults to now
@@ -43,19 +43,6 @@ const ASSET_TYPES = ['checking', 'savings', 'brokerage', 'retirement', 'crypto',
 // Liability types (balances are subtracted from net worth)
 const LIABILITY_TYPES = ['credit', 'loan'];
 
-// Helper to get exchange rates and base currency from database
-async function getCurrencySettings() {
-  const [rates, settings] = await Promise.all([
-    prisma.exchangeRate.findMany(),
-    prisma.userSettings.findFirst(),
-  ]);
-
-  const rateMap = parseExchangeRates(rates);
-  const baseCurrency = settings?.baseCurrency || 'USD';
-
-  return { rateMap, baseCurrency };
-}
-
 export async function GET(req: NextRequest) {
   const search = req.nextUrl.searchParams;
   const limit = parseInt(search.get('limit') ?? '50');
@@ -89,7 +76,7 @@ export async function POST(req: NextRequest) {
   const parsed = createSnapshotSchema.parse(body);
 
   const snapshotDate = parsed.date ? new Date(parsed.date) : new Date();
-  const { baseCurrency } = await getCurrencySettings();
+  const { baseCurrency } = await loadCurrencySettings(prisma);
 
   // Manual/backfill mode - use provided values directly
   if (parsed.manual) {
@@ -149,7 +136,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Standard mode - calculate from transaction data
-  const { rateMap } = await getCurrencySettings();
+  const { rateMap } = await loadCurrencySettings(prisma);
 
   const accounts = await prisma.account.findMany({ where: { isActive: true } });
   const resolved = await getAccountBalances(prisma, accounts);

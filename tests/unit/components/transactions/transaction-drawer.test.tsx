@@ -91,6 +91,57 @@ describe('TransactionDrawer', () => {
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith('t2'));
   });
 
+  describe('when the open row leaves the list', () => {
+    function renderOnMiddleRow() {
+      const onOpen = vi.fn();
+      const drawer = (rows: Tx[]) => (
+        <TransactionDrawer
+          accounts={[]}
+          availableTags={[]}
+          baseCurrency="USD"
+          categories={categories}
+          list={rows}
+          state={edit(list[1])}
+          trips={[]}
+          onChanged={vi.fn()}
+          onClose={vi.fn()}
+          onCreateTag={vi.fn().mockResolvedValue(null)}
+          onCreated={vi.fn()}
+          onNew={vi.fn()}
+          onOpen={onOpen}
+          onRowSaved={vi.fn()}
+        />
+      );
+      const { rerender } = render(drawer(list));
+      return { onOpen, setRows: (rows: Tx[]) => rerender(drawer(rows)) };
+    }
+
+    it('keeps the arrows and steps to the rows it sat between', async () => {
+      const { onOpen, setRows } = renderOnMiddleRow();
+      setRows([list[0], list[2]]);
+
+      expect(screen.getByText('— of 2')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Next transaction' }));
+      await waitFor(() => expect(onOpen).toHaveBeenCalledWith('t3'));
+      await userEvent.click(screen.getByRole('button', { name: 'Previous transaction' }));
+      await waitFor(() => expect(onOpen).toHaveBeenCalledWith('t1'));
+    });
+
+    it('does not jump to an unrelated row when the whole list changes', async () => {
+      const { onOpen, setRows } = renderOnMiddleRow();
+      setRows([
+        { ...base, id: 'x1', merchant: 'Test Other 1' },
+        { ...base, id: 'x2', merchant: 'Test Other 2' },
+      ]);
+
+      expect(screen.getByRole('button', { name: 'Next transaction' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Previous transaction' })).toBeDisabled();
+      await userEvent.keyboard('{ArrowDown}');
+      await new Promise((r) => setTimeout(r, 20));
+      expect(onOpen).not.toHaveBeenCalled();
+    });
+  });
+
   it('flushes pending edit before stepping', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -367,6 +418,87 @@ describe('TransactionDrawer', () => {
     expect(screen.getByText('Entered by hand')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add transaction' })).toBeInTheDocument();
     expect(screen.queryByText('1 of 3')).not.toBeInTheDocument();
+  });
+
+  describe('leaving a half-filled new transaction', () => {
+    const fillIn = () => userEvent.type(screen.getByLabelText('Merchant'), 'Test Shop');
+    const asking = () => screen.queryByText('Discard this transaction?');
+
+    it('closes without asking when nothing was typed', async () => {
+      const { onClose } = setup({ mode: 'new' });
+      await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(onClose).toHaveBeenCalled());
+      expect(asking()).toBeNull();
+    });
+
+    it.each([
+      ['Cancel', () => userEvent.click(screen.getByRole('button', { name: 'Cancel' }))],
+      ['✕', () => userEvent.click(screen.getByRole('button', { name: 'Close' }))],
+      ['Esc', () => userEvent.keyboard('{Escape}')],
+    ])('%s asks first, and Keep editing stays with the input', async (_name, leave) => {
+      const { onClose } = setup({ mode: 'new' });
+      await fillIn();
+      await leave();
+      expect(await screen.findByText('Discard this transaction?')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Add transaction' })).toBeNull();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+
+      expect(asking()).toBeNull();
+      expect(screen.getByLabelText('Merchant')).toHaveValue('Test Shop');
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('Discard closes', async () => {
+      const { onClose } = setup({ mode: 'new' });
+      await fillIn();
+      await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await userEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    });
+
+    it('clicking a row asks first, then Discard opens that row', async () => {
+      const { onOpen, ref } = setup({ mode: 'new' });
+      await fillIn();
+      act(() => void ref.current?.open('t2'));
+      await screen.findByText('Discard this transaction?');
+      expect(onOpen).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
+
+      await waitFor(() => expect(onOpen).toHaveBeenCalledWith('t2'));
+    });
+
+    it('Keep editing leaves a clicked row unopened', async () => {
+      const { onOpen, ref } = setup({ mode: 'new' });
+      await fillIn();
+      act(() => void ref.current?.open('t2'));
+      await userEvent.click(await screen.findByRole('button', { name: 'Keep editing' }));
+      await new Promise((r) => setTimeout(r, 20));
+      expect(onOpen).not.toHaveBeenCalled();
+    });
+
+    it('a second way out while asking changes nothing', async () => {
+      const { onClose, onOpen, ref } = setup({ mode: 'new' });
+      await fillIn();
+      await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await screen.findByText('Discard this transaction?');
+      act(() => void ref.current?.open('t2'));
+      await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+      expect(onOpen).not.toHaveBeenCalled();
+    });
+
+    it('adding the transaction does not ask', async () => {
+      const { onCreated } = setup({ mode: 'new' });
+      global.fetch = vi.fn().mockResolvedValue(reply({ id: 'n1' })) as typeof fetch;
+      await userEvent.selectOptions(screen.getByLabelText('Account'), 'a1');
+      await userEvent.type(screen.getByLabelText('Amount'), '-5');
+      await fillIn();
+      await userEvent.click(screen.getByRole('button', { name: 'Add transaction' }));
+      await waitFor(() => expect(onCreated).toHaveBeenCalled());
+      expect(asking()).toBeNull();
+    });
   });
 
   it('renders nothing when closed', () => {

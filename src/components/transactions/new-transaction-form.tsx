@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -31,9 +31,15 @@ export function useNewTransactionForm({
   onCreateTag,
   onCancel,
   onCreated,
-}: Params): { body: React.ReactNode; footer: React.ReactNode } {
+}: Params): {
+  body: React.ReactNode;
+  footer: React.ReactNode;
+  /** Resolves true to go ahead with leaving; asks first once anything has been entered. */
+  confirmLeave: () => Promise<boolean>;
+} {
   const [accountId, setAccountId] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [today] = useState(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(today);
   const [amount, setAmount] = useState('');
   const [merchant, setMerchant] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -41,6 +47,28 @@ export function useNewTransactionForm({
   const [tags, setTags] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const answerLeave = useRef<((leave: boolean) => void) | null>(null);
+
+  const entered = Boolean(
+    accountId || amount || merchant || categoryId || note || tags.length > 0 || date !== today
+  );
+
+  const confirmLeave = useCallback(async () => {
+    if (!entered) return true;
+    // Already asking: the first way out gets the answer.
+    if (answerLeave.current) return false;
+    setAsking(true);
+    return new Promise<boolean>((resolve) => {
+      answerLeave.current = resolve;
+    });
+  }, [entered]);
+
+  const answer = (leave: boolean) => {
+    setAsking(false);
+    answerLeave.current?.(leave);
+    answerLeave.current = null;
+  };
 
   const submit = async () => {
     if (!accountId || !merchant || !Number.isFinite(parseFloat(amount))) {
@@ -157,7 +185,17 @@ export function useNewTransactionForm({
     </section>
   );
 
-  const footer = (
+  const footer = asking ? (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <p className="mr-auto text-sm text-[var(--text-primary)]">Discard this transaction?</p>
+      <Button className={BUTTON} type="button" variant="ghost" onClick={() => answer(false)}>
+        Keep editing
+      </Button>
+      <Button className={BUTTON} type="button" variant="destructive" onClick={() => answer(true)}>
+        Discard
+      </Button>
+    </div>
+  ) : (
     <div className="flex flex-col items-end gap-2">
       {error && (
         <p className={ERROR} role="alert">
@@ -175,5 +213,5 @@ export function useNewTransactionForm({
     </div>
   );
 
-  return { body, footer };
+  return { body, footer, confirmLeave };
 }

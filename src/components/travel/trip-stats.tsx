@@ -1,5 +1,5 @@
 import { Card } from '@/components/ui/card';
-import { fmtMoney } from '@/components/investments/format';
+import { fmtMoney } from '@/lib/currency';
 import { plural } from '@/lib/plural';
 import type { TripSummary } from '@/lib/travel/types';
 import { shortDate } from './format';

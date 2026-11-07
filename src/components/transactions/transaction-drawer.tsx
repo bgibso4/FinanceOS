@@ -69,7 +69,8 @@ export function TransactionDrawer({
   const { state, list, onOpen, onNew, onClose } = props;
   const tx = state?.mode === 'edit' ? state.tx : null;
   const index = tx ? list.findIndex((t) => t.id === tx.id) : -1;
-  // EditBody registers its autosave flush here so header nav and close can await it.
+  // The open form registers here so header nav and close can await it: EditBody its autosave,
+  // NewDrawer its check before discarding.
   const flushRef = useRef<Flush>(NOTHING_PENDING);
 
   const open = useCallback(
@@ -104,22 +105,26 @@ export function TransactionDrawer({
     [open, onNew, close]
   );
 
-  // A save can take the open row out of the list; stepping carries on from where it stood.
-  const lastPlace = useRef<{ id: string; index: number } | null>(null);
-  if (tx && index >= 0) lastPlace.current = { id: tx.id, index };
+  // A save can take the open row out of the list; stepping carries on to the rows it sat between.
+  // Those rows being gone too means the list itself changed, so there is nowhere sensible to step.
+  const lastPlace = useRef<{ id: string; prevId?: string; nextId?: string } | null>(null);
+  if (tx && index >= 0) {
+    lastPlace.current = { id: tx.id, prevId: list[index - 1]?.id, nextId: list[index + 1]?.id };
+  }
+  const place = tx && lastPlace.current?.id === tx.id ? lastPlace.current : null;
+  const stepTarget = (delta: -1 | 1) => {
+    const id = delta > 0 ? place?.nextId : place?.prevId;
+    return id && list.some((t) => t.id === id) ? id : undefined;
+  };
+  const nav = place && {
+    hasPrev: stepTarget(-1) !== undefined,
+    hasNext: stepTarget(1) !== undefined,
+  };
 
-  const step = useCallback(
-    async (delta: -1 | 1) => {
-      const place = lastPlace.current;
-      let at = -1;
-      if (index >= 0) at = index + delta;
-      // Its next row has moved up into its old place.
-      else if (place && place.id === tx?.id) at = delta > 0 ? place.index : place.index - 1;
-      const target = list[at];
-      if (target) await open(target.id);
-    },
-    [index, list, open, tx?.id]
-  );
+  const step = async (delta: -1 | 1) => {
+    const target = stepTarget(delta);
+    if (target) await open(target);
+  };
 
   const stepRef = useRef(step);
   stepRef.current = step;
@@ -145,11 +150,18 @@ export function TransactionDrawer({
         close={close}
         flushRef={flushRef}
         index={index}
+        nav={nav}
         open={open}
         step={step}
         tx={tx}
       />
-      <NewDrawer key={newForm} {...props} close={close} isOpen={state?.mode === 'new'} />
+      <NewDrawer
+        key={newForm}
+        {...props}
+        close={close}
+        flushRef={flushRef}
+        isOpen={state?.mode === 'new'}
+      />
     </>
   );
 }
@@ -157,6 +169,7 @@ export function TransactionDrawer({
 function EditDrawer({
   tx,
   index,
+  nav,
   step,
   open,
   close,
@@ -165,6 +178,8 @@ function EditDrawer({
 }: TransactionDrawerProps & {
   tx: Tx | null;
   index: number;
+  /** Null for a row that was never on the list, which has no neighbours to step to. */
+  nav: { hasPrev: boolean; hasNext: boolean } | null;
   step: (delta: -1 | 1) => Promise<void>;
   open: (id: string) => Promise<void>;
   close: () => void;
@@ -173,7 +188,7 @@ function EditDrawer({
   const { state, list } = props;
   return (
     <Drawer
-      actions={tx && <DrawerNav count={list.length} index={index} onStep={step} />}
+      actions={nav && <DrawerNav {...nav} count={list.length} index={index} onStep={step} />}
       headerExtra={
         tx && (
           <div
@@ -212,9 +227,14 @@ function NewDrawer({
   onCreateTag,
   onCreated,
   close,
+  flushRef,
   isOpen,
-}: TransactionDrawerProps & { close: () => void; isOpen: boolean }) {
-  const { body, footer } = useNewTransactionForm({
+}: TransactionDrawerProps & {
+  close: () => void;
+  flushRef: React.MutableRefObject<Flush>;
+  isOpen: boolean;
+}) {
+  const { body, footer, confirmLeave } = useNewTransactionForm({
     accounts,
     categories,
     availableTags,
@@ -222,6 +242,16 @@ function NewDrawer({
     onCancel: close,
     onCreated,
   });
+
+  // Every way out awaits the flush, so this one gate covers them all.
+  useEffect(() => {
+    if (!isOpen) return;
+    flushRef.current = confirmLeave;
+    return () => {
+      flushRef.current = NOTHING_PENDING;
+    };
+  }, [isOpen, confirmLeave, flushRef]);
+
   return (
     <Drawer
       footer={footer}

@@ -9,7 +9,7 @@ import { CategorySelect } from '@/components/transactions/category-select';
 describe('DrawerNav', () => {
   it('shows position and disables ends', async () => {
     const onStep = vi.fn();
-    render(<DrawerNav count={3} index={0} onStep={onStep} />);
+    render(<DrawerNav hasNext count={3} hasPrev={false} index={0} onStep={onStep} />);
     expect(screen.getByText('1 of 3')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Previous transaction' })).toBeDisabled();
     const next = screen.getByRole('button', { name: 'Next transaction' });
@@ -18,9 +18,11 @@ describe('DrawerNav', () => {
     expect(onStep).toHaveBeenCalledWith(1);
   });
 
-  it('renders nothing for index -1', () => {
-    const { container } = render(<DrawerNav count={3} index={-1} onStep={vi.fn()} />);
-    expect(container).toBeEmptyDOMElement();
+  it('shows a dash for a row that has left the list, and steps to the neighbours it had', () => {
+    render(<DrawerNav hasNext count={3} hasPrev={false} index={-1} onStep={vi.fn()} />);
+    expect(screen.getByText('— of 3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Previous transaction' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Next transaction' })).toBeEnabled();
   });
 });
 
