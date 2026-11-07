@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildSystemPrompt } from '@/lib/agent/system-prompt';
+import { localDay } from '@/lib/dates';
 
 describe('buildSystemPrompt', () => {
   it('includes base instructions', () => {
@@ -10,8 +11,7 @@ describe('buildSystemPrompt', () => {
 
   it('includes current date', () => {
     const prompt = buildSystemPrompt([]);
-    const today = new Date().toISOString().split('T')[0];
-    expect(prompt).toContain(`Today's date: ${today}`);
+    expect(prompt).toContain(`Today's date: ${localDay()}`);
   });
 
   it('injects category tree', () => {

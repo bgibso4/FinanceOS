@@ -39,6 +39,7 @@ import { AccountHoldingsSection } from '@/components/investments/account-holding
 import { EnteredBalancesSection } from '@/components/investments/entered-balances-section';
 import type { TrackingMode } from '@/lib/account-defaults';
 import { BalanceSource } from '@/lib/investments/codes';
+import { fmtCalendarDay } from '@/lib/dates';
 import { ds } from '@/lib/design-system';
 import { syncUnits, statsForAccount, isSyncAllCandidate } from '@/lib/sync-grouping';
 import { investmentSyncStatus } from '@/lib/investments/sync-status';
@@ -3948,11 +3949,7 @@ function SettingsPageContent() {
                 <>
                   <strong>
                     Viewing{' '}
-                    {new Date(budgetViewMonth + '-01').toLocaleDateString('en-US', {
-                      month: 'long',
-                      year: 'numeric',
-                    })}
-                    :
+                    {fmtCalendarDay(`${budgetViewMonth}-01`, { month: 'long', year: 'numeric' })}:
                   </strong>{' '}
                   Changes here only affect this month. Budgets with a badge are overrides for this
                   month.
@@ -3969,7 +3966,7 @@ function SettingsPageContent() {
             <div className={`${ds.bg.secondary} p-4 rounded-lg border ${ds.border.default}`}>
               <h4 className={`text-sm font-semibold ${ds.text.primary} mb-3`}>
                 {budgetViewMonth
-                  ? `Set Override for ${new Date(budgetViewMonth + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`
+                  ? `Set Override for ${fmtCalendarDay(`${budgetViewMonth}-01`, { month: 'short', year: 'numeric' })}`
                   : 'Set Default Budget'}
               </h4>
               <div className="grid gap-3 md:grid-cols-3">
@@ -4026,7 +4023,7 @@ function SettingsPageContent() {
                 <div className="bg-[var(--green)]/10 rounded-xl p-5 border border-[var(--green)]">
                   <div className="text-sm text-[var(--green)] font-medium">
                     {budgetViewMonth
-                      ? `Total Budget for ${new Date(budgetViewMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
+                      ? `Total Budget for ${fmtCalendarDay(`${budgetViewMonth}-01`, { month: 'long', year: 'numeric' })}`
                       : 'Total Monthly Budget'}
                   </div>
                   <div className="text-3xl font-bold tracking-tight font-mono text-[var(--green)] mt-1">

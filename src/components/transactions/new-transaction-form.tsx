@@ -8,6 +8,7 @@ import { TagInput, type TagDef } from '@/components/tag-input';
 import { SECTION_CARD, SECTION_HEAD } from '@/components/investments/account-drawer';
 import { ERROR, FIELD_LABEL, errorText, sendJson } from '@/components/investments/editor-kit';
 import { triggerSync } from '@/lib/cloud-sync';
+import { localDay } from '@/lib/dates';
 import { CategorySelect } from './category-select';
 import type { Account, Category } from './types';
 
@@ -38,7 +39,7 @@ export function useNewTransactionForm({
   confirmLeave: () => Promise<boolean>;
 } {
   const [accountId, setAccountId] = useState('');
-  const [today] = useState(() => new Date().toISOString().split('T')[0]);
+  const [today] = useState(() => localDay());
   const [date, setDate] = useState(today);
   const [amount, setAmount] = useState('');
   const [merchant, setMerchant] = useState('');

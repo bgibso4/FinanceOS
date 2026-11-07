@@ -13,6 +13,7 @@ import { useTransactionDrawer } from '@/components/transactions/use-transaction-
 import { cn } from '@/lib/cn';
 import { ds } from '@/lib/design-system';
 import { getCurrencySymbol } from '@/lib/currency';
+import { localDay } from '@/lib/dates';
 import { sendJson } from '@/lib/send-json';
 
 type CategoryAnalytics = {
@@ -59,10 +60,7 @@ const monthRange = (month: string) => {
 
 export default function AnalyticsPage() {
   // Month selector - default to current month
-  const now = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(
-    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  );
+  const [selectedMonth, setSelectedMonth] = useState(() => localDay().slice(0, 7));
 
   const { refs, error: refsError } = useDrawerReferenceData();
   const { baseCurrency, categories } = refs;
@@ -182,7 +180,7 @@ export default function AnalyticsPage() {
         <div>
           <h1 className={`text-2xl font-bold ${ds.text.heading}`}>Monthly Analytics</h1>
           <div className="flex items-center gap-3 mt-1">
-            {new Date(selectedMonth + '-01') > new Date() && (
+            {selectedMonth > localDay().slice(0, 7) && (
               <div className={`text-sm font-medium ${ds.status.warning.text}`}>
                 ⚠️ Viewing future month - data may be incomplete
               </div>

@@ -8,6 +8,7 @@ import {
 } from '@/components/transactions/transaction-drawer';
 import type { Category, Tx } from '@/components/transactions/types';
 import { triggerSync } from '@/lib/cloud-sync';
+import { freezeClock, inNewYork, NEW_YORK_EVENING } from '../../../helpers/time-zone';
 
 vi.mock('@/lib/cloud-sync', () => ({ triggerSync: vi.fn() }));
 
@@ -498,6 +499,16 @@ describe('TransactionDrawer', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Add transaction' }));
       await waitFor(() => expect(onCreated).toHaveBeenCalled());
       expect(asking()).toBeNull();
+    });
+  });
+
+  describe('in New York', () => {
+    inNewYork();
+
+    it('a new transaction defaults to the local date late in the evening', () => {
+      freezeClock(NEW_YORK_EVENING);
+      setup({ mode: 'new' });
+      expect(screen.getByLabelText('Date')).toHaveValue('2026-11-06');
     });
   });
 

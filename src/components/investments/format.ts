@@ -1,4 +1,5 @@
 import { fmtMoney, MINUS, moneySymbol, type MoneyOpts } from '@/lib/currency';
+import { fmtCalendarDay } from '@/lib/dates';
 import { BalanceSource } from '@/lib/investments/codes';
 import type { SeriesChange } from '@/lib/investments/portfolio-view';
 
@@ -34,22 +35,15 @@ export const fmtQty = (q: number): string =>
 
 /** `Oct 9` for a `YYYY-MM-DD` day; `Oct 9, 26` with `year`. */
 export const fmtDay = (iso: string, opts: { year?: boolean } = {}): string =>
-  new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-US', {
+  fmtCalendarDay(iso, {
     month: 'short',
     day: 'numeric',
     ...(opts.year ? { year: '2-digit' as const } : {}),
-    timeZone: 'UTC',
   });
 
 /** `Wed, Sep 16, 2026` for a `YYYY-MM-DD` day. */
 export const fmtLongDay = (iso: string): string =>
-  new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
+  fmtCalendarDay(iso, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
 /** `Oct 9, 9:24 AM` in local time, for sync timestamps. */
 export const fmtSyncTime = (iso: string): string =>

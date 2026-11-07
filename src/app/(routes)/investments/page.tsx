@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccountDetail } from '@/components/investments/account-detail';
 import { AccountNavigator } from '@/components/investments/account-navigator';
 import { fmtDay } from '@/components/investments/format';
+import { localDay } from '@/lib/dates';
 import { HoldingsEditorModal } from '@/components/investments/holdings-editor-modal';
 import { RecordBalanceModal } from '@/components/investments/record-balance-modal';
 import { Card } from '@/components/ui/card';
@@ -164,7 +165,7 @@ export default function InvestmentsPage() {
         <RecordBalanceModal
           key={dialog.account.id}
           account={dialog.account}
-          today={overview?.today ?? new Date().toISOString().slice(0, 10)}
+          today={localDay()}
           onClose={() => setDialog(null)}
           onSaved={saved}
         />

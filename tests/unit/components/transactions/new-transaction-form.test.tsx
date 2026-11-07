@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { useNewTransactionForm } from '@/components/transactions/new-transaction-form';
 import { sendJson } from '@/lib/send-json';
 import { triggerSync } from '@/lib/cloud-sync';
+import { localDay } from '@/lib/dates';
 
 vi.mock('@/lib/cloud-sync', () => ({ triggerSync: vi.fn() }));
 vi.mock('@/lib/send-json', async (orig) => ({
@@ -75,7 +76,7 @@ describe('useNewTransactionForm', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add transaction' }));
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
     expect(sendJson).toHaveBeenCalledWith('/api/transactions', 'POST', {
-      date: new Date().toISOString().split('T')[0],
+      date: localDay(),
       amount: -12.5,
       merchant: 'Test Shop',
       accountId: 'a1',

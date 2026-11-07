@@ -1,3 +1,4 @@
+import { localDay } from '@/lib/dates';
 type CategoryInfo = {
   name: string;
   type: string;
@@ -6,8 +7,7 @@ type CategoryInfo = {
 
 export function buildSystemPrompt(categories: CategoryInfo[]): string {
   const categorySection = buildCategorySection(categories);
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = localDay();
 
   return `You are a personal finance analyst for FinanceOS. You help the user understand their spending, income, budgets, and financial trends by querying their transaction data.
 

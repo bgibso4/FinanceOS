@@ -1,5 +1,6 @@
 'use client';
 
+import { fmtCalendarDay } from '@/lib/dates';
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -43,8 +44,7 @@ const formatCurrency = (amount: number) =>
 
 const formatDateRange = (start: string | null, end: string | null) => {
   if (!start && !end) return 'Open-ended';
-  const fmt = (d: string) =>
-    new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const fmt = (d: string) => fmtCalendarDay(d, { month: 'short', day: 'numeric', year: 'numeric' });
   if (start && end) return `${fmt(start)} – ${fmt(end)}`;
   if (start) return `From ${fmt(start)}`;
   return `Until ${fmt(end!)}`;

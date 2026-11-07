@@ -7,6 +7,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 import GoalsPage from '@/app/(routes)/goals/page';
+import { inNewYork } from '../../helpers/time-zone';
 
 const goal = (over: Record<string, unknown>) => ({
   id: 'g',
@@ -55,6 +56,15 @@ describe('Goals travel hand-off', () => {
     );
   });
   afterEach(() => vi.unstubAllGlobals());
+
+  describe('in New York', () => {
+    inNewYork();
+
+    it('showsTheGoalsDatesAsSaved', async () => {
+      render(<GoalsPage />);
+      expect(await screen.findByText(/Jan 1, 2026 – Dec 31, 2026/)).toBeInTheDocument();
+    });
+  });
 
   it('travelGoalLinksToTravel', async () => {
     const user = userEvent.setup();
