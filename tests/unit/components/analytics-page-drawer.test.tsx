@@ -189,7 +189,8 @@ describe('Analytics page → shared drawer', () => {
 
     await userEvent.click(await categoryRow('Test B'));
 
-    expect(await within(rowsTable()).findByText('Merchant Three')).toBeInTheDocument();
+    // The table gives way to a loading line while the new category's rows arrive.
+    expect(await screen.findByText('Merchant Three')).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Merchant One' })).not.toBeInTheDocument()
     );
