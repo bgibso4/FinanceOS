@@ -305,5 +305,23 @@ describe('agent tools', () => {
       expect(result[0].topCategories.length).toBeLessThanOrEqual(3);
       expect(result[0]).not.toHaveProperty('id');
     });
+
+    it('listTripsLeavesOutCategoriesThatNetToACredit', async () => {
+      const credited = await prisma.category.create({
+        data: { name: 'Test Credited', type: 'expense' },
+      });
+      await prisma.transaction.create({
+        data: createTransactionData(accountId, {
+          merchant: 'Refund',
+          amount: 25,
+          date: new Date('2026-01-11'),
+          tripId,
+          categoryId: credited.id,
+        }),
+      });
+      const [trip] = await executeListTrips(prisma);
+      expect(trip.spend).toBe(375);
+      expect(trip.topCategories.map((c) => c.name)).not.toContain('Test Credited');
+    });
   });
 });

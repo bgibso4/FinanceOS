@@ -132,13 +132,64 @@ describe('TravelTotals', () => {
     const t = await trip('2026-03-05', '2026-03-08');
     await tx('2026-03-05', -25, { tripId: t.id });
     await tx('2026-03-05', -75, { tripId: t.id, categoryId: flightsId });
-    await tx('2026-03-06', 500, { tripId: t.id, categoryId: flightsId });
     await tx('2026-03-06', -0.01, { tripId: t.id, categoryId: null });
     const { categories } = (await totals.trip(t.id))!;
     expect(categories.map((c) => c.name)).toEqual(['Flights', 'Food', 'Uncategorized']);
     expect(categories[0]).toMatchObject({ categoryId: flightsId, spend: 75 });
     expect(categories[0].share).toBeCloseTo(0.75, 2);
     expect(categories[1].share).toBeCloseTo(0.25, 2);
+  });
+
+  it('categoriesTakeCreditsOffTheirOwnCategory', async () => {
+    const t = await trip('2026-03-05', '2026-03-08');
+    await tx('2026-03-05', -400, { tripId: t.id, categoryId: flightsId });
+    await tx('2026-03-06', 300, { tripId: t.id, categoryId: flightsId });
+    await tx('2026-03-05', -200, { tripId: t.id });
+    const { categories, spend } = (await totals.trip(t.id))!;
+    expect(categories.map((c) => [c.name, c.spend])).toEqual([
+      ['Food', 200],
+      ['Flights', 100],
+    ]);
+    expect(categories[0].share).toBeCloseTo(2 / 3, 5);
+    expect(categories.reduce((n, c) => n + c.spend, 0)).toBe(spend);
+  });
+
+  it('fullyRefundedCategoryIsDropped', async () => {
+    const t = await trip('2026-03-05', '2026-03-08');
+    await tx('2026-03-05', -415.41, { tripId: t.id, categoryId: flightsId });
+    await tx('2026-03-06', 415.41, { tripId: t.id, categoryId: flightsId });
+    await tx('2026-03-05', -50, { tripId: t.id });
+    const { categories } = (await totals.trip(t.id))!;
+    expect(categories.map((c) => c.name)).toEqual(['Food']);
+    expect(categories[0].share).toBe(1);
+  });
+
+  it('categoryThatNetsToACreditStaysSoTheListAddsUpButHasNoShare', async () => {
+    const t = await trip('2026-03-05', '2026-03-08');
+    await tx('2026-03-06', 30, { tripId: t.id, categoryId: flightsId });
+    await tx('2026-03-05', -50, { tripId: t.id });
+    const { categories, spend } = (await totals.trip(t.id))!;
+    expect(categories.map((c) => [c.name, c.spend, c.share])).toEqual([
+      ['Food', 50, 1],
+      ['Flights', -30, 0],
+    ]);
+    expect(categories.reduce((n, c) => n + c.spend, 0)).toBe(spend);
+  });
+
+  it('onlyCreditsLeavesNoNaNShares', async () => {
+    const t = await trip('2026-03-05', '2026-03-08');
+    await tx('2026-03-06', 30, { tripId: t.id, categoryId: flightsId });
+    const { categories } = (await totals.trip(t.id))!;
+    expect(categories).toEqual([expect.objectContaining({ spend: -30, share: 0 })]);
+  });
+
+  it('categoriesConvertCreditsBeforeNetting', async () => {
+    const cad = await prisma.account.create({ data: createAccountData({ currency: 'CAD' }) });
+    const t = await trip('2026-03-05', '2026-03-08');
+    await tx('2026-03-05', -100, { tripId: t.id, categoryId: flightsId });
+    await tx('2026-03-06', 40, { tripId: t.id, categoryId: flightsId, accountId: cad.id });
+    const { categories } = (await totals.trip(t.id))!;
+    expect(categories[0].spend).toBeCloseTo(70, 5);
   });
 
   it('countsWholeTripInItsStartYear', async () => {

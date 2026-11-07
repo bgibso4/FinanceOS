@@ -9,7 +9,8 @@ export const tonalShade = (rank: number) =>
 const percent = (share: number) => Math.round(share * 100);
 
 /** A trip split by category, biggest first, with the top three named underneath. */
-export function TonalBar({ slices }: { slices: CategorySlice[] }) {
+export function TonalBar({ slices: all }: { slices: CategorySlice[] }) {
+  const slices = all.filter((slice) => slice.share > 0);
   return (
     <div>
       <div className="flex h-[9px] gap-[2px] overflow-hidden rounded-[5px] bg-[var(--track-bg)]">

@@ -503,6 +503,7 @@ export async function executeListTrips(prisma: PrismaClient): Promise<
             spend: s.spend,
             perDay: s.perDay,
             topCategories: s.categories
+              .filter((c) => c.share > 0)
               .slice(0, TOP_CATEGORIES)
               .map((c) => ({ name: c.name, share: c.share })),
           },
