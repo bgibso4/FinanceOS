@@ -3,6 +3,7 @@ import { prisma as defaultPrisma } from '@/lib/prisma';
 import { normalizeMerchant } from '@/lib/categorization';
 import { v4 as uuid } from 'uuid';
 import { Prisma, type PrismaClient } from '@prisma/client';
+import { processGlobal } from '@/lib/process-global';
 
 /**
  * True if `err` is Prisma's P2002 unique-constraint violation. Sync uses a
@@ -19,9 +20,10 @@ export function isUniqueConstraintError(err: unknown): boolean {
  * share a key so two syncs of the same account (or Plaid enrollment) can't
  * interleave their dedup checks and writes. Operations with different keys run
  * concurrently. This guards against races within a single Node process;
- * isUniqueConstraintError handling is the cross-process backstop.
+ * isUniqueConstraintError handling is the cross-process backstop. The map is process-wide so the
+ * scheduled pass and the Sync routes share it even though the build bundles this module twice.
  */
-const syncLocks = new Map<string, Promise<unknown>>();
+const syncLocks = processGlobal('financeos:syncLocks', () => new Map<string, Promise<unknown>>());
 
 export function withSyncLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const prev = syncLocks.get(key) ?? Promise.resolve();

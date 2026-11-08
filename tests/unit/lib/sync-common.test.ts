@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Prisma } from '@prisma/client';
 import {
   isMerchantSimilar,
@@ -179,6 +179,32 @@ describe('sync-common', () => {
     it('returns the operation result', async () => {
       const result = await withSyncLock('acct-result', async () => 42);
       expect(result).toBe(42);
+    });
+
+    // The production build bundles this module more than once (instrumentation and the routes
+    // each get a copy), so the lock must hold across separately loaded copies.
+    it('holds across separately loaded copies of the module', async () => {
+      vi.resetModules();
+      const first = await import('@/lib/sync-common');
+      vi.resetModules();
+      const second = await import('@/lib/sync-common');
+      expect(first.withSyncLock).not.toBe(second.withSyncLock);
+
+      let active = 0;
+      let maxActive = 0;
+      const op = async () => {
+        active++;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        active--;
+      };
+
+      await Promise.all([
+        first.withSyncLock('acct-copies', op),
+        second.withSyncLock('acct-copies', op),
+      ]);
+
+      expect(maxActive).toBe(1);
     });
   });
 
