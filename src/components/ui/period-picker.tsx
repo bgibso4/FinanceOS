@@ -1,9 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { ds } from '@/lib/design-system';
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+import React from 'react';
+import { MonthGrid, PeriodStepper, YearList, monthValue } from './period-stepper';
 
 type PeriodPickerProps = {
   mode: 'month' | 'year';
@@ -17,12 +15,7 @@ type PeriodPickerProps = {
   now?: Date;
 };
 
-const monthValue = (year: number, monthIndex: number) =>
-  `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
-
 export function PeriodPicker({ mode, value, onChange, minYear, maxYear, now }: PeriodPickerProps) {
-  const [open, setOpen] = useState(false);
-  const [pickerYear, setPickerYear] = useState(0);
   const today = now ?? new Date();
   const [year, month] = value.split('-').map(Number);
 
@@ -41,138 +34,29 @@ export function PeriodPicker({ mode, value, onChange, minYear, maxYear, now }: P
       ? new Date(year, month) > today // start of the next month
       : year + 1 > (maxYear ?? today.getFullYear());
 
-  const select = (next: string) => {
-    onChange(next);
-    setOpen(false);
-  };
-
   const firstYear = minYear ?? today.getFullYear();
   const lastYear = maxYear ?? today.getFullYear();
-  const years = Array.from(
-    { length: Math.max(0, lastYear - firstYear + 1) },
-    (_, i) => firstYear + i
+  const years = Array.from({ length: Math.max(0, lastYear - firstYear + 1) }, (_, i) =>
+    String(firstYear + i)
   );
 
   return (
-    <div className="relative flex items-center gap-1">
-      <button
-        aria-label="Previous period"
-        className={`p-2 rounded-lg transition-colors ${ds.interactive.default}`}
-        onClick={() => onChange(step(-1))}
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
-        </svg>
-      </button>
-
-      <button
-        className={`px-4 py-2 ${ds.bg.primary} border ${ds.border.default} rounded-lg font-semibold ${ds.text.primary} ${ds.bg.hover} transition-colors min-w-[180px] text-center flex items-center justify-center gap-2`}
-        onClick={() => {
-          setPickerYear(year);
-          setOpen(!open);
-        }}
-      >
-        {label}
-        <svg
-          className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
-        </svg>
-      </button>
-
-      <button
-        aria-label="Next period"
-        className={`p-2 rounded-lg transition-colors ${ds.interactive.default}`}
-        disabled={mode === 'year' && nextIsFuture}
-        onClick={() => !nextIsFuture && onChange(step(1))}
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
-        </svg>
-      </button>
-
-      {open && (
-        <div
-          className={`absolute top-full right-0 mt-2 ${ds.bg.primary} border ${ds.border.default} rounded-xl shadow-lg p-4 z-50`}
-        >
-          {mode === 'month' ? (
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <button
-                  className={`p-1 rounded ${ds.interactive.default}`}
-                  onClick={() => setPickerYear(pickerYear - 1)}
-                >
-                  ←
-                </button>
-                <span className={`font-semibold ${ds.text.primary}`}>{pickerYear}</span>
-                <button
-                  className={`p-1 rounded ${ds.interactive.default}`}
-                  onClick={() => setPickerYear(pickerYear + 1)}
-                >
-                  →
-                </button>
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                {MONTHS.map((name, idx) => {
-                  const monthStr = monthValue(pickerYear, idx);
-                  const isFuture = new Date(pickerYear, idx) > today;
-                  return (
-                    <PeriodCell
-                      key={name}
-                      disabled={isFuture}
-                      label={name}
-                      selected={monthStr === value}
-                      onClick={() => select(monthStr)}
-                    />
-                  );
-                })}
-              </div>
-            </>
-          ) : (
-            <div className="grid grid-cols-4 gap-2">
-              {years.map((y) => (
-                <PeriodCell
-                  key={y}
-                  label={String(y)}
-                  selected={String(y) === value}
-                  onClick={() => select(String(y))}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PeriodCell({
-  label,
-  selected,
-  disabled = false,
-  onClick,
-}: {
-  label: string;
-  selected: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-        selected
-          ? 'bg-[var(--accent)] text-white'
-          : disabled
-            ? `${ds.text.muted} cursor-not-allowed`
-            : `${ds.text.secondary} ${ds.bg.hover}`
-      }`}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {label}
-    </button>
+    <PeriodStepper
+      label={label}
+      nextDisabled={nextIsFuture}
+      popover={(close) => {
+        const pick = (next: string) => {
+          onChange(next);
+          close();
+        };
+        return mode === 'month' ? (
+          <MonthGrid today={today} value={value} onPick={pick} />
+        ) : (
+          <YearList value={value} years={years} onPick={pick} />
+        );
+      }}
+      onNext={() => onChange(step(1))}
+      onPrev={() => onChange(step(-1))}
+    />
   );
 }
