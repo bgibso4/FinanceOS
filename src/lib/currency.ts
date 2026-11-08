@@ -6,6 +6,14 @@
 import type { PrismaClient } from '@prisma/client';
 import { RateBook } from '@/lib/fx/rate-book';
 
+/** Currencies a user can pick as their base; also what the settings route accepts. */
+export const BASE_CURRENCIES = [
+  { code: 'USD', name: 'US Dollar' },
+  { code: 'CAD', name: 'Canadian Dollar' },
+  { code: 'EUR', name: 'Euro' },
+  { code: 'GBP', name: 'British Pound' },
+] as const;
+
 export type Currency = 'USD' | 'CAD';
 
 export type FormatOptions = {

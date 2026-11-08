@@ -11,7 +11,7 @@ import { ds } from '@/lib/design-system';
 import { adjustSnapshotsForInflation } from '@/lib/inflation';
 import { fmtMonth } from '@/lib/price-index/months';
 import { IndexSeries } from '@/lib/price-index/series';
-import type { IndexObservation, IndexRegion } from '@/lib/price-index/types';
+import type { PriceIndexResponse } from '@/lib/price-index/api';
 import { FORECAST_STRATEGIES, getStrategy } from '@/lib/forecasting';
 import type { ForecastDataPoint } from '@/lib/forecasting';
 
@@ -558,10 +558,9 @@ export function NetWorthSnapshots() {
       const snapshotsData = await snapshotsRes.json();
       setSnapshots(snapshotsData.snapshots || []);
       // A failed or unreadable answer just hides the toggle.
-      const indexData: {
-        selected: IndexRegion;
-        regions: { region: IndexRegion; months: IndexObservation[] }[];
-      } | null = indexRes.ok ? await indexRes.json().catch(() => null) : null;
+      const indexData: PriceIndexResponse | null = indexRes.ok
+        ? await indexRes.json().catch(() => null)
+        : null;
       const months = indexData?.regions.find((r) => r.region === indexData.selected)?.months ?? [];
       setIndexSeries(IndexSeries.of(months));
     } catch (error) {

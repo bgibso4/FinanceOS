@@ -60,6 +60,12 @@ describe('GET /api/price-index', () => {
     expect(fetchMonths).not.toHaveBeenCalled();
   });
 
+  it('priceIndexFallsBackToUsForUnknownStoredRegion', async () => {
+    const { GET } = await import('@/app/api/price-index/route');
+    await prisma.userSettings.create({ data: { inflationRegion: 'XX' } });
+    expect((await (await GET()).json()).selected).toBe('US');
+  });
+
   it('priceIndexEmptyBeforeFetch', async () => {
     const { GET } = await import('@/app/api/price-index/route');
     const body = await (await GET()).json();
