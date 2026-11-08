@@ -17,8 +17,11 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 /** A real calendar day: 2026-02-30 is rejected, not rolled over to March 2. */
-const isDay = (s: string | null): s is string =>
-  s !== null && DAY.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+const isDay = (s: string | null): s is string => {
+  if (s === null || !DAY.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+};
 
 const nonEmpty = (values: string[]) => values.filter((v) => v !== '');
 

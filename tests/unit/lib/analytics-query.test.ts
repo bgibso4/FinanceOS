@@ -89,6 +89,16 @@ describe('analytics query in the address', () => {
     expect(parse('period=custom&from=2026-03-01&to=2026-04-31').period.kind).toBe('month');
   });
 
+  it('outOfRangeCustomDayFallsBackWithoutThrowing', () => {
+    for (const qs of [
+      'period=custom&from=2026-13-01&to=2026-13-02',
+      'period=custom&from=2026-00-10&to=2026-10-12',
+      'period=custom&from=2026-01-00&to=2026-10-12',
+    ]) {
+      expect(parse(qs).period).toEqual({ kind: 'month', anchor: '2026-11' });
+    }
+  });
+
   it('emptyFilterValuesAreDropped', () => {
     const q = parse('tag=&category=&account=&merchant=');
     expect(activeFilterCount(q)).toBe(0);
