@@ -109,7 +109,7 @@ function IndexRow({
           <div>
             <span>{name}</span>
             {inUse && (
-              <span className="ml-1.5 rounded-full border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] px-1.5 align-[1px] text-[10px] uppercase tracking-[0.06em] text-[var(--accent)]">
+              <span className="ml-1.5 whitespace-nowrap rounded-full border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] px-1.5 align-[1px] text-[10px] uppercase tracking-[0.06em] text-[var(--accent)]">
                 In use
               </span>
             )}
