@@ -1,9 +1,10 @@
 import type { Account, AccountBalance, HoldingSnapshot, PrismaClient } from '@prisma/client';
 import { systemClock, type Clock } from '@/lib/clock';
 import { convertAmount } from '@/lib/currency';
-import { loadFxRates, PriceBook } from '@/lib/prices/price-book';
+import { RateBook } from '@/lib/fx/rate-book';
+import { PriceBook } from '@/lib/prices/price-book';
 import { InvestmentInputError, requireInvestmentAccount } from './account-guard';
-import { addDays, lastAtOrBefore, utcDay } from './dates';
+import { addDays, isoDay, lastAtOrBefore, utcDay } from './dates';
 import { manualHoldingSecurityId, type EnteredBalanceService } from './entered-balances';
 import { roundCents } from './money';
 import { BalanceRowSource, BalanceSource, Pricing, RecordSource } from './codes';
@@ -81,7 +82,7 @@ export class ValuationService {
         ...(opts.accountIds ? { id: { in: opts.accountIds } } : {}),
       },
     });
-    const rates = await loadFxRates(this.prisma);
+    const rates = await RateBook.load(this.prisma);
     let written = 0;
     for (const account of accounts) {
       written += await this.valueAccount(account, today, rates, opts.from);
@@ -106,7 +107,7 @@ export class ValuationService {
   private async valueAccount(
     account: Account,
     today: Date,
-    rates: Map<string, number>,
+    rates: RateBook,
     from?: Date
   ): Promise<number> {
     const prisma = this.prisma;
@@ -167,7 +168,8 @@ export class ValuationService {
           h.quantity * priced.price,
           h.security.currency,
           account.currency,
-          rates
+          rates,
+          isoDay(d)
         );
       }
       if (!complete) {

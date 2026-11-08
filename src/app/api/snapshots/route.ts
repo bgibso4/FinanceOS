@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Standard mode - calculate from transaction data
-  const { rateMap } = await loadCurrencySettings(prisma);
+  const { rates } = await loadCurrencySettings(prisma);
 
   const accounts = await prisma.account.findMany({ where: { isActive: true } });
   const resolved = await getAccountBalances(prisma, accounts);
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
     const balanceInBaseCurrency =
       account.currency === baseCurrency
         ? balance
-        : convertAmount(balance, account.currency, baseCurrency, rateMap);
+        : convertAmount(balance, account.currency, baseCurrency, rates);
 
     accountBalances[account.id] = {
       balance,

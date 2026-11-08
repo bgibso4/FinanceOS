@@ -3,7 +3,7 @@ import { BalanceSource, Pricing, RecordSource } from './codes';
 import { systemClock, type Clock } from '@/lib/clock';
 import { getAccountBalances } from '@/lib/balances';
 import { convertAmount } from '@/lib/currency';
-import { loadFxRates } from '@/lib/prices/price-book';
+import { RateBook } from '@/lib/fx/rate-book';
 import type { PriceFreshness, PriceRefresher } from '@/lib/prices/refresh';
 import { ACTIVITY_ROWS_PER_ACCOUNT, buildActivity, type ActivityItem } from './activity';
 import type { CurrentHoldingsReader } from './current-holdings';
@@ -90,7 +90,7 @@ export class InvestmentOverviewService {
     const today = utcDay(this.clock.now());
     const [settings, rates] = await Promise.all([
       this.prisma.userSettings.findFirst(),
-      loadFxRates(this.prisma),
+      RateBook.load(this.prisma),
     ]);
     const holdings = await this.holdings.read({
       accounts: [account],
@@ -123,7 +123,7 @@ export class InvestmentOverviewService {
         orderBy: { sortOrder: 'asc' },
       }),
       prisma.userSettings.findFirst(),
-      loadFxRates(prisma),
+      RateBook.load(prisma),
     ]);
     const baseCurrency = settings?.baseCurrency || 'USD';
     const ids = accounts.map((a) => a.id);

@@ -108,10 +108,16 @@ const withoutDays = (f: FilterParams): FilterParams => ({
  * What a row adds to a category's net spend, in base currency: a purchase less its
  * linked returns, or a credit (positive amount) taken off.
  */
-function netSpend(amount: number, returnAmount: number, currency: string, s: CurrencySettings) {
+function netSpend(
+  amount: number,
+  returnAmount: number,
+  currency: string,
+  day: string,
+  s: CurrencySettings
+) {
   return amount < 0
-    ? Math.abs(toBase(amount, currency, s)) - toBase(returnAmount, currency, s)
-    : -toBase(amount, currency, s);
+    ? Math.abs(toBase(amount, currency, s, day)) - toBase(returnAmount, currency, s, day)
+    : -toBase(amount, currency, s, day);
 }
 
 /** What a row adds to spending, in base currency; null when it belongs to income. */
@@ -120,10 +126,11 @@ function spendOf(
   categoryType: string | null | undefined,
   returnAmount: number,
   currency: string,
+  day: string,
   s: CurrencySettings
 ): number | null {
   if (bucketForTransaction(amount, categoryType) === 'income') return null;
-  return netSpend(amount, returnAmount, currency, s);
+  return netSpend(amount, returnAmount, currency, day, s);
 }
 
 type PeriodTransaction = Awaited<ReturnType<typeof loadPeriodTransactions>>['transactions'][number];
@@ -145,10 +152,11 @@ function totalsOf(
       tx.category?.type,
       returnAmounts.get(tx.id) || 0,
       currencyOf(tx),
+      dayOf(tx.date),
       s
     );
     // Income is signed, so a refunded paycheck reduces income rather than adding spend
-    if (spend === null) income += toBase(amount, currencyOf(tx), s);
+    if (spend === null) income += toBase(amount, currencyOf(tx), s, dayOf(tx.date));
     else spending += spend;
   }
   return { income, spending };
@@ -171,8 +179,8 @@ function categoryTotalsOf(
     const key = tx.category?.name ?? 'Uncategorized';
     const returnAmount = returnAmounts.get(tx.id) || 0;
     const entry = (totals[key] ??= { amount: 0, type, txCount: 0, returnAmount: 0 });
-    entry.amount += netSpend(amount, returnAmount, currencyOf(tx), s);
-    if (amount < 0) entry.returnAmount += toBase(returnAmount, currencyOf(tx), s);
+    entry.amount += netSpend(amount, returnAmount, currencyOf(tx), dayOf(tx.date), s);
+    if (amount < 0) entry.returnAmount += toBase(returnAmount, currencyOf(tx), s, dayOf(tx.date));
     entry.txCount += 1;
   }
   return totals;
@@ -218,6 +226,7 @@ export async function spendingByDay(
       tx.category?.type,
       returnAmounts.get(tx.id) || 0,
       currencyOf(tx),
+      dayOf(tx.date),
       s
     );
     if (spend === null) continue;
@@ -340,14 +349,24 @@ export async function dashboardAnalytics(
   for (const tx of transactions) {
     if (Number(tx.amount) >= 0) continue;
     const accountCurrency = tx.account?.currency || 'USD';
-    const convertedAmount = toBase(Math.abs(Number(tx.amount)), accountCurrency, currencySettings);
+    const convertedAmount = toBase(
+      Math.abs(Number(tx.amount)),
+      accountCurrency,
+      currencySettings,
+      dayOf(tx.date)
+    );
     merchantTotals[tx.merchant] = (merchantTotals[tx.merchant] ?? 0) + convertedAmount;
   }
 
   for (const tx of prevTransactions) {
     if (Number(tx.amount) >= 0) continue;
     const accountCurrency = tx.account?.currency || 'USD';
-    const convertedAmount = toBase(Math.abs(Number(tx.amount)), accountCurrency, currencySettings);
+    const convertedAmount = toBase(
+      Math.abs(Number(tx.amount)),
+      accountCurrency,
+      currencySettings,
+      dayOf(tx.date)
+    );
     prevMerchantTotals[tx.merchant] = (prevMerchantTotals[tx.merchant] ?? 0) + convertedAmount;
   }
 
@@ -370,9 +389,11 @@ export async function dashboardAnalytics(
       tx.category?.type,
       returnAmounts.get(tx.id) || 0,
       currencyOf(tx),
+      dayOf(tx.date),
       currencySettings
     );
-    if (spend === null) bucket.income += toBase(amount, currencyOf(tx), currencySettings);
+    if (spend === null)
+      bucket.income += toBase(amount, currencyOf(tx), currencySettings, dayOf(tx.date));
     else bucket.spending += spend;
   }
   const incomeVsSpending = Object.entries(monthBuckets)

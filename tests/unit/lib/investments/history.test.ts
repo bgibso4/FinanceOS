@@ -533,6 +533,27 @@ describe('ValueHistoryService', () => {
     expect(short[0]).toEqual(long[0]);
   });
 
+  it('historyPointUsesItsDaysRate', async () => {
+    for (const [date, rate] of [
+      ['2026-10-01', 0.7],
+      ['2026-10-02', 0.8],
+    ] as const) {
+      await prisma.exchangeRate.create({
+        data: { fromCurrency: 'CAD', toCurrency: 'USD', date: day(date), rate },
+      });
+    }
+    const cad = await seedInvestmentAccount(prisma, {
+      balanceSource: BalanceSource.Manual,
+      currency: 'CAD',
+    });
+    await seedBalance(prisma, cad.id, '2026-10-01', 100, BalanceRowSource.Manual);
+    await seedBalance(prisma, cad.id, '2026-10-02', 100, BalanceRowSource.Manual);
+    expect(await history.portfolioSeries(day('2026-10-01'), day('2026-10-02'), 'USD')).toEqual([
+      { date: '2026-10-01', value: 70, isEstimated: false },
+      { date: '2026-10-02', value: 80, isEstimated: false },
+    ]);
+  });
+
   it('portfolio sums accounts in the base currency and flags any estimate', async () => {
     await prisma.exchangeRate.create({
       data: {

@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { prisma } from '../src/lib/prisma';
 import { getAccountBalance } from '../src/lib/balances';
 import { convertAmount, isValidCurrency } from '../src/lib/currency';
-import { loadFxRates } from '../src/lib/prices/price-book';
+import { RateBook } from '../src/lib/fx/rate-book';
 import { YahooPriceProvider } from '../src/lib/prices/yahoo';
 import { createInvestmentServices } from '../src/lib/investments/services';
 import { ensureStoredCodes } from '../src/lib/investments/rename-stored-codes';
@@ -66,7 +66,7 @@ async function main() {
   const config = FileSchema.parse(JSON.parse(readFileSync(path, 'utf8')));
   await ensureStoredCodes(prisma);
   const services = createInvestmentServices({ prisma, provider: new YahooPriceProvider() });
-  const rates = await loadFxRates(prisma);
+  const rates = await RateBook.load(prisma);
 
   for (const entry of config.accounts) {
     const account = await prisma.account.findUniqueOrThrow({ where: { id: entry.accountId } });

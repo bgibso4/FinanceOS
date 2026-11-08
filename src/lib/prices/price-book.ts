@@ -1,5 +1,4 @@
 import type { PrismaClient } from '@prisma/client';
-import { parseExchangeRates } from '@/lib/currency';
 import { PriceSource } from '@/lib/investments/codes';
 import {
   pricingFor,
@@ -58,10 +57,6 @@ export class PriceBook {
     const entry = this.entries.get(securityId);
     return entry ? entry.strategy.latest(entry.points) : null;
   }
-}
-
-export async function loadFxRates(prisma: PrismaClient): Promise<Map<string, number>> {
-  return parseExchangeRates(await prisma.exchangeRate.findMany());
 }
 
 /** Which of `securityIds` have a stored institution price (Institution pricing is offered). */

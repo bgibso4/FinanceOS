@@ -1,5 +1,6 @@
 import type { PrismaClient, Security } from '@prisma/client';
 import { convertAmount } from '@/lib/currency';
+import type { RateBook } from '@/lib/fx/rate-book';
 import { PriceBook } from '@/lib/prices/price-book';
 import type { HoldingKind, HoldingRow } from './holdings-view';
 import { manualHoldingSecurityId } from './entered-balances';
@@ -11,7 +12,7 @@ export type CurrentHoldingsOptions = {
   today: Date;
   rangeStart: Date;
   baseCurrency: string;
-  rates: Map<string, number>;
+  rates: RateBook;
 };
 
 const CASH_LABELS: Record<string, string> = {

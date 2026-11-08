@@ -2,10 +2,10 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { setupTestDb, teardownTestDb, resetTestDb } from '../../../helpers/db';
 import { day, seedPrice, seedSecurity } from '../../../helpers/investments';
-import { loadFxRates, PriceBook } from '@/lib/prices/price-book';
+import { PriceBook } from '@/lib/prices/price-book';
 import { PriceSource, Pricing } from '@/lib/investments/codes';
 
-describe('PriceBook / loadFxRates', () => {
+describe('PriceBook', () => {
   let prisma: PrismaClient;
   beforeAll(async () => {
     prisma = await setupTestDb();
@@ -34,18 +34,6 @@ describe('PriceBook / loadFxRates', () => {
     const book = await PriceBook.load(prisma, [s.id], day('2026-10-02'));
     expect(book.at(s.id, day('2026-10-09'))).toEqual({ price: 10, estimated: false });
     expect(book.at('missing', day('2026-10-09'))).toBeNull();
-  });
-
-  it('loads exchange rates keyed FROM_TO', async () => {
-    await prisma.exchangeRate.create({
-      data: {
-        fromCurrency: 'CAD',
-        toCurrency: 'USD',
-        date: new Date('2026-01-01T00:00:00.000Z'),
-        rate: 0.75,
-      },
-    });
-    expect((await loadFxRates(prisma)).get('CAD_USD')).toBe(0.75);
   });
 
   it("prices a Plaid-priced security through its proxy's closes", async () => {

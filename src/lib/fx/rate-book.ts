@@ -51,7 +51,7 @@ export class RateBook {
     return amount * this.rate(from, to, day);
   }
 
-  /** Newest stored row for the pair, in either direction. */
+  /** Newest stored row for the direct pair (no reverse lookup). */
   latest(from: string, to: string): { rate: number; date: string } | null {
     const list = this.byPair.get(pairKey(from, to));
     const last = list?.[list.length - 1];
