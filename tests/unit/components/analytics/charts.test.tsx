@@ -134,6 +134,27 @@ describe('WhereItWent', () => {
     ]);
   });
 
+  it('showAllListsEverySliceWithoutRest', () => {
+    const slices = [600, 500, 400, 300, 200, 100].map((amount, i) => ({
+      key: `c${i}`,
+      label: `Cat ${i}`,
+      amount,
+      color: `#00000${i}`,
+    }));
+    render(<WhereItWent showAll slices={slices} />);
+    const rows = within(screen.getByRole('list', { name: 'Top categories' })).getAllByRole(
+      'listitem'
+    );
+    expect(rows.map((r) => r.textContent)).toEqual([
+      'Cat 0$600',
+      'Cat 1$500',
+      'Cat 2$400',
+      'Cat 3$300',
+      'Cat 4$200',
+      'Cat 5$100',
+    ]);
+  });
+
   it('showsNothingWhenThereIsNoSpend', () => {
     render(<WhereItWent slices={[]} />);
     expect(screen.getByText('Nothing to show')).toBeInTheDocument();

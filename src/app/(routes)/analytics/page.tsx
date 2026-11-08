@@ -460,7 +460,7 @@ function AnalyticsContent() {
             onRunning={setRunning}
             onSplit={setSplit}
           />
-          <WhereItWent slices={slices} />
+          <WhereItWent showAll={canSplit} slices={slices} />
         </div>
 
         <CategoryBreakdown

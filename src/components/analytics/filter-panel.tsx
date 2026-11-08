@@ -204,7 +204,7 @@ export function FilterPanel({
           ))}
         </Section>
 
-        <Section title="Merchant">
+        <Section summary={query.merchant ? `“${query.merchant}”` : undefined} title="Merchant">
           <MerchantInput
             key={merchantBox}
             value={query.merchant}

@@ -257,6 +257,18 @@ describe('soFar', () => {
     expect(soFar(built.points, built.lines)).toEqual({ now: 10, thenSameDay: 7, thenTotal: 12 });
   });
 
+  it('soFarClampsToShortMonth', () => {
+    const built = buildSeries({
+      ...base,
+      shown: { start: '2026-03-01', end: '2026-03-31' },
+      through: '2026-03-30',
+      current: [row('2026-03-02', 'a', 10)],
+      compare: [row('2026-02-03', 'a', 4), row('2026-02-27', 'a', 5)],
+      compareRange: { start: '2026-02-01', end: '2026-02-28' },
+    });
+    expect(soFar(built.points, built.lines)).toEqual({ now: 10, thenSameDay: 9, thenTotal: 9 });
+  });
+
   it('nullWithoutComparison', () => {
     const built = buildSeries({ ...base, current: [] });
     expect(soFar(built.points, built.lines)).toBeNull();

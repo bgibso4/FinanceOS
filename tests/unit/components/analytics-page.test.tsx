@@ -242,6 +242,32 @@ describe('Analytics page', () => {
     expect(figure.queryByText('$20')).not.toBeInTheDocument();
   });
 
+  it('sixPicksEachKeepARingSlice', async () => {
+    // M7: six picks draw six lines, so all six are listed under Where it went.
+    const six = [1, 2, 3, 4, 5, 6].map((n) => ({
+      id: `p${n}`,
+      name: `Pick ${n}`,
+      type: 'expense',
+      parentId: null,
+    }));
+    const answer = global.fetch;
+    global.fetch = vi.fn(async (url: string | URL | Request) => {
+      const u = String(url);
+      if (u === '/api/categories') return respond({ categories: six });
+      if (u.startsWith('/api/analytics/daily')) {
+        const rows = six.map((c, i) => ({ date: '2026-11-02', categoryId: c.id, amount: 60 - i }));
+        return respond({ current: rows, compare: [] });
+      }
+      return answer(url);
+    }) as unknown as typeof fetch;
+    visit(six.map((c) => `category=${c.id}`).join('&'));
+
+    const list = await screen.findByRole('list', { name: 'Top categories' });
+    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(6));
+    expect(within(list).getByText('Pick 6')).toBeInTheDocument();
+    expect(within(list).queryByText('Everything else')).not.toBeInTheDocument();
+  });
+
   it('noFutureWarning', async () => {
     visit('at=2027-01');
 

@@ -191,10 +191,15 @@ export function soFar(
     if (p.values[CURRENT] !== null) last = k;
   });
   if (last < 0) return null;
-  const then = points.map((p) => p.values[COMPARE]).filter((v): v is number => v !== null);
+  const lastOf = (ps: ChartPoint[]) =>
+    ps
+      .map((p) => p.values[COMPARE])
+      .filter((v): v is number => v !== null)
+      .at(-1) ?? 0;
+  // A shorter comparison month ends before `last` (Mar 30 vs Feb): use its final day.
   return {
     now: points[last].values[CURRENT]!,
-    thenSameDay: points[last].values[COMPARE] ?? 0,
-    thenTotal: then[then.length - 1] ?? 0,
+    thenSameDay: lastOf(points.slice(0, last + 1)),
+    thenTotal: lastOf(points),
   };
 }

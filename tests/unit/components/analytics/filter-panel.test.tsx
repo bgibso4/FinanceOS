@@ -186,6 +186,12 @@ describe('FilterPanel', () => {
     expect(last().merchant).toBe('star');
   });
 
+  it('merchantHeadingShowsWhatIsPicked', () => {
+    setup({ merchant: 'starbucks' });
+    const heading = screen.getByRole('heading', { name: /Merchant/ });
+    expect(heading).toHaveTextContent('Merchant“starbucks”');
+  });
+
   it('merchantSurvivesEscape', () => {
     vi.useFakeTimers();
     const { onClose, last } = setup();

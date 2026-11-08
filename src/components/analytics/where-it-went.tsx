@@ -14,11 +14,14 @@ const REST: Omit<Slice, 'amount'> = {
   color: 'var(--text-muted)',
 };
 
-/** A ring and the top five (slices ranked biggest first, coloured by the caller), plus "Everything else". */
-export function WhereItWent({ slices }: { slices: Slice[] }) {
+/**
+ * A ring and the top five (slices ranked biggest first, coloured by the caller), plus "Everything
+ * else". `showAll` lists every slice, so each chart line keeps its colour in the ring (M7).
+ */
+export function WhereItWent({ slices, showAll = false }: { slices: Slice[]; showAll?: boolean }) {
   // Net credits can leave a category below zero; it took nothing, so it has no slice.
   const spent = slices.filter((s) => s.amount > 0);
-  const restAmount = spent.slice(SHOWN).reduce((sum, s) => sum + s.amount, 0);
+  const restAmount = showAll ? 0 : spent.slice(SHOWN).reduce((sum, s) => sum + s.amount, 0);
   const shown =
     restAmount > 0 ? [...spent.slice(0, SHOWN), { ...REST, amount: restAmount }] : spent;
   const total = shown.reduce((sum, s) => sum + s.amount, 0);
