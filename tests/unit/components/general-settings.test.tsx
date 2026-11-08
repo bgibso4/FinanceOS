@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { GeneralSettings } from '@/components/settings/general/general-settings';
+import { MONTHLY_TIP } from '@/components/settings/general/inflation-group';
 
 // Local times, so the expected text does not depend on the machine's zone.
 const at = (h: number, m: number) => new Date(2026, 10, 8, h, m).toISOString();
@@ -173,6 +174,13 @@ describe('GeneralSettings', () => {
     expect(
       screen.getByText('Source: US Bureau of Labor Statistics, CPI-U all items · fetched Nov 8')
     ).toBeInTheDocument();
+  });
+
+  it('explainsTheMonthlyColumnOnHover', async () => {
+    await setup();
+    await userEvent.click(rowOf('US'));
+    await userEvent.hover(screen.getByText('Monthly'));
+    expect(screen.getByRole('tooltip')).toHaveTextContent(MONTHLY_TIP);
   });
 
   it('radioDoesNotToggleTable', async () => {

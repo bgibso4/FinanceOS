@@ -1,4 +1,5 @@
 import type { KeyboardEvent, ReactNode } from 'react';
+import { InfoTip } from '@/components/ui/info-tip';
 import { cn } from '@/lib/cn';
 
 const LEADING = 'flex w-4 shrink-0 items-center justify-center';
@@ -95,13 +96,19 @@ export function SparkCell({ children }: { children: ReactNode }) {
   );
 }
 
-/** The table an ExpandableRow opens: a text column, then right-aligned figures, then a note. */
+export type DetailColumn = string | { label: string; tip: string };
+const columnLabel = (c: DetailColumn) => (typeof c === 'string' ? c : c.label);
+
+/**
+ * The table an ExpandableRow opens: a text column, then right-aligned figures, then a note. A
+ * column given as `{ label, tip }` explains itself on hover.
+ */
 export function DetailTable({
   columns,
   rows,
   note,
 }: {
-  columns: string[];
+  columns: DetailColumn[];
   rows: { key: string; cells: ReactNode[] }[];
   note: ReactNode;
 }) {
@@ -112,13 +119,19 @@ export function DetailTable({
           <tr>
             {columns.map((c, i) => (
               <th
-                key={c}
+                key={columnLabel(c)}
                 className={cn(
                   'pb-1.5 pt-2 text-[11px] font-normal text-[var(--text-muted)]',
                   i === 0 ? 'text-left' : 'text-right'
                 )}
               >
-                {c}
+                {typeof c === 'string' ? (
+                  c
+                ) : (
+                  <InfoTip align={i === 0 ? 'start' : 'end'} text={c.tip}>
+                    {c.label}
+                  </InfoTip>
+                )}
               </th>
             ))}
           </tr>
@@ -128,7 +141,7 @@ export function DetailTable({
             <tr key={row.key}>
               {row.cells.map((cell, i) => (
                 <td
-                  key={columns[i]}
+                  key={columnLabel(columns[i])}
                   className={cn(
                     'border-t border-[var(--border)] py-1.5 text-[var(--text-primary)]',
                     i > 0 && 'text-right font-mono tabular-nums'

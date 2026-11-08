@@ -1,4 +1,5 @@
 import { HoverSparkline } from '@/components/ui/hover-sparkline';
+import { InfoTip } from '@/components/ui/info-tip';
 import { fmtPct } from '@/components/investments/format';
 import { fmtMoment } from '@/lib/dates';
 import type { PriceIndexResponse } from '@/lib/price-index/api';
@@ -20,6 +21,11 @@ type RegionIndex = PriceIndexResponse['regions'][number];
 const MONTHS_SHOWN = 12;
 const COLUMNS =
   'grid grid-cols-[1fr_72px_64px] items-center gap-[18px] sm:grid-cols-[140px_84px_1fr_80px]';
+
+export const ANNUAL_TIP =
+  'Change in prices from the same month a year earlier. This is the headline inflation rate.';
+export const MONTHLY_TIP =
+  'Change in prices from the month before. Not seasonally adjusted, so it swings with the seasons.';
 
 export const indexRowKey = (region: IndexRegion) => `index:${region}`;
 
@@ -49,7 +55,11 @@ export function InflationGroup({
         cells={
           <div className={COLUMNS}>
             <span>Consumer prices</span>
-            <span className="text-right">Annual</span>
+            <span className="text-right">
+              <InfoTip align="end" text={ANNUAL_TIP}>
+                Annual
+              </InfoTip>
+            </span>
             <span className={SPARK_COLUMN}>Past year</span>
             <span className="text-right">Latest</span>
           </div>
@@ -139,7 +149,11 @@ function IndexRow({
       }
       detail={
         <DetailTable
-          columns={['Month', 'Annual', 'Monthly']}
+          columns={[
+            'Month',
+            { label: 'Annual', tip: ANNUAL_TIP },
+            { label: 'Monthly', tip: MONTHLY_TIP },
+          ]}
           note={`Source: ${index.attribution}${fetched}`}
           rows={rows.map((r) => ({
             key: r.month,
