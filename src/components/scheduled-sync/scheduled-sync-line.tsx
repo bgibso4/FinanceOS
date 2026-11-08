@@ -8,6 +8,7 @@ import type { ScheduledSyncStatus } from './use-scheduled-sync-status';
 
 const STEP_NAMES: Record<ScheduledSyncStatus['failedSteps'][number], string> = {
   rates: 'exchange rates',
+  inflation: 'inflation',
   accounts: 'accounts',
   prices: 'prices',
 };

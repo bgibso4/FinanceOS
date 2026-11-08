@@ -1,5 +1,5 @@
 /**
- * One scheduled sync pass: daily rates, then every syncable connection, then prices, then the
+ * One scheduled sync pass: daily rates, inflation, then every syncable connection, then prices, then the
  * record. Each step is injected and isolated, so one failing step never stops the next.
  */
 import type { PrismaClient } from '@prisma/client';
@@ -12,7 +12,7 @@ import {
 import { systemClock, type Clock } from '@/lib/clock';
 import { writePassRecord } from './record';
 
-export type PassStep = 'rates' | 'accounts' | 'prices';
+export type PassStep = 'rates' | 'inflation' | 'accounts' | 'prices';
 
 export type PassSummary = {
   finishedAt: Date;
@@ -24,6 +24,7 @@ export type PassSummary = {
 export type PassDeps = {
   prisma: PrismaClient;
   fillRates(): Promise<{ failed: string[] }>;
+  fillInflation(): Promise<{ failed: string[] }>;
   syncUnit(u: SyncUnit): Promise<void>;
   refreshPrices(): Promise<unknown>;
   clock?: Clock;
@@ -31,19 +32,31 @@ export type PassDeps = {
 
 const SYNC_DAYS = 30;
 
+/** Runs one step; a false result or a throw records the step as failed and never stops the pass. */
+async function runStep(
+  step: PassStep,
+  failures: PassStep[],
+  fn: () => Promise<boolean>
+): Promise<void> {
+  try {
+    if (await fn()) return;
+  } catch (error) {
+    console.warn(`Scheduled sync: ${step} failed:`, error);
+  }
+  failures.push(step);
+}
+
 export async function runSyncPass(deps: PassDeps): Promise<PassSummary> {
   const failures: PassStep[] = [];
   const units: PassSummary['units'] = [];
 
-  try {
-    const { failed } = await deps.fillRates();
-    if (failed.length > 0) failures.push('rates');
-  } catch (error) {
-    console.warn('Scheduled sync: rates failed:', error);
-    failures.push('rates');
-  }
-
-  try {
+  await runStep('rates', failures, async () => (await deps.fillRates()).failed.length === 0);
+  await runStep(
+    'inflation',
+    failures,
+    async () => (await deps.fillInflation()).failed.length === 0
+  );
+  await runStep('accounts', failures, async () => {
     const accounts = await deps.prisma.account.findMany({
       where: { isActive: true },
       include: { tellerConnection: true, plaidConnection: true },
@@ -62,18 +75,9 @@ export async function runSyncPass(deps: PassDeps): Promise<PassSummary> {
         });
       }
     }
-    if (units.some((u) => !u.ok && !u.needsRelogin)) failures.push('accounts');
-  } catch (error) {
-    console.warn('Scheduled sync: accounts failed:', error);
-    failures.push('accounts');
-  }
-
-  try {
-    await deps.refreshPrices();
-  } catch (error) {
-    console.warn('Scheduled sync: prices failed:', error);
-    failures.push('prices');
-  }
+    return !units.some((u) => !u.ok && !u.needsRelogin);
+  });
+  await runStep('prices', failures, async () => (await deps.refreshPrices(), true));
 
   const summary: PassSummary = {
     finishedAt: (deps.clock ?? systemClock).now(),
@@ -88,10 +92,12 @@ export async function runSyncPass(deps: PassDeps): Promise<PassSummary> {
 export async function defaultPassDeps(): Promise<PassDeps> {
   const { prisma } = await import('@/lib/prisma');
   const { getInvestmentServices } = await import('@/lib/investments/services');
+  const { getPriceIndexServices } = await import('@/lib/price-index/services');
   const { fxRates, refresh } = await getInvestmentServices();
   return {
     prisma,
     fillRates: () => fxRates.fill(),
+    fillInflation: async () => (await getPriceIndexServices()).history.fill(),
     syncUnit: async (u) => {
       const sync = u.provider === 'plaid' ? syncPlaidConnection : syncTellerConnection;
       await sync(u.entryAccountId, { daysToSync: SYNC_DAYS });

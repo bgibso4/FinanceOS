@@ -85,6 +85,12 @@ describe('Settings → automatic sync status', () => {
     render(<SettingsPage />);
     expect(await screen.findByText(/couldn't update prices/)).toBeInTheDocument();
   });
+
+  it('namesFailedInflationStep', async () => {
+    stub({ ...RAN, failedSteps: ['inflation'], needsAttention: true });
+    render(<SettingsPage />);
+    expect(await screen.findByText(/couldn't update inflation/)).toBeInTheDocument();
+  });
 });
 
 describe('Settings → daily exchange rate', () => {

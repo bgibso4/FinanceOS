@@ -14,6 +14,11 @@ vi.mock('@/lib/plaid-sync', () => ({ syncPlaidTransactions: vi.fn() }));
 vi.mock('@/lib/teller-sync', () => ({ syncTellerTransactions: vi.fn() }));
 const refresh = vi.fn(async () => ({}));
 const fill = vi.fn(async () => ({ pairs: [], days: 0, failed: [] as string[] }));
+vi.mock('@/lib/price-index/services', () => ({
+  getPriceIndexServices: async () => ({
+    history: { fill: async () => ({ regions: [], months: 0, failed: [] as string[] }) },
+  }),
+}));
 vi.mock('@/lib/investments/services', () => ({
   getInvestmentServices: async () => ({ fxRates: { fill }, refresh: { refresh } }),
 }));
@@ -59,10 +64,51 @@ describe('runSyncPass', () => {
   const deps = (over: Record<string, unknown> = {}) => ({
     prisma: testPrisma,
     fillRates: async () => ({ failed: [] }),
+    fillInflation: async () => ({ failed: [] as string[] }),
     syncUnit: async () => {},
     refreshPrices: async () => ({}),
     clock,
     ...over,
+  });
+
+  it('inflationRunsAfterRatesBeforeAccounts', async () => {
+    await tellerAccount('a');
+    const order: string[] = [];
+    const s = await runSyncPass(
+      deps({
+        fillRates: async () => (order.push('rates'), { failed: [] }),
+        fillInflation: async () => (order.push('inflation'), { failed: [] }),
+        syncUnit: async () => void order.push('accounts'),
+        refreshPrices: async () => order.push('prices'),
+      })
+    );
+    expect(order).toEqual(['rates', 'inflation', 'accounts', 'prices']);
+    expect(s.failures).toEqual([]);
+  });
+
+  it('inflationFailureIsRecordedAndPassContinues', async () => {
+    await tellerAccount('a');
+    const syncUnit = vi.fn(async () => {});
+    const refreshPrices = vi.fn(async () => ({}));
+    const s = await runSyncPass(
+      deps({ fillInflation: async () => ({ failed: ['US'] }), syncUnit, refreshPrices })
+    );
+    expect(s.failures).toEqual(['inflation']);
+    expect(syncUnit).toHaveBeenCalledTimes(1);
+    expect(refreshPrices).toHaveBeenCalledTimes(1);
+  });
+
+  it('inflationThrowIsRecorded', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const s = await runSyncPass(
+      deps({
+        fillInflation: async () => {
+          throw new Error('down');
+        },
+      })
+    );
+    expect(s.failures).toEqual(['inflation']);
+    warn.mockRestore();
   });
 
   it('stepsRunInOrder', async () => {
