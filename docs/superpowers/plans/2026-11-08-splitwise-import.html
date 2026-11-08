@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Splitwise Import Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f2f2f7; --surface: #ffffff; --fill: #e9e9ee; --ink: #1c1c1e; --ink-2: #6e6e73; --ink-3: #8a8a8e; --line: #d8d8dc;
+  --tint: #1c1c1e; --on-tint: #ffffff; --soon: #ad500e; --done: #2f7d4f; --info: #3f6fa3; --warn: #a3392f;
+  --serif: "Source Serif 4", "New York", ui-serif, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+    --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+  --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+h1, h2, h3 { text-wrap: balance; }
+.layout { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+.brand { font: 700 15px/1.2 var(--serif); }
+.brand span { display: block; font: 400 13px/1.4 var(--sans); color: var(--ink-2); margin-top: 2px; }
+.overall { background: var(--surface); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.overall b { font: 700 17px/1.2 var(--serif); color: var(--ink); }
+.toc { display: flex; flex-direction: column; gap: 1px; }
+.toc-label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin: 6px 0 6px 10px; }
+.toc a { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; text-decoration: none; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.toc a:hover { background: var(--surface); color: var(--ink); }
+.toc a.active { background: var(--surface); color: var(--ink); font-weight: 600; }
+.toc-n { width: 20px; text-align: right; color: var(--ink-3); font-size: 13px; flex: none; font-variant-numeric: tabular-nums; }
+.theme { align-self: flex-start; background: none; border: 0; color: var(--ink-3); font: 13px var(--sans); cursor: pointer; padding: 4px 10px; }
+.theme:hover { color: var(--ink); }
+main { padding: 48px 0 120px; display: flex; flex-direction: column; gap: 48px; min-width: 0; }
+.eyebrow { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.eyebrow .pill { background: var(--surface); border-radius: 99px; padding: 3px 10px; font-weight: 600; color: var(--ink); }
+h1 { font: 700 44px/1.08 var(--serif); letter-spacing: -0.6px; margin: 12px 0 14px; }
+.goal { font-size: 19px; line-height: 1.5; max-width: 66ch; margin: 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 24px; }
+.meta div { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; line-height: 1.5; }
+.meta b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 4px; }
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 14px; color: var(--ink-2); }
+.stats b { font: 700 20px var(--serif); color: var(--ink); margin-right: 4px; font-variant-numeric: tabular-nums; }
+section > h2 { font: 700 26px/1.2 var(--serif); margin: 0 0 6px; letter-spacing: -0.2px; }
+section > h3.sub { font: 700 19px/1.3 var(--serif); margin: 22px 0 8px; }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 66ch; }
+.decisions { background: var(--surface); border-radius: var(--r); padding: 6px 0; border-left: 4px solid var(--soon); }
+.decisions.agreed { border-left-color: var(--done); }
+.decisions ul { list-style: none; margin: 0; padding: 0; }
+.decision { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 18px; }
+.decision + .decision { border-top: 1px solid var(--line); }
+.dec-name { font-weight: 600; }
+.dec-id { font: 700 13px var(--serif); color: var(--ink-3); margin-right: 6px; }
+.dec-text { color: var(--ink-2); font-size: 15px; max-width: 70ch; }
+.dec-text strong { color: var(--ink); }
+.trefs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 180px; }
+.tref { flex: none; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--fill); padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.tref:hover { background: var(--tint); color: var(--on-tint); }
+.card { background: var(--surface); border-radius: var(--r); padding: 6px 20px; }
+.card ul, .card ol { margin: 0; padding: 0; list-style: none; }
+.card > ul > li, .card > ol > li { padding: 11px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.card > ul > li:first-child, .card > ol > li:first-child { border-top: 0; }
+.card li ul { list-style: disc; padding-left: 20px; margin: 6px 0 0; }
+.card li ul li { padding: 2px 0; border: 0; color: var(--ink-2); }
+.card li ul li strong { color: var(--ink); }
+.numbered { counter-reset: f; }
+.numbered > li { counter-increment: f; display: grid; grid-template-columns: 28px 1fr; gap: 6px; }
+.numbered > li::before { content: counter(f); font: 700 17px/1.4 var(--serif); color: var(--soon); }
+table.md { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border-radius: var(--r); overflow: hidden; }
+table.md th, table.md td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--line); }
+table.md th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); border-top: 0; }
+table.md td:first-child { font-weight: 600; white-space: nowrap; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; }
+.chip.mine { color: var(--soon); background: color-mix(in srgb, var(--soon) 13%, transparent); }
+.chip.agreed { color: var(--done); background: color-mix(in srgb, var(--done) 13%, transparent); }
+.chip.route { color: var(--info); background: color-mix(in srgb, var(--info) 13%, transparent); font-family: var(--mono); font-weight: 500; }
+.callout { background: var(--surface); border-radius: var(--r); padding: 14px 18px; border-left: 4px solid var(--warn); font-size: 15px; margin-top: 12px; }
+.callout b:first-child { display: block; margin-bottom: 4px; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.col { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; }
+.col h3 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 8px; }
+.col ul { margin: 0; padding-left: 16px; } .col li { margin: 5px 0; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
+  .side { position: static; height: auto; padding: 24px 0 0; }
+  .toc { display: none; }
+  h1 { font-size: 34px; }
+  .cols { grid-template-columns: 1fr; }
+  .decision { flex-direction: column; gap: 8px; }
+  .trefs { justify-content: flex-start; max-width: none; }
+}
+pre { background: var(--fill); border-radius: 10px; padding: 12px 14px; overflow-x: auto; margin: 8px 0; font-size: 13px; line-height: 1.5; }
+pre code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side" aria-label="Sections">
+    <div class="brand">FinanceOS<span>Plan · Splitwise import</span></div>
+    <div class="overall"><span>Status</span><b>Waiting on your review</b><span>9 tasks · then the live step with you</span></div>
+    <nav class="toc" aria-label="Sections">
+      <div class="toc-label">Overview</div>
+      <a href="#constraints"><span class="toc-n"></span><span>Global constraints</span></a>
+      <a href="#focus"><span class="toc-n"></span><span>Review focus</span></a>
+      <a href="#calls"><span class="toc-n"></span><span>Planning calls</span></a>
+      <a href="#arch"><span class="toc-n"></span><span>Architecture</span></a>
+      <div class="toc-label">Tasks</div>
+      <a href="#t1"><span class="toc-n">1</span><span>Shared CSV parser</span></a>
+      <a href="#t2"><span class="toc-n">2</span><span>Export reader</span></a>
+      <a href="#t3"><span class="toc-n">3</span><span>Matcher</span></a>
+      <a href="#t4"><span class="toc-n">4</span><span>Tables, store, cloud sync</span></a>
+      <a href="#t5"><span class="toc-n">5</span><span>Import service</span></a>
+      <a href="#t6"><span class="toc-n">6</span><span>Restore and undo</span></a>
+      <a href="#t7"><span class="toc-n">7</span><span>Routes</span></a>
+      <a href="#t8"><span class="toc-n">8</span><span>Shared bulk bar</span></a>
+      <a href="#t9"><span class="toc-n">9</span><span>The Splitwise card</span></a>
+      <a href="#t10"><span class="toc-n">10</span><span>Live step and PR</span></a>
+    </nav>
+    <button class="theme" type="button" id="theme">◐ Light / dark</button>
+  </aside>
+  <main>
+    <header>
+      <div class="eyebrow"><span class="pill">Plan</span><span>Written 2026-11-08</span><span>·</span><span>for subagent-driven development</span></div>
+      <h1>Splitwise import</h1>
+      <p class="goal">Build the Splitwise card on Settings → Import: drop a group export, import your column at once into the Splitwise account, re-import picks up new, edited and deleted rows, and the result is edited in place with the shared table, drawer and bulk bar, with Restore and Undo.</p>
+      <div class="meta">
+        <div><b>Spec (authority)</b><code>docs/superpowers/specs/2026-11-08-splitwise-import-design.html</code> · <a href="https://claude.ai/artifact/9FceH6FmDSdR8GeWGKCGNz">artifact</a></div>
+        <div><b>Approved mock</b><code>~/Documents/FinanceOS-design-archive/design-mocks/splitwise-import.html</code> (v2)</div>
+        <div><b>Branch</b><code>feat/splitwise-import</code> off <code>origin/main</code> (PR #47 merged as 86f0417). One PR against <code>main</code>.</div>
+        <div><b>Stack</b>Next.js 16 App Router, React 19, TypeScript, Prisma 5 + SQLite, Zod, vitest + Testing Library.</div>
+      </div>
+    </header>
+
+    <section id="constraints">
+      <h2>Global constraints</h2>
+      <div class="card"><ul>
+        <li><strong>principal-engineer</strong> loaded by every implementer and reviewer. DRY &gt; YAGNI &gt; SOLID. Reuse before writing: <code>TransactionTable</code>, <code>TransactionDrawer</code> + <code>useTransactionDrawer</code> + <code>useDrawerReferenceData</code> (pattern: <code>src/app/(routes)/travel/[id]/page.tsx</code>), <code>/api/transactions/bulk</code>, <code>autoCategorize</code>, <code>cleanupTransferPair</code>, <code>TX_ROW_INCLUDE</code>, <code>sendJson</code>, <code>tests/helpers/db.ts</code>.</li>
+        <li><strong>Isolation:</strong> parsing and matching are pure (no Prisma, no React). Prisma for the new tables lives in <code>store.ts</code> and the composition root only. The Splitwise name appears only in <code>src/lib/splitwise/</code>, <code>src/app/api/import/splitwise/</code>, <code>src/components/settings/import/</code> and the cloud-sync schema entries. Shared code (table, bulk bar, CSV parser) stays vendor-free.</li>
+        <li><strong>Public repo:</strong> fixtures are anonymised (P7). No real friend names, no real group names, nothing from <code>prisma/dev.db</code> in commits.</li>
+        <li><strong>Dates:</strong> Splitwise dates are calendar dates: stored as <code>YYYY-MM-DD</code> strings in the new tables, and as UTC midnight on transactions, exactly as <code>src/lib/import.ts</code> does.</li>
+        <li><strong>Database:</strong> <code>prisma db push</code> only, never migrate, never <code>--force-reset</code>. Tests use <code>tests/helpers/db.ts</code> and never touch <code>prisma/dev.db</code>. The live database changes only in Task 10, with Ben, after a backup.</li>
+        <li><strong>Production:</strong> port 3000 is Ben's production server and runs a build made from this checkout: never touch it, never <code>npm run build</code> / <code>next build</code> in the repo (builds go in a scratch export), never restart it. No bank sync or scheduled pass from a dev server or copy.</li>
+        <li><strong>Lint and tests:</strong> only <code>console.warn</code> / <code>console.error</code>. In zsh, list test files explicitly. Use <code>findBy…</code> after fetches. Each implementer runs every test file touching changed modules plus <code>npm run typecheck</code>.</li>
+        <li><strong>Commits</strong> after each task, trailer <code>Co-Authored-By: Claude Opus 5.5 &lt;noreply@anthropic.com&gt;</code>. Never commit agent scratch or <code>.superpowers/</code>. Spec and plan with <code>git add -f</code> in Task 1. No push until Ben says.</li>
+        <li><strong>UI:</strong> follow the mock for flow and wording; design tokens only, light and dark; muted, accent only on New/Changed badges and the Import button.</li>
+      </ul></div>
+    </section>
+
+    <section id="focus">
+      <h2>Review focus</h2>
+      <p class="lede">Inputs the spec implies but doesn't spell out, most likely to bite first. Each has a test in its owning task.</p>
+      <div class="card"><ol class="numbered">
+        <li><div><strong>The same file imported twice</strong> creates nothing and reports everything unchanged. Tests: Task 3 <code>sameFileIsAllUnchanged</code>, Task 5 <code>reimportSameFileCreatesNothing</code>.</div></li>
+        <li><div><strong>A description with a comma in quotes</strong> (<code>"Friday Dinner (Feb 13, 2026)"</code>) stays one field, and the existing per-account CSV import keeps working on its simple files. Tests: Task 1 <code>quotedCommaStaysOneField</code>, <code>importCsvStillImportsSimpleFile</code>.</div></li>
+        <li><div><strong>A row you deleted yourself</strong> never comes back, even when Splitwise later edits it. Tests: Task 5 <code>deletedByYouIsNeverRecreated</code>, <code>editOfDeletedByYouCreatesNothing</code>.</div></li>
+        <li><div><strong>Undo after you edited the imported rows</strong> (category, trip) still removes exactly what the import created and puts edited amounts back; Undo of an older import is refused. Tests: Task 6 <code>undoRevertsCreatesEditsAndDeletes</code>, <code>undoRefusedWhenNotLatest</code>.</div></li>
+        <li><div><strong>A failure halfway</strong> (e.g. a create throws) leaves the database exactly as before: no transactions, no remembered rows, no import record. Test: Task 5 <code>failureMidImportWritesNothing</code>.</div></li>
+      </ol></div>
+    </section>
+
+    <section id="calls">
+      <h2>Planning calls</h2>
+      <p class="lede">Decisions the spec left to the builder, settled here so every task agrees.</p>
+      <div class="decisions"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P1</span>Two tables</div><div class="dec-text"><code>SplitwiseImport</code> (one per import: account, group, file name, your name, the result shown on the card, and what Undo needs) and <code>SplitwiseRow</code> (one per remembered row of yours: account, group, fingerprint fields, status, optional transaction link with <code>onDelete: SetNull</code>). No change to <code>Transaction</code> except the back-relation.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P2</span>Row status</div><div class="dec-text"><code>'imported' | 'skipped' | 'kept' | 'dismissed'</code>. "Deleted by you" is detected as <code>imported</code> with a null link, and persisted as <code>dismissed</code> by the next import.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P3</span>Undo by snapshot</div><div class="dec-text">Each import stores, as JSON: the group's remembered rows before it ran, the ids it created, each updated transaction's previous <code>amount</code> and <code>date</code>, and a snapshot of each transaction it deleted (all scalar fields, so Restore and Undo recreate it with the same id). M10 guarantees deleted ones were plain.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P4</span>"Reshaped" means</div><div class="dec-text">A transaction is reshaped (M5/M10) when <code>isSplitParent</code>, <code>transferGroupId</code> or <code>linkedTransactionId</code> is set, or it has <code>offsetTransactions</code>. Reshaped edits and deletions are flagged, not applied.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P5</span>Category fallback reuses the keyword matcher</div><div class="dec-text"><code>findCategoryBySearchTerms</code> in <code>categorization.ts</code> becomes exported. The Splitwise map (M3) is a map of Splitwise category → search term (Hotel→lodging, Taxi→rideshare, Parking→transportation, Groceries→groceries, Dining out→restaurants, Gas/fuel→gas, Entertainment - Other→entertainment, Sports→sports), confidence 0.72 like a keyword hit. Rules (<code>autoCategorize</code>, incl. its rename) come first.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P6</span>Remembered defaults come from the last import</div><div class="dec-text">"Into [account] as [name]" defaults to the latest <code>SplitwiseImport</code>'s account and name. With none: the active account whose institution is "Splitwise", and an empty name field (no real name hard-coded in a public repo). No new settings fields.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P7</span>Anonymised fixtures</div><div class="dec-text">Three fixtures under <code>tests/fixtures/splitwise/</code>: <code>trip-13_2026-11-08_export.csv</code> (the 13-person trip), <code>trip-pair_2026-11-08_export.csv</code> (the two-person trip) and <code>everyday_2026-11-08_export.csv</code> (the first 40 rows of the everyday group plus its blank line and total row recomputed). People become "Person A…", your column is renamed "Me", names inside descriptions are replaced the same way. Made with a one-off script kept out of git; the source files are in Ben's Downloads (<code>trip-13_…</code>, <code>trip-pair_…</code>, <code>everyday_…</code>).</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P8</span>One annotate prop on the table</div><div class="dec-text"><code>TransactionTable</code> gains <code>annotate?: (tx: Tx) =&gt; ReactNode</code>, rendered under the merchant line. Every other caller ignores it.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P9</span>Bulk trip respects split parents</div><div class="dec-text"><code>/api/transactions/bulk</code> gains <code>tripId</code>; it never puts a split parent on a trip (same rule as <code>/api/transactions/[id]</code>) and reports how many it skipped.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P10</span>File read in the browser</div><div class="dec-text">As the existing import does: the card reads the file as text and posts <code>{ accountId, person, fileName, text, skipBefore? }</code>.</div></div></li>
+      </ul></div>
+    </section>
+
+    <section id="arch">
+      <h2>Architecture</h2>
+      <table class="md">
+        <thead><tr><th>Layer</th><th>Files · job</th></tr></thead>
+        <tbody>
+          <tr><td>Shared CSV</td><td><code>src/lib/csv.ts</code>: <code>parseCsv(text): string[][]</code>, RFC 4180 quoting. <code>src/lib/import.ts</code>'s <code>csvToJson</code> uses it.</td></tr>
+          <tr><td>Reader (pure)</td><td><code>src/lib/splitwise/export.ts</code>: file name → group; text + your name → your rows, others' rows, people, total.</td></tr>
+          <tr><td>Matcher (pure)</td><td><code>src/lib/splitwise/match.ts</code>: remembered rows + incoming rows → plan.</td></tr>
+          <tr><td>Store</td><td><code>src/lib/splitwise/store.ts</code>: <code>SplitwiseStore</code>, the only Prisma access for the two tables and the transaction writes the import makes, all inside one Prisma transaction.</td></tr>
+          <tr><td>Service</td><td><code>src/lib/splitwise/importer.ts</code>: <code>SplitwiseImporter</code> with <code>run</code>, <code>restore</code>, <code>undo</code>, <code>result</code>, <code>defaults</code>. Depends on the store and an injected categoriser.</td></tr>
+          <tr><td>Composition root</td><td><code>src/lib/splitwise/services.ts</code>: <code>createSplitwiseImporter({ prisma })</code>, <code>getSplitwiseImporter()</code>.</td></tr>
+          <tr><td>Routes</td><td><code>src/app/api/import/splitwise/…</code></td></tr>
+          <tr><td>UI</td><td><code>src/components/transactions/bulk-edit-bar.tsx</code> (shared), <code>src/components/settings/import/splitwise-import-card.tsx</code>, one line in the Settings page.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="t1">
+      <h2>Task 1 · Shared CSV parser</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> create <code>src/lib/csv.ts</code>; modify <code>src/lib/import.ts</code> (<code>csvToJson</code>); test <code>tests/unit/lib/csv.test.ts</code>, plus the existing import tests (<code>grep -rl importCsv tests</code>).</li>
+        <li><strong>Produces:</strong> <code>parseCsv(text: string): string[][]</code>: rows of cells; handles quoted fields with commas, doubled quotes (<code>""</code>), CRLF and LF; keeps empty lines as <code>[""]</code> rows so callers decide; does not trim cells.</li>
+        <li><strong>Step 1:</strong> branch <code>git switch -c feat/splitwise-import origin/main</code>; <code>git add -f</code> the spec and this plan; commit <code>docs: Splitwise import spec and plan</code>.</li>
+        <li><strong>Step 2, failing tests:</strong> <code>quotedCommaStaysOneField</code> (<code>a,"b, c",d</code> → <code>['a','b, c','d']</code>); <code>doubledQuoteIsOneQuote</code> (<code>"say ""hi"""</code> → <code>say "hi"</code>); <code>crlfAndLfBothSplitRows</code>; <code>blankLineIsKept</code> (<code>'h\n\nx'</code> → 3 rows, middle <code>['']</code>); <code>importCsvStillImportsSimpleFile</code> (existing behaviour: header + two plain rows import two transactions; add to the existing import test file if one covers <code>importCsv</code>, else <code>tests/integration/api/csv-import.test.ts</code>). Run → FAIL.</li>
+        <li><strong>Step 3:</strong> implement <code>parseCsv</code>; make <code>csvToJson</code> build its objects from <code>parseCsv</code> (trim header and cells as it does today, drop empty lines as today).</li>
+        <li><strong>Step 4:</strong> run the tests and the existing import tests → PASS; <code>npm run typecheck</code>. Commit <code>feat(import): quote-aware CSV parser shared by imports</code>.</li>
+      </ul></div>
+    </section>
+
+    <section id="t2">
+      <h2>Task 2 · Export reader</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> create <code>src/lib/splitwise/export.ts</code>, the three fixtures (P7); test <code>tests/unit/lib/splitwise/export.test.ts</code>.</li>
+        <li><strong>Produces:</strong>
+<pre><code>type SplitwiseRow = { date: string; description: string; category: string; cost: number; currency: string; amount: number }
+type SplitwiseExport = { people: string[]; rows: SplitwiseRow[]; others: SplitwiseRow[]; total: number }
+class SplitwiseExportError extends Error {}
+groupFromFileName(fileName: string): string | null   // 'trip-pair_2026-11-08_export.csv' → 'trip-pair'; else null
+readSplitwiseExport(text: string, person: string): SplitwiseExport
+fingerprint(r: { date; description; cost; amount }): string  // `${date}|${description}|${cost.toFixed(2)}|${amount.toFixed(2)}`</code></pre>
+        <code>rows</code> are yours (amount ≠ 0), <code>others</code> are rows where your column is 0.00, both in file order. Description trimmed. <code>total</code> is your cell on the "Total balance" row. Throws <code>SplitwiseExportError</code> with a sentence a person can act on: not a Splitwise export (header doesn't start <code>Date,Description,Category,Cost,Currency</code>) · no column named <code>person</code> (message lists the names found) · no expense rows · a cell that isn't a number (row number).</li>
+        <li><strong>Step 1:</strong> make the fixtures (P7) with a scratch script; grep them for every real name from the three source headers and for the real group names → none.</li>
+        <li><strong>Step 2, failing tests</strong> (person <code>'Me'</code>): <code>trip13YieldsYourRows</code> → 24 rows, 16 others, total 0; <code>tripPairYieldsAllRows</code> → 8 rows, 0 others, last row category <code>Payment</code>; <code>quotedDescriptionParsed</code> (a fixture row with a quoted comma keeps it); <code>blankLinesAndTotalRowAreNotExpenses</code>; <code>yourColumnSumsToTotal</code> (sum of rows' amounts = total, to the cent, all three fixtures); <code>missingPersonListsNames</code>; <code>notAnExportIsRejected</code>; <code>groupFromFileName</code> cases incl. a renamed file → null. Run → FAIL.</li>
+        <li><strong>Step 3:</strong> implement on <code>parseCsv</code>. Step 4: PASS, typecheck. Commit <code>feat(splitwise): read group exports</code>.</li>
+      </ul></div>
+    </section>
+
+    <section id="t3">
+      <h2>Task 3 · Matcher</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> create <code>src/lib/splitwise/match.ts</code>; test <code>tests/unit/lib/splitwise/match.test.ts</code>.</li>
+        <li><strong>Produces:</strong>
+<pre><code>type RowStatus = 'imported' | 'skipped' | 'kept' | 'dismissed'
+type RememberedRow = { id: string; date: string; description: string; cost: number; amount: number; status: RowStatus; transactionId: string | null }
+type Pair = { row: RememberedRow; incoming: SplitwiseRow }
+type ImportPlan = { unchanged: Pair[]; edited: Pair[]; added: SplitwiseRow[]; vanished: RememberedRow[] }
+planImport(remembered: RememberedRow[], incoming: SplitwiseRow[]): ImportPlan</code></pre>
+        Algorithm (spec §2): match fingerprints as multisets (each remembered row used once); of the leftovers, group both sides by <code>date|description</code> and pair a group only when it has exactly one remembered and one incoming row (→ edited); everything else left is added / vanished. Deterministic output order: file order for incoming, id order for remembered.</li>
+        <li><strong>Step 1, failing tests</strong> (built from the fixtures via <code>readSplitwiseExport</code>, remembered rows made from the same rows with status <code>imported</code>): <code>sameFileIsAllUnchanged</code>; <code>addedRowIsAdded</code>; <code>removedRowIsVanished</code>; <code>changedAmountIsEdited</code>; <code>changedCostIsEdited</code>; <code>identicalRepeatsAreCounted</code> (two identical incoming vs one remembered → 1 unchanged + 1 added); <code>dateAndDescriptionChangedIsDeletePlusAdd</code>; <code>twoCandidatesIsDeletePlusAdd</code>; <code>skippedRowMatchesAsUnchanged</code> (status <code>skipped</code> → unchanged, never added); <code>firstImportIsAllAdded</code> (no remembered rows). Run → FAIL.</li>
+        <li><strong>Step 2:</strong> implement. Step 3: PASS, typecheck. Commit <code>feat(splitwise): match re-imports against remembered rows</code>.</li>
+      </ul></div>
+    </section>
+
+    <section id="t4">
+      <h2>Task 4 · Tables, store, cloud sync</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> <code>prisma/schema.prisma</code>; create <code>src/lib/splitwise/store.ts</code>; modify <code>src/lib/cloud-sync/{types,sync}.ts</code>, <code>tests/helpers/db.ts</code> (reset the new tables); tests <code>tests/integration/splitwise/store.test.ts</code>, <code>tests/integration/api/cloud-sync-splitwise.test.ts</code>.</li>
+        <li><strong>Schema:</strong>
+<pre><code>model SplitwiseImport { id String @id @default(uuid()); accountId String; group String; fileName String; person String
+  result String   // JSON: what the card shows (Task 5's ImportResult minus the live transactions)
+  undo   String   // JSON: P3
+  createdAt DateTime @default(now()); @@index([accountId, group]) }
+model SplitwiseRow { id String @id @default(uuid()); accountId String; group String; date String; description String
+  cost Float; amount Float; status String; transactionId String? @unique
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now()); @@index([accountId, group]) }
+// Transaction gains: splitwiseRow SplitwiseRow?</code></pre></li>
+        <li><strong>Store produces</strong> (constructed on a <code>PrismaClient</code>; <code>transaction(fn)</code> runs <code>fn</code> with a store bound to one interactive Prisma transaction): <code>rows(accountId, group): RememberedRow[]</code>, <code>replaceRows(accountId, group, rows)</code>, <code>createRow</code>, <code>updateRow(id, patch)</code>, <code>deleteRow(id)</code>; <code>latestImport(accountId, group)</code>, <code>latestImportAny()</code>, <code>createImport</code>, <code>getImport(id)</code>, <code>deleteImport(id)</code>, <code>updateImportResult(id, result)</code>; <code>knownGroup(accountId, group): boolean</code>; transaction writes <code>createTransaction(data)</code>, <code>updateTransaction(id, data)</code>, <code>deleteTransaction(id)</code> (calls <code>cleanupTransferPair</code> with the transaction client first), <code>getTransactions(ids)</code> (with <code>TX_ROW_INCLUDE</code>), <code>snapshot(id)</code>, <code>recreate(snapshot)</code>, <code>isReshaped(id)</code> (P4); <code>account(id)</code> (id, currency); <code>splitwiseAccount()</code> (P6).</li>
+        <li><strong>Step 1, failing tests:</strong> <code>deletingTransactionBlanksRowLink</code> (SetNull); <code>transactionRollsBackOnThrow</code>; <code>isReshapedCoversAllFourCases</code>; <code>snapshotRecreatesWithSameId</code>; <code>splitwiseTablesSurviveSyncRoundTrip</code> (rows + imports, link kept); <code>payloadWithoutSplitwiseKeepsLocalRows</code> (mirror the trips guard in <code>importDatabase</code>). Run → FAIL.</li>
+        <li><strong>Step 2:</strong> schema, <code>npx prisma generate</code> (tests push to their own DBs); store; cloud sync: <code>splitwiseImports</code> and <code>splitwiseRows</code> optional arrays appended at the end of <code>SyncDataSchema</code> (key order rule), exported/imported after transactions, counted in metadata. Step 3: PASS + the existing cloud-sync tests; typecheck. Commit <code>feat(splitwise): import tables, store and cloud sync</code>.</li>
+      </ul></div>
+    </section>
+
+    <section id="t5">
+      <h2>Task 5 · Import service</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> create <code>src/lib/splitwise/importer.ts</code>, <code>src/lib/splitwise/categories.ts</code> (P5 map), <code>src/lib/splitwise/services.ts</code>; export <code>findCategoryBySearchTerms</code> from <code>categorization.ts</code>; test <code>tests/integration/splitwise/importer.test.ts</code>.</li>
+        <li><strong>Produces:</strong>
+<pre><code>type Categoriser = (row: SplitwiseRow, accountId: string) =&gt; Promise&lt;{ categoryId: string | null; confidence: number; merchant: string }&gt;
+type RunInput = { accountId: string; person: string; fileName: string; text: string; skipBefore?: string }
+type RowNote = { transactionId: string; kind: 'new' | 'changed' | 'payment'; was?: number; cost: number; category: string; flag?: 'check-split' | 'deleted-check' }
+type ImportResult = { importId: string; group: string; fileName: string; createdAt: string; firstImport: boolean; canUndo: boolean
+  counts: { new: number; payments: number; changed: number; deleted: number; unchanged: number; skippedByDate: number; others: number; otherCurrency: number; ignored: number; needCategory: number }
+  notes: RowNote[]; transactions: Tx[]        // created/changed/flagged, TX_ROW_INCLUDE shape, newest first
+  deleted: { rowId: string; date: string; description: string; amount: number; category: string | null; restored: boolean }[]
+  others: { date: string; description: string; cost: number }[]; total: number }
+class SplitwiseImporter { constructor(store: SplitwiseStore, categorise: Categoriser)
+  run(input: RunInput): Promise&lt;ImportResult&gt;; result(importId: string): Promise&lt;ImportResult&gt;
+  defaults(): Promise&lt;{ accountId: string | null; person: string; knownGroups: string[] }&gt;
+  isKnown(accountId: string, group: string): Promise&lt;boolean&gt; }</code></pre></li>
+        <li><strong>run</strong> in one store transaction: group from file name (none → <code>SplitwiseExportError</code>); read export; load remembered rows; persist <code>imported</code> + null link as <code>dismissed</code>; plan; then
+          <ul>
+            <li><strong>unchanged:</strong> nothing.</li>
+            <li><strong>edited:</strong> imported + live + not reshaped → update transaction <code>amount</code>, <code>date</code> (record before-values) and the row's fingerprint; reshaped → row fingerprint only, note flag <code>check-split</code>; other statuses → row fingerprint only.</li>
+            <li><strong>added:</strong> currency ≠ account currency → count <code>otherCurrency</code>, not stored; first import with <code>skipBefore</code> and date &lt; it → row <code>skipped</code>; else create the transaction (merchant/date/amount, account, <code>Payment</code> → <code>isTransfer: true</code>, no category, confidence 1; otherwise the categoriser: <code>autoCategorize</code> then the P5 fallback; <code>importHash</code> via <code>createImportHash</code>) and row <code>imported</code>.</li>
+            <li><strong>vanished:</strong> imported + live + not reshaped → snapshot, delete transaction, delete row, add to <code>deleted</code>; reshaped → row <code>kept</code>, note flag <code>deleted-check</code>; other statuses → delete row.</li>
+            <li>Save the import with <code>result</code> and P3 <code>undo</code>; return the result (transactions loaded with <code>TX_ROW_INCLUDE</code>; <code>canUndo</code> true).</li>
+          </ul></li>
+        <li><strong>Step 1, failing tests</strong> (fixtures, test DB, real <code>autoCategorize</code> with a seeded rule and categories named like Ben's, e.g. "🏘️ Lodging"): <code>firstImportCreatesYourRowsOnly</code> (trip-13: 24 transactions, 2 transfers, counts.others 16); <code>amountsAreYourColumn</code>; <code>skipBeforeRemembersSkipped</code> (trip-pair, skipBefore 2026-11-08 → 1 created, 7 skipped; re-import → 0 created); <code>reimportSameFileCreatesNothing</code>; <code>editKeepsCategoryTripTagsNote</code>; <code>splitTransactionEditIsFlagged</code>; <code>deletionRemovesAndListsIt</code>; <code>reshapedDeletionIsFlaggedAndKept</code>; <code>deletedByYouIsNeverRecreated</code>; <code>editOfDeletedByYouCreatesNothing</code>; <code>otherCurrencyCountedNotImported</code>; <code>ruleBeatsFallbackAndFallbackMapsHotel</code>; <code>unmatchedCategoryCountsNeedCategory</code>; <code>failureMidImportWritesNothing</code> (categoriser throws on the 3rd row); <code>onlyTheChosenAccountIsWritten</code>. Run → FAIL.</li>
+        <li><strong>Step 2:</strong> implement. Step 3: PASS, typecheck. Commit <code>feat(splitwise): import service</code>.</li>
+      </ul></div>
+    </section>
+
+    <section id="t6">
+      <h2>Task 6 · Restore and undo</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> <code>src/lib/splitwise/importer.ts</code>; test <code>tests/integration/splitwise/undo.test.ts</code>.</li>
+        <li><strong>Produces:</strong> <code>restore(importId: string, rowId: string): Promise&lt;ImportResult&gt;</code> (recreate the snapshot with its id, a <code>kept</code> row linked to it, mark it restored in the stored result); <code>undo(importId: string): Promise&lt;void&gt;</code> (refused with <code>SplitwiseUndoError</code> unless it is the group's latest import; in one transaction: delete created transactions still present, revert updated ones' amount and date, recreate deleted ones not already restored, replace the group's rows with the before-rows, delete the import). <code>canUndo</code> in <code>result()</code> reflects "latest".</li>
+        <li><strong>Step 1, failing tests:</strong> <code>restoreRecreatesAsItWas</code>; <code>restoredRowSurvivesReimport</code>; <code>undoRevertsCreatesEditsAndDeletes</code> (after the user set a category and trip on a created one); <code>undoForgetsTheImport</code> (next import of the same file behaves like the earlier import never happened); <code>undoRefusedWhenNotLatest</code>; <code>undoIsAllOrNothing</code>. Run → FAIL. Step 2: implement. Step 3: PASS, typecheck. Commit <code>feat(splitwise): restore and undo</code>.</li>
+      </ul></div>
+    </section>
+
+    <section id="t7">
+      <h2>Task 7 · Routes</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> create under <code>src/app/api/import/splitwise/</code>: <code>route.ts</code> (GET defaults + <code>?accountId&amp;group</code> → <code>{ known }</code>; POST run), <code>[id]/route.ts</code> (GET result), <code>[id]/undo/route.ts</code> (POST), <code>[id]/rows/[rowId]/restore/route.ts</code> (POST); test <code>tests/integration/api/splitwise-import.test.ts</code>.</li>
+        <li>Zod bodies; <code>SplitwiseExportError</code> → 400 <code>{ error }</code> with its message; <code>SplitwiseUndoError</code> → 409; unknown id → 404; other errors → 500 with <code>console.error</code>. Routes call <code>getSplitwiseImporter()</code> only.</li>
+        <li><strong>Tests:</strong> <code>postImportsAndGetReturnsSameResult</code>; <code>badFileIs400WithMessage</code>; <code>undoOfOlderImportIs409</code>; <code>restoreRoundTrip</code>; <code>defaultsComeFromLastImport</code>; <code>knownGroupFlag</code>. Commit <code>feat(splitwise): import routes</code>.</li>
+      </ul></div>
+    </section>
+
+    <section id="t8">
+      <h2>Task 8 · Shared bulk bar</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> create <code>src/components/transactions/bulk-edit-bar.tsx</code>; modify <code>src/app/(routes)/transactions/page.tsx</code> (render it in place of the inline bar, drop the moved state and handlers), <code>src/app/api/transactions/bulk/route.ts</code> (<code>tripId</code>, P9); tests <code>tests/unit/components/transactions/bulk-edit-bar.test.tsx</code>, the bulk route's integration test (add to the existing one, or <code>tests/integration/api/transactions-bulk.test.ts</code>), and the existing Transactions page tests.</li>
+        <li><strong>Produces:</strong> <code>&lt;BulkEditBar selected={Set&lt;string&gt;} rows={Tx[]} categories={Category[]} availableTags={TagDef[]} trips={TripOption[]} onSelectAll onClear onDone={() =&gt; void} onExit /&gt;</code> with everything the current bar does (count, select/deselect all, set category, add/remove tag, mark as transfer, delete with its confirm, Done) plus <strong>Set trip</strong>. It posts to <code>/api/transactions/bulk</code> itself and calls <code>onDone</code> after each action. Trips come from the caller (the Transactions page loads <code>/api/travel/trips</code> as the drawer hook does).</li>
+        <li><strong>Tests:</strong> <code>setCategoryPostsSelectedIds</code>; <code>setTripPostsTripId</code>; <code>tagAddKeepsExistingTags</code>; <code>deleteAsksFirst</code>; route <code>bulkTripSkipsSplitParents</code>; the Transactions page tests still pass. Commit <code>refactor(transactions): shared bulk bar, with set trip</code>.</li>
+      </ul></div>
+    </section>
+
+    <section id="t9">
+      <h2>Task 9 · The Splitwise card</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> <code>src/components/transactions/transaction-table.tsx</code> (P8); create <code>src/components/settings/import/splitwise-import-card.tsx</code> (and small siblings if it grows past one job); modify <code>src/app/(routes)/settings/page.tsx</code> (render the card above the existing CSV card in the Import tab, nothing else); test <code>tests/unit/components/settings/splitwise-import-card.test.tsx</code> (mock <code>fetch</code>).</li>
+        <li><strong>Behaviour</strong> (the mock, v2): ready state with the file input and "Into [account] as [name]" (P6); picking a file asks the route whether the group is known; unknown → the first-import panel (group, people and row counts read in the browser with <code>readSplitwiseExport</code>, Import everything / Skip rows before [date], Import); known → imports at once. Result state: title line, Import another file, Undo this import (inline confirm with the counts, then the "Import undone" state), summary chips, Select, the <code>BulkEditBar</code>, <code>TransactionTable</code> with <code>annotate</code> (badge New / Changed in Splitwise with the old amount / Payment / Check the split / Deleted in Splitwise · check, and "$X total · Category in Splitwise"), Deleted in Splitwise list with Restore, others fold, balance line. Drawer: <code>useDrawerReferenceData</code> + <code>useTransactionDrawer</code> + <code>TransactionDrawer</code> exactly as the travel page wires them; <code>refresh</code> re-reads <code>GET /api/import/splitwise/[id]</code>. Errors shown as the route's message.</li>
+        <li><strong>Tests:</strong> <code>firstImportAsksThenImports</code>; <code>knownGroupImportsWithoutAsking</code>; <code>chipsMatchResult</code>; <code>rowOpensSharedDrawer</code>; <code>selectShowsBulkBar</code>; <code>undoConfirmsInlineThenReverts</code>; <code>restoreCallsRoute</code>; <code>errorMessageShown</code>; the existing Settings tests still pass. Commit <code>feat(splitwise): import card on Settings</code>.</li>
+      </ul></div>
+    </section>
+
+    <section id="t10">
+      <h2>Task 10 · Live step and PR (controller, with Ben)</h2>
+      <div class="card"><ol class="numbered">
+        <li><div>Full suite and typecheck; a scratch-export build check.</div></li>
+        <li><div>Browser check on a copy of <code>dev.db</code> (bank tokens blanked, <code>db push</code> on the copy, dev server on a free port with <code>SCHEDULED_SYNC=off</code>), importing Ben's three real files from Downloads: first-import question, edit in place, re-import, restore, undo, light and dark, phone width. Delete the copy afterwards.</div></li>
+        <li><div>With Ben: he stops production; back up <code>prisma/dev.db</code>, verify counts; <code>prisma db push</code> (adds two tables, nothing dropped); counts unchanged.</div></li>
+        <li><div>Push and open the PR when Ben says. After merge: remind Ben to rename the existing shared account to "Splitwise", switch the checkout to <code>main</code>, pull, rebuild and restart.</div></li>
+      </ol></div>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  btn.addEventListener('click', function () {
+    var r = document.documentElement;
+    var dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (a) { a.classList.remove('active'); });
+        var a = map[e.target.id]; if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+})();
+</script>
+</body>
+</html>

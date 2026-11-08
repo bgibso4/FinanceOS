@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Splitwise Import Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f2f2f7; --surface: #ffffff; --fill: #e9e9ee; --ink: #1c1c1e; --ink-2: #6e6e73; --ink-3: #8a8a8e; --line: #d8d8dc;
+  --tint: #1c1c1e; --on-tint: #ffffff; --soon: #ad500e; --done: #2f7d4f; --info: #3f6fa3; --warn: #a3392f;
+  --serif: "Source Serif 4", "New York", ui-serif, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+    --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+  --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+h1, h2, h3 { text-wrap: balance; }
+.layout { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+.brand { font: 700 15px/1.2 var(--serif); }
+.brand span { display: block; font: 400 13px/1.4 var(--sans); color: var(--ink-2); margin-top: 2px; }
+.overall { background: var(--surface); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.overall b { font: 700 17px/1.2 var(--serif); color: var(--ink); }
+.toc { display: flex; flex-direction: column; gap: 1px; }
+.toc-label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin: 6px 0 6px 10px; }
+.toc a { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; text-decoration: none; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.toc a:hover { background: var(--surface); color: var(--ink); }
+.toc a.active { background: var(--surface); color: var(--ink); font-weight: 600; }
+.toc-n { width: 20px; text-align: right; color: var(--ink-3); font-size: 13px; flex: none; font-variant-numeric: tabular-nums; }
+.theme { align-self: flex-start; background: none; border: 0; color: var(--ink-3); font: 13px var(--sans); cursor: pointer; padding: 4px 10px; }
+.theme:hover { color: var(--ink); }
+main { padding: 48px 0 120px; display: flex; flex-direction: column; gap: 48px; min-width: 0; }
+.eyebrow { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.eyebrow .pill { background: var(--surface); border-radius: 99px; padding: 3px 10px; font-weight: 600; color: var(--ink); }
+h1 { font: 700 44px/1.08 var(--serif); letter-spacing: -0.6px; margin: 12px 0 14px; }
+.goal { font-size: 19px; line-height: 1.5; max-width: 66ch; margin: 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 24px; }
+.meta div { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; line-height: 1.5; }
+.meta b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 4px; }
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 14px; color: var(--ink-2); }
+.stats b { font: 700 20px var(--serif); color: var(--ink); margin-right: 4px; font-variant-numeric: tabular-nums; }
+section > h2 { font: 700 26px/1.2 var(--serif); margin: 0 0 6px; letter-spacing: -0.2px; }
+section > h3.sub { font: 700 19px/1.3 var(--serif); margin: 22px 0 8px; }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 66ch; }
+.decisions { background: var(--surface); border-radius: var(--r); padding: 6px 0; border-left: 4px solid var(--soon); }
+.decisions.agreed { border-left-color: var(--done); }
+.decisions ul { list-style: none; margin: 0; padding: 0; }
+.decision { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 18px; }
+.decision + .decision { border-top: 1px solid var(--line); }
+.dec-name { font-weight: 600; }
+.dec-id { font: 700 13px var(--serif); color: var(--ink-3); margin-right: 6px; }
+.dec-text { color: var(--ink-2); font-size: 15px; max-width: 70ch; }
+.dec-text strong { color: var(--ink); }
+.trefs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 180px; }
+.tref { flex: none; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--fill); padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.tref:hover { background: var(--tint); color: var(--on-tint); }
+.card { background: var(--surface); border-radius: var(--r); padding: 6px 20px; }
+.card ul, .card ol { margin: 0; padding: 0; list-style: none; }
+.card > ul > li, .card > ol > li { padding: 11px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.card > ul > li:first-child, .card > ol > li:first-child { border-top: 0; }
+.card li ul { list-style: disc; padding-left: 20px; margin: 6px 0 0; }
+.card li ul li { padding: 2px 0; border: 0; color: var(--ink-2); }
+.card li ul li strong { color: var(--ink); }
+.numbered { counter-reset: f; }
+.numbered > li { counter-increment: f; display: grid; grid-template-columns: 28px 1fr; gap: 6px; }
+.numbered > li::before { content: counter(f); font: 700 17px/1.4 var(--serif); color: var(--soon); }
+table.md { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border-radius: var(--r); overflow: hidden; }
+table.md th, table.md td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--line); }
+table.md th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); border-top: 0; }
+table.md td:first-child { font-weight: 600; white-space: nowrap; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; }
+.chip.mine { color: var(--soon); background: color-mix(in srgb, var(--soon) 13%, transparent); }
+.chip.agreed { color: var(--done); background: color-mix(in srgb, var(--done) 13%, transparent); }
+.chip.route { color: var(--info); background: color-mix(in srgb, var(--info) 13%, transparent); font-family: var(--mono); font-weight: 500; }
+.callout { background: var(--surface); border-radius: var(--r); padding: 14px 18px; border-left: 4px solid var(--warn); font-size: 15px; margin-top: 12px; }
+.callout b:first-child { display: block; margin-bottom: 4px; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.col { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; }
+.col h3 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 8px; }
+.col ul { margin: 0; padding-left: 16px; } .col li { margin: 5px 0; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
+  .side { position: static; height: auto; padding: 24px 0 0; }
+  .toc { display: none; }
+  h1 { font-size: 34px; }
+  .cols { grid-template-columns: 1fr; }
+  .decision { flex-direction: column; gap: 8px; }
+  .trefs { justify-content: flex-start; max-width: none; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side" aria-label="Sections">
+    <div class="brand">FinanceOS<span>Design · Splitwise import</span></div>
+    <div class="overall"><span>Status</span><b>Waiting on your review</b><span>Next: implementation plan</span></div>
+    <nav class="toc" aria-label="Sections">
+      <div class="toc-label">Overview</div>
+      <a href="#mine"><span class="toc-n"></span><span>Waiting on you</span></a>
+      <a href="#agreed"><span class="toc-n"></span><span>Agreed with you</span></a>
+      <a href="#scope"><span class="toc-n"></span><span>Scope</span></a>
+      <a href="#constraints"><span class="toc-n"></span><span>Constraints</span></a>
+      <div class="toc-label">Design</div>
+      <a href="#file"><span class="toc-n">1</span><span>Reading an export</span></a>
+      <a href="#match"><span class="toc-n">2</span><span>Matching and edits</span></a>
+      <a href="#screen"><span class="toc-n">3</span><span>The import screen</span></a>
+      <a href="#undo"><span class="toc-n">4</span><span>Restore and undo</span></a>
+      <a href="#engineering"><span class="toc-n">5</span><span>Engineering</span></a>
+      <div class="toc-label">Build</div>
+      <a href="#builder"><span class="toc-n"></span><span>Left to the builder</span></a>
+      <a href="#testing"><span class="toc-n"></span><span>Testing</span></a>
+    </nav>
+    <button class="theme" type="button" id="theme">◐ Light / dark</button>
+  </aside>
+  <main>
+    <header>
+      <div class="eyebrow"><span class="pill">Design</span><span>Written 2026-11-08</span><span>·</span><span>after a brainstorm, an API check and two mock rounds · not started</span></div>
+      <h1>Splitwise import</h1>
+      <p class="goal">Shared expenses stop being typed in by hand. You download a group's or friend's export from splitwise.com and drop it on Settings → Import; FinanceOS reads only your column and imports at once into one Splitwise account. The same card then lists what that import did in the normal transaction table, where you fix categories and trips with the shared drawer or the bulk bar. Re-importing the same group later picks up only what changed in Splitwise: new rows, edited amounts, deletions. Everything an import did can be undone.</p>
+      <div class="meta">
+        <div><b>Where</b>A new branch off <code>main</code>, one PR against <code>main</code>.</div>
+        <div><b>Builds on</b>The Settings Import tab, <code>TransactionTable</code> and its <code>select</code> mode, <code>TransactionDrawer</code> / <code>useTransactionDrawer</code>, the bulk bar on Transactions and <code>/api/transactions/bulk</code>, <code>autoCategorize</code>, transfer detection in <code>sync-common</code>, the review queue.</div>
+        <div><b>Approved mock</b><code>~/Documents/FinanceOS-design-archive/design-mocks/splitwise-import.html</code> (v2). Reference for flow, layout and wording. Its drawer is a stand-in for the real one, and its "after edits" case is simulated.</div>
+      </div>
+      <div class="stats"><span><b>5</b>design sections</span><span><b>10</b>decisions agreed</span><span><b>11</b>calls to check</span></div>
+    </header>
+
+    <section id="mine">
+      <h2>Waiting on you</h2>
+      <p class="lede">My own calls. Each is easy to change now; veto any you don't like.</p>
+      <div class="decisions"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M1</span>What counts as the same row</div><div class="dec-text">A row's fingerprint is <strong>date, description, total cost and your amount</strong>. Identical fingerprints are counted, so two identical "Laundry $50" rows stay two. A row whose fingerprint is gone but whose <strong>date and description</strong> reappear once with a new cost or amount is an <strong>edit</strong>. Anything ambiguous (two candidates) is treated as a delete plus a new row, never guessed.</div></div><div class="trefs"><a class="tref" href="#match">Matching</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>Which group a file belongs to</div><div class="dec-text">Splitwise names exports <code>&lt;group&gt;_&lt;date&gt;_export.csv</code>. The part before the date is the group. The card shows it ("trip-pair") on the first import of a group so a renamed file can be corrected. A friend export is assumed to follow the same pattern; check it when you first download one.</div></div><div class="trefs"><a class="tref" href="#file">File</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M3</span>Category: your rules, then a small fallback</div><div class="dec-text">The description goes through your rules (<code>autoCategorize</code>) like any import. When no rule matches, a fixed map turns Splitwise's own category into yours: Hotel → Lodging, Taxi → Rideshare, Parking → Transportation, Groceries → Groceries, Dining out → Restaurants, Gas/fuel → Gas, Entertainment → Entertainment, Sports → Sports and Recreation. Anything else (General, Rent, Furniture…) arrives uncategorized and lands in the review queue.</div></div><div class="trefs"><a class="tref" href="#file">File</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M4</span>Payments are transfers</div><div class="dec-text">Rows Splitwise files under "Payment" (e.g. "Ben G. paid …") import marked as transfers, not spending. The import itself changes nothing in other accounts: pairing with the Venmo or bank payment is left to the existing transfer detection when it next runs. Deleting a paired row later (Splitwise delete or Undo) unpairs its partner the way deleting any transfer already does.</div></div><div class="trefs"><a class="tref" href="#file">File</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M5</span>Splitwise wins on the amount</div><div class="dec-text">An edit in Splitwise updates the amount (and date) on the existing transaction. Your category, trip, tags, note and links are kept. Exception: a transaction you've split in FinanceOS isn't changed automatically; it's flagged "Changed in Splitwise · check the split" so you fix the split yourself.</div></div><div class="trefs"><a class="tref" href="#match">Matching</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M6</span>Restore means "keep it"</div><div class="dec-text">Restoring a row that was deleted in Splitwise brings the transaction back and marks it kept, so the next import doesn't delete it again.</div></div><div class="trefs"><a class="tref" href="#undo">Undo</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M7</span>Only the latest import can be undone</div><div class="dec-text">Each import builds on the one before, so Undo is offered on a group's most recent import only. Undoing it also makes FinanceOS forget that import, so the next file is compared with the one before it.</div></div><div class="trefs"><a class="tref" href="#undo">Undo</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M8</span>One currency per account</div><div class="dec-text">Rows whose currency differs from the Splitwise account's (USD) aren't imported; the summary counts them as "different currency" so nothing vanishes silently. Every row in your three exports is USD.</div></div><div class="trefs"><a class="tref" href="#file">File</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M9</span>Your name and account are remembered</div><div class="dec-text">The card's "Into [account] as [name]" defaults to the last values used (first time: the account whose institution is Splitwise, and your name). If the file has no column with that name, the import stops and lists the names it found.</div></div><div class="trefs"><a class="tref" href="#screen">Screen</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M10</span>Rows you've reshaped aren't deleted automatically</div><div class="dec-text">If Splitwise deletes a row whose transaction you've split, linked to a refund or offset, or that is paired as a transfer, FinanceOS doesn't delete it. It's listed as "Deleted in Splitwise · check" with a Delete button, like M5's split edits. So Restore and Undo only ever rebuild plain transactions.</div></div><div class="trefs"><a class="tref" href="#undo">Undo</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M11</span>You deleted it, it stays deleted</div><div class="dec-text">If you delete an imported transaction yourself (drawer or bulk bar), its remembered row becomes "deleted by you". Later imports never re-create it, even if Splitwise edits it; the summary counts it as ignored.</div></div><div class="trefs"><a class="tref" href="#match">Matching</a></div></li>
+      </ul></div>
+    </section>
+
+    <section id="agreed">
+      <h2>Agreed with you</h2>
+      <p class="lede">From the brainstorm, the API check and the mock rounds.</p>
+      <div class="decisions agreed"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A1</span>CSV export, not the API</div><div class="dec-text">Splitwise's API now needs Pro (about $40 a year); "too much". Exports are free and carry everything needed except IDs.</div></div><div class="trefs"><a class="tref" href="#file">File</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A2</span>One Splitwise account</div><div class="dec-text">Everything goes into one account (you're renaming the existing shared account to "Splitwise"): the day-to-day tally, trips with your partner, and group trips. Its balance is your total across them.</div></div><div class="trefs"><a class="tref" href="#file">File</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A3</span>Only your column</div><div class="dec-text">Other people's expenses and payments (your column 0.00) are skipped. Simplify-debts doesn't matter: only your own column counts.</div></div><div class="trefs"><a class="tref" href="#file">File</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A4</span>Amount is your column as is</div><div class="dec-text">Negative when someone else paid (your share), positive when you paid (what others owe you). Same signs as the rows you type today.</div></div><div class="trefs"><a class="tref" href="#file">File</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A5</span>Import first, review after</div><div class="dec-text">Dropping a file imports at once. No preview step, except one question on a group's first import.</div></div><div class="trefs"><a class="tref" href="#screen">Screen</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A6</span>Edit in place with the shared pieces</div><div class="dec-text">The card becomes this import's rows in the normal transaction table; a row opens the shared drawer; Select gives the bulk bar. "Just reuse the transaction sidebar."</div></div><div class="trefs"><a class="tref" href="#screen">Screen</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A7</span>Re-imports pick up changes</div><div class="dec-text">The next file of a group is compared with the last: new rows import, edits update in place keeping your changes, deletions are removed with a Restore button.</div></div><div class="trefs"><a class="tref" href="#match">Matching</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A8</span>Hand-typed history stays</div><div class="dec-text">The rows already typed into the existing shared account stay as they are. A group's first import can skip rows before a date; those rows are remembered as skipped and never come back as new.</div></div><div class="trefs"><a class="tref" href="#match">Matching</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A9</span>Undo this import</div><div class="dec-text">The safety net that replaces a preview: it asks inline, says what it will revert, then reverts it.</div></div><div class="trefs"><a class="tref" href="#undo">Undo</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A10</span>Reuse, and prove the matching</div><div class="dec-text">Principal-engineer rules: reuse existing components and code paths first. The matching must be proven correct by tests built from real exports.</div></div><div class="trefs"><a class="tref" href="#testing">Testing</a></div></li>
+      </ul></div>
+    </section>
+
+    <section id="scope">
+      <h2>Scope</h2>
+      <div class="cols">
+        <div class="col"><h3>In</h3><ul>
+          <li>A Splitwise card on Settings → Import</li>
+          <li>Group and friend exports, any number of people</li>
+          <li>New, edited and deleted rows on re-import</li>
+          <li>Skip-before-date on a group's first import</li>
+          <li>Edit in place: shared table, drawer, bulk bar</li>
+          <li>Restore a deleted row; undo an import</li>
+        </ul></div>
+        <div class="col"><h3>Out</h3><ul>
+          <li>The Splitwise API and automatic fetching</li>
+          <li>Settling up or writing anything to Splitwise</li>
+          <li>Converting other currencies</li>
+          <li>Replacing the hand-typed history</li>
+          <li>Renaming the existing shared account (you'll do it)</li>
+        </ul></div>
+        <div class="col"><h3>Anti-goals</h3><ul>
+          <li>A row imported twice</li>
+          <li>A change applied that you can't undo</li>
+          <li>A second drawer or a second table</li>
+          <li>Anyone else's numbers in your account</li>
+        </ul></div>
+      </div>
+    </section>
+
+    <section id="constraints">
+      <h2>Constraints</h2>
+      <div class="card"><ul>
+        <li><strong>The repo is public.</strong> Test fixtures are made from your exports with names replaced (Person A, Person B…) and no real group names. Your real files stay in Downloads.</li>
+        <li><strong>Vendor names only at the edge.</strong> "Splitwise" appears in the import's own module, its route and the card. Shared code (table, drawer, bulk bar) stays vendor-free.</li>
+        <li><strong>Dates never convert.</strong> A Splitwise date is a calendar date, stored like any imported transaction date.</li>
+        <li><strong>The usual rules:</strong> <code>prisma db push</code>, never migrate; the live database changes only with you, after a backup; tests never touch <code>prisma/dev.db</code>; the import writes only to the chosen account (M4).</li>
+        <li><strong>Cloud sync</strong> carries the new tables, like it carries other data.</li>
+      </ul></div>
+    </section>
+
+    <section id="file">
+      <h2>1 · Reading an export</h2>
+      <p class="lede">What a Splitwise export looks like, from your three files.</p>
+      <div class="card"><ul>
+        <li><strong>Header:</strong> <code>Date,Description,Category,Cost,Currency</code>, then one column per person. A blank line follows the header; a final "Total balance" row follows a blank line at the end. Neither is an expense.</li>
+        <li><strong>Quoting:</strong> descriptions can contain commas inside quotes (<code>"Friday Dinner (Feb 13, 2026)"</code>), and trailing spaces. The parser must handle real CSV quoting.</li>
+        <li><strong>Your column</strong> is how much your balance moved. That is the transaction amount, unchanged. Rows where it is 0.00 are not yours.</li>
+        <li><strong>Payments</strong> have category <code>Payment</code>. Someone can also record a settle-up as an ordinary expense ("Settle all balances", General); that imports as an expense like any other, which is what Splitwise says it is.</li>
+        <li><strong>A settled group sums to zero</strong> in your column, which matches the file's "Total balance" row. The card shows that total as a check.</li>
+        <li><strong>Transaction fields:</strong> merchant = the description (trimmed), date = Date, amount = your column, account = the chosen one, category per M3, transfer flag per M4. Total cost and Splitwise's category aren't transaction fields; the import keeps them on its own records and shows them under the description in the list.</li>
+      </ul></div>
+    </section>
+
+    <section id="match">
+      <h2>2 · Matching and edits</h2>
+      <p class="lede">The heart of it. Splitwise exports carry no IDs, so FinanceOS remembers every row of yours it has seen per group.</p>
+      <div class="card"><ol class="numbered">
+        <li><div><strong>Remember.</strong> Every row of yours from an import is stored per group with its fingerprint (M1) and what happened to it: imported (linked to its transaction), skipped by date, kept after a Splitwise deletion (M6), or deleted by you (M11).</div></li>
+        <li><div><strong>Compare.</strong> The next file of the group is compared with those rows. Exact fingerprint matches are unchanged, whatever their status, so a skipped row never returns as new.</div></li>
+        <li><div><strong>Edits.</strong> Of what's left, a vanished row and a new row with the same date and description, one each, are an edit: the transaction's amount (and cost) update, everything you set stays (M5).</div></li>
+        <li><div><strong>New and deleted.</strong> Remaining new rows import. Remaining vanished rows that were imported have their transaction deleted, shown under "Deleted in Splitwise" with Restore. Vanished rows that were skipped are simply forgotten.</div></li>
+        <li><div><strong>First import of a group.</strong> One question first: "Import everything" (default) or "Skip rows before [date]". Skipped rows are remembered as skipped.</div></li>
+        <li><div><strong>Same file twice</strong> is a no-op import: everything unchanged, nothing created.</div></li>
+      </ol></div>
+      <div class="callout"><b>A known limit</b>An edit that changes both the date and the description can't be recognised. It shows as one deleted row and one new row next to each other; the new one gets a fresh category.</div>
+    </section>
+
+    <section id="screen">
+      <h2>3 · The import screen</h2>
+      <p class="lede">Settings → Import gets a Splitwise card above the existing per-account CSV import, which is unchanged. Follow the mock.</p>
+      <div class="card"><ul>
+        <li><strong>Ready:</strong> "Import a Splitwise export", the file picker, and "Into [account] as [name]" (M9).</li>
+        <li><strong>First import of a group:</strong> the group name, the file's people and row counts, the skip-before question, and an Import button.</li>
+        <li><strong>After import:</strong> "Imported trip-pair · today 3:12 pm", Import another file, Undo this import. Summary chips: new (with payments), changed, deleted, unchanged, skipped by date, not yours, different currency, need a category.</li>
+        <li><strong>The rows</strong> this import created or changed, in <code>TransactionTable</code>: badge New / Changed in Splitwise (old amount struck through) / Payment, with total cost and Splitwise's category under the description. Clicking a row opens the real shared drawer; edits save the way they do everywhere.</li>
+        <li><strong>Select</strong> turns on the table's select mode and the bulk bar: set category, set trip, add or remove a tag, delete.</li>
+        <li><strong>Below:</strong> "Deleted in Splitwise" rows with Restore; "N rows don't involve you" (expandable list); the group-balance check.</li>
+        <li><strong>Leaving and coming back</strong> shows the card ready for a new file. The imported rows are on Transactions like any others.</li>
+        <li><strong>Errors</strong> say what's wrong and what to do: not a Splitwise export, no column for your name, empty file, a failed save (nothing written).</li>
+      </ul></div>
+    </section>
+
+    <section id="undo">
+      <h2>4 · Restore and undo</h2>
+      <div class="card"><ul>
+        <li><strong>Restore</strong> recreates a deleted transaction as it was (amount, category, trip, tags, note) and marks the row kept (M6).</li>
+        <li><strong>Undo this import</strong> confirms inline, naming the counts ("removes 24 transactions, puts 1 changed row back to its old amount, restores 1 deleted row; edits you made to them are lost"), then reverts all of it and forgets the import (M7).</li>
+        <li>Both are all-or-nothing: a failure changes nothing.</li>
+      </ul></div>
+    </section>
+
+    <section id="engineering">
+      <h2>5 · Engineering</h2>
+      <p class="lede">Reuse first. Each new piece has one job; the two that decide things are pure and tested without a database.</p>
+      <table class="md">
+        <thead><tr><th>Piece</th><th>Job</th></tr></thead>
+        <tbody>
+          <tr><td>CSV parsing</td><td>One quote-aware parser shared with the existing per-account import, whose comma split breaks on quoted fields today. No second parser.</td></tr>
+          <tr><td>Export reader</td><td>Pure: export text + your name → group, people, your rows (date, description, Splitwise category, cost, currency, your amount). Rejects files that aren't Splitwise exports.</td></tr>
+          <tr><td>Matcher</td><td>Pure: remembered rows + new rows → a plan of unchanged, edited, new and deleted. All of section 2 lives here.</td></tr>
+          <tr><td>Import service</td><td>Applies a plan in one database transaction: creates through the same categorisation path as other imports, updates, deletes, records what it did for Undo. Writes only to the chosen account (M4).</td></tr>
+          <tr><td>Storage</td><td>New tables for imports and remembered rows (and whatever Undo needs). Only the service's store touches them.</td></tr>
+          <tr><td>Routes</td><td>Import a file, list an import's rows, restore a row, undo an import. Zod-validated, under <code>/api/import/splitwise</code>.</td></tr>
+          <tr><td>Bulk bar</td><td>Lifted out of the Transactions page into a shared component used by both, gaining "Set trip" (the bulk route gains <code>tripId</code>). One bulk bar, not two.</td></tr>
+          <tr><td>Card</td><td>A new component under the Import tab, built from <code>TransactionTable</code>, the shared drawer and the bulk bar. The 4,600-line Settings page only renders it.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="builder">
+      <h2>Left to the builder</h2>
+      <div class="card"><ul>
+        <li>Exact table shapes for imports, remembered rows and undo records, as long as section 2 and section 4 hold.</li>
+        <li>How <code>TransactionTable</code> shows the badge and the sub-line: extend it with the smallest option the other callers can ignore. No forked table.</li>
+        <li>How the card loads the drawer's reference data (reuse <code>useTransactionDrawer</code> / <code>useDrawerReferenceData</code>).</li>
+        <li>Where "last used account and name" are stored.</li>
+        <li>Whether the file is read in the browser and sent as text (as the current import does) or uploaded.</li>
+      </ul></div>
+    </section>
+
+    <section id="testing">
+      <h2>Testing</h2>
+      <div class="cols">
+        <div class="col"><h3>Matcher (pure)</h3><ul>
+          <li>Fixtures: your three exports, anonymised</li>
+          <li>Same file twice → all unchanged</li>
+          <li>Added row → new; deleted → deleted</li>
+          <li>Changed cost or amount → edited</li>
+          <li>Identical repeats counted</li>
+          <li>Date and description both changed → delete + new</li>
+          <li>Two edit candidates → delete + new</li>
+          <li>Skipped rows never come back as new</li>
+        </ul></div>
+        <div class="col"><h3>Reader and service</h3><ul>
+          <li>Quoted commas, blank lines, total row</li>
+          <li>Rows not yours skipped; payments are transfers</li>
+          <li>Missing name column → clear error</li>
+          <li>Other currency counted, not imported</li>
+          <li>Edit keeps category, trip, tags, note</li>
+          <li>Split transaction flagged, not changed</li>
+          <li>Restore, then re-import: stays</li>
+          <li>Undo reverts creates, edits and deletes</li>
+          <li>Failure mid-import writes nothing</li>
+        </ul></div>
+        <div class="col"><h3>Component</h3><ul>
+          <li>First import asks; later imports don't</li>
+          <li>Summary chips match the result</li>
+          <li>Row opens the shared drawer</li>
+          <li>Select + bulk bar sets category and trip</li>
+          <li>Undo confirms inline, then reverts</li>
+          <li>The existing CSV import still works</li>
+        </ul></div>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  btn.addEventListener('click', function () {
+    var r = document.documentElement;
+    var dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (a) { a.classList.remove('active'); });
+        var a = map[e.target.id]; if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+})();
+</script>
+</body>
+</html>
