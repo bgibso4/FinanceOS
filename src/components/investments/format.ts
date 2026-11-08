@@ -24,10 +24,14 @@ export function fmtCompact(v: number, currency?: string): string {
   return `${v < 0 ? MINUS : ''}${moneySymbol(currency)}${Math.abs(k).toFixed(Math.abs(v) >= 100_000 ? 0 : 1)}k`;
 }
 
-/** `+1.2%`, `−3.0%`; the sign follows the rounded value, so `−0.04` reads `+0.0%`. */
-export function fmtPct(p: number): string {
+/**
+ * `+1.2%`, `−3.0%`; the sign follows the rounded value, so `−0.04` reads `+0.0%`.
+ * `plus: false` drops the `+` for figures that are not changes (`1.2%`).
+ */
+export function fmtPct(p: number, opts: { plus?: boolean } = {}): string {
   const rounded = Number(p.toFixed(1));
-  return `${rounded < 0 ? MINUS : '+'}${Math.abs(rounded).toFixed(1)}%`;
+  const sign = rounded < 0 ? MINUS : opts.plus === false ? '' : '+';
+  return `${sign}${Math.abs(rounded).toFixed(1)}%`;
 }
 
 export const fmtQty = (q: number): string =>

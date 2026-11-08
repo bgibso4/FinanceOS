@@ -658,6 +658,33 @@ describe('cloud-sync integration', () => {
       expect(rows[0].date.toISOString()).toBe('2026-10-03T00:00:00.000Z');
     });
   });
+
+  describe('inflation region', () => {
+    it('inflationRegionRoundTrips', async () => {
+      await prisma.userSettings.create({ data: { inflationRegion: 'CA' } });
+
+      const payload = await exportDatabase();
+      expect(payload.data.settings?.inflationRegion).toBe('CA');
+
+      await resetTestDb();
+      await importDatabase(payload);
+
+      expect((await prisma.userSettings.findFirst())?.inflationRegion).toBe('CA');
+    });
+
+    it('backupWithoutInflationRegionRestoresUS', async () => {
+      const payload = createTestPayloadData();
+      payload.data.settings = {
+        id: 'old-settings',
+        baseCurrency: 'USD',
+        updatedAt: '2026-10-03T15:30:00.000Z',
+        createdAt: '2026-09-01T00:00:00.000Z',
+      };
+      await importDatabase(await finalizePayload(payload));
+
+      expect((await prisma.userSettings.findFirst())?.inflationRegion).toBe('US');
+    });
+  });
 });
 
 // Helper function to create a minimal valid payload

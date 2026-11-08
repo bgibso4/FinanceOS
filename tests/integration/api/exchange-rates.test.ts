@@ -45,6 +45,33 @@ describe('exchange rates API', () => {
     expect(rates[1]).toMatchObject({ fromCurrency: 'EUR', rate: 1.08 });
   });
 
+  it('exchangeRatesIncludesSummary', async () => {
+    const { GET } = await import('@/app/api/exchange-rates/route');
+    await prisma.exchangeRate.createMany({
+      data: [
+        { fromCurrency: 'CAD', toCurrency: 'USD', date: new Date('2025-11-05'), rate: 0.7 },
+        { fromCurrency: 'CAD', toCurrency: 'USD', date: new Date('2026-10-29'), rate: 0.72 },
+        { fromCurrency: 'CAD', toCurrency: 'USD', date: new Date('2026-11-06'), rate: 0.73 },
+        { fromCurrency: 'EUR', toCurrency: 'USD', date: new Date('2026-11-04'), rate: 1.08 },
+      ],
+    });
+    const { rates } = await (await GET()).json();
+    expect(rates[0]).toMatchObject({
+      rate: 0.73,
+      yearAgoRate: 0.7,
+      weekly: [
+        { day: '2026-10-29', rate: 0.72 },
+        { day: '2026-11-06', rate: 0.73 },
+      ],
+      monthEnds: [
+        { month: '2026-11', rate: 0.73 },
+        { month: '2026-10', rate: 0.72 },
+        { month: '2025-11', rate: 0.7 },
+      ],
+    });
+    expect(rates[1]).toMatchObject({ rate: 1.08, yearAgoRate: null });
+  });
+
   it('GET returns an empty list with no rates', async () => {
     const { GET } = await import('@/app/api/exchange-rates/route');
     expect((await (await GET()).json()).rates).toEqual([]);
@@ -55,6 +82,11 @@ describe('exchange rates API', () => {
     expect('POST' in route).toBe(false);
     const fs = await import('node:fs');
     expect(fs.existsSync('src/app/api/exchange-rates/[id]')).toBe(false);
+  });
+
+  it('the old inflation-rates routes are gone', async () => {
+    const fs = await import('node:fs');
+    expect(fs.existsSync('src/app/api/inflation-rates')).toBe(false);
   });
 
   it('POST /refresh returns the fill result', async () => {

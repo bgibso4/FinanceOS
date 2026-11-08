@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>General Settings Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f2f2f7; --surface: #ffffff; --fill: #e9e9ee; --ink: #1c1c1e; --ink-2: #6e6e73; --ink-3: #8a8a8e; --line: #d8d8dc;
+  --tint: #1c1c1e; --on-tint: #ffffff; --soon: #ad500e; --done: #2f7d4f; --info: #3f6fa3; --warn: #a3392f;
+  --serif: "Source Serif 4", "New York", ui-serif, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+    --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+  --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+h1, h2, h3 { text-wrap: balance; }
+.layout { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+.brand { font: 700 15px/1.2 var(--serif); }
+.brand span { display: block; font: 400 13px/1.4 var(--sans); color: var(--ink-2); margin-top: 2px; }
+.overall { background: var(--surface); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.overall b { font: 700 17px/1.2 var(--serif); color: var(--ink); }
+.toc { display: flex; flex-direction: column; gap: 1px; }
+.toc-label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin: 6px 0 6px 10px; }
+.toc a { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; text-decoration: none; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.toc a:hover { background: var(--surface); color: var(--ink); }
+.toc a.active { background: var(--surface); color: var(--ink); font-weight: 600; }
+.toc-n { width: 20px; text-align: right; color: var(--ink-3); font-size: 13px; flex: none; font-variant-numeric: tabular-nums; }
+.theme { align-self: flex-start; background: none; border: 0; color: var(--ink-3); font: 13px var(--sans); cursor: pointer; padding: 4px 10px; }
+.theme:hover { color: var(--ink); }
+main { padding: 48px 0 120px; display: flex; flex-direction: column; gap: 48px; min-width: 0; }
+.eyebrow { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.eyebrow .pill { background: var(--surface); border-radius: 99px; padding: 3px 10px; font-weight: 600; color: var(--ink); }
+h1 { font: 700 44px/1.08 var(--serif); letter-spacing: -0.6px; margin: 12px 0 14px; }
+.goal { font-size: 19px; line-height: 1.5; max-width: 66ch; margin: 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 24px; }
+.meta div { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; line-height: 1.5; }
+.meta b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 4px; }
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 14px; color: var(--ink-2); }
+.stats b { font: 700 20px var(--serif); color: var(--ink); margin-right: 4px; font-variant-numeric: tabular-nums; }
+section > h2 { font: 700 26px/1.2 var(--serif); margin: 0 0 6px; letter-spacing: -0.2px; }
+section > h3.sub { font: 700 19px/1.3 var(--serif); margin: 22px 0 8px; }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 66ch; }
+.decisions { background: var(--surface); border-radius: var(--r); padding: 6px 0; border-left: 4px solid var(--soon); }
+.decisions.agreed { border-left-color: var(--done); }
+.decisions ul { list-style: none; margin: 0; padding: 0; }
+.decision { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 18px; }
+.decision + .decision { border-top: 1px solid var(--line); }
+.dec-name { font-weight: 600; }
+.dec-id { font: 700 13px var(--serif); color: var(--ink-3); margin-right: 6px; }
+.dec-text { color: var(--ink-2); font-size: 15px; max-width: 70ch; }
+.dec-text strong { color: var(--ink); }
+.trefs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 180px; }
+.tref { flex: none; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--fill); padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.tref:hover { background: var(--tint); color: var(--on-tint); }
+.card { background: var(--surface); border-radius: var(--r); padding: 6px 20px; }
+.card ul, .card ol { margin: 0; padding: 0; list-style: none; }
+.card > ul > li, .card > ol > li { padding: 11px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.card > ul > li:first-child, .card > ol > li:first-child { border-top: 0; }
+.card li ul { list-style: disc; padding-left: 20px; margin: 6px 0 0; }
+.card li ul li { padding: 2px 0; border: 0; color: var(--ink-2); }
+.card li ul li strong { color: var(--ink); }
+.numbered { counter-reset: f; }
+.numbered > li { counter-increment: f; display: grid; grid-template-columns: 28px 1fr; gap: 6px; }
+.numbered > li::before { content: counter(f); font: 700 17px/1.4 var(--serif); color: var(--soon); }
+table.md { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border-radius: var(--r); overflow: hidden; }
+table.md th, table.md td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--line); }
+table.md th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); border-top: 0; }
+table.md td:first-child { font-weight: 600; white-space: nowrap; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; }
+.chip.mine { color: var(--soon); background: color-mix(in srgb, var(--soon) 13%, transparent); }
+.chip.agreed { color: var(--done); background: color-mix(in srgb, var(--done) 13%, transparent); }
+.chip.route { color: var(--info); background: color-mix(in srgb, var(--info) 13%, transparent); font-family: var(--mono); font-weight: 500; }
+.callout { background: var(--surface); border-radius: var(--r); padding: 14px 18px; border-left: 4px solid var(--warn); font-size: 15px; margin-top: 12px; }
+.callout b:first-child { display: block; margin-bottom: 4px; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.col { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; }
+.col h3 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 8px; }
+.col ul { margin: 0; padding-left: 16px; } .col li { margin: 5px 0; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
+  .side { position: static; height: auto; padding: 24px 0 0; }
+  .toc { display: none; }
+  h1 { font-size: 34px; }
+  .cols { grid-template-columns: 1fr; }
+  .decision { flex-direction: column; gap: 8px; }
+  .trefs { justify-content: flex-start; max-width: none; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side" aria-label="Sections">
+    <div class="brand">FinanceOS<span>Design · General settings &amp; automatic inflation</span></div>
+    <div class="overall"><span>Status</span><b>Waiting on your review</b><span>Next: implementation plan</span></div>
+    <nav class="toc" aria-label="Sections">
+      <div class="toc-label">Overview</div>
+      <a href="#mine"><span class="toc-n"></span><span>Waiting on you</span></a>
+      <a href="#agreed"><span class="toc-n"></span><span>Agreed with you</span></a>
+      <a href="#scope"><span class="toc-n"></span><span>Scope</span></a>
+      <a href="#constraints"><span class="toc-n"></span><span>Constraints</span></a>
+      <div class="toc-label">Design</div>
+      <a href="#page"><span class="toc-n">1</span><span>The General page</span></a>
+      <a href="#currency"><span class="toc-n">2</span><span>Currency</span></a>
+      <a href="#inflation"><span class="toc-n">3</span><span>Inflation</span></a>
+      <a href="#reports"><span class="toc-n">4</span><span>Reports</span></a>
+      <a href="#engineering"><span class="toc-n">5</span><span>Engineering</span></a>
+      <div class="toc-label">Build</div>
+      <a href="#builder"><span class="toc-n"></span><span>Left to the builder</span></a>
+      <a href="#testing"><span class="toc-n"></span><span>Testing</span></a>
+    </nav>
+    <button class="theme" type="button" id="theme">◐ Light / dark</button>
+  </aside>
+  <main>
+    <header>
+      <div class="eyebrow"><span class="pill">Design</span><span>Written 2026-11-08</span><span>·</span><span>after a brainstorm and five mock rounds · not started</span></div>
+      <h1>General settings and automatic inflation</h1>
+      <p class="goal">Settings → General becomes a proper settings screen: grouped rows that read at a glance and take new settings without a redesign. Exchange rates and inflation get real room — today's figure, a past-year sparkline you can hover, and a 12-month table a click away. Inflation stops being typed in: the official monthly consumer price index for the US and Canada is fetched automatically, and Reports' "Inflation-Adjusted" view uses it month by month, so it shows what your net worth really grew by.</p>
+      <div class="meta">
+        <div><b>Where</b>Branch off <code>main</code> <strong>after PR #46 merges</strong> (it builds on that PR's sync pass and dated rates). One PR against <code>main</code>.</div>
+        <div><b>Builds on</b><code>runSyncPass</code> and its steps, <code>RateBook</code> / <code>ExchangeRate</code>, <code>/api/exchange-rates</code> and <code>/refresh</code>, <code>UserSettings</code>, <code>src/lib/inflation.ts</code>, Reports' <code>NetWorthSnapshots</code>, the Settings page's General tab, <code>src/lib/theme</code>.</div>
+        <div><b>Approved mock</b><code>~/Documents/FinanceOS-design-archive/design-mocks/settings-general.html</code> (round 5). It is the reference for layout, wording and behaviour; its inflation numbers are samples.</div>
+      </div>
+      <div class="stats"><span><b>5</b>design sections</span><span><b>9</b>decisions agreed</span><span><b>7</b>calls to check, plus the inline "my call" notes</span></div>
+    </header>
+
+    <section id="mine">
+      <h2>Waiting on you</h2>
+      <p class="lede">My own calls. Each is easy to change now; veto any you don't like.</p>
+      <div class="decisions"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M1</span>Base currency also waits for Save</div><div class="dec-text">Changing base currency changes every total in the app, so it joins the inflation choice in the same save bar instead of applying the moment you pick it. You saw this in round 4 and didn't object, but never said yes.</div></div><div class="trefs"><a class="tref" href="#page">Page</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>Theme applies at once</div><div class="dec-text">Light / Dark / System is a small switch that changes immediately, as theme pickers usually do. It is not part of Save.</div></div><div class="trefs"><a class="tref" href="#page">Page</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M3</span>Sources: BLS and Statistics Canada</div><div class="dec-text">US: the Bureau of Labor Statistics CPI-U, all items, US city average, not seasonally adjusted (series <code>CUUR0000SA0</code>) — the same series usinflationcalculator.com uses. Canada: Statistics Canada's all-items CPI. Both have free public APIs with no account.</div></div><div class="trefs"><a class="tref" href="#inflation">Inflation</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M4</span>Inflation is fetched in the sync pass</div><div class="dec-text">The automatic pass gains an inflation step next to the rate step. It only asks the source when a new month could exist, so it costs a call or two a day at most. A failure keeps the stored months and is recorded like any other failed step.</div></div><div class="trefs"><a class="tref" href="#inflation">Inflation</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M5</span>Typed yearly rates go</div><div class="dec-text">The <code>InflationRate</code> table, its add/delete routes and the Settings form are removed. Your two typed rates (2025 2.7%, 2026 3.7%) are replaced by the official monthly index; nothing reads them afterwards.</div></div><div class="trefs"><a class="tref" href="#engineering">Eng.</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M6</span>Reports names the month it adjusts to</div><div class="dec-text">With the toggle on, Reports says which month's prices the figures are in, e.g. "In September 2026 prices", because the latest index lags about two weeks behind the month.</div></div><div class="trefs"><a class="tref" href="#reports">Reports</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M7</span>No "next release" date</div><div class="dec-text">The mock's footer said "October's figures due about Nov 13". Release dates vary, so the footer just says the figures are fetched monthly; each row shows its latest month.</div></div><div class="trefs"><a class="tref" href="#inflation">Inflation</a></div></li>
+      </ul></div>
+    </section>
+
+    <section id="agreed">
+      <h2>Agreed with you</h2>
+      <p class="lede">From the brainstorm and mock rounds.</p>
+      <div class="decisions agreed"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A1</span>Layout A: grouped rows</div><div class="dec-text">Settings-style groups (Currency, Inflation, Appearance), each a card of rows. A new setting is a new row or group.</div></div><div class="trefs"><a class="tref" href="#page">Page</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A2</span>Rates get real room</div><div class="dec-text">Not one small line: each pair is a row with today's rate, a past-year sparkline and the 1-year change, ready for more currencies.</div></div><div class="trefs"><a class="tref" href="#currency">Currency</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A3</span>Hover the sparklines</div><div class="dec-text">Every sparkline shows the point under the pointer with its date and value.</div></div><div class="trefs"><a class="tref" href="#currency">Currency</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A4</span>Click a row for 12 months</div><div class="dec-text">Clicking a rate or inflation row opens its last 12 months in a table under it; one open at a time.</div></div><div class="trefs"><a class="tref" href="#inflation">Inflation</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A5</span>Monthly, automatic inflation</div><div class="dec-text">Monthly figures are fine, including the publishing delay. "I just want it automatic" — no typed rates.</div></div><div class="trefs"><a class="tref" href="#inflation">Inflation</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A6</span>US by default, Canada too</div><div class="dec-text">US inflation is what you re-centre your net worth against; having Canada as well "could be nice".</div></div><div class="trefs"><a class="tref" href="#inflation">Inflation</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A7</span>Radio on the left, then Save</div><div class="dec-text">Which index Reports uses is a radio in the left column of each inflation row. Picking one doesn't apply it: a save bar asks you to Save or Discard. The rest of the row only opens the table.</div></div><div class="trefs"><a class="tref" href="#inflation">Inflation</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A8</span>Reports toggle stays</div><div class="dec-text">The "Inflation-Adjusted" button on Reports' net-worth snapshots stays where it is and works the same; only the numbers behind it change.</div></div><div class="trefs"><a class="tref" href="#reports">Reports</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A9</span>Theme takes less room</div><div class="dec-text">The three big emoji tiles become one compact row.</div></div><div class="trefs"><a class="tref" href="#page">Page</a></div></li>
+      </ul></div>
+    </section>
+
+    <section id="scope">
+      <h2>Scope</h2>
+      <div class="cols">
+        <div class="col"><h3>Goals</h3><ul>
+          <li>General reads as a clean settings screen that takes new settings easily</li>
+          <li>Exchange rates and inflation are easy to read, with history on hover and a click away</li>
+          <li>US and Canadian inflation arrive automatically every month</li>
+          <li>Reports' inflation-adjusted net worth is exact to the month</li>
+        </ul></div>
+        <div class="col"><h3>Non-goals</h3><ul>
+          <li>Redesigning the other Settings tabs</li>
+          <li>Inflation anywhere other than Reports' snapshots</li>
+          <li>Countries beyond the US and Canada</li>
+          <li>Choosing exchange-rate pairs by hand (they still come from your accounts)</li>
+          <li>Category-level or regional price indexes</li>
+        </ul></div>
+        <div class="col"><h3>Anti-goals</h3><ul>
+          <li>A failed inflation fetch blocking account sync, or wiping stored months</li>
+          <li>Base currency or the inflation choice changing without you confirming</li>
+          <li>Clicking a row to see its history and accidentally changing a setting</li>
+          <li>Tests calling the real statistics APIs</li>
+        </ul></div>
+      </div>
+    </section>
+
+    <section id="constraints">
+      <h2>Constraints</h2>
+      <div class="card"><ul>
+        <li><strong>Follow the approved mock.</strong> Layout, wording, column order and behaviour as in round 5; real data replaces its samples.</li>
+        <li><strong>Design tokens only, light and dark.</strong> No emoji in the General tab. Muted style: accent only for the sparkline, the selected radio and the "In use" tag.</li>
+        <li><strong>DRY &gt; YAGNI &gt; SOLID.</strong> One sparkline component for every row; one row component for rates and inflation if it stays simple; one index service, not one per country with copied logic.</li>
+        <li><strong>Vendor names only at the edges</strong> (BLS, Statistics Canada inside the source adapters; "consumer price index" elsewhere). The page may name the source in the table's footnote.</li>
+        <li><strong>Tests never touch <code>prisma/dev.db</code></strong> and never call a real statistics API, bank or price provider.</li>
+        <li><strong>Schema changes via <code>prisma db push</code></strong>; the live database only with Ben, after a backup.</li>
+      </ul></div>
+    </section>
+
+    <section id="page">
+      <h2>1 · The General page</h2>
+      <p class="lede">One column, about 760px wide, under the existing Settings tabs. Three groups, each a small uppercase caption over a card.</p>
+      <table class="md">
+        <tr><th>Group</th><th>Rows</th></tr>
+        <tr><td>Currency</td><td>Base currency (label, one-line explanation, select) · a header row · one row per exchange-rate pair · footer "Updated automatically · as of 7:20 am" with a quiet Refresh</td></tr>
+        <tr><td>Inflation</td><td>A header row · US row · Canada row · footer "Selected index is used by Reports' inflation-adjusted view · fetched monthly"</td></tr>
+        <tr><td>Appearance</td><td>Theme with a Light / Dark / System switch M2</td></tr>
+      </table>
+      <h3 class="sub">Save bar</h3>
+      <div class="card"><ul>
+        <li>Appears at the bottom of the column, sticky, when base currency or the inflation choice differs from what is saved. It says the change in words, e.g. "Base currency → CAD · Reports adjusts by Canada inflation", with <strong>Discard</strong> (outline) and <strong>Save changes</strong> (the only accent button). M1</li>
+        <li>Save writes both at once and the bar goes; Discard restores the select and the radio.</li>
+        <li>Leaving the tab with unsaved changes discards them. <span class="chip mine">my call</span></li>
+      </ul></div>
+    </section>
+
+    <section id="currency">
+      <h2>2 · Currency</h2>
+      <div class="card"><ul>
+        <li><strong>Base currency</strong> keeps its four choices (USD, CAD, EUR, GBP), as "USD · US Dollar".</li>
+        <li><strong>One row per pair</strong> the app already stores (from your accounts' currencies and the base currency). Columns: pair ("1 CAD → USD"), today's rate to 4 places, a past-year sparkline of weekly points, and the 1-year change in percent (red when down, green when up), then a chevron.</li>
+        <li><strong>Sparkline points</strong>: the last stored rate in each week of the past year. <strong>1-year change</strong>: today vs the rate for the same day a year ago (through the usual "latest at or before" lookup); "—" when history is shorter than a year. <span class="chip mine">my call</span></li>
+        <li><strong>Hover</strong> shows "Sep 18 · 1 CAD = 0.7046 USD".</li>
+        <li><strong>Click</strong> opens a table: the last 12 months, newest first, each month's last stored rate ("Nov 2026 (so far)" for the current one), and a footnote that every day's rate is stored and each amount converts at its own day's rate.</li>
+        <li>Refresh runs the existing rate refresh; "as of" updates. A failed refresh keeps the existing message.</li>
+        <li>No pairs yet: one quiet line, "No exchange rates yet".</li>
+      </ul></div>
+    </section>
+
+    <section id="inflation">
+      <h2>3 · Inflation</h2>
+      <h3 class="sub">Where it comes from</h3>
+      <div class="card"><ul>
+        <li>The monthly consumer price index for each country, stored as index values per (country, month). M3</li>
+        <li>Backfill once from the earliest month Reports needs (the first net-worth snapshot, minus 12 months so the first annual figure can be shown), then each pass adds new months.</li>
+        <li>A month is published about two weeks after it ends; nothing is estimated in between.</li>
+        <li>A fetch that fails or returns nonsense (non-numbers, ≤ 0, or a month-to-month jump far beyond normal) writes nothing; the step counts as failed and stored months stay. M4</li>
+        <li>Published figures can be revised; re-reading the last few months on each fetch and overwriting them is fine.</li>
+      </ul></div>
+      <h3 class="sub">The rows</h3>
+      <div class="card"><ul>
+        <li>Columns: radio · name ("US", "Canada") with a small "In use" tag on the saved choice · annual rate for the latest month · a 12-month sparkline of annual rates · latest month ("Sep 2026") · chevron.</li>
+        <li><strong>Annual</strong> = index vs the same month a year earlier. <strong>Monthly</strong> = change from the month before. Both to one decimal place.</li>
+        <li><strong>Radio</strong>: picking one moves the radio immediately; "In use" stays on the saved choice until Save. Clicking the radio never opens or closes the table. A7</li>
+        <li><strong>Hover</strong> shows "Jun 2026 · 2.9% annual".</li>
+        <li><strong>Click</strong> (anywhere but the radio) opens a table of the last 12 months, newest first: Month · Annual · Monthly, and a footnote naming the source and when it was fetched.</li>
+        <li>Default choice: US. A6</li>
+        <li>Before the first fetch: the rows say "Not fetched yet"; no sparkline. The first pass runs about 30 seconds after the server starts, so this is brief. There is no separate inflation Refresh. <span class="chip mine">my call</span></li>
+      </ul></div>
+    </section>
+
+    <section id="reports">
+      <h2>4 · Reports</h2>
+      <div class="card"><ul>
+        <li>The "Inflation-Adjusted" toggle and the "Adjusted" column stay as they are. A8</li>
+        <li>A snapshot is restated by <code>index(latest month) ÷ index(snapshot's month)</code> using the saved country. A snapshot newer than the latest index uses factor 1.</li>
+        <li>With the toggle on, the view says the reference month, e.g. "In September 2026 prices". M6</li>
+        <li>The toggle shows only when index data exists for the saved country, as it does today with rates.</li>
+        <li>The factor is just the ratio of the chosen country's index, applied to totals in base currency; the country and base currency are independent choices. <span class="chip mine">my call</span></li>
+      </ul></div>
+    </section>
+
+    <section id="engineering">
+      <h2>5 · Engineering</h2>
+      <div class="card"><ul>
+        <li><strong>One index service</strong> fills and reads monthly index rows for both countries through a small source interface (one adapter per statistics agency — two real implementations, so the seam earns its place).</li>
+        <li><strong>A pass step</strong> <code>inflation</code> runs it, alongside the rate step; the Settings page doesn't fetch on load. A failed step shows in the existing "couldn't update …" line and side-nav dot like any other step, and clears after the next clean pass (the next pass retries 4 hours later). <span class="chip mine">my call</span></li>
+        <li><strong><code>src/lib/inflation.ts</code></strong> moves from yearly rates to monthly index lookups; the yearly-rate code and its tests go. M5</li>
+        <li><strong>Storage</strong>: a new table for (country, month, index) replacing <code>InflationRate</code>; <code>UserSettings</code> gains the saved country (default US).</li>
+        <li><strong>APIs</strong>: one read route returns, per country, the last 13 months of index values (enough for 12 annual and monthly figures) and the fetch time; the exchange-rate read gains enough history for the sparkline, 1-year change and month-end table. Shapes are the builder's call.</li>
+        <li><strong>Cloud backup</strong>: the index is fetched, not personal data — leave it out of the backup, as <code>InflationRate</code> is today; <code>UserSettings</code> is already backed up, so the saved country goes with it (older backups without it restore as US).</li>
+        <li><strong>The Settings page file</strong> is 4,600 lines; the General tab moves into its own component file.</li>
+      </ul></div>
+    </section>
+
+    <section id="builder">
+      <h2>Left to the builder</h2>
+      <div class="card"><ul>
+        <li>Exact table and field names, and how a month is stored (first-of-month UTC date or "YYYY-MM").</li>
+        <li>The Statistics Canada vector and API call for all-items CPI, and the BLS API version (v1 needs no key; its daily limit is ample for this).</li>
+        <li>How the step decides a new month could exist, and how far back to re-read for revisions.</li>
+        <li>The "far beyond normal" bound for a month-to-month jump.</li>
+        <li>Whether the sparkline is built on Recharts or plain SVG, as long as there's one component.</li>
+        <li>Whether the rate and inflation rows share a component.</li>
+        <li>Keyboard: the radio and rows reachable and operable by keyboard; the table opens with Enter/Space.</li>
+      </ul></div>
+    </section>
+
+    <section id="testing">
+      <h2>Testing</h2>
+      <div class="cols">
+        <div class="col"><h3>Unit</h3><ul>
+          <li>Annual and monthly figures from index values</li>
+          <li>Reports factor: same month = 1, older month, newer-than-latest = 1</li>
+          <li>Source adapters parse recorded API responses; nonsense is rejected</li>
+          <li>1-year change and month-end table from rate rows</li>
+        </ul></div>
+        <div class="col"><h3>Integration</h3><ul>
+          <li>The inflation step backfills, adds a new month, and writes nothing on failure, with a fake source</li>
+          <li>A failed inflation step doesn't stop the other steps and is recorded</li>
+          <li>Saving base currency and the inflation choice persists both</li>
+          <li>Old inflation routes are gone</li>
+        </ul></div>
+        <div class="col"><h3>Component</h3><ul>
+          <li>Rows show rate, change and latest figures; hover shows a point</li>
+          <li>Clicking a row opens its table; clicking the radio doesn't</li>
+          <li>Save bar appears, Discard restores, Save persists</li>
+          <li>Reports shows the reference month with the toggle on</li>
+        </ul></div>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  btn.addEventListener('click', function () {
+    var r = document.documentElement;
+    var dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (a) { a.classList.remove('active'); });
+        var a = map[e.target.id]; if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+})();
+</script>
+</body>
+</html>

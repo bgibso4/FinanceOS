@@ -295,6 +295,7 @@ export async function exportDatabase(): Promise<SyncPayload> {
       ? ({
           id: settings.id,
           baseCurrency: settings.baseCurrency,
+          inflationRegion: settings.inflationRegion,
           updatedAt: settings.updatedAt.toISOString(),
           createdAt: settings.createdAt.toISOString(),
         } as UserSettingsExport)
@@ -835,6 +836,7 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
         data: {
           id: data.settings.id,
           baseCurrency: data.settings.baseCurrency,
+          inflationRegion: data.settings.inflationRegion ?? 'US',
           updatedAt: new Date(data.settings.updatedAt),
           createdAt: new Date(data.settings.createdAt),
         },

@@ -42,6 +42,8 @@ describe('investment formatting', () => {
     expect(fmtPct(-3)).toBe('−3.0%');
     expect(fmtPct(0)).toBe('+0.0%');
     expect(fmtPct(-0.04)).toBe('+0.0%');
+    expect(fmtPct(2.94, { plus: false })).toBe('2.9%');
+    expect(fmtPct(-0.3, { plus: false })).toBe('−0.3%');
     expect(fmtQty(1234.56789)).toBe('1,234.5679');
     expect(fmtDay('2026-10-09')).toBe('Oct 9');
     expect(fmtSyncTime('2026-10-09T13:24:00Z')).toMatch(/^Oct \d{1,2}, \d{1,2}:\d{2} [AP]M$/);

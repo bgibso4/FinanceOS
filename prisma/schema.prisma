@@ -291,17 +291,21 @@ model ExchangeRate {
   @@unique([fromCurrency, toCurrency, date])
 }
 
-model InflationRate {
+model PriceIndexMonth {
   id        String   @id @default(uuid())
-  year      Int      @unique
-  rate      Float    // Annual percentage, e.g. 3.4 for 3.4%
+  region    String   // IndexRegion, e.g. "US" | "CA"
+  month     String   // "YYYY-MM"
+  value     Float    // Consumer price index level
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
+
+  @@unique([region, month])
 }
 
 model UserSettings {
   id           String   @id @default(uuid())
   baseCurrency String   @default("USD")
+  inflationRegion String @default("US") // IndexRegion used for inflation-adjusted reports
   // Last finished scheduled sync pass; failures is a JSON array of failed step names.
   scheduledSyncFinishedAt DateTime?
   scheduledSyncFailures   String?

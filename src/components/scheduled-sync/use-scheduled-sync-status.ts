@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import type { PassStep } from '@/lib/scheduled-sync/pass';
 
 export type ScheduledSyncStatus = {
   enabled: boolean;
   lastFinishedAt: string | null;
   nextAround: string | null;
-  failedSteps: ('rates' | 'accounts' | 'prices')[];
+  failedSteps: PassStep[];
   needsAttention: boolean;
 };
 
