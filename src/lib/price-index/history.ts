@@ -14,8 +14,9 @@ export type IndexFillResult = { regions: IndexRegion[]; months: number; failed: 
 
 /**
  * Keeps each region's monthly consumer price index current. A region whose newest stored month
- * is last month or later is skipped (nothing newer can exist); otherwise recent months are
- * re-read for revisions. An answer that is unusable writes nothing for that region.
+ * is last month or later is skipped (nothing newer can exist) unless the stored range starts later than snapshots need,
+ * in which case it is fetched again from the needed start; otherwise recent months are re-read
+ * for revisions. An answer that is unusable writes nothing for that region.
  */
 export class PriceIndexHistory {
   constructor(
@@ -45,12 +46,13 @@ export class PriceIndexHistory {
   /** Fetches and stores one region; throws, storing nothing, if the answer is unusable. */
   private async fillRegion(source: PriceIndexSource, thisMonth: MonthKey): Promise<number> {
     const last = await this.store.lastMonth(source.region);
-    if (last !== null && last >= addMonths(thisMonth, -1)) return 0;
+    const first = await this.store.firstMonth(source.region);
+    const neededStart = addMonths(await this.startAnchor(thisMonth), -LEAD_MONTHS);
+    // Snapshots older than the stored range would otherwise be under-adjusted.
+    const coversNeed = first !== null && first <= neededStart;
+    if (last !== null && last >= addMonths(thisMonth, -1) && coversNeed) return 0;
 
-    const from =
-      last !== null
-        ? addMonths(last, -REVISION_MONTHS)
-        : addMonths(await this.startAnchor(thisMonth), -LEAD_MONTHS);
+    const from = coversNeed && last !== null ? addMonths(last, -REVISION_MONTHS) : neededStart;
     const answer = [...(await source.fetchMonths(from, thisMonth))].sort((a, b) =>
       a.month.localeCompare(b.month)
     );

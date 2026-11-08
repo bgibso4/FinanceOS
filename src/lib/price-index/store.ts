@@ -16,6 +16,15 @@ export class PriceIndexStore {
     return row?.month ?? null;
   }
 
+  async firstMonth(region: IndexRegion): Promise<MonthKey | null> {
+    const row = await this.prisma.priceIndexMonth.findFirst({
+      where: { region },
+      orderBy: { month: 'asc' },
+      select: { month: true },
+    });
+    return row?.month ?? null;
+  }
+
   /** Inserts or revises each month, all or none. */
   async save(region: IndexRegion, obs: IndexObservation[]): Promise<void> {
     await this.prisma.$transaction(

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   PriceIndexSourceError,
+  requestAgency,
   type IndexObservation,
   type IndexRegion,
   type MonthKey,
@@ -34,7 +35,7 @@ export class StatCanCpiSource implements PriceIndexSource {
     const url =
       `${ENDPOINT}?vectorIds="${VECTOR_ID}"` +
       `&startRefPeriod=${from}-01&endReferencePeriod=${to}-01`;
-    const res = await this.http(url);
+    const res = await requestAgency(this.http, url);
     if (!res.ok) throw new PriceIndexSourceError(`Statistics Canada answered HTTP ${res.status}`);
 
     const parsed = responseSchema.safeParse(await res.json());

@@ -84,6 +84,11 @@ describe('exchange rates API', () => {
     expect(fs.existsSync('src/app/api/exchange-rates/[id]')).toBe(false);
   });
 
+  it('the old inflation-rates routes are gone', async () => {
+    const fs = await import('node:fs');
+    expect(fs.existsSync('src/app/api/inflation-rates')).toBe(false);
+  });
+
   it('POST /refresh returns the fill result', async () => {
     const { POST } = await import('@/app/api/exchange-rates/refresh/route');
     const res = await POST();

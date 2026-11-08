@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   PriceIndexSourceError,
+  requestAgency,
   type IndexObservation,
   type IndexRegion,
   type MonthKey,
@@ -45,7 +46,7 @@ export class BlsCpiSource implements PriceIndexSource {
   }
 
   private async fetchYears(startYear: number, endYear: number): Promise<IndexObservation[]> {
-    const res = await this.http(ENDPOINT, {
+    const res = await requestAgency(this.http, ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

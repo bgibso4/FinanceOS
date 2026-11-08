@@ -11,7 +11,9 @@ export async function GET() {
     const byPair = new Map<string, typeof rows>();
     for (const row of rows) {
       const key = `${row.fromCurrency}_${row.toCurrency}`;
-      byPair.set(key, [...(byPair.get(key) ?? []), row]);
+      const pair = byPair.get(key);
+      if (pair) pair.push(row);
+      else byPair.set(key, [row]);
     }
     const body: ExchangeRatesResponse = {
       rates: [...byPair.values()].map((pair) => {

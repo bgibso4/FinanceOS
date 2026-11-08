@@ -70,8 +70,22 @@ describe('PriceIndexHistory', () => {
     expect(us.calls).toEqual([{ from: '2023-04', to: '2026-11' }]);
   });
 
+  it('refetchesFromNeededStartWhenStoredRangeStartsLater', async () => {
+    await store.save('US', series('2025-01', '2026-10'));
+    const us = new FakeSource('US', series('2021-06', '2026-10', 200));
+    await historyFor([us], '2022-06').fill();
+    expect(us.calls).toEqual([{ from: '2021-06', to: '2026-11' }]);
+  });
+
+  it('skipsWhenStoredRangeCoversTheNeedAndNewestIsCurrent', async () => {
+    await store.save('US', series('2021-06', '2026-10'));
+    const us = new FakeSource('US', new Error('must not be called'));
+    await historyFor([us], '2022-06').fill();
+    expect(us.calls).toEqual([]);
+  });
+
   it('skipsWhenNothingNewPossible', async () => {
-    await store.save('US', [{ month: '2026-10', value: 320 }]);
+    await store.save('US', series('2024-11', '2026-10'));
     const us = new FakeSource('US', new Error('must not be called'));
     const result = await historyFor([us]).fill();
     expect(us.calls).toEqual([]);
@@ -80,6 +94,7 @@ describe('PriceIndexHistory', () => {
 
   it('rereadsRecentMonthsForRevisions', async () => {
     await store.save('US', [
+      ...series('2024-11', '2026-06', 290),
       { month: '2026-07', value: 310 },
       { month: '2026-08', value: 311 },
     ]);
@@ -90,7 +105,7 @@ describe('PriceIndexHistory', () => {
     ]);
     await historyFor([us]).fill();
     expect(us.calls).toEqual([{ from: '2026-05', to: '2026-11' }]);
-    const months = (await store.all()).US.months;
+    const months = (await store.all()).US.months.filter((m) => m.month >= '2026-07');
     expect(months).toEqual([
       { month: '2026-07', value: 310.5 },
       { month: '2026-08', value: 311 },

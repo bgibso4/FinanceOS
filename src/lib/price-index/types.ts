@@ -23,3 +23,21 @@ export interface PriceIndexSource {
 
 /** A source could not give a trustworthy answer (never an empty success). */
 export class PriceIndexSourceError extends Error {}
+
+/** A stalled agency must not hold up bank sync for long. */
+const REQUEST_TIMEOUT_MS = 30_000;
+
+/** One agency request with a deadline; any transport failure or abort is a source error. */
+export async function requestAgency(
+  http: typeof fetch,
+  url: string,
+  init: RequestInit = {}
+): Promise<Response> {
+  try {
+    return await http(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  } catch (error) {
+    throw new PriceIndexSourceError(
+      `request to ${new URL(url).host} failed: ${error instanceof Error ? error.message : error}`
+    );
+  }
+}

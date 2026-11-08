@@ -1,5 +1,3 @@
-'use client';
-
 import { HoverSparkline } from '@/components/ui/hover-sparkline';
 import { fmtPct } from '@/components/investments/format';
 import { fmtMoment } from '@/lib/dates';

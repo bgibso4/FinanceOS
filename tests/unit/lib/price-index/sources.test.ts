@@ -170,3 +170,30 @@ describe('StatCanCpiSource', () => {
     expect(s.attribution).toBe('Statistics Canada, CPI all-items');
   });
 });
+
+describe('agency timeouts', () => {
+  const stalled = (async () => {
+    throw new DOMException('timed out', 'TimeoutError');
+  }) as typeof fetch;
+
+  it('sendsAnAbortSignal', async () => {
+    const { http, calls } = fakeHttp(blsFixture);
+    await new BlsCpiSource(http).fetchMonths('2025-09', '2026-09');
+    expect(calls[0].init?.signal).toBeInstanceOf(AbortSignal);
+    const sc = fakeHttp(statcanFixture);
+    await new StatCanCpiSource(sc.http).fetchMonths('2025-09', '2026-09');
+    expect(sc.calls[0].init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('blsTimeoutSurfacesAsSourceError', async () => {
+    await expect(new BlsCpiSource(stalled).fetchMonths('2025-09', '2026-09')).rejects.toThrow(
+      PriceIndexSourceError
+    );
+  });
+
+  it('statcanTimeoutSurfacesAsSourceError', async () => {
+    await expect(new StatCanCpiSource(stalled).fetchMonths('2025-09', '2026-09')).rejects.toThrow(
+      PriceIndexSourceError
+    );
+  });
+});
