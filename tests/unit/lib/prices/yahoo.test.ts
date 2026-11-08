@@ -58,6 +58,40 @@ describe('yahoo price provider', () => {
     expect(h.closes).toEqual([{ date: utcDay('2026-10-08'), close: 101.5 }]);
   });
 
+  describe('dates each bar by its exchange calendar day', () => {
+    const histFor = async (timezone: string, stamp: string, from: string, to: string) => {
+      const c = client({
+        chart: vi.fn(async () => ({
+          meta: { exchangeTimezoneName: timezone },
+          quotes: [{ date: new Date(stamp), close: 0.73 }],
+          events: { dividends: [{ date: new Date(stamp), amount: 1 }] },
+        })),
+      });
+      return new YahooPriceProvider(c).getDailyHistory('X', utcDay(from), utcDay(to));
+    };
+
+    it('puts a London-midnight FX bar in summer time on its London day', async () => {
+      const h = await histFor('Europe/London', '2026-07-09T23:00:00Z', '2026-07-08', '2026-07-12');
+      expect(h.closes).toEqual([{ date: utcDay('2026-07-10'), close: 0.73 }]);
+      expect(h.events[0].date).toEqual(utcDay('2026-07-10'));
+    });
+
+    it('leaves a winter London-midnight FX bar on its day', async () => {
+      const h = await histFor('Europe/London', '2026-01-09T00:00:00Z', '2026-01-08', '2026-01-12');
+      expect(h.closes).toEqual([{ date: utcDay('2026-01-09'), close: 0.73 }]);
+    });
+
+    it('leaves an equity bar stamped in the US session on its day', async () => {
+      const h = await histFor(
+        'America/New_York',
+        '2026-07-09T13:30:00Z',
+        '2026-07-08',
+        '2026-07-12'
+      );
+      expect(h.closes).toEqual([{ date: utcDay('2026-07-09'), close: 0.73 }]);
+    });
+  });
+
   it('maps dividends and splits', async () => {
     const c = client({
       chart: vi.fn(async () => ({

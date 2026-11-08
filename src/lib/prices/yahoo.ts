@@ -1,5 +1,5 @@
 import YahooFinance from 'yahoo-finance2';
-import { addDays, utcDay } from '@/lib/investments/dates';
+import { addDays, utcDay, zonedDay } from '@/lib/investments/dates';
 import {
   PriceProviderError,
   type DailyHistory,
@@ -13,6 +13,7 @@ import { SecurityType } from '@/lib/investments/codes';
 
 type ChartOptions = { period1: Date; period2: Date; interval: '1d'; events: string };
 type ChartResult = {
+  meta?: { exchangeTimezoneName?: string };
   quotes: { date: Date; close: number | null }[];
   events?: {
     dividends?: { date: Date; amount: number }[];
@@ -93,18 +94,22 @@ export class YahooPriceProvider implements PriceProvider {
         events: 'div|split',
       })
     );
+    // A bar's day is its date on the exchange's clock: FX bars are stamped at London midnight,
+    // which is the previous UTC day during British Summer Time.
+    const timeZone = res.meta?.exchangeTimezoneName;
+    const dayOf = (d: Date) => (timeZone ? zonedDay(d, timeZone) : utcDay(d));
     const inRange = (d: Date) => {
-      const day = utcDay(d);
+      const day = dayOf(d);
       return day >= from && day <= to;
     };
     const closes = res.quotes
       .filter((q) => q.close != null && Number.isFinite(q.close) && inRange(q.date))
-      .map((q) => ({ date: utcDay(q.date), close: q.close as number }));
+      .map((q) => ({ date: dayOf(q.date), close: q.close as number }));
     const events: PriceEvent[] = [
       ...(res.events?.dividends ?? [])
         .filter((d) => inRange(d.date))
         .map((d) => ({
-          date: utcDay(d.date),
+          date: dayOf(d.date),
           type: 'dividend' as const,
           amount: d.amount,
           ratio: null,
@@ -112,7 +117,7 @@ export class YahooPriceProvider implements PriceProvider {
       ...(res.events?.splits ?? [])
         .filter((s) => inRange(s.date))
         .map((s) => ({
-          date: utcDay(s.date),
+          date: dayOf(s.date),
           type: 'split' as const,
           amount: null,
           ratio: s.numerator / s.denominator,
