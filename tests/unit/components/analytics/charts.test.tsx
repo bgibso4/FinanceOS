@@ -87,6 +87,28 @@ describe('OverTimeChart', () => {
     expect(within(legend).getByText('Nov 2026 so far')).toBeInTheDocument();
     expect(within(legend).getByText('Oct (dashed)')).toBeInTheDocument();
   });
+  it('flatZeroComparisonRendersWithoutNaN', () => {
+    const flat: Series = {
+      ...series,
+      points: series.points.map((p) => ({ ...p, values: { ...p.values, compare: 0 } })),
+    };
+    const { container } = render(
+      <OverTimeChart
+        daily
+        canSplit={false}
+        running={false}
+        series={flat}
+        split={false}
+        summary={soFarSentence({ now: 150, thenSameDay: 0, thenTotal: 0 }, 'Oct')}
+        onRunning={vi.fn()}
+        onSplit={vi.fn()}
+      />
+    );
+    expect(
+      screen.getByText('$150 so far · Oct was at $0 by this day (+$150) and ended at $0')
+    ).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/NaN|Infinity/);
+  });
 });
 
 describe('WhereItWent', () => {

@@ -14,6 +14,12 @@ import {
 } from 'recharts';
 import { Card } from '@/components/ui/card';
 import type { buildSeries, ChartPoint } from '@/lib/analytics-series';
+import {
+  CHART_GRID_STROKE,
+  CHART_TICK,
+  CHART_TOOLTIP_LABEL_STYLE,
+  CHART_TOOLTIP_STYLE,
+} from '@/lib/chart-style';
 import { fmtMoney } from '@/lib/currency';
 import { fmtCalendarDay } from '@/lib/dates';
 import { prefersReducedMotion } from '@/lib/motion';
@@ -51,8 +57,6 @@ export function finishedSentence(
 ): string {
   return `${fmtMoney(total)} in ${label} · ${compare.label} was ${fmtMoney(compare.total)}`;
 }
-
-const TICK = { fontSize: 11, fill: 'var(--text-muted)', fontFamily: 'var(--font-mono)' };
 
 const compactMoney = (v: number) =>
   Math.abs(v) >= 1000 ? `$${Number((v / 1000).toFixed(1))}k` : fmtMoney(v);
@@ -103,13 +107,16 @@ export function OverTimeChart({
   const { points, lines, todayIndex } = series;
   const cumulative = daily || running;
   const longSpan = points.length > 12;
+  // Daily x is day-of-period: the comparison can run past this month's last date.
+  const tickFor = (p: ChartPoint, k: number) =>
+    daily
+      ? String(k + 1)
+      : `${fmtCalendarDay(`${p.x}-01`, { month: 'short' })}${longSpan ? ` ${p.x.slice(2, 4)}` : ''}`;
   const data = points.map((p, k) => ({
     ...p,
-    // Daily x is day-of-period: the comparison can run past this month's last date.
-    tick: daily ? String(k + 1) : fmtCalendarDay(`${p.x}-01`, { month: 'short' }),
+    tick: tickFor(p, k),
     full: daily ? `Day ${k + 1}` : fmtCalendarDay(`${p.x}-01`, { month: 'short', year: 'numeric' }),
   }));
-  if (!daily && longSpan) for (const d of data) d.tick = `${d.tick} ${d.x.slice(2, 4)}`;
 
   const total = (key: string) => {
     const vals = points.map((p) => p.values[key]).filter((v): v is number => v != null);
@@ -157,35 +164,29 @@ export function OverTimeChart({
       <div className="mt-3.5 h-[190px]">
         <ResponsiveContainer height="100%" width="100%">
           <ComposedChart data={data} margin={{ top: 16, right: 8, bottom: 0, left: 0 }}>
-            <CartesianGrid stroke="var(--grid-line)" vertical={false} />
+            <CartesianGrid stroke={CHART_GRID_STROKE} vertical={false} />
             <XAxis
               axisLine={false}
               dataKey="tick"
               interval="preserveStartEnd"
               minTickGap={16}
-              tick={TICK}
+              tick={CHART_TICK}
               tickLine={false}
             />
             <YAxis
               axisLine={false}
-              tick={TICK}
+              tick={CHART_TICK}
               tickFormatter={compactMoney}
               tickLine={false}
               width={48}
             />
             <Tooltip
-              contentStyle={{
-                fontSize: '12px',
-                fontFamily: 'var(--font-mono)',
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border-hover)',
-                borderRadius: '8px',
-                color: 'var(--text-primary)',
-              }}
+              contentStyle={CHART_TOOLTIP_STYLE}
               formatter={(v) => fmtMoney(Number(v))}
               labelFormatter={(_, payload) => payload?.[0]?.payload?.full ?? ''}
-              labelStyle={{ color: 'var(--text-muted)', marginBottom: 4 }}
+              labelStyle={CHART_TOOLTIP_LABEL_STYLE}
             />
+            {/* The Today line and end dots find their point by tick label, unique per point. */}
             {todayIndex !== null && (
               <ReferenceLine
                 label={{ value: 'Today', position: 'top', fill: 'var(--text-muted)', fontSize: 10 }}
