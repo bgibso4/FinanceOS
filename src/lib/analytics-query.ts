@@ -16,8 +16,11 @@ const COMPARES: CompareKind[] = ['prev', 'lastYear', 'none'];
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
+/** A real calendar day: 2026-02-30 is rejected, not rolled over to March 2. */
 const isDay = (s: string | null): s is string =>
-  s !== null && DAY.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+  s !== null && DAY.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+
+const nonEmpty = (values: string[]) => values.filter((v) => v !== '');
 
 /** The anchor a period of this kind opens on: this month, or December of this year. */
 const defaultAnchor = (kind: PeriodKind, today: string) =>
@@ -52,9 +55,9 @@ export function parseAnalyticsQuery(sp: URLSearchParams, today: string): Analyti
   return {
     period: parsePeriod(sp, today),
     vs: COMPARES.find((c) => c === sp.get('vs')) ?? 'prev',
-    categories: sp.getAll('category'),
-    accounts: sp.getAll('account'),
-    tags: sp.getAll('tag'),
+    categories: nonEmpty(sp.getAll('category')),
+    accounts: nonEmpty(sp.getAll('account')),
+    tags: nonEmpty(sp.getAll('tag')),
     merchant: sp.get('merchant') ?? '',
   };
 }

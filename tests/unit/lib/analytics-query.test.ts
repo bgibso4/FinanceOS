@@ -81,6 +81,20 @@ describe('analytics query in the address', () => {
     });
   });
 
+  it('impossibleCustomDayFallsBack', () => {
+    expect(parse('period=custom&from=2026-02-30&to=2026-03-05').period).toEqual({
+      kind: 'month',
+      anchor: '2026-11',
+    });
+    expect(parse('period=custom&from=2026-03-01&to=2026-04-31').period.kind).toBe('month');
+  });
+
+  it('emptyFilterValuesAreDropped', () => {
+    const q = parse('tag=&category=&account=&merchant=');
+    expect(activeFilterCount(q)).toBe(0);
+    expect(q.tags).toEqual([]);
+  });
+
   it('customFromAfterToFallsBack', () => {
     expect(parse('period=custom&from=2026-10-20&to=2026-10-01').period.kind).toBe('month');
   });
