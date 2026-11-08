@@ -447,7 +447,7 @@ export function applyMerchantRename(
  */
 export async function cleanupTransferPair(
   transactionId: string,
-  prismaClient: PrismaClient = defaultPrisma
+  prismaClient: PrismaClient | Prisma.TransactionClient = defaultPrisma
 ): Promise<void> {
   const tx = await prismaClient.transaction.findUnique({
     where: { id: transactionId },
@@ -468,7 +468,7 @@ export async function cleanupTransferPair(
  * (a brokerage deposit/withdrawal) is still a transfer without its group, so it keeps isTransfer.
  */
 async function releaseFromTransferGroups(
-  prismaClient: PrismaClient,
+  prismaClient: PrismaClient | Prisma.TransactionClient,
   where: Prisma.TransactionWhereInput
 ): Promise<void> {
   await prismaClient.transaction.updateMany({

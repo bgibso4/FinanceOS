@@ -278,6 +278,32 @@ export const TripDismissalExportSchema = z.object({
 });
 export type TripDismissalExport = z.infer<typeof TripDismissalExportSchema>;
 
+export const SplitwiseImportExportSchema = z.object({
+  id: z.string(),
+  accountId: z.string(),
+  group: z.string(),
+  fileName: z.string(),
+  person: z.string(),
+  result: z.string(), // JSON
+  undo: z.string(), // JSON
+  createdAt: z.string(),
+});
+export type SplitwiseImportExport = z.infer<typeof SplitwiseImportExportSchema>;
+
+export const SplitwiseRowExportSchema = z.object({
+  id: z.string(),
+  accountId: z.string(),
+  group: z.string(),
+  date: z.string(), // YYYY-MM-DD
+  description: z.string(),
+  cost: z.number(),
+  amount: z.number(),
+  status: z.string(),
+  transactionId: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type SplitwiseRowExport = z.infer<typeof SplitwiseRowExportSchema>;
+
 export const SyncDataSchema = z.object({
   accounts: z.array(AccountExportSchema),
   transactions: z.array(TransactionExportSchema),
@@ -300,6 +326,8 @@ export const SyncDataSchema = z.object({
   investmentTransactions: z.array(InvestmentTransactionExportSchema).optional(),
   trips: z.array(TripExportSchema).optional(),
   tripDismissals: z.array(TripDismissalExportSchema).optional(),
+  splitwiseImports: z.array(SplitwiseImportExportSchema).optional(),
+  splitwiseRows: z.array(SplitwiseRowExportSchema).optional(),
 });
 export type SyncData = z.infer<typeof SyncDataSchema>;
 
@@ -358,6 +386,8 @@ export const SyncMetadataSchema = z.object({
     investmentTransactions: z.number().optional(),
     trips: z.number().optional(),
     tripDismissals: z.number().optional(),
+    splitwiseImports: z.number().optional(),
+    splitwiseRows: z.number().optional(),
   }),
   checksum: z.string(), // SHA-256 of JSON data
 });

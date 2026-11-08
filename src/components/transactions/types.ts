@@ -37,7 +37,8 @@ export type Category = {
   parentId?: string | null;
 };
 
-export type Account = { id: string; name: string };
+/** As /api/accounts sends it; the optional fields are absent where a caller builds its own. */
+export type Account = { id: string; name: string; isActive?: boolean; institution?: string | null };
 
 export type TxFields = {
   date?: string;

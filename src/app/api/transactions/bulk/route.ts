@@ -12,6 +12,7 @@ const bulkSchema = z.object({
       tags: z.array(z.string()).optional(),
       confidenceScore: z.number().optional(),
       note: z.string().optional(),
+      tripId: z.string().nullable().optional(),
     })
     .optional(),
 });
@@ -31,6 +32,24 @@ export async function POST(req: NextRequest) {
     // action === 'update'
     if (!data) {
       return NextResponse.json({ error: 'data required for update' }, { status: 400 });
+    }
+
+    // Trip is its own call, like tags. Split parents are never on a trip (their parts
+    // carry it), the same rule as /api/transactions/[id]; they are skipped and counted.
+    if (data.tripId !== undefined) {
+      const { tripId } = data;
+      const parents = tripId
+        ? await prisma.transaction.findMany({
+            where: { id: { in: transactionIds }, isSplitParent: true },
+            select: { id: true },
+          })
+        : [];
+      const parentIds = new Set(parents.map((p) => p.id));
+      const result = await prisma.transaction.updateMany({
+        where: { id: { in: transactionIds.filter((id) => !parentIds.has(id)) } },
+        data: { tripId },
+      });
+      return NextResponse.json({ success: true, affected: result.count, skipped: parentIds.size });
     }
 
     // Tags require per-row handling (JSON field — can't use updateMany)

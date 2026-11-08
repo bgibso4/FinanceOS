@@ -190,6 +190,9 @@ model Transaction {
   trip               Trip?       @relation(fields: [tripId], references: [id], onDelete: SetNull)
   tripDismissals     TripDismissal[]
 
+  // The Splitwise row this transaction was imported from
+  splitwiseRow       SplitwiseRow?
+
   createdAt          DateTime    @default(now())
 
   @@index([date])
@@ -481,4 +484,35 @@ model InvestmentTransaction {
   @@unique([accountId, externalId])
   @@index([accountId, date])
   @@index([linkedTransactionId])
+}
+
+// One per Splitwise import: what its card shows and what Undo needs
+model SplitwiseImport {
+  id        String   @id @default(uuid())
+  accountId String
+  group     String
+  fileName  String
+  person    String
+  result    String // JSON: the import's result as the card shows it
+  undo      String // JSON: rows before, created ids, previous amounts and dates, deleted snapshots
+  createdAt DateTime @default(now())
+
+  @@index([accountId, group])
+}
+
+// A row of yours that a Splitwise import saw, with what happened to it
+model SplitwiseRow {
+  id            String       @id @default(uuid())
+  accountId     String
+  group         String
+  date          String // YYYY-MM-DD
+  description   String
+  cost          Float
+  amount        Float
+  status        String // imported | skipped | kept | dismissed
+  transactionId String?      @unique
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
+
+  @@index([accountId, group])
 }

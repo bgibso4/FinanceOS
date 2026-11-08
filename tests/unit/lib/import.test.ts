@@ -49,6 +49,17 @@ describe('import', () => {
   });
 
   describe('CSV parsing', () => {
+    it('importCsvStillImportsSimpleFile', async () => {
+      const csv = `Date,Description,Amount
+2024-01-15,COFFEE SHOP,-4.50
+2024-01-16,BOOK STORE,-12.00`;
+
+      const result = await importCsv(prisma, csv, defaultMapping, testAccountId);
+
+      expect(result.created).toBe(2);
+      expect(await prisma.transaction.count()).toBe(2);
+    });
+
     it('parses valid CSV file', async () => {
       const csv = `Date,Description,Amount
 2024-01-15,TRADER JOE'S,-89.42
@@ -157,6 +168,15 @@ not-a-date,MERCHANT,-50.00`;
 
       await expect(importCsv(prisma, csv, defaultMapping, testAccountId)).rejects.toThrow(
         /Invalid amount/
+      );
+    });
+
+    it('throws error for an unterminated quoted field', async () => {
+      const csv = `Date,Description,Amount
+2024-01-15,"MERCHANT,-50.00`;
+
+      await expect(importCsv(prisma, csv, defaultMapping, testAccountId)).rejects.toThrow(
+        'Row 2 has a quoted field that is never closed.'
       );
     });
 

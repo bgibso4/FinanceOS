@@ -167,7 +167,7 @@ export async function resolveCategoryId(
 // Find the best matching category for a list of search terms by matching
 // against actual category names from the database.
 // Prefers leaf categories (those with a parentId) over parent groups.
-function findCategoryBySearchTerms(
+export function findCategoryBySearchTerms(
   searchTerms: string[],
   categories: { id: string; name: string; parentId: string | null }[]
 ): string | null {
