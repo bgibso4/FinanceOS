@@ -59,6 +59,7 @@ export function FilterPanel({
   // The merchant box applies later; it must build on the query as it is then.
   const latest = useRef({ query, onChange });
   latest.current = { query, onChange };
+  const [merchantBox, setMerchantBox] = useState(0);
 
   useEffect(() => {
     if (!open) return;
@@ -100,7 +101,7 @@ export function FilterPanel({
       aria-hidden={open ? undefined : true}
       aria-label="Filters"
       aria-modal="false"
-      className={`fixed bottom-3.5 right-3.5 top-3.5 z-[35] !mt-0 flex w-[min(340px,calc(100vw-28px))] origin-top-right flex-col rounded-[20px] border border-[var(--border-hover)] bg-[var(--bg-card)] shadow-[0_24px_60px_rgba(0,0,0,0.2),0_2px_8px_rgba(0,0,0,0.06)] outline-none transition-[transform,opacity] duration-[380ms] ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none ${
+      className={`fixed bottom-3.5 right-3.5 top-3.5 z-[35] flex w-[min(340px,calc(100vw-28px))] origin-top-right flex-col rounded-[20px] border border-[var(--border-hover)] bg-[var(--bg-card)] shadow-[0_24px_60px_rgba(0,0,0,0.2),0_2px_8px_rgba(0,0,0,0.06)] outline-none transition-[transform,opacity] duration-[380ms] ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none ${
         open ? 'opacity-100' : 'pointer-events-none translate-x-[30px] scale-[.96] opacity-0'
       }`}
       inert={!open}
@@ -205,6 +206,7 @@ export function FilterPanel({
 
         <Section title="Merchant">
           <MerchantInput
+            key={merchantBox}
             value={query.merchant}
             onApply={(merchant) => latest.current.onChange({ ...latest.current.query, merchant })}
           />
@@ -216,7 +218,11 @@ export function FilterPanel({
           className="text-[12px] text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:cursor-default disabled:opacity-50 disabled:hover:text-[var(--text-muted)]"
           disabled={activeFilterCount(query) === 0}
           type="button"
-          onClick={() => set({ categories: [], accounts: [], tags: [], merchant: '' })}
+          onClick={() => {
+            set({ categories: [], accounts: [], tags: [], merchant: '' });
+            // A fresh box drops typing not yet applied, even when the merchant was already empty.
+            setMerchantBox((n) => n + 1);
+          }}
         >
           Clear all
         </button>
@@ -315,7 +321,10 @@ function DateField({
   );
 }
 
-/** "Name contains", applied once typing stops (P6). */
+/**
+ * "Name contains", trimmed and applied once typing stops (P6). A text box, not a search box:
+ * Esc in a search box clears it in Chrome and Safari, which would drop the filter as the panel closes.
+ */
 function MerchantInput({ value, onApply }: { value: string; onApply(v: string): void }) {
   const [text, setText] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -336,15 +345,17 @@ function MerchantInput({ value, onApply }: { value: string; onApply(v: string): 
       aria-label="Merchant name contains"
       className="h-8 rounded-lg text-[13px]"
       placeholder="Name contains…"
-      type="search"
+      type="text"
       value={text}
       onChange={(e) => {
         const v = e.target.value;
         setText(v);
         clearTimeout(timer.current);
         timer.current = setTimeout(() => {
-          sent.current = v;
-          onApply(v);
+          const merchant = v.trim();
+          if (merchant === sent.current) return;
+          sent.current = merchant;
+          onApply(merchant);
         }, MERCHANT_DELAY_MS);
       }}
     />

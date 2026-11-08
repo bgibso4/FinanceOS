@@ -186,6 +186,73 @@ describe('FilterPanel', () => {
     expect(last().merchant).toBe('star');
   });
 
+  it('merchantSurvivesEscape', () => {
+    vi.useFakeTimers();
+    const { onClose, last } = setup();
+    const input = screen.getByPlaceholderText('Name contains…');
+    // A search box would be cleared by Esc in Chrome/Safari (jsdom doesn't emulate that).
+    expect(input).toHaveAttribute('type', 'text');
+    fireEvent.change(input, { target: { value: 'star' } });
+    act(() => vi.advanceTimersByTime(300));
+    expect(last().merchant).toBe('star');
+    fireEvent.keyDown(input, { key: 'Escape' });
+    act(() => vi.advanceTimersByTime(1000));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(last().merchant).toBe('star');
+    expect(input).toHaveValue('star');
+  });
+
+  it('merchantIsTrimmedAndSpacesAloneAreNoFilter', () => {
+    vi.useFakeTimers();
+    const { onChange, last } = setup();
+    const input = screen.getByPlaceholderText('Name contains…');
+    fireEvent.change(input, { target: { value: '   ' } });
+    act(() => vi.advanceTimersByTime(300));
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: ' star ' } });
+    act(() => vi.advanceTimersByTime(300));
+    expect(last().merchant).toBe('star');
+    expect(input).toHaveValue(' star ');
+  });
+
+  it('clearingCancelsPendingMerchant', () => {
+    vi.useFakeTimers();
+    const { last } = setup({ accounts: ['amex'] });
+    const input = screen.getByPlaceholderText('Name contains…');
+    // Clear all while the merchant is still empty in the query.
+    fireEvent.change(input, { target: { value: 'sta' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
+    act(() => vi.advanceTimersByTime(1000));
+    expect(last()).toEqual(defaultQuery(TODAY));
+    expect(screen.getByPlaceholderText('Name contains…')).toHaveValue('');
+  });
+
+  it('outsideMerchantClearCancelsPendingTyping', () => {
+    vi.useFakeTimers();
+    const onChange = vi.fn();
+    const props = {
+      open: true,
+      accounts,
+      categories,
+      groupTotals: {},
+      tags: [],
+      today: TODAY,
+      toggleRef: createRef<HTMLElement>() as RefObject<HTMLElement>,
+      onChange,
+      onClose: vi.fn(),
+    };
+    const { rerender } = render(
+      <FilterPanel {...props} query={{ ...defaultQuery(TODAY), merchant: 'star' }} />
+    );
+    const input = screen.getByPlaceholderText('Name contains…');
+    fireEvent.change(input, { target: { value: 'starb' } });
+    // A chip's ✕ clears the merchant before the typing applies.
+    rerender(<FilterPanel {...props} query={defaultQuery(TODAY)} />);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(input).toHaveValue('');
+  });
+
   it('clearAllKeepsPeriodAndComparison', async () => {
     const { last } = setup({
       vs: 'none',
@@ -245,7 +312,7 @@ describe('FilterChips', () => {
     const chips = screen.getAllByRole('listitem').map((c) => c.textContent);
     expect(chips).toEqual([
       'Period November 2026',
-      'vs The period before',
+      'vs Period before',
       'Category Groceries +1',
       'Account Amex',
       'Tag Vacation +2',

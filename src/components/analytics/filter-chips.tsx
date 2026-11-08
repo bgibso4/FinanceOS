@@ -1,6 +1,6 @@
 'use client';
 
-import { COMPARE_LABELS, periodLabel } from '@/lib/analytics-period';
+import { periodLabel, type CompareKind } from '@/lib/analytics-period';
 import { capped, type AnalyticsQuery } from '@/lib/analytics-query';
 
 type FilterChipsProps = {
@@ -12,13 +12,20 @@ type FilterChipsProps = {
   onChange(q: AnalyticsQuery): void;
 };
 
+/** The mock's short wording, read after "vs". */
+const VS_TEXT: Record<CompareKind, string> = {
+  prev: 'Period before',
+  lastYear: 'Last year',
+  none: 'Nothing',
+};
+
 type Chip = { kind: string; text: string; clear?: Partial<AnalyticsQuery> };
 
 /** Period and comparison always, then one capped chip per filter in use, each with ✕. */
 export function FilterChips({ query, categoryNames, accountNames, onChange }: FilterChipsProps) {
   const chips: Chip[] = [
     { kind: 'Period', text: periodLabel(query.period) },
-    { kind: 'vs', text: COMPARE_LABELS[query.vs] },
+    { kind: 'vs', text: VS_TEXT[query.vs] },
   ];
   if (query.categories.length)
     chips.push({ kind: 'Category', text: capped(categoryNames), clear: { categories: [] } });
