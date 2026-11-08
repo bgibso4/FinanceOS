@@ -303,7 +303,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
         <li>A pass that's killed mid-run (a restart) doesn't count: the record is only written when a pass finishes, so the next start retries. "One pass at a time" is within the one server process. <span class="chip mine">my call</span></li>
         <li>Before any pass has run, the Settings line reads "Automatic sync hasn't run yet". When it's switched off, it reads "Automatic sync is off". <span class="chip mine">my call</span></li>
         <li>An open page doesn't refresh itself after a background pass; it shows the new data on the next load. <span class="chip mine">my call</span></li>
-        <li>The existing exchange-rate API routes stay as they are; only the Settings editing UI becomes read-only. <span class="chip mine">my call</span></li>
+        <li>The exchange-rate add and delete routes are removed along with the Settings editing UI (dated rows made them unworkable; see plan P6). <span class="chip mine">my call</span></li>
         <li>Where the last-pass record lives (for example on <code>UserSettings</code>) and its exact fields.</li>
         <li>The environment switch's name and file layout.</li>
         <li>The exact "far from the previous day" sanity bound.</li>
