@@ -222,6 +222,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
         <li>The production server starts a scheduler once when it boots. Every 15 minutes it checks whether the last pass finished more than 4 hours ago, and if so starts one <span class="chip mine">M2</span>.</li>
         <li>The time of the last pass is stored in the database, so restarting the server doesn't trigger an extra pass if one just ran.</li>
         <li>A sleeping laptop just delays the check. On wake, the next check sees the pass is overdue and runs it.</li>
+        <li>After any time down (off, asleep, server stopped), that first pass fills every missing day's rate from the last stored day up to today before syncing accounts, so transactions that arrive for those days convert at their own day's rate.</li>
         <li>Only one pass at a time. If one is still running at the next check, that check does nothing.</li>
         <li>Off in development and tests, and off in production when the environment switch says so <span class="chip mine">M3</span>.</li>
         <li>Running in the background never blocks a page request.</li>
