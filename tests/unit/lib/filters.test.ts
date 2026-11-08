@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { resolveDateRange, parseFilters } from '@/lib/filters';
+import { filterSearchParams, resolveDateRange, parseFilters } from '@/lib/filters';
 
 describe('filters', () => {
   describe('resolveDateRange', () => {
@@ -139,6 +139,26 @@ describe('filters', () => {
       const result = parseFilters(params);
 
       expect(result.tags).toEqual(['business', 'travel']);
+    });
+  });
+
+  describe('filterSearchParams', () => {
+    it('writes what parseFilters reads, leaving out filters not in use', () => {
+      const filters = {
+        startDate: '2026-11-01',
+        endDate: '2026-11-07',
+        accounts: ['a1', 'a2'],
+        categories: ['c1'],
+        tags: ['Vacation'],
+        merchant: 'shell',
+      };
+
+      const sp = filterSearchParams(filters);
+
+      expect(parseFilters(sp)).toEqual(filters);
+      expect(filterSearchParams({ startDate: '2026-11-01' }).toString()).toBe(
+        'startDate=2026-11-01'
+      );
     });
   });
 });

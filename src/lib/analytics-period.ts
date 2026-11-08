@@ -30,7 +30,8 @@ const lastDayOf = (month: string) => {
   const [y, m] = month.split('-').map(Number);
   return `${month}-${pad(daysInMonth(y, m))}`;
 };
-const dayCount = (r: DayRange) =>
+/** Days in a range, both ends counted. */
+export const dayCount = (r: DayRange) =>
   Math.round((utcDay(r.end).getTime() - utcDay(r.start).getTime()) / DAY_MS) + 1;
 
 /** Moves a day by whole months, clamping the day (Mar 31 - 1 month = Feb 28). */

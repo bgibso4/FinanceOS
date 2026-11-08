@@ -57,6 +57,19 @@ export function assignColors(keysBySpend: string[]): Record<string, string> {
   return Object.fromEntries(keysBySpend.map((k, i) => [k, PIE_COLORS[i % PIE_COLORS.length]]));
 }
 
+/** Each pick with its rows and spend, biggest first: the order its line and ring slice share (M7). */
+export function rankPicks(
+  picks: Pick[],
+  rows: DaySpend[]
+): { pick: Pick; rows: DaySpend[]; total: number }[] {
+  return picks
+    .map((pick) => {
+      const own = rows.filter((r) => pick.categoryIds.includes(r.categoryId));
+      return { pick, rows: own, total: sum(own.map((r) => r.amount)) };
+    })
+    .sort((a, b) => b.total - a.total);
+}
+
 /** Spend per group id (a top-level category counts as its own group), plus UNCATEGORIZED. */
 export function groupTotals(rows: DaySpend[], categories: Category[]): Record<string, number> {
   const byId = new Map(categories.map((c) => [c.id, c]));
@@ -134,14 +147,11 @@ export function buildSeries(i: {
   const columns: { line: ChartLine; values: (number | null)[] }[] = [];
   const rows = i.current.filter(keep);
   if (i.picks?.length) {
-    const ranked = i.picks
-      .map((p) => ({ p, rows: rows.filter((r) => p.categoryIds.includes(r.categoryId)) }))
-      .map((e) => ({ ...e, total: sum(e.rows.map((r) => r.amount)) }))
-      .sort((a, b) => b.total - a.total);
-    const colors = assignColors(ranked.map((e) => e.p.key));
+    const ranked = rankPicks(i.picks, rows);
+    const colors = assignColors(ranked.map((e) => e.pick.key));
     for (const e of ranked) {
       columns.push({
-        line: { key: e.p.key, label: e.p.label, color: colors[e.p.key], dashed: false },
+        line: { key: e.pick.key, label: e.pick.label, color: colors[e.pick.key], dashed: false },
         values: series(e.rows, axis, true),
       });
     }

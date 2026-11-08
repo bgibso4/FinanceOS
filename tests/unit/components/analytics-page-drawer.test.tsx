@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { resetNavigation } from '../../helpers/navigation';
 
+vi.mock('next/navigation', () => import('../../helpers/navigation'));
 vi.mock('@/lib/cloud-sync', () => ({ triggerSync: vi.fn() }));
-vi.mock('@/components/chart-renderer', () => ({ ChartRenderer: () => null, PIE_COLORS: ['#000'] }));
 
 import AnalyticsPage from '@/app/(routes)/analytics/page';
 import { DRAWER_PUSH_CLASS } from '@/components/ui/drawer';
@@ -41,14 +42,13 @@ const spendByCategory = () =>
     return {
       category: c.name,
       amount: rows.reduce((sum, t) => sum + Math.abs(t.amount), 0),
-      monthOverMonth: 0,
-      isOutlier: false,
       txCount: rows.length,
       prevAmount: 0,
     };
   }).filter((c) => c.txCount > 0);
 
 beforeEach(() => {
+  resetNavigation();
   store = [
     base,
     { ...base, id: 't2', merchant: 'Merchant Two', amount: -10 },
@@ -80,6 +80,7 @@ beforeEach(() => {
     if (u === '/api/tags') return respond({ tags: [] });
     if (u === '/api/travel/trips') return respond({ trips: [] });
     if (u.startsWith('/api/budgets/')) return respond({ budgets: [] });
+    if (u.startsWith('/api/analytics/daily')) return respond({ current: [], compare: null });
     if (u.startsWith('/api/analytics/dashboard')) {
       return respond({ spendByCategory: spendByCategory() });
     }
@@ -97,11 +98,11 @@ beforeEach(() => {
   }) as unknown as typeof fetch;
 });
 
-const heading = () => screen.getByRole('heading', { level: 1, name: 'Monthly Analytics' });
+const heading = () => screen.getByRole('heading', { level: 1, name: 'Analytics' });
 const pageRoot = () => heading().parentElement!.parentElement!.parentElement!;
 const rowsTable = () => screen.getByRole('table');
 
-// The name also shows under Top Categories and in the drawer's select; only the breakdown is bold.
+// The name also shows under Where it went and in the drawer's select; only the breakdown is bold.
 const categoryRow = (category: string) =>
   screen.findByText(category, { selector: 'span.font-semibold' });
 

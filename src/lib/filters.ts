@@ -88,6 +88,18 @@ export function parseFilters(searchParams: URLSearchParams): FilterParams {
   };
 }
 
+/** The query string parseFilters reads back: the inverse of parseFilters. */
+export function filterSearchParams(f: FilterParams): URLSearchParams {
+  const sp = new URLSearchParams();
+  if (f.startDate) sp.set('startDate', f.startDate);
+  if (f.endDate) sp.set('endDate', f.endDate);
+  f.accounts?.forEach((a) => sp.append('account', a));
+  f.categories?.forEach((c) => sp.append('category', c));
+  if (f.merchant) sp.set('merchant', f.merchant);
+  f.tags?.forEach((t) => sp.append('tag', t));
+  return sp;
+}
+
 /** The comparison range named by `compareStart` and `compareEnd`, when both are given. */
 export function compareRange(
   searchParams: URLSearchParams
