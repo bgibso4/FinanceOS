@@ -13,6 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 import { Card } from '@/components/ui/card';
+import { isDaily, wholeMonths, type DayRange } from '@/lib/analytics-period';
 import type { buildSeries, ChartPoint } from '@/lib/analytics-series';
 import {
   CHART_GRID_STROKE,
@@ -29,7 +30,8 @@ type Series = ReturnType<typeof buildSeries>;
 
 type OverTimeChartProps = {
   series: Series;
-  daily: boolean;
+  /** The period's full range; the chart is daily when it sits inside one month. */
+  shown: DayRange;
   running: boolean;
   onRunning(v: boolean): void;
   split: boolean;
@@ -60,6 +62,32 @@ export function finishedSentence(
 
 const compactMoney = (v: number) =>
   Math.abs(v) >= 1000 ? `$${Number((v / 1000).toFixed(1))}k` : fmtMoney(v);
+
+/**
+ * Axis tick and tooltip title per point. Months show their name. Days show the day of the
+ * period in a whole month (the comparison can run past its last date), and the date in a
+ * custom range, falling back to the day of the period past its end.
+ */
+export function pointLabels(
+  points: ChartPoint[],
+  shown: DayRange
+): { tick: string; full: string }[] {
+  if (!isDaily(shown)) {
+    const longSpan = points.length > 12;
+    return points.map((p) => ({
+      tick: `${fmtCalendarDay(`${p.x}-01`, { month: 'short' })}${longSpan ? ` ${p.x.slice(2, 4)}` : ''}`,
+      full: fmtCalendarDay(`${p.x}-01`, { month: 'short', year: 'numeric' }),
+    }));
+  }
+  const byDate = !wholeMonths(shown);
+  return points.map((p, k) => {
+    if (byDate && p.x <= shown.end) {
+      const date = fmtCalendarDay(p.x, { month: 'short', day: 'numeric' });
+      return { tick: date, full: date };
+    }
+    return { tick: String(k + 1), full: `Day ${k + 1}` };
+  });
+}
 
 const lastIndex = (points: ChartPoint[], key: string) =>
   points.reduce((last, p, k) => (p.values[key] == null ? last : k), -1);
@@ -96,7 +124,7 @@ function Seg({
 /** Spending over time: a running total by day, or one point per month, against the comparison. */
 export function OverTimeChart({
   series,
-  daily,
+  shown,
   running,
   onRunning,
   split,
@@ -105,18 +133,10 @@ export function OverTimeChart({
   summary,
 }: OverTimeChartProps) {
   const { points, lines, todayIndex } = series;
+  const daily = isDaily(shown);
   const cumulative = daily || running;
-  const longSpan = points.length > 12;
-  // Daily x is day-of-period: the comparison can run past this month's last date.
-  const tickFor = (p: ChartPoint, k: number) =>
-    daily
-      ? String(k + 1)
-      : `${fmtCalendarDay(`${p.x}-01`, { month: 'short' })}${longSpan ? ` ${p.x.slice(2, 4)}` : ''}`;
-  const data = points.map((p, k) => ({
-    ...p,
-    tick: tickFor(p, k),
-    full: daily ? `Day ${k + 1}` : fmtCalendarDay(`${p.x}-01`, { month: 'short', year: 'numeric' }),
-  }));
+  const labels = pointLabels(points, shown);
+  const data = points.map((p, k) => ({ ...p, ...labels[k] }));
 
   const total = (key: string) => {
     const vals = points.map((p) => p.values[key]).filter((v): v is number => v != null);

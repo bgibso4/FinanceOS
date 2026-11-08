@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import {
   OverTimeChart,
   finishedSentence,
+  pointLabels,
   soFarSentence,
 } from '@/components/analytics/over-time-chart';
 import { WhereItWent } from '@/components/analytics/where-it-went';
@@ -23,15 +24,17 @@ const series: Series = {
   todayIndex: 1,
 };
 
+const NOV = { start: '2026-11-01', end: '2026-11-30' };
+
 function chart(props: Partial<Parameters<typeof OverTimeChart>[0]> = {}) {
   const onRunning = vi.fn();
   const onSplit = vi.fn();
   render(
     <OverTimeChart
-      daily
       canSplit={false}
       running={false}
       series={series}
+      shown={NOV}
       split={false}
       summary={null}
       onRunning={onRunning}
@@ -50,6 +53,32 @@ describe('OverTimeChart', () => {
     expect(screen.getByText(text)).toBeInTheDocument();
   });
 
+  it('pointLabelsDatesForCustomDailyRange', () => {
+    const pts = ['2026-11-03', '2026-11-04', '2026-11-05'].map((x) => ({ x, values: {} }));
+    expect(pointLabels(pts, { start: '2026-11-03', end: '2026-11-04' })).toEqual([
+      { tick: 'Nov 3', full: 'Nov 3' },
+      { tick: 'Nov 4', full: 'Nov 4' },
+      // Past the period (a longer comparison): day of period.
+      { tick: '3', full: 'Day 3' },
+    ]);
+  });
+
+  it('pointLabelsDayNumbersForWholeMonth', () => {
+    const pts = ['2026-11-01', '2026-11-02'].map((x) => ({ x, values: {} }));
+    expect(pointLabels(pts, { start: '2026-11-01', end: '2026-11-30' })).toEqual([
+      { tick: '1', full: 'Day 1' },
+      { tick: '2', full: 'Day 2' },
+    ]);
+  });
+
+  it('pointLabelsMonthsOverMonths', () => {
+    const pts = ['2026-09', '2026-10'].map((x) => ({ x, values: {} }));
+    expect(pointLabels(pts, { start: '2026-09-01', end: '2026-10-31' })).toEqual([
+      { tick: 'Sep', full: 'Sep 2026' },
+      { tick: 'Oct', full: 'Oct 2026' },
+    ]);
+  });
+
   it('finishedMonthSentence', () => {
     expect(finishedSentence(4980, 'Oct 2026', { label: 'Sep', total: 5210 })).toBe(
       '$4,980 in Oct 2026 · Sep was $5,210'
@@ -57,11 +86,11 @@ describe('OverTimeChart', () => {
   });
 
   it('runningSwitchOnlyWhenNotDaily', () => {
-    chart({ daily: true });
+    chart({ shown: NOV });
     expect(screen.queryByRole('button', { name: 'Running total' })).not.toBeInTheDocument();
     expect(screen.getByText('Spending so far')).toBeInTheDocument();
 
-    const { onRunning } = chart({ daily: false });
+    const { onRunning } = chart({ shown: { start: '2026-09-01', end: '2026-11-30' } });
     expect(screen.getByText('Trend · by month')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Running total' }));
     expect(onRunning).toHaveBeenCalledWith(true);
@@ -94,10 +123,10 @@ describe('OverTimeChart', () => {
     };
     const { container } = render(
       <OverTimeChart
-        daily
         canSplit={false}
         running={false}
         series={flat}
+        shown={NOV}
         split={false}
         summary={soFarSentence({ now: 150, thenSameDay: 0, thenTotal: 0 }, 'Oct')}
         onRunning={vi.fn()}

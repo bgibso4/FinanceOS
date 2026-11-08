@@ -124,6 +124,10 @@ export function isLatest(p: Period, today: string): boolean {
   return fullRange(p).end >= today;
 }
 
+/** True when the range starts on a 1st and ends on a month's last day. */
+export const wholeMonths = (r: DayRange): boolean =>
+  r.start.endsWith('-01') && r.end === lastDayOf(r.end.slice(0, 7));
+
 /** True when the range sits inside one calendar month, so the chart shows days. */
 export const isDaily = (r: DayRange): boolean => r.start.slice(0, 7) === r.end.slice(0, 7);
 
@@ -157,7 +161,7 @@ export function periodLabel(p: Period): string {
 
 /** Heading for a figures column: names exactly what it covers. */
 export function columnLabel(r: DayRange & { partial?: boolean }, p: Period): string {
-  const wholeMonth = r.start.endsWith('-01') && r.end === lastDayOf(r.end.slice(0, 7));
+  const wholeMonth = wholeMonths(r);
   if (r.partial && p.kind === 'month') return `${fmt(r.start, MONTH_YEAR)} so far`;
   if (wholeMonth && r.start.slice(0, 7) === r.end.slice(0, 7)) return fmt(r.start, MONTH_YEAR);
   if (wholeMonth && r.start.endsWith('-01-01') && r.end.endsWith('-12-31'))

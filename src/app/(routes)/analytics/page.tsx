@@ -453,9 +453,9 @@ function AnalyticsContent() {
         <div className="grid grid-cols-1 gap-3 min-[860px]:grid-cols-[1.5fr_1fr]">
           <OverTimeChart
             canSplit={canSplit}
-            daily={daily}
             running={running}
             series={series}
+            shown={shown}
             split={splitOn}
             summary={summary}
             onRunning={setRunning}
