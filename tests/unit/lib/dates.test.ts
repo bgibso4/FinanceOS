@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { fmtCalendarDay, fmtStoredDate, localDay, storedToday, utcMonthRange } from '@/lib/dates';
 import { adjustSnapshotsForInflation } from '@/lib/inflation';
+import { IndexSeries } from '@/lib/price-index/series';
 import { buildSystemPrompt } from '@/lib/agent/system-prompt';
 import { freezeClock, inNewYork, NEW_YORK_EVENING } from '../../helpers/time-zone';
 
@@ -44,10 +45,10 @@ describe('dates, in New York', () => {
     expect(buildSystemPrompt([])).toContain("Today's date: 2026-11-06");
   });
 
-  it('inflation counts a Jan 1 date in its own year', () => {
-    const rates = new Map([
-      [2025, 0.1],
-      [2026, 0],
+  it('inflation counts a Jan 1 date in its own month', () => {
+    const series = IndexSeries.of([
+      { month: '2025-12', value: 100 },
+      { month: '2026-01', value: 110 },
     ]);
     const [adjusted] = adjustSnapshotsForInflation(
       [
@@ -58,8 +59,7 @@ describe('dates, in New York', () => {
           totalLiabilities: 0,
         },
       ],
-      2026,
-      rates
+      series
     );
     expect(adjusted.inflationFactor).toBe(1);
   });

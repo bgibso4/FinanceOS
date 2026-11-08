@@ -8,9 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Select } from '@/components/ui/select';
 import { ds } from '@/lib/design-system';
-import { parseInflationRates, adjustSnapshotsForInflation } from '@/lib/inflation';
+import { adjustSnapshotsForInflation } from '@/lib/inflation';
+import { fmtMonth } from '@/lib/price-index/months';
+import { IndexSeries } from '@/lib/price-index/series';
+import type { IndexObservation, IndexRegion } from '@/lib/price-index/types';
 import { FORECAST_STRATEGIES, getStrategy } from '@/lib/forecasting';
-import type { InflationRateEntry } from '@/lib/inflation';
 import type { ForecastDataPoint } from '@/lib/forecasting';
 
 // Account type groupings for breakdown display
@@ -538,7 +540,7 @@ export function NetWorthSnapshots() {
   const [backfillSaving, setBackfillSaving] = useState(false);
 
   // Inflation & forecasting state
-  const [inflationRates, setInflationRates] = useState<InflationRateEntry[]>([]);
+  const [indexSeries, setIndexSeries] = useState<IndexSeries>(() => IndexSeries.of([]));
   const [showInflationAdjusted, setShowInflationAdjusted] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState<string>(FORECAST_STRATEGIES[0].name);
 
@@ -549,15 +551,19 @@ export function NetWorthSnapshots() {
   const loadSnapshots = async () => {
     setLoading(true);
     try {
-      const [snapshotsRes, inflationRes] = await Promise.all([
+      const [snapshotsRes, indexRes] = await Promise.all([
         fetch('/api/snapshots?limit=20'),
-        fetch('/api/inflation-rates'),
+        fetch('/api/price-index'),
       ]);
       const snapshotsData = await snapshotsRes.json();
       setSnapshots(snapshotsData.snapshots || []);
-      // Task 4 replaces this; a failed or unreadable answer just hides the toggle.
-      const inflationData = inflationRes.ok ? await inflationRes.json().catch(() => null) : null;
-      setInflationRates(inflationData?.rates || []);
+      // A failed or unreadable answer just hides the toggle.
+      const indexData: {
+        selected: IndexRegion;
+        regions: { region: IndexRegion; months: IndexObservation[] }[];
+      } | null = indexRes.ok ? await indexRes.json().catch(() => null) : null;
+      const months = indexData?.regions.find((r) => r.region === indexData.selected)?.months ?? [];
+      setIndexSeries(IndexSeries.of(months));
     } catch (error) {
       console.error('Failed to load snapshots:', error);
     } finally {
@@ -566,14 +572,12 @@ export function NetWorthSnapshots() {
   };
 
   // Compute inflation-adjusted snapshots
-  const inflationRateMap = useMemo(() => parseInflationRates(inflationRates), [inflationRates]);
-  const hasInflationRates = inflationRates.length > 0;
+  const latestIndex = indexSeries.latest();
 
   const adjustedSnapshots = useMemo(() => {
-    if (!showInflationAdjusted || !hasInflationRates || snapshots.length === 0) return null;
-    const toYear = new Date().getFullYear();
-    return adjustSnapshotsForInflation(snapshots, toYear, inflationRateMap);
-  }, [snapshots, showInflationAdjusted, hasInflationRates, inflationRateMap]);
+    if (!showInflationAdjusted || !latestIndex || snapshots.length === 0) return null;
+    return adjustSnapshotsForInflation(snapshots, indexSeries);
+  }, [snapshots, showInflationAdjusted, latestIndex, indexSeries]);
 
   // Compute forecast projections
   const forecastResult = useMemo(() => {
@@ -728,7 +732,7 @@ export function NetWorthSnapshots() {
           <div className="flex items-center justify-between gap-4">
             <div className={`text-sm font-semibold ${ds.text.primary}`}>Net Worth Tracking</div>
             <div className="flex items-center gap-2 shrink-0">
-              {hasInflationRates && (
+              {latestIndex && (
                 <Button
                   className={
                     showInflationAdjusted ? 'bg-[var(--accent)] hover:opacity-90 text-white' : ''
@@ -771,9 +775,9 @@ export function NetWorthSnapshots() {
                 <div className="flex-1">
                   <div className={`text-xs ${ds.text.muted} uppercase tracking-wide mb-1`}>
                     Current Net Worth
-                    {showInflationAdjusted && (
+                    {showInflationAdjusted && latestIndex && (
                       <span className="ml-1 text-[var(--accent)]">
-                        (in {new Date().getFullYear()} dollars)
+                        (in {fmtMonth(latestIndex.month, 'long')} prices)
                       </span>
                     )}
                   </div>
