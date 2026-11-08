@@ -55,13 +55,13 @@ describe('startScheduledSync', () => {
 
   it('aRejectedCheckNeverStopsTheTimer', async () => {
     const { startScheduledSync, CHECK_EVERY_MS } = await load();
-    const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     const check = vi.fn().mockRejectedValue(new Error('boom'));
     startScheduledSync({ enabled: true, check });
     await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS * 2);
     expect(check.mock.calls.length).toBeGreaterThan(1);
-    expect(warn).toHaveBeenCalled();
-    warn.mockRestore();
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
   });
 });
 
