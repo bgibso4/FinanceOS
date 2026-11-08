@@ -268,6 +268,14 @@ describe('Analytics page', () => {
     expect(within(list).queryByText('Everything else')).not.toBeInTheDocument();
   });
 
+  it('comparisonWordingMatchesChipAndFigure', async () => {
+    visit('vs=lastYear');
+
+    const chips = await screen.findByRole('list', { name: 'Active filters' });
+    expect(within(chips).getByText('Last year')).toBeInTheDocument();
+    expect(await within(await figures()).findByText('Last year')).toBeInTheDocument();
+  });
+
   it('noFutureWarning', async () => {
     visit('at=2027-01');
 

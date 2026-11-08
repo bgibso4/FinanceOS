@@ -25,8 +25,6 @@ import {
 import { ChartSpec } from '@/lib/types';
 import { Card, CardContent, CardHeader } from './ui/card';
 
-export { PIE_COLORS };
-
 type Props = {
   spec: ChartSpec;
 };

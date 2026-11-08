@@ -16,6 +16,12 @@ export function localDay(now: Date = new Date()): string {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
+const DAY_MS = 86_400_000;
+
+/** Whole days from one `YYYY-MM-DD` day to another (negative when `b` is earlier). */
+export const daysBetween = (a: string, b: string): number =>
+  Math.round((utcDay(b).getTime() - utcDay(a).getTime()) / DAY_MS);
+
 /** Today as a stored calendar day. */
 export const storedToday = (now: Date = new Date()): Date => utcDay(localDay(now));
 

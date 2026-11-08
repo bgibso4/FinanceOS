@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { dashboardAnalytics } from '@/lib/analytics';
-import { compareRange, parseFilters, resolveDateRange } from '@/lib/filters';
+import { compareRangeParam, parseFilters, resolveDateRange } from '@/lib/filters';
 
 export async function GET(req: NextRequest) {
   const search = req.nextUrl.searchParams;
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     filters,
     startDate,
     endDate,
-    compareRange(search)
+    compareRangeParam(search)
   );
   return NextResponse.json(payload);
 }

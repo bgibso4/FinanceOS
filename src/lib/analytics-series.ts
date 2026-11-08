@@ -17,13 +17,19 @@ const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
 /** Group id for a category: its parent, or itself when top level. */
 const groupOf = (id: string, byId: Map<string, Category>) => byId.get(id)?.parentId ?? id;
 
-/** A fully ticked group is one pick; otherwise each ticked category is its own. */
-export function picksFor(selected: string[], categories: Category[]): Pick[] {
-  const byId = new Map(categories.map((c) => [c.id, c]));
+/** Each group's categories, by group id; top-level categories with none are absent. */
+export function childrenByParent(categories: Category[]): Map<string, Category[]> {
   const children = new Map<string, Category[]>();
   for (const c of categories) {
     if (c.parentId) children.set(c.parentId, [...(children.get(c.parentId) ?? []), c]);
   }
+  return children;
+}
+
+/** A fully ticked group is one pick; otherwise each ticked category is its own. */
+export function picksFor(selected: string[], categories: Category[]): Pick[] {
+  const byId = new Map(categories.map((c) => [c.id, c]));
+  const children = childrenByParent(categories);
   const ticked = new Set(selected);
   const done = new Set<string>();
   const picks: Pick[] = [];

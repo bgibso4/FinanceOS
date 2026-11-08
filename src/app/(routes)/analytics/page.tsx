@@ -25,6 +25,7 @@ import { useDrawerReferenceData } from '@/components/transactions/use-drawer-ref
 import { useTransactionDrawer } from '@/components/transactions/use-transaction-drawer';
 import type { DaySpend } from '@/lib/analytics';
 import {
+  COMPARE_SHORT,
   columnLabel,
   compareChartRange,
   compareRange,
@@ -414,7 +415,7 @@ function AnalyticsContent() {
           <Figure label="Spent" sub={labels.current} value={fmtMoney(spent)} />
           {compare ? (
             <Figure
-              label={query.vs === 'lastYear' ? 'Same time last year' : 'Period before'}
+              label={COMPARE_SHORT[query.vs]}
               sub={`${change.amount} · ${change.percent}`}
               subClass={
                 spent > was

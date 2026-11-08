@@ -1,4 +1,5 @@
 import { endOfMonth, startOfMonth, subMonths } from 'date-fns';
+import type { DateRange } from './analytics';
 import { DateRangePreset, FilterParams } from './types';
 
 export function resolveDateRange(
@@ -101,9 +102,7 @@ export function filterSearchParams(f: FilterParams): URLSearchParams {
 }
 
 /** The comparison range named by `compareStart` and `compareEnd`, when both are given. */
-export function compareRange(
-  searchParams: URLSearchParams
-): { startDate: Date; endDate: Date } | undefined {
+export function compareRangeParam(searchParams: URLSearchParams): DateRange | undefined {
   const start = searchParams.get('compareStart');
   const end = searchParams.get('compareEnd');
   return start && end ? resolveDateRange('custom', start, end) : undefined;

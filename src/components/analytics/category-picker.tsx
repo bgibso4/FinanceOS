@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { Category } from '@/components/transactions/types';
 import { Input } from '@/components/ui/input';
+import { childrenByParent } from '@/lib/analytics-series';
 import { fmtMoney } from '@/lib/currency';
 import { UNCATEGORIZED } from '@/lib/transaction-filters';
 import { TickRow, type Ticked } from './tick-row';
@@ -18,10 +19,7 @@ type CategoryPickerProps = {
 type Group = { cat: Category; children: Category[] };
 
 function groupsOf(categories: Category[]): Group[] {
-  const children = new Map<string, Category[]>();
-  for (const c of categories) {
-    if (c.parentId) children.set(c.parentId, [...(children.get(c.parentId) ?? []), c]);
-  }
+  const children = childrenByParent(categories);
   return categories
     .filter((c) => !c.parentId)
     .map((cat) => ({ cat, children: children.get(cat.id) ?? [] }));

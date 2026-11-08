@@ -2,7 +2,8 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import { findTravelGroup, isIncomeCategory, travelCategoryIds } from '@/lib/categories';
 import { isoDay } from '@/lib/investments/dates';
 import { TX_ROW_INCLUDE, toTxRow } from '@/lib/transaction-rows';
-import { addDays, dayEnd, dayStart, daysBetween } from './dates';
+import { daysBetween } from '@/lib/dates';
+import { addDays, dayEnd, dayStart } from './dates';
 import type { Suggestion, SuggestionGroup, TripRecord } from './types';
 
 type Candidate = Prisma.TransactionGetPayload<{ include: typeof TX_ROW_INCLUDE }>;
