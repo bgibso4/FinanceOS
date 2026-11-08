@@ -186,9 +186,26 @@ describe('buildSeries', () => {
 describe('picksFor', () => {
   it('fullyTickedGroupIsOnePick', () => {
     expect(picksFor(['green', 'balls', 'cloth'], cats)).toEqual([
-      { key: 'golf', label: 'Golf', categoryIds: ['green', 'balls'] },
+      { key: 'golf', label: 'Golf', categoryIds: ['golf', 'green', 'balls'] },
       { key: 'cloth', label: 'Clothing', categoryIds: ['cloth'] },
     ]);
+  });
+
+  it('groupIdInSelectionDoesNotChangeThePick', () => {
+    expect(picksFor(['golf', 'green', 'balls'], cats)).toHaveLength(1);
+    expect(picksFor(['golf', 'green'], cats).map((p) => p.key)).toEqual(['green']);
+  });
+
+  it('groupPickIncludesParentBookedRows', () => {
+    const rows = [row('2026-11-01', 'golf', 4), row('2026-11-01', 'green', 3)];
+    const [pick] = picksFor(['green', 'balls'], cats);
+    const { points } = buildSeries({
+      ...base,
+      current: rows,
+      picks: [pick],
+      categoryIds: pick.categoryIds,
+    });
+    expect(points[0].values.golf).toBe(groupTotals(rows, cats).golf);
   });
 
   it('partlyTickedGroupSplitsIntoCategories', () => {

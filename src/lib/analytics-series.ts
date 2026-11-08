@@ -34,13 +34,18 @@ export function picksFor(selected: string[], categories: Category[]): Pick[] {
     }
     const cat = byId.get(id);
     if (!cat) continue;
-    const group = cat.parentId ? byId.get(cat.parentId) : undefined;
+    const group = cat.parentId ? byId.get(cat.parentId) : children.has(cat.id) ? cat : undefined;
     const siblings = group ? children.get(group.id)! : [];
     if (group && siblings.every((c) => ticked.has(c.id))) {
       if (done.has(group.id)) continue;
       done.add(group.id);
-      picks.push({ key: group.id, label: group.name, categoryIds: siblings.map((c) => c.id) });
-    } else {
+      // The group's own id is included: rows can be booked directly on the group.
+      picks.push({
+        key: group.id,
+        label: group.name,
+        categoryIds: [group.id, ...siblings.map((c) => c.id)],
+      });
+    } else if (cat.id !== group?.id) {
       picks.push({ key: cat.id, label: cat.name, categoryIds: [cat.id] });
     }
   }
@@ -165,7 +170,7 @@ export function buildSeries(i: {
   };
 }
 
-/** Running-total readout: the current line's last value against the comparison on the same day and at its end. */
+/** Running-total readout (expects cumulative series, i.e. the daily view or running on): the current line's last value against the comparison on the same day and at its end. */
 export function soFar(
   points: ChartPoint[],
   lines: ChartLine[]
