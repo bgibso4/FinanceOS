@@ -29,10 +29,24 @@ const tx = {
 };
 
 let log: string[];
-/** Dashboard answers held back until released, by the month their period starts in. */
+/** Answers held back until released, keyed "<endpoint>|<month the period starts in>". */
 let gates: Map<string, Promise<void>>;
-/** Spend per month the dashboard reports for Test A, keyed by the period's first month. */
+/** Spend the dashboard and daily data report, keyed by the period's first month. */
 let spent: Record<string, number>;
+/** The comparison spend the dashboard reports overall (netCashflow.prevSpending). */
+let prevSpending: number;
+
+/** Holds `endpoint`'s answer for `month` until the returned release is called. */
+function hold(endpoint: string, month: string): () => void {
+  let release = () => {};
+  gates.set(
+    `${endpoint}|${month}`,
+    new Promise((resolve) => {
+      release = resolve;
+    })
+  );
+  return release;
+}
 
 const respond = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response;
 const requests = (path: string) =>
@@ -43,6 +57,7 @@ beforeEach(() => {
   log = [];
   gates = new Map();
   spent = {};
+  prevSpending = 20;
   global.fetch = vi.fn(async (url: string | URL | Request) => {
     const u = String(url);
     log.push(u);
@@ -51,13 +66,18 @@ beforeEach(() => {
     if (u === '/api/accounts') return respond({ accounts: [{ id: 'a1', name: 'Test Card' }] });
     if (u === '/api/tags') return respond({ tags: [{ id: 'v', name: 'Vacation', color: 'blue' }] });
     if (u.startsWith('/api/budgets/')) return respond({ budgets: [] });
-    if (u.startsWith('/api/analytics/daily')) return respond({ current: [], compare: null });
-    if (u.startsWith('/api/analytics/dashboard')) {
-      const month = new URL(u, 'http://test').searchParams.get('startDate')!.slice(0, 7);
-      const gate = gates.get(month);
+    if (u.startsWith('/api/analytics/')) {
+      const endpoint = u.slice('/api/analytics/'.length).split('?')[0];
+      const start = new URL(u, 'http://test').searchParams.get('startDate')!;
+      const month = start.slice(0, 7);
+      const gate = gates.get(`${endpoint}|${month}`);
       if (gate) await gate;
       const amount = spent[month] ?? 40;
+      if (endpoint === 'daily') {
+        return respond({ current: [{ date: start, categoryId: 'c1', amount }], compare: [] });
+      }
       return respond({
+        netCashflow: { spending: amount, prevSpending },
         spendByCategory: [{ category: 'Test A', amount, txCount: 1, prevAmount: 20 }],
       });
     }
@@ -178,13 +198,7 @@ describe('Analytics page', () => {
   });
 
   it('staleResponseIsIgnored', async () => {
-    let release = () => {};
-    gates.set(
-      '2026-11',
-      new Promise((resolve) => {
-        release = resolve;
-      })
-    );
+    const release = hold('dashboard', '2026-11');
     spent = { '2026-11': 111, '2026-10': 222 };
     visit();
 
@@ -198,6 +212,34 @@ describe('Analytics page', () => {
 
     expect(within(await figures()).getByText('$222')).toBeInTheDocument();
     expect(within(await figures()).queryByText('$111')).not.toBeInTheDocument();
+  });
+
+  it('staleDailyResponseIsIgnored', async () => {
+    const release = hold('daily', '2026-11');
+    spent = { '2026-11': 111, '2026-10': 222 };
+    visit();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Previous period' }));
+    expect(await screen.findByText(/^\$222 in Oct 2026/)).toBeInTheDocument();
+
+    await act(async () => {
+      release();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(screen.getByText(/^\$222 in Oct 2026/)).toBeInTheDocument();
+  });
+
+  it('comparisonFigureIsTheWholeComparisonSpend', async () => {
+    // Spend in categories with none this period still counts towards the comparison.
+    prevSpending = 75;
+    spent = { '2026-11': 40 };
+    visit();
+
+    const figure = within(await figures());
+    expect(await figure.findByText('$75')).toBeInTheDocument();
+    expect(figure.getByText('$40')).toBeInTheDocument();
+    expect(figure.queryByText('$20')).not.toBeInTheDocument();
   });
 
   it('noFutureWarning', async () => {

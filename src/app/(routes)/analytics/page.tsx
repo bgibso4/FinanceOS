@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { DRAWER_PUSH_CLASS } from '@/components/ui/drawer';
@@ -61,6 +61,8 @@ import { UNCATEGORIZED } from '@/lib/transaction-filters';
 
 type Days = { current: DaySpend[]; compare: DaySpend[] | null };
 const NO_DAYS: Days = { current: [], compare: null };
+type Totals = { spending: number; prevSpending: number };
+const NO_TOTALS: Totals = { spending: 0, prevSpending: 0 };
 /** Average month length, for "per month" over periods that end part-way through one. */
 const MONTH_DAYS = 365.25 / 12;
 /** P4: the year list offers this year and the four before it. */
@@ -128,6 +130,8 @@ function AnalyticsContent() {
   const { refs, error: refsError } = useDrawerReferenceData();
   const { categories } = refs;
   const [spendByCategory, setSpendByCategory] = useState<BreakdownRow[]>([]);
+  // The whole period's spend and the comparison's, from the same rule the daily data uses.
+  const [totals, setTotals] = useState<Totals>(NO_TOTALS);
   const [budgets, setBudgets] = useState<BreakdownBudget[]>([]);
   const [days, setDays] = useState<Days>(NO_DAYS);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
@@ -178,11 +182,12 @@ function AnalyticsContent() {
       budgetsUrl
         ? sendJson<{ budgets?: BreakdownBudget[] }>(budgetsUrl, 'GET')
         : { budgets: [] as BreakdownBudget[] },
-      sendJson<{ spendByCategory?: BreakdownRow[] }>(dashboardUrl, 'GET'),
+      sendJson<{ spendByCategory?: BreakdownRow[]; netCashflow?: Totals }>(dashboardUrl, 'GET'),
     ]);
     if (seq !== figureRequests.current) return;
     setBudgets(budgetData.budgets ?? []);
     setSpendByCategory(analyticsData.spendByCategory ?? []);
+    setTotals(analyticsData.netCashflow ?? NO_TOTALS);
   }, [budgetsUrl, dashboardUrl]);
 
   const loadDays = useCallback(async () => {
@@ -311,8 +316,7 @@ function AnalyticsContent() {
   const slices = ranked.map((s) => ({ ...s, color: colors[s.key] }));
 
   // Figures.
-  const spent = spendByCategory.reduce((sum, c) => sum + c.amount, 0);
-  const was = spendByCategory.reduce((sum, c) => sum + c.prevAmount, 0);
+  const { spending: spent, prevSpending: was } = totals;
   const txCount = spendByCategory.reduce((sum, c) => sum + c.txCount, 0);
   const periodDays = dayCount(range);
   const months = periodDays / MONTH_DAYS;
@@ -492,7 +496,7 @@ function AnalyticsContent() {
         query={query}
         tags={refs.availableTags.map((t) => t.name)}
         today={today}
-        toggleRef={filterButton as RefObject<HTMLElement>}
+        toggleRef={filterButton}
         onChange={setQuery}
         onClose={() => setPanelOpen(false)}
       />

@@ -275,14 +275,27 @@ export async function dashboardAnalytics(
   );
 
   const categoryTotals = categoryTotalsOf(transactions, returnAmounts, currencySettings);
+  const prevTotals = categoryTotalsOf(prevTransactions, prevReturnAmounts, currencySettings);
   const prevCategoryTotals: Record<string, number> = {};
-  for (const [name, meta] of Object.entries(
-    categoryTotalsOf(prevTransactions, prevReturnAmounts, currencySettings)
-  )) {
+  for (const [name, meta] of Object.entries(prevTotals)) {
     prevCategoryTotals[name] = meta.amount;
   }
 
-  const spendByCategory = Object.entries(categoryTotals)
+  // With an explicit comparison (Analytics), categories spent in only that period are listed
+  // too, at zero now. Without one, home, Reports and trailing-12 keep today's list.
+  const listedTotals = compare
+    ? {
+        ...Object.fromEntries(
+          Object.entries(prevTotals).map(([name, meta]) => [
+            name,
+            { ...meta, amount: 0, txCount: 0, returnAmount: 0 },
+          ])
+        ),
+        ...categoryTotals,
+      }
+    : categoryTotals;
+
+  const spendByCategory = Object.entries(listedTotals)
     .filter(([, meta]) => (meta.type ?? 'expense') !== 'income')
     .map(([category, meta]) => {
       const prevAmount = prevCategoryTotals[category] ?? 0;

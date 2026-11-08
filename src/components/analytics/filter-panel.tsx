@@ -31,7 +31,7 @@ type FilterPanelProps = {
   groupTotals: Record<string, number>;
   today: string;
   /** The button that opens the panel: pressing it isn't an "outside" click. */
-  toggleRef: RefObject<HTMLElement>;
+  toggleRef: RefObject<HTMLElement | null>;
 };
 
 const toggled = (list: string[], v: string) =>

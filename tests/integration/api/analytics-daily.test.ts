@@ -177,6 +177,46 @@ describe('daily spend and explicit comparison', () => {
     expect(await dashboardAnalytics(testPrisma, {}, START, END, oldWindow)).toEqual(without);
   });
 
+  it('prevOnlyCategoryListedWithExplicitCompare', async () => {
+    const travel = (
+      await testPrisma.category.create({
+        data: createCategoryData({ name: 'Travel', type: 'expense' }),
+      })
+    ).id;
+    await testPrisma.transaction.create({
+      data: createTransactionData('usd', {
+        date: day('2026-09-10'),
+        amount: -90,
+        categoryId: travel,
+      }),
+    });
+    const SEP = {
+      startDate: new Date(Date.UTC(2026, 8, 1)),
+      endDate: new Date(Date.UTC(2026, 8, 30, 23, 59, 59, 999)),
+    };
+    const total = (rows: { amount: number; prevAmount: number }[], key: 'amount' | 'prevAmount') =>
+      rows.reduce((acc, r) => acc + r[key], 0);
+
+    const withCompare = await dashboardAnalytics(testPrisma, {}, START, END, SEP);
+
+    expect(withCompare.spendByCategory).toContainEqual(
+      expect.objectContaining({ category: 'Travel', amount: 0, prevAmount: 90, txCount: 0 })
+    );
+    expect(total(withCompare.spendByCategory, 'amount')).toBeCloseTo(
+      withCompare.netCashflow.spending,
+      6
+    );
+    expect(total(withCompare.spendByCategory, 'prevAmount')).toBeCloseTo(
+      withCompare.netCashflow.prevSpending,
+      6
+    );
+
+    // Without an explicit comparison (home, Reports, trailing-12) the list is as before.
+    const without = await dashboardAnalytics(testPrisma, {}, START, END);
+    expect(without.netCashflow.prevSpending).toBeCloseTo(140, 6);
+    expect(without.spendByCategory.map((c) => c.category)).not.toContain('Travel');
+  });
+
   it('dailyRouteReturnsBothRanges', async () => {
     const res = await getDaily(
       new NextRequest(
