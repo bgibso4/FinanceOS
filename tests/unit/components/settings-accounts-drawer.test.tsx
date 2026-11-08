@@ -70,15 +70,7 @@ const respond = (r: Reply) =>
     json: async () => r.body,
   }) as Response;
 
-// dnd-kit constructs a ResizeObserver; the shared setup's mock is not constructible.
-class StubResizeObserver {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
-
 beforeEach(() => {
-  global.ResizeObserver = StubResizeObserver as unknown as typeof ResizeObserver;
   patchReply = { body: {} };
   accounts = ACCOUNTS;
   global.fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
