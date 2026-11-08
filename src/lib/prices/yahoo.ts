@@ -80,6 +80,10 @@ export class YahooPriceProvider implements PriceProvider {
     private readonly client: YahooClient = new YahooFinance() as unknown as YahooClient
   ) {}
 
+  fxSymbol(from: string, to: string): string {
+    return `${from}${to}=X`;
+  }
+
   async getDailyHistory(symbol: string, from: Date, to: Date): Promise<DailyHistory> {
     const res = await call(() =>
       this.client.chart(symbol, {

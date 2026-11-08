@@ -3,6 +3,7 @@ import type { Clock } from '@/lib/clock';
 import { PriceRefresher, type Sleeper } from '@/lib/prices/refresh';
 import { QuoteCache } from '@/lib/prices/quote-cache';
 import { SecurityCatalog } from '@/lib/prices/securities';
+import { ExchangeRateHistory } from '@/lib/fx/rate-history';
 import type { PriceProvider } from '@/lib/prices/types';
 import { CurrentHoldingsReader } from './current-holdings';
 import { ValueHistoryService } from './history';
@@ -23,6 +24,7 @@ export type InvestmentServices = {
   refresh: InvestmentRefreshService;
   overview: InvestmentOverviewService;
   securityList: SecurityListReader;
+  fxRates: ExchangeRateHistory;
 };
 
 /** The one place investment services are wired. Omitted `clock`/`sleep` use the real ones. */
@@ -55,6 +57,7 @@ export function createInvestmentServices(deps: {
       clock
     ),
     securityList: new SecurityListReader(prisma, provider.symbolHint, clock),
+    fxRates: new ExchangeRateHistory(prisma, provider, clock),
   };
 }
 

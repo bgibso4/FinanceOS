@@ -182,6 +182,7 @@ export function fakeProvider(
   );
   const provider: PriceProvider = {
     symbolHint: 'Use test symbols.',
+    fxSymbol: (from: string, to: string) => `${from}>${to}`,
     getDailyHistory: vi.fn(async (symbol: string, from: Date, to: Date) => {
       calls.push({ symbol, from: isoDay(from), to: isoDay(to) });
       const queued = errors[symbol]?.shift();

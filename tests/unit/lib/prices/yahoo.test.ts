@@ -22,6 +22,10 @@ const FROM = utcDay('2026-10-05');
 const TO = utcDay('2026-10-09');
 
 describe('yahoo price provider', () => {
+  it('fxSymbolIsYahooPair', () => {
+    expect(new YahooPriceProvider(client()).fxSymbol('CAD', 'USD')).toBe('CADUSD=X');
+  });
+
   it('tells the price window how to write its symbols', () => {
     expect(new YahooPriceProvider(client()).symbolHint).toBe(
       'Use Yahoo Finance symbols: add .TO for Toronto listings, -USD for crypto.'
