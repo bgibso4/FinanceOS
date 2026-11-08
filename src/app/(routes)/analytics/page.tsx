@@ -6,13 +6,14 @@ import { DRAWER_PUSH_CLASS } from '@/components/ui/drawer';
 import { PeriodPicker } from '@/components/ui/period-picker';
 import { ChartRenderer, PIE_COLORS } from '@/components/chart-renderer';
 import { TransactionDrawer } from '@/components/transactions/transaction-drawer';
-import { TransactionTable } from '@/components/transactions/transaction-table';
+import { CategoryBreakdown } from '@/components/analytics/category-breakdown';
 import type { Category, Tx } from '@/components/transactions/types';
 import { useDrawerReferenceData } from '@/components/transactions/use-drawer-reference-data';
 import { useTransactionDrawer } from '@/components/transactions/use-transaction-drawer';
 import { cn } from '@/lib/cn';
 import { ds } from '@/lib/design-system';
 import { getCurrencySymbol } from '@/lib/currency';
+import { columnLabel, shiftMonths } from '@/lib/analytics-period';
 import { localDay } from '@/lib/dates';
 import { sendJson } from '@/lib/send-json';
 
@@ -56,6 +57,11 @@ const monthRange = (month: string) => {
     startDate: `${year}-${monthNumber}-01`,
     endDate: `${year}-${monthNumber}-${String(lastDay).padStart(2, '0')}`,
   };
+};
+
+const monthColumn = (month: string) => {
+  const { startDate, endDate } = monthRange(month);
+  return columnLabel({ start: startDate, end: endDate }, { kind: 'month', anchor: month });
 };
 
 export default function AnalyticsPage() {
@@ -153,12 +159,6 @@ export default function AnalyticsPage() {
     void drawer.closeThen(() =>
       setExpandedCategory((current) => (current === categoryName ? null : categoryName))
     );
-
-  // Helper to get budget for a category
-  const getBudget = (categoryId?: string) => {
-    if (!categoryId) return null;
-    return budgets.find((b) => b.categoryId === categoryId);
-  };
 
   // Calculate totals
   const totalSpending = categoryAnalytics.reduce((sum, c) => sum + c.amount, 0);
@@ -321,252 +321,27 @@ export default function AnalyticsPage() {
         </Card>
       </div>
 
-      {/* Category Breakdown with Transaction Drill-down */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className={`text-sm font-semibold ${ds.text.secondary}`}>
-              Category Breakdown by Group
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {(() => {
-              // Group categories by their parent
-              const grouped: Record<string, typeof categoryAnalytics> = {};
-
-              categoryAnalytics.forEach((cat) => {
-                const category = categories.find((c) => c.name === cat.category);
-                const parentGroup = category?.parentId
-                  ? categories.find((c) => c.id === category.parentId)
-                  : null;
-
-                // Use parent group name if it exists, otherwise:
-                // - truly uncategorized transactions (no matching category) go to 'Uncategorized'
-                // - categories that exist but have no parent use their own name as the group
-                const groupName = parentGroup?.name || (category ? category.name : 'Uncategorized');
-                grouped[groupName] = grouped[groupName] || [];
-                grouped[groupName].push(cat);
-              });
-
-              // Sort groups by total absolute value
-              const sortedGroups = Object.entries(grouped).sort(([, aCats], [, bCats]) => {
-                const aTotal = Math.abs(aCats.reduce((sum, c) => sum + c.amount, 0));
-                const bTotal = Math.abs(bCats.reduce((sum, c) => sum + c.amount, 0));
-                return bTotal - aTotal;
-              });
-
-              return sortedGroups.map(([groupName, cats]) => {
-                const groupTotal = cats.reduce((sum, c) => sum + c.amount, 0);
-
-                return (
-                  <div
-                    key={groupName}
-                    className={`border ${ds.border.default} rounded-lg overflow-hidden`}
-                  >
-                    {/* Group Header */}
-                    <div className={`p-3 ${ds.bg.tertiary}`}>
-                      <div className="flex items-center justify-between">
-                        <span className={`font-bold ${ds.text.primary}`}>{groupName}</span>
-                        <span className={`font-bold text-lg ${ds.text.primary}`}>
-                          {formatCurrencyWithSymbol(Math.abs(groupTotal), baseCurrency)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Categories in Group */}
-                    <div className="divide-y divide-[var(--border)]">
-                      {cats.map((cat) => {
-                        const _percentage =
-                          totalSpending > 0 ? (cat.amount / totalSpending) * 100 : 0;
-                        const isExpanded = expandedCategory === cat.category;
-                        const budget = getBudget(cat.categoryId);
-                        const budgetPercentage = budget
-                          ? (cat.amount / budget.limitAmount) * 100
-                          : null;
-                        const isOverBudget = budgetPercentage !== null && budgetPercentage > 100;
-
-                        return (
-                          <div key={cat.category}>
-                            {/* Category Header */}
-                            <div
-                              className={`p-4 cursor-pointer transition-all ${isExpanded ? ds.bg.secondary : ds.bg.hover}`}
-                              onClick={() => toggleCategory(cat.category)}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <span
-                                    className={`text-sm transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                                  >
-                                    ▶
-                                  </span>
-                                  <span className={`font-semibold ${ds.text.primary}`}>
-                                    {cat.category}
-                                  </span>
-                                  <span className={`text-sm ${ds.text.muted}`}>
-                                    {cat.txCount} transactions
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  {cat.monthOverMonth !== 0 && (
-                                    <span
-                                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                                        cat.monthOverMonth > 0
-                                          ? `${ds.status.error.bg} ${ds.status.error.text}`
-                                          : `${ds.status.success.bg} ${ds.status.success.text}`
-                                      }`}
-                                    >
-                                      {cat.monthOverMonth > 0 ? '↑' : '↓'}{' '}
-                                      {Math.abs(cat.monthOverMonth).toFixed(0)}%
-                                    </span>
-                                  )}
-                                  <span className={`font-bold ${ds.text.primary}`}>
-                                    {formatCurrencyWithSymbol(cat.amount, baseCurrency)}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Budget progress */}
-                              {budget && (
-                                <div className="mt-3 ml-7">
-                                  <div className="flex items-center justify-between text-xs mb-1">
-                                    <span
-                                      className={
-                                        isOverBudget
-                                          ? 'text-[var(--red)] font-medium'
-                                          : ds.text.secondary
-                                      }
-                                    >
-                                      {budgetPercentage!.toFixed(0)}% of{' '}
-                                      {formatCurrencyWithSymbol(budget.limitAmount, baseCurrency)}{' '}
-                                      budget
-                                    </span>
-                                    <span
-                                      className={
-                                        isOverBudget
-                                          ? 'text-[var(--red)] font-medium'
-                                          : ds.text.muted
-                                      }
-                                    >
-                                      {isOverBudget
-                                        ? `${formatCurrencyWithSymbol(cat.amount - budget.limitAmount, baseCurrency)} over`
-                                        : `${formatCurrencyWithSymbol(budget.limitAmount - cat.amount, baseCurrency)} left`}
-                                    </span>
-                                  </div>
-                                  <div
-                                    className={`h-2 ${ds.bg.tertiary} rounded-full overflow-hidden`}
-                                  >
-                                    <div
-                                      className={`h-full rounded-full transition-all ${
-                                        isOverBudget
-                                          ? 'bg-[var(--red)]'
-                                          : budgetPercentage! > 80
-                                            ? 'bg-[var(--accent)]'
-                                            : 'bg-[var(--green)]'
-                                      }`}
-                                      style={{ width: `${Math.min(budgetPercentage!, 100)}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Expanded Transaction List */}
-                            {isExpanded && (
-                              <div className={`border-t ${ds.border.default} ${ds.bg.primary}`}>
-                                {/* Stats Row */}
-                                <div
-                                  className={`grid grid-cols-4 gap-4 p-4 ${ds.bg.secondary} border-b ${ds.border.default}`}
-                                >
-                                  <div>
-                                    <div className={`text-xs ${ds.text.muted}`}>This Month</div>
-                                    <div className="font-semibold">
-                                      {formatCurrencyWithSymbol(cat.amount, baseCurrency)}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <div className={`text-xs ${ds.text.muted}`}>
-                                      {budget ? 'Budget' : 'Last Month'}
-                                    </div>
-                                    <div className="font-semibold">
-                                      {budget
-                                        ? formatCurrencyWithSymbol(budget.limitAmount, baseCurrency)
-                                        : formatCurrencyWithSymbol(cat.prevAmount, baseCurrency)}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <div className={`text-xs ${ds.text.muted}`}>
-                                      {budget ? 'Remaining' : 'Change'}
-                                    </div>
-                                    <div
-                                      className={`font-semibold ${
-                                        budget
-                                          ? budget.limitAmount - cat.amount >= 0
-                                            ? 'text-[var(--green)]'
-                                            : 'text-[var(--red)]'
-                                          : cat.monthOverMonth > 0
-                                            ? 'text-[var(--red)]'
-                                            : 'text-[var(--green)]'
-                                      }`}
-                                    >
-                                      {budget
-                                        ? formatCurrencyWithSymbol(
-                                            budget.limitAmount - cat.amount,
-                                            baseCurrency
-                                          )
-                                        : `${cat.monthOverMonth > 0 ? '+' : ''}${formatCurrencyWithSymbol(cat.amount - cat.prevAmount, baseCurrency)}`}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <div className={`text-xs ${ds.text.muted}`}>
-                                      Avg per Transaction
-                                    </div>
-                                    <div className="font-semibold">
-                                      {cat.txCount > 0
-                                        ? formatCurrencyWithSymbol(
-                                            cat.amount / cat.txCount,
-                                            baseCurrency
-                                          )
-                                        : '—'}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Transaction List */}
-                                {loadingTransactions ? (
-                                  <div className={`p-4 text-center ${ds.text.muted}`}>
-                                    Loading transactions...
-                                  </div>
-                                ) : list.length === 0 ? (
-                                  <div className={`p-4 text-center ${ds.text.muted}`}>
-                                    No transactions found
-                                  </div>
-                                ) : (
-                                  <div className="max-h-96 overflow-y-auto">
-                                    <TransactionTable
-                                      availableTags={refs.availableTags}
-                                      baseCurrency={baseCurrency}
-                                      compact={drawer.isOpen}
-                                      openId={drawer.openId}
-                                      rows={list}
-                                      onOpen={drawer.openTransaction}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              });
-            })()}
-          </div>
-        </CardContent>
-      </Card>
+      <CategoryBreakdown
+        showBudgets
+        budgets={budgets}
+        categories={categories}
+        columns={{
+          current: monthColumn(selectedMonth),
+          compare: monthColumn(shiftMonths(`${selectedMonth}-01`, -1).slice(0, 7)),
+        }}
+        expanded={expandedCategory}
+        list={list}
+        loading={loadingTransactions}
+        rows={categoryAnalytics}
+        table={{
+          availableTags: refs.availableTags,
+          baseCurrency,
+          compact: drawer.isOpen,
+          openId: drawer.openId,
+          onOpen: drawer.openTransaction,
+        }}
+        onToggle={toggleCategory}
+      />
 
       <TransactionDrawer ref={drawer.ref} {...refs} {...drawer.drawerProps} />
     </div>
