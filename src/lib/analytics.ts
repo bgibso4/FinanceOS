@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { isAfter, isBefore } from 'date-fns';
 import { utcMonthRange } from './dates';
 import { FilterParams } from './types';
+import { filterWhere, matchesTags } from './transaction-filters';
 import { loadCurrencySettings, toBase } from './currency';
 
 /**
@@ -22,16 +23,13 @@ function bucketForTransaction(
   return amount >= 0 ? 'income' : 'spending';
 }
 
-export function buildWhere(filters: FilterParams, startDate: Date, endDate: Date) {
-  const where: any = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function buildWhere(filters: FilterParams, startDate: Date, endDate: Date): any {
+  return {
     date: { gte: startDate, lte: endDate },
     isSplitParent: false,
+    ...filterWhere(filters),
   };
-  if (filters.accounts) where.accountId = { in: filters.accounts };
-  if (filters.categories) where.categoryId = { in: filters.categories };
-  if (filters.merchant) where.merchant = { contains: filters.merchant, mode: 'insensitive' };
-  if (filters.tags) where.tags = { array_contains: filters.tags };
-  return where;
 }
 
 export async function dashboardAnalytics(
@@ -74,10 +72,14 @@ export async function dashboardAnalytics(
       amount: true,
       merchant: true,
       isOffset: true,
+      tags: true,
       category: { select: { name: true, type: true } },
       account: { select: { currency: true } },
     },
   });
+
+  // Tags are a JSON string column, so they are matched here rather than in SQL
+  allTransactions = allTransactions.filter((tx) => matchesTags(tx.tags, filters.tags));
 
   // Filter by date string to handle timezone issues when using custom date ranges
   if (filters.startDate || filters.endDate) {
@@ -167,10 +169,13 @@ export async function dashboardAnalytics(
       amount: true,
       merchant: true,
       isOffset: true,
+      tags: true,
       category: { select: { name: true, type: true } },
       account: { select: { currency: true } },
     },
   });
+
+  allPrevTransactions = allPrevTransactions.filter((tx) => matchesTags(tx.tags, filters.tags));
 
   // Filter previous period by date string too
   if (filters.startDate || filters.endDate) {

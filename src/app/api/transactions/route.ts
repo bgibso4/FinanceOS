@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { parseFilters, resolveDateRange } from '@/lib/filters';
+import { filterWhere, matchesTags } from '@/lib/transaction-filters';
 import { TX_ROW_INCLUDE, toTxRow } from '@/lib/transaction-rows';
 import { autoCategorize, normalizeMerchant } from '@/lib/categorization';
 
@@ -22,16 +23,11 @@ export async function GET(req: NextRequest) {
 
   const { startDate, endDate } = resolveDateRange(preset, filters.startDate, filters.endDate);
 
-  const where: any = {
+  const where = {
     date: { gte: startDate, lte: endDate },
     isSplitParent: false,
+    ...filterWhere(filters),
   };
-  if (filters.accounts) where.accountId = { in: filters.accounts };
-  if (filters.categories) where.categoryId = { in: filters.categories };
-  if (filters.merchant) where.merchant = { contains: filters.merchant };
-  // Note: tags are stored as JSON strings in SQLite (not native arrays),
-  // so we filter them in JS after the query instead of using Prisma filters.
-  if (filters.tags) where.tags = { not: null };
 
   const transactions = await prisma.transaction.findMany({
     where,
@@ -50,18 +46,8 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Filter by tags (JSON string field, filtered in JS)
-  if (filters.tags) {
-    filtered = filtered.filter((tx) => {
-      if (!tx.tags) return false;
-      try {
-        const txTags: string[] = JSON.parse(tx.tags);
-        return filters.tags!.every((t) => txTags.includes(t));
-      } catch {
-        return false;
-      }
-    });
-  }
+  // Tags are a JSON string column, so they are matched in JS
+  filtered = filtered.filter((tx) => matchesTags(tx.tags, filters.tags));
 
   const shaped = filtered.map(toTxRow);
 

@@ -87,25 +87,3 @@ export function parseFilters(searchParams: URLSearchParams): FilterParams {
     tags: tags.length ? tags : undefined,
   };
 }
-
-export function applyFilters<
-  T extends { accountId?: string; categoryId?: string; merchant?: string; tags?: any },
->(rows: T[], filters: FilterParams): T[] {
-  return rows.filter((row) => {
-    if (filters.accounts && row.accountId && !filters.accounts.includes(row.accountId))
-      return false;
-    if (filters.categories && row.categoryId && !filters.categories.includes(row.categoryId))
-      return false;
-    if (
-      filters.merchant &&
-      row.merchant &&
-      !row.merchant.toLowerCase().includes(filters.merchant.toLowerCase())
-    )
-      return false;
-    if (filters.tags && Array.isArray(row.tags)) {
-      const tagList = row.tags as string[];
-      if (!filters.tags.every((t) => tagList.includes(t))) return false;
-    }
-    return true;
-  });
-}

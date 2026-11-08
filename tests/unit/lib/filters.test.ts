@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { resolveDateRange, parseFilters, applyFilters } from '@/lib/filters';
+import { resolveDateRange, parseFilters } from '@/lib/filters';
 
 describe('filters', () => {
   describe('resolveDateRange', () => {
@@ -139,81 +139,6 @@ describe('filters', () => {
       const result = parseFilters(params);
 
       expect(result.tags).toEqual(['business', 'travel']);
-    });
-  });
-
-  describe('applyFilters', () => {
-    const testRows = [
-      { id: '1', accountId: 'acc-1', categoryId: 'cat-1', merchant: 'AMAZON', tags: ['shopping'] },
-      { id: '2', accountId: 'acc-1', categoryId: 'cat-2', merchant: 'UBER', tags: ['transport'] },
-      {
-        id: '3',
-        accountId: 'acc-2',
-        categoryId: 'cat-1',
-        merchant: 'AMAZON PRIME',
-        tags: ['shopping', 'subscription'],
-      },
-      { id: '4', accountId: 'acc-2', categoryId: 'cat-2', merchant: 'STARBUCKS', tags: [] },
-    ];
-
-    it('returns all rows when no filters', () => {
-      const result = applyFilters(testRows, {});
-      expect(result).toHaveLength(4);
-    });
-
-    it('filters by account', () => {
-      const result = applyFilters(testRows, { accounts: ['acc-1'] });
-      expect(result).toHaveLength(2);
-      expect(result.every((r) => r.accountId === 'acc-1')).toBe(true);
-    });
-
-    it('filters by multiple accounts', () => {
-      const result = applyFilters(testRows, { accounts: ['acc-1', 'acc-2'] });
-      expect(result).toHaveLength(4);
-    });
-
-    it('filters by category', () => {
-      const result = applyFilters(testRows, { categories: ['cat-1'] });
-      expect(result).toHaveLength(2);
-      expect(result.every((r) => r.categoryId === 'cat-1')).toBe(true);
-    });
-
-    it('filters by merchant (case-insensitive partial match)', () => {
-      const result = applyFilters(testRows, { merchant: 'amazon' });
-      expect(result).toHaveLength(2);
-      expect(result.every((r) => r.merchant.toLowerCase().includes('amazon'))).toBe(true);
-    });
-
-    it('filters by tags (all must match)', () => {
-      const result = applyFilters(testRows, { tags: ['shopping'] });
-      expect(result).toHaveLength(2);
-
-      const result2 = applyFilters(testRows, { tags: ['shopping', 'subscription'] });
-      expect(result2).toHaveLength(1);
-      expect(result2[0].id).toBe('3');
-    });
-
-    it('combines multiple filters', () => {
-      const result = applyFilters(testRows, {
-        accounts: ['acc-1'],
-        categories: ['cat-1'],
-      });
-      expect(result).toHaveLength(1);
-      expect(result[0].id).toBe('1');
-    });
-
-    it('handles rows without optional fields', () => {
-      const rowsWithMissing = [
-        { id: '1' },
-        { id: '2', accountId: 'acc-1' },
-        { id: '3', categoryId: 'cat-1' },
-      ];
-
-      // Implementation passes through rows that don't have the filtered field
-      // Only rows that have accountId AND it doesn't match get filtered out
-      const result = applyFilters(rowsWithMissing, { accounts: ['acc-1'] });
-      // Row 1 passes (no accountId), Row 2 passes (matches acc-1), Row 3 passes (no accountId)
-      expect(result).toHaveLength(3);
     });
   });
 });
