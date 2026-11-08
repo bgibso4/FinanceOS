@@ -15,26 +15,19 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { PIE_COLORS } from '@/lib/chart-colors';
+import {
+  CHART_GRID_STROKE,
+  CHART_TICK,
+  CHART_TOOLTIP_LABEL_STYLE,
+  CHART_TOOLTIP_STYLE,
+} from '@/lib/chart-style';
 import { ChartSpec } from '@/lib/types';
 import { Card, CardContent, CardHeader } from './ui/card';
 
 type Props = {
   spec: ChartSpec;
 };
-
-// Friedrik muted palette — distinct hues at low saturation for pie / multi-category charts
-export const PIE_COLORS = [
-  '#9a7a58', // cognac (accent)
-  '#7a9ec4', // slate blue
-  '#6a9e78', // sage green
-  '#b87a74', // dusty rose
-  '#a89a5c', // olive gold
-  '#9a7eb8', // muted lavender
-  '#6a9e96', // teal
-  '#b8916a', // warm tan
-  '#7a7eb8', // periwinkle
-  '#c08aa0', // mauve pink
-];
 
 export function ChartRenderer({ spec }: Props) {
   const merged = mergeSeries(spec.series);
@@ -77,34 +70,21 @@ export function ChartRenderer({ spec }: Props) {
               <stop offset="95%" stopColor="#6a6660" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke="var(--grid-line)" strokeDasharray="none" vertical={false} />
-          <XAxis
-            axisLine={false}
-            dataKey="x"
-            tick={{ fontSize: 11, fill: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
-            tickLine={false}
-          />
+          <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="none" vertical={false} />
+          <XAxis axisLine={false} dataKey="x" tick={CHART_TICK} tickLine={false} />
           <YAxis
             axisLine={false}
-            tick={{ fontSize: 11, fill: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
+            tick={CHART_TICK}
             tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
             tickLine={false}
             width={45}
           />
           <Tooltip
-            contentStyle={{
-              fontSize: '12px',
-              fontFamily: 'var(--font-mono)',
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border-hover)',
-              borderRadius: '8px',
-              color: 'var(--text-primary)',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-            }}
+            contentStyle={CHART_TOOLTIP_STYLE}
             formatter={(value: number | undefined) =>
               value !== undefined ? [`$${value.toLocaleString()}`, undefined] : ['$0', undefined]
             }
-            labelStyle={{ color: 'var(--text-muted)', marginBottom: 4 }}
+            labelStyle={CHART_TOOLTIP_LABEL_STYLE}
           />
           {spec.series.map((s, idx) => {
             const color = idx === 0 ? '#9a7a58' : '#6a6660';

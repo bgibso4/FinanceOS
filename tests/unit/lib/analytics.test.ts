@@ -75,7 +75,7 @@ describe('analytics', () => {
       const endDate = new Date('2024-01-31');
       const result = buildWhere({ merchant: 'amazon' }, startDate, endDate);
 
-      expect(result.merchant).toEqual({ contains: 'amazon', mode: 'insensitive' });
+      expect(result.merchant).toEqual({ contains: 'amazon' });
     });
   });
 

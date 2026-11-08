@@ -3,6 +3,7 @@
 import { useState, type PointerEvent } from 'react';
 import { addDays, isoDay, utcDay } from '@/lib/investments/dates';
 import type { SeriesPoint } from '@/lib/investments/history';
+import { CHART_GRID_STROKE } from '@/lib/chart-style';
 import { chartGeometry, GRIDLINES, gridValues, nearestIndex, tooltipSide } from './chart-geometry';
 import { daysBetween, fmtCompact, fmtDay, fmtLongDay, fmtMoney } from './format';
 
@@ -130,7 +131,7 @@ export function ValueChart({
             {GRIDLINES.map((f) => (
               <line
                 key={f}
-                stroke="var(--grid-line)"
+                stroke={CHART_GRID_STROKE}
                 vectorEffect="non-scaling-stroke"
                 x1={0}
                 x2={WIDTH}

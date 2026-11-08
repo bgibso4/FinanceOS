@@ -36,12 +36,12 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-// Mock ResizeObserver
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+// Stub ResizeObserver; a class so libraries (Recharts, dnd-kit) can construct it.
+global.ResizeObserver = class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver;
 
 // Suppress console.log in tests (per project linting rules)
 // Only console.warn and console.error are allowed

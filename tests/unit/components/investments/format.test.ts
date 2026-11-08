@@ -15,7 +15,7 @@ import {
   toneOf,
 } from '@/components/investments/format';
 import { institutionMark } from '@/components/investments/institution-mark';
-import { PIE_COLORS } from '@/components/chart-renderer';
+import { PIE_COLORS } from '@/lib/chart-colors';
 
 describe('investment formatting', () => {
   it('formats money with a true minus and native prefixes', () => {

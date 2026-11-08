@@ -1,152 +1,269 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Card } from '@/components/ui/card';
 import { DRAWER_PUSH_CLASS } from '@/components/ui/drawer';
-import { PeriodPicker } from '@/components/ui/period-picker';
-import { ChartRenderer, PIE_COLORS } from '@/components/chart-renderer';
+import { MonthGrid, PeriodStepper, YearList } from '@/components/ui/period-stepper';
 import { TransactionDrawer } from '@/components/transactions/transaction-drawer';
-import { TransactionTable } from '@/components/transactions/transaction-table';
-import type { Category, Tx } from '@/components/transactions/types';
+import {
+  CategoryBreakdown,
+  type BreakdownBudget,
+  type BreakdownRow,
+} from '@/components/analytics/category-breakdown';
+import { changeText } from '@/components/analytics/change';
+import { FilterChips } from '@/components/analytics/filter-chips';
+import { FilterPanel } from '@/components/analytics/filter-panel';
+import {
+  OverTimeChart,
+  finishedSentence,
+  soFarSentence,
+} from '@/components/analytics/over-time-chart';
+import { WhereItWent } from '@/components/analytics/where-it-went';
+import type { Tx } from '@/components/transactions/types';
 import { useDrawerReferenceData } from '@/components/transactions/use-drawer-reference-data';
 import { useTransactionDrawer } from '@/components/transactions/use-transaction-drawer';
+import type { DaySpend } from '@/lib/analytics';
+import {
+  COMPARE_SHORT,
+  columnLabel,
+  compareChartRange,
+  compareRange,
+  dayCount,
+  fullRange,
+  isDaily,
+  isLatest,
+  periodLabel,
+  periodRange,
+  stepPeriod,
+  type DayRange,
+} from '@/lib/analytics-period';
+import {
+  activeFilterCount,
+  filterParamsFor,
+  parseAnalyticsQuery,
+  toSearchParams,
+  type AnalyticsQuery,
+} from '@/lib/analytics-query';
+import {
+  assignColors,
+  buildSeries,
+  groupTotals,
+  picksFor,
+  rankPicks,
+  soFar,
+} from '@/lib/analytics-series';
 import { cn } from '@/lib/cn';
-import { ds } from '@/lib/design-system';
-import { getCurrencySymbol } from '@/lib/currency';
+import { fmtMoney } from '@/lib/currency';
 import { localDay } from '@/lib/dates';
+import { filterSearchParams } from '@/lib/filters';
 import { sendJson } from '@/lib/send-json';
+import { UNCATEGORIZED } from '@/lib/transaction-filters';
 
-type CategoryAnalytics = {
-  category: string;
-  categoryId?: string;
-  amount: number;
-  monthOverMonth: number;
-  isOutlier: boolean;
-  txCount: number;
-  prevAmount: number;
-};
+type Days = { current: DaySpend[]; compare: DaySpend[] | null };
+const NO_DAYS: Days = { current: [], compare: null };
+type Totals = { spending: number; prevSpending: number };
+const NO_TOTALS: Totals = { spending: 0, prevSpending: 0 };
+/** Average month length, for "per month" over periods that end part-way through one. */
+const MONTH_DAYS = 365.25 / 12;
+/** P4: the year list offers this year and the four before it. */
+const YEARS_LISTED = 5;
 
-type Budget = {
-  id: string;
-  month: string;
-  categoryId: string;
-  limitAmount: number;
-  category?: Category;
-};
+/** The API query for a range: the shared filters, plus the comparison range when there is one. */
+function apiQuery(q: AnalyticsQuery, range: DayRange, compare: DayRange | null): string {
+  const sp = filterSearchParams(filterParamsFor(q, range));
+  if (compare) {
+    sp.set('compareStart', compare.start);
+    sp.set('compareEnd', compare.end);
+  }
+  return sp.toString();
+}
 
-// Helper to format currency (uses base currency from state)
-const formatCurrency = (amount: number, _baseCurrency: string = 'USD') => {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
+function Figure({
+  label,
+  value,
+  sub,
+  subClass = 'text-[var(--text-muted)]',
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  subClass?: string;
+}) {
+  return (
+    <Card className="min-w-0 px-5 py-[18px]">
+      <div className="text-xs text-[var(--text-secondary)]">{label}</div>
+      <div className="mt-1 truncate font-mono text-2xl text-[var(--text-primary)]">{value}</div>
+      <div className={`mt-0.5 truncate text-xs ${subClass}`}>{sub}</div>
+    </Card>
+  );
+}
 
-// Format with currency symbol
-const formatCurrencyWithSymbol = (amount: number, baseCurrency: string = 'USD') => {
-  const formatted = formatCurrency(amount, baseCurrency);
-  // Hardcode $ for now to test
-  return `$${formatted}`;
-};
+function FunnelIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height="18"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      width="18"
+    >
+      <path d="M3 5h18l-7 8.5V19l-4 2v-7.5z" />
+    </svg>
+  );
+}
 
-const monthRange = (month: string) => {
-  const [year, monthNumber] = month.split('-');
-  const lastDay = new Date(parseInt(year), parseInt(monthNumber), 0).getDate();
-  return {
-    startDate: `${year}-${monthNumber}-01`,
-    endDate: `${year}-${monthNumber}-${String(lastDay).padStart(2, '0')}`,
-  };
-};
-
-export default function AnalyticsPage() {
-  // Month selector - default to current month
-  const [selectedMonth, setSelectedMonth] = useState(() => localDay().slice(0, 7));
+function AnalyticsContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const search = useSearchParams().toString();
+  const today = localDay();
+  const query = useMemo(
+    () => parseAnalyticsQuery(new URLSearchParams(search), today),
+    [search, today]
+  );
+  const { period } = query;
 
   const { refs, error: refsError } = useDrawerReferenceData();
-  const { baseCurrency, categories } = refs;
-  const [spendByCategory, setSpendByCategory] = useState<CategoryAnalytics[]>([]);
-  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const { categories } = refs;
+  const [spendByCategory, setSpendByCategory] = useState<BreakdownRow[]>([]);
+  // The whole period's spend and the comparison's, from the same rule the daily data uses.
+  const [totals, setTotals] = useState<Totals>(NO_TOTALS);
+  const [budgets, setBudgets] = useState<BreakdownBudget[]>([]);
+  const [days, setDays] = useState<Days>(NO_DAYS);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [categoryTransactions, setCategoryTransactions] = useState<Tx[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   // The row the drawer is on stays listed until you leave it, so a save can't lose your place.
   const [heldRowId, setHeldRowId] = useState<string | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [split, setSplit] = useState(false);
+  const filterButton = useRef<HTMLButtonElement>(null);
   // Only the latest request of each kind may land.
   const figureRequests = useRef(0);
+  const dayRequests = useRef(0);
   const rowRequests = useRef(0);
 
+  const range = periodRange(period, today);
+  const shown = fullRange(period);
+  const daily = isDaily(shown);
+  const compare = compareRange(period, query.vs, today);
+  const chartCompare = compareChartRange(period, query.vs, today);
+  // M5: a budget covers the whole category, so it only means something for a plain month.
+  const showBudgets =
+    period.kind === 'month' && !query.accounts.length && !query.tags.length && !query.merchant;
+
   const categoryIdFor = (name: string) => categories.find((c) => c.name === name)?.id;
-  const categoryAnalytics = spendByCategory.map((cat) => ({
+  const breakdownRows = spendByCategory.map((cat) => ({
     ...cat,
     categoryId: categoryIdFor(cat.category),
   }));
   const expandedCategoryId = expandedCategory ? categoryIdFor(expandedCategory) : undefined;
 
+  const dashboardUrl = `/api/analytics/dashboard?preset=custom&${apiQuery(query, range, compare)}`;
+  // P10: no category filter, so the panel gets every group's total; the chart applies the picks.
+  const dailyUrl = `/api/analytics/daily?${apiQuery({ ...query, categories: [] }, range, chartCompare)}`;
+  const budgetsUrl = showBudgets ? `/api/budgets/${period.anchor}` : null;
+  const rowsUrl = expandedCategory
+    ? `/api/transactions?preset=custom&${apiQuery(
+        { ...query, categories: [expandedCategoryId ?? UNCATEGORIZED] },
+        range,
+        null
+      )}`
+    : null;
+
   const loadFigures = useCallback(async () => {
     const seq = ++figureRequests.current;
-    const { startDate, endDate } = monthRange(selectedMonth);
     const [budgetData, analyticsData] = await Promise.all([
-      sendJson<{ budgets?: Budget[] }>(`/api/budgets/${selectedMonth}`, 'GET'),
-      sendJson<{ spendByCategory?: CategoryAnalytics[] }>(
-        `/api/analytics/dashboard?preset=custom&startDate=${startDate}&endDate=${endDate}`,
-        'GET'
-      ),
+      budgetsUrl
+        ? sendJson<{ budgets?: BreakdownBudget[] }>(budgetsUrl, 'GET')
+        : { budgets: [] as BreakdownBudget[] },
+      sendJson<{ spendByCategory?: BreakdownRow[]; netCashflow?: Totals }>(dashboardUrl, 'GET'),
     ]);
     if (seq !== figureRequests.current) return;
     setBudgets(budgetData.budgets ?? []);
     setSpendByCategory(analyticsData.spendByCategory ?? []);
-  }, [selectedMonth]);
+    setTotals(analyticsData.netCashflow ?? NO_TOTALS);
+  }, [budgetsUrl, dashboardUrl]);
+
+  const loadDays = useCallback(async () => {
+    const seq = ++dayRequests.current;
+    const data = await sendJson<Partial<Days>>(dailyUrl, 'GET');
+    if (seq !== dayRequests.current) return;
+    setDays({ current: data.current ?? [], compare: data.compare ?? null });
+  }, [dailyUrl]);
 
   const loadRows = useCallback(async () => {
-    if (!expandedCategory) return;
+    if (!rowsUrl) return;
     const seq = ++rowRequests.current;
-    const queryParams = new URLSearchParams({ preset: 'custom', ...monthRange(selectedMonth) });
-    if (expandedCategoryId) queryParams.set('category', expandedCategoryId);
     try {
-      const data = await sendJson<{ transactions?: Tx[] }>(
-        `/api/transactions?${queryParams.toString()}`,
-        'GET'
-      );
+      const data = await sendJson<{ transactions?: Tx[] }>(rowsUrl, 'GET');
       if (seq === rowRequests.current) setCategoryTransactions(data.transactions ?? []);
     } catch (err) {
       console.error('Failed to load transactions:', err);
     } finally {
       if (seq === rowRequests.current) setLoadingTransactions(false);
     }
-  }, [expandedCategory, expandedCategoryId, selectedMonth]);
+  }, [rowsUrl]);
+
+  const loadTotals = useCallback(
+    () =>
+      Promise.all([loadFigures(), loadDays()]).catch((err) =>
+        console.error('Failed to load analytics:', err)
+      ),
+    [loadFigures, loadDays]
+  );
 
   useEffect(() => {
-    loadFigures().catch((err) => console.error('Failed to load analytics:', err));
-  }, [loadFigures]);
+    void loadTotals();
+  }, [loadTotals]);
 
   useEffect(() => {
     setCategoryTransactions([]);
-    setLoadingTransactions(Boolean(expandedCategory));
+    setLoadingTransactions(Boolean(rowsUrl));
     void loadRows();
-  }, [expandedCategory, loadRows]);
+  }, [rowsUrl, loadRows]);
 
-  // Matches what the figures count; with no category id ("Uncategorized") the API returns them all.
+  // Matches what the figures count: transfers and offsets are left out.
   const list = categoryTransactions.filter(
-    (t) =>
-      t.id === heldRowId ||
-      (!t.isOffset && !t.isTransfer && (expandedCategoryId !== undefined || !t.category))
+    (t) => t.id === heldRowId || (!t.isOffset && !t.isTransfer)
   );
 
   const drawer = useTransactionDrawer({
     list,
     lookup: list,
     refresh: async () => {
-      await Promise.all([loadFigures(), loadRows()]);
+      await Promise.all([loadTotals(), loadRows()]);
     },
     categories,
     patchRows: (patch) => {
       setCategoryTransactions(patch);
-      // The row is right already; the figures come from the server.
-      loadFigures().catch((err) => console.error('Failed to load analytics:', err));
+      // The row is right already; the totals come from the server.
+      void loadTotals();
     },
   });
 
   useEffect(() => setHeldRowId(drawer.openId), [drawer.openId]);
+
+  /** M6: the query lives in the address, replaced rather than pushed so Back leaves the page. */
+  const setQuery = (q: AnalyticsQuery) =>
+    void drawer.closeThen(() => {
+      const qs = toSearchParams(q, today).toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    });
+
+  // The panel and the drawer are never open together.
+  const togglePanel = () =>
+    panelOpen ? setPanelOpen(false) : void drawer.closeThen(() => setPanelOpen(true));
+  const openTransaction = (id: string) => {
+    setPanelOpen(false);
+    drawer.openTransaction(id);
+  };
 
   // One list at a time: the drawer steps through the open category's rows.
   const toggleCategory = (categoryName: string) =>
@@ -154,421 +271,244 @@ export default function AnalyticsPage() {
       setExpandedCategory((current) => (current === categoryName ? null : categoryName))
     );
 
-  // Helper to get budget for a category
-  const getBudget = (categoryId?: string) => {
-    if (!categoryId) return null;
-    return budgets.find((b) => b.categoryId === categoryId);
-  };
+  const setPeriod = (anchor: string) => setQuery({ ...query, period: { ...period, anchor } });
 
-  // Calculate totals
-  const totalSpending = categoryAnalytics.reduce((sum, c) => sum + c.amount, 0);
-  const totalTransactions = categoryAnalytics.reduce((sum, c) => sum + c.txCount, 0);
-  const prevTotalSpending = categoryAnalytics.reduce((sum, c) => sum + c.prevAmount, 0);
-  const overallChange =
-    prevTotalSpending > 0 ? ((totalSpending - prevTotalSpending) / prevTotalSpending) * 100 : 0;
+  // Chart: picks narrow it; with 2–6 of them "Each category" draws one line per pick (M4).
+  const picks = picksFor(query.categories, categories);
+  const canSplit = picks.length >= 2 && picks.length <= 6;
+  const splitOn = split && canSplit;
+  const labels = {
+    current: columnLabel(range, period),
+    compare: chartCompare ? columnLabel(chartCompare, period) : '',
+  };
+  const series = buildSeries({
+    current: days.current,
+    compare: days.compare,
+    shown,
+    through: range.end,
+    compareRange: chartCompare,
+    running,
+    categoryIds: query.categories.length ? picks.flatMap((p) => p.categoryIds) : null,
+    picks: splitOn ? picks : undefined,
+    labels,
+  });
+  const progress = daily && !splitOn ? soFar(series.points, series.lines) : null;
+  const summary = progress
+    ? range.partial
+      ? soFarSentence(progress, labels.compare)
+      : finishedSentence(progress.now, labels.current, {
+          label: labels.compare,
+          total: progress.thenTotal,
+        })
+    : null;
+
+  // Where it went (M7): the picks when there are 2+, ranked as the lines are; else categories.
+  const ranked =
+    picks.length >= 2
+      ? rankPicks(picks, days.current).map((e) => ({
+          key: e.pick.key,
+          label: e.pick.label,
+          amount: e.total,
+        }))
+      : [...spendByCategory]
+          .sort((a, b) => b.amount - a.amount)
+          .map((c) => ({ key: c.category, label: c.category, amount: c.amount }));
+  const colors = assignColors(ranked.map((s) => s.key));
+  const slices = ranked.map((s) => ({ ...s, color: colors[s.key] }));
+
+  // Figures.
+  const { spending: spent, prevSpending: was } = totals;
+  const txCount = spendByCategory.reduce((sum, c) => sum + c.txCount, 0);
+  const periodDays = dayCount(range);
+  const months = periodDays / MONTH_DAYS;
+  const change = changeText(spent, was);
+
+  const accountName = new Map(refs.accounts.map((a) => [a.id, a.name]));
+  const thisYear = Number(today.slice(0, 4));
+  const filterCount = activeFilterCount(query);
 
   return (
-    <div className={cn('space-y-6', drawer.isOpen && DRAWER_PUSH_CLASS)}>
-      {refsError && (
-        <p className="text-sm text-[var(--red)]" role="alert">
-          {refsError}
-        </p>
-      )}
-
-      {/* Header with Month Selector */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className={`text-2xl font-bold ${ds.text.heading}`}>Monthly Analytics</h1>
-          <div className="flex items-center gap-3 mt-1">
-            {selectedMonth > localDay().slice(0, 7) && (
-              <div className={`text-sm font-medium ${ds.status.warning.text}`}>
-                ⚠️ Viewing future month - data may be incomplete
-              </div>
-            )}
-            {baseCurrency && (
-              <div className={`text-sm ${ds.text.muted}`}>💱 All amounts in {baseCurrency}</div>
-            )}
+    <>
+      <div className={cn('space-y-3', drawer.isOpen && DRAWER_PUSH_CLASS)}>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <div className="mb-1.5 text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+              Spending
+            </div>
+            <h1 className="font-serif text-[28px] text-[var(--text-primary)]">Analytics</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <PeriodStepper
+              label={periodLabel(period)}
+              nextDisabled={isLatest(period, today)}
+              popover={(close) =>
+                period.kind === 'year' ? (
+                  <YearList
+                    value={period.anchor.slice(0, 4)}
+                    years={Array.from({ length: YEARS_LISTED }, (_, k) => String(thisYear - k))}
+                    onPick={(year) => {
+                      close();
+                      setPeriod(`${year}-12`);
+                    }}
+                  />
+                ) : (
+                  <MonthGrid
+                    today={new Date()}
+                    value={period.anchor}
+                    onPick={(month) => {
+                      close();
+                      setPeriod(month);
+                    }}
+                  />
+                )
+              }
+              onLabelClick={period.kind === 'custom' ? togglePanel : undefined}
+              onNext={() => setQuery({ ...query, period: stepPeriod(period, 1, today) })}
+              onPrev={() => setQuery({ ...query, period: stepPeriod(period, -1, today) })}
+            />
+            <button
+              ref={filterButton}
+              aria-expanded={panelOpen}
+              aria-label="Filters"
+              className={cn(
+                'relative grid h-11 w-11 flex-none place-items-center rounded-full border shadow-[0_4px_14px_rgba(0,0,0,0.10)] transition-[background-color,color,transform,box-shadow] duration-200 hover:-translate-y-px hover:shadow-[0_8px_26px_rgba(0,0,0,0.2)] motion-reduce:transition-none motion-reduce:hover:translate-y-0',
+                panelOpen
+                  ? 'border-[var(--accent)] bg-[var(--accent)] text-white'
+                  : 'border-[var(--border-hover)] bg-[var(--bg-card)] text-[var(--text-primary)]'
+              )}
+              title="Filters"
+              type="button"
+              onClick={togglePanel}
+            >
+              <FunnelIcon />
+              {filterCount > 0 && (
+                <span
+                  className={cn(
+                    'absolute -right-1 -top-1 rounded-[9px] border-2 border-[var(--bg-base)] px-1.5 text-[11px] font-semibold leading-4',
+                    panelOpen ? 'bg-white text-[var(--accent)]' : 'bg-[var(--accent)] text-white'
+                  )}
+                >
+                  {filterCount}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
-        <PeriodPicker
-          mode="month"
-          value={selectedMonth}
-          onChange={(month) => void drawer.closeThen(() => setSelectedMonth(month))}
+        <FilterChips
+          accountNames={query.accounts.map((id) => accountName.get(id) ?? id)}
+          categoryNames={picks.map((p) => p.label)}
+          query={query}
+          onChange={setQuery}
         />
+
+        {refsError && (
+          <p className="text-sm text-[var(--red)]" role="alert">
+            {refsError}
+          </p>
+        )}
+
+        <section
+          aria-label="Figures"
+          className="grid grid-cols-2 gap-3 pt-1 min-[720px]:grid-cols-4"
+        >
+          <Figure label="Spent" sub={labels.current} value={fmtMoney(spent)} />
+          {compare ? (
+            <Figure
+              label={COMPARE_SHORT[query.vs]}
+              sub={`${change.amount} · ${change.percent}`}
+              subClass={
+                spent > was
+                  ? 'text-[var(--red)]'
+                  : spent < was
+                    ? 'text-[var(--green)]'
+                    : 'text-[var(--text-muted)]'
+              }
+              value={fmtMoney(was)}
+            />
+          ) : (
+            <Figure label="Compared with" sub="Nothing picked" value="—" />
+          )}
+          {/* P5: per day exactly when the chart is daily, so the two always agree. */}
+          {daily ? (
+            <Figure
+              label="Per day"
+              sub={`over ${periodDays} days`}
+              value={fmtMoney(spent / periodDays)}
+            />
+          ) : (
+            <Figure
+              label="Per month"
+              sub={`over ${months.toFixed(1)} months`}
+              value={fmtMoney(spent / months)}
+            />
+          )}
+          <Figure
+            label="Transactions"
+            sub={txCount ? `avg ${fmtMoney(spent / txCount)}` : ''}
+            value={String(txCount)}
+          />
+        </section>
+
+        <div className="grid grid-cols-1 gap-3 min-[860px]:grid-cols-[1.5fr_1fr]">
+          <OverTimeChart
+            canSplit={canSplit}
+            running={running}
+            series={series}
+            shown={shown}
+            split={splitOn}
+            summary={summary}
+            onRunning={setRunning}
+            onSplit={setSplit}
+          />
+          <WhereItWent showAll={canSplit} slices={slices} />
+        </div>
+
+        <CategoryBreakdown
+          budgets={budgets}
+          categories={categories}
+          columns={{
+            current: labels.current,
+            compare: compare ? columnLabel(compare, period) : null,
+          }}
+          expanded={expandedCategory}
+          list={list}
+          loading={loadingTransactions}
+          rows={breakdownRows}
+          showBudgets={showBudgets}
+          table={{
+            availableTags: refs.availableTags,
+            baseCurrency: refs.baseCurrency,
+            compact: drawer.isOpen,
+            openId: drawer.openId,
+            onOpen: openTransaction,
+          }}
+          onToggle={toggleCategory}
+        />
+
+        <TransactionDrawer ref={drawer.ref} {...refs} {...drawer.drawerProps} />
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className={`text-sm ${ds.text.muted}`}>Total Spending</div>
-            <div className={`text-3xl font-bold tracking-tight font-mono ${ds.text.primary}`}>
-              {formatCurrencyWithSymbol(totalSpending, baseCurrency)}
-            </div>
-            {overallChange !== 0 && (
-              <div
-                className={`text-sm mt-1 font-mono ${overallChange > 0 ? 'text-[var(--red)]' : 'text-[var(--green)]'}`}
-              >
-                {overallChange > 0 ? '↑' : '↓'} {Math.abs(overallChange).toFixed(1)}% vs prev month
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className={`text-sm ${ds.text.muted}`}>Transactions</div>
-            <div className={`text-3xl font-bold tracking-tight font-mono ${ds.text.primary}`}>
-              {totalTransactions}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className={`text-sm ${ds.text.muted}`}>Avg per Transaction</div>
-            <div className={`text-3xl font-bold tracking-tight font-mono ${ds.text.primary}`}>
-              {totalTransactions > 0
-                ? formatCurrencyWithSymbol(totalSpending / totalTransactions, baseCurrency)
-                : `${getCurrencySymbol(baseCurrency)}0`}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <FilterPanel
+        accounts={refs.accounts}
+        categories={categories.filter((c) => c.type === 'expense')}
+        groupTotals={groupTotals(days.current, categories)}
+        open={panelOpen}
+        query={query}
+        tags={refs.availableTags.map((t) => t.name)}
+        today={today}
+        toggleRef={filterButton}
+        onChange={setQuery}
+        onClose={() => setPanelOpen(false)}
+      />
+    </>
+  );
+}
 
-      {/* Pie Chart + Top Categories Side by Side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader>
-            <div className={`text-sm font-semibold ${ds.text.secondary}`}>
-              Spending Distribution
-            </div>
-          </CardHeader>
-          <CardContent className="h-80">
-            {categoryAnalytics.length > 0 && (
-              <ChartRenderer
-                spec={{
-                  type: 'pie',
-                  title: '',
-                  series: [
-                    {
-                      label: 'Spend',
-                      data: (() => {
-                        // Show top 10 categories, group the rest as "Other"
-                        const top10 = categoryAnalytics.slice(0, 10);
-                        const rest = categoryAnalytics.slice(10);
-                        const otherTotal = rest.reduce((sum, c) => sum + c.amount, 0);
-
-                        const chartData = top10.map((c) => ({ x: c.category, y: c.amount }));
-                        if (otherTotal > 0) {
-                          chartData.push({ x: 'Other', y: otherTotal });
-                        }
-                        return chartData;
-                      })(),
-                    },
-                  ],
-                }}
-              />
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className={`text-sm font-semibold ${ds.text.secondary}`}>Top Categories</div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {categoryAnalytics.slice(0, 6).map((cat, idx) => {
-                const percentage = totalSpending > 0 ? (cat.amount / totalSpending) * 100 : 0;
-                return (
-                  <div key={cat.category} className="flex items-center gap-3">
-                    <div
-                      className={`w-6 h-6 rounded-full ${ds.status.info.bg} flex items-center justify-center text-xs font-semibold ${ds.status.info.text}`}
-                    >
-                      {idx + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className={`font-medium ${ds.text.primary} truncate`}>
-                          {cat.category}
-                        </span>
-                        <span className={`font-semibold ${ds.text.primary} ml-2`}>
-                          {formatCurrencyWithSymbol(cat.amount, baseCurrency)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <div
-                          className={`flex-1 h-1.5 ${ds.bg.tertiary} rounded-full overflow-hidden`}
-                        >
-                          <div
-                            className="h-full rounded-full"
-                            style={{
-                              width: `${percentage}%`,
-                              backgroundColor: PIE_COLORS[idx % PIE_COLORS.length],
-                            }}
-                          />
-                        </div>
-                        <span className={`text-xs ${ds.text.muted} w-12 text-right`}>
-                          {percentage.toFixed(0)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Category Breakdown with Transaction Drill-down */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className={`text-sm font-semibold ${ds.text.secondary}`}>
-              Category Breakdown by Group
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {(() => {
-              // Group categories by their parent
-              const grouped: Record<string, typeof categoryAnalytics> = {};
-
-              categoryAnalytics.forEach((cat) => {
-                const category = categories.find((c) => c.name === cat.category);
-                const parentGroup = category?.parentId
-                  ? categories.find((c) => c.id === category.parentId)
-                  : null;
-
-                // Use parent group name if it exists, otherwise:
-                // - truly uncategorized transactions (no matching category) go to 'Uncategorized'
-                // - categories that exist but have no parent use their own name as the group
-                const groupName = parentGroup?.name || (category ? category.name : 'Uncategorized');
-                grouped[groupName] = grouped[groupName] || [];
-                grouped[groupName].push(cat);
-              });
-
-              // Sort groups by total absolute value
-              const sortedGroups = Object.entries(grouped).sort(([, aCats], [, bCats]) => {
-                const aTotal = Math.abs(aCats.reduce((sum, c) => sum + c.amount, 0));
-                const bTotal = Math.abs(bCats.reduce((sum, c) => sum + c.amount, 0));
-                return bTotal - aTotal;
-              });
-
-              return sortedGroups.map(([groupName, cats]) => {
-                const groupTotal = cats.reduce((sum, c) => sum + c.amount, 0);
-
-                return (
-                  <div
-                    key={groupName}
-                    className={`border ${ds.border.default} rounded-lg overflow-hidden`}
-                  >
-                    {/* Group Header */}
-                    <div className={`p-3 ${ds.bg.tertiary}`}>
-                      <div className="flex items-center justify-between">
-                        <span className={`font-bold ${ds.text.primary}`}>{groupName}</span>
-                        <span className={`font-bold text-lg ${ds.text.primary}`}>
-                          {formatCurrencyWithSymbol(Math.abs(groupTotal), baseCurrency)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Categories in Group */}
-                    <div className="divide-y divide-[var(--border)]">
-                      {cats.map((cat) => {
-                        const _percentage =
-                          totalSpending > 0 ? (cat.amount / totalSpending) * 100 : 0;
-                        const isExpanded = expandedCategory === cat.category;
-                        const budget = getBudget(cat.categoryId);
-                        const budgetPercentage = budget
-                          ? (cat.amount / budget.limitAmount) * 100
-                          : null;
-                        const isOverBudget = budgetPercentage !== null && budgetPercentage > 100;
-
-                        return (
-                          <div key={cat.category}>
-                            {/* Category Header */}
-                            <div
-                              className={`p-4 cursor-pointer transition-all ${isExpanded ? ds.bg.secondary : ds.bg.hover}`}
-                              onClick={() => toggleCategory(cat.category)}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <span
-                                    className={`text-sm transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                                  >
-                                    ▶
-                                  </span>
-                                  <span className={`font-semibold ${ds.text.primary}`}>
-                                    {cat.category}
-                                  </span>
-                                  <span className={`text-sm ${ds.text.muted}`}>
-                                    {cat.txCount} transactions
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  {cat.monthOverMonth !== 0 && (
-                                    <span
-                                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                                        cat.monthOverMonth > 0
-                                          ? `${ds.status.error.bg} ${ds.status.error.text}`
-                                          : `${ds.status.success.bg} ${ds.status.success.text}`
-                                      }`}
-                                    >
-                                      {cat.monthOverMonth > 0 ? '↑' : '↓'}{' '}
-                                      {Math.abs(cat.monthOverMonth).toFixed(0)}%
-                                    </span>
-                                  )}
-                                  <span className={`font-bold ${ds.text.primary}`}>
-                                    {formatCurrencyWithSymbol(cat.amount, baseCurrency)}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Budget progress */}
-                              {budget && (
-                                <div className="mt-3 ml-7">
-                                  <div className="flex items-center justify-between text-xs mb-1">
-                                    <span
-                                      className={
-                                        isOverBudget
-                                          ? 'text-[var(--red)] font-medium'
-                                          : ds.text.secondary
-                                      }
-                                    >
-                                      {budgetPercentage!.toFixed(0)}% of{' '}
-                                      {formatCurrencyWithSymbol(budget.limitAmount, baseCurrency)}{' '}
-                                      budget
-                                    </span>
-                                    <span
-                                      className={
-                                        isOverBudget
-                                          ? 'text-[var(--red)] font-medium'
-                                          : ds.text.muted
-                                      }
-                                    >
-                                      {isOverBudget
-                                        ? `${formatCurrencyWithSymbol(cat.amount - budget.limitAmount, baseCurrency)} over`
-                                        : `${formatCurrencyWithSymbol(budget.limitAmount - cat.amount, baseCurrency)} left`}
-                                    </span>
-                                  </div>
-                                  <div
-                                    className={`h-2 ${ds.bg.tertiary} rounded-full overflow-hidden`}
-                                  >
-                                    <div
-                                      className={`h-full rounded-full transition-all ${
-                                        isOverBudget
-                                          ? 'bg-[var(--red)]'
-                                          : budgetPercentage! > 80
-                                            ? 'bg-[var(--accent)]'
-                                            : 'bg-[var(--green)]'
-                                      }`}
-                                      style={{ width: `${Math.min(budgetPercentage!, 100)}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Expanded Transaction List */}
-                            {isExpanded && (
-                              <div className={`border-t ${ds.border.default} ${ds.bg.primary}`}>
-                                {/* Stats Row */}
-                                <div
-                                  className={`grid grid-cols-4 gap-4 p-4 ${ds.bg.secondary} border-b ${ds.border.default}`}
-                                >
-                                  <div>
-                                    <div className={`text-xs ${ds.text.muted}`}>This Month</div>
-                                    <div className="font-semibold">
-                                      {formatCurrencyWithSymbol(cat.amount, baseCurrency)}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <div className={`text-xs ${ds.text.muted}`}>
-                                      {budget ? 'Budget' : 'Last Month'}
-                                    </div>
-                                    <div className="font-semibold">
-                                      {budget
-                                        ? formatCurrencyWithSymbol(budget.limitAmount, baseCurrency)
-                                        : formatCurrencyWithSymbol(cat.prevAmount, baseCurrency)}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <div className={`text-xs ${ds.text.muted}`}>
-                                      {budget ? 'Remaining' : 'Change'}
-                                    </div>
-                                    <div
-                                      className={`font-semibold ${
-                                        budget
-                                          ? budget.limitAmount - cat.amount >= 0
-                                            ? 'text-[var(--green)]'
-                                            : 'text-[var(--red)]'
-                                          : cat.monthOverMonth > 0
-                                            ? 'text-[var(--red)]'
-                                            : 'text-[var(--green)]'
-                                      }`}
-                                    >
-                                      {budget
-                                        ? formatCurrencyWithSymbol(
-                                            budget.limitAmount - cat.amount,
-                                            baseCurrency
-                                          )
-                                        : `${cat.monthOverMonth > 0 ? '+' : ''}${formatCurrencyWithSymbol(cat.amount - cat.prevAmount, baseCurrency)}`}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <div className={`text-xs ${ds.text.muted}`}>
-                                      Avg per Transaction
-                                    </div>
-                                    <div className="font-semibold">
-                                      {cat.txCount > 0
-                                        ? formatCurrencyWithSymbol(
-                                            cat.amount / cat.txCount,
-                                            baseCurrency
-                                          )
-                                        : '—'}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Transaction List */}
-                                {loadingTransactions ? (
-                                  <div className={`p-4 text-center ${ds.text.muted}`}>
-                                    Loading transactions...
-                                  </div>
-                                ) : list.length === 0 ? (
-                                  <div className={`p-4 text-center ${ds.text.muted}`}>
-                                    No transactions found
-                                  </div>
-                                ) : (
-                                  <div className="max-h-96 overflow-y-auto">
-                                    <TransactionTable
-                                      availableTags={refs.availableTags}
-                                      baseCurrency={baseCurrency}
-                                      compact={drawer.isOpen}
-                                      openId={drawer.openId}
-                                      rows={list}
-                                      onOpen={drawer.openTransaction}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              });
-            })()}
-          </div>
-        </CardContent>
-      </Card>
-
-      <TransactionDrawer ref={drawer.ref} {...refs} {...drawer.drawerProps} />
-    </div>
+export default function AnalyticsPage() {
+  return (
+    <Suspense fallback={<div className="p-4">Loading analytics...</div>}>
+      <AnalyticsContent />
+    </Suspense>
   );
 }

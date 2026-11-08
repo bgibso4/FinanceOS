@@ -2,7 +2,8 @@ import { PrismaClient } from '@prisma/client';
 import { isAfter, isBefore } from 'date-fns';
 import { utcMonthRange } from './dates';
 import { FilterParams } from './types';
-import { loadCurrencySettings, toBase } from './currency';
+import { filterWhere, matchesTags } from './transaction-filters';
+import { loadCurrencySettings, toBase, type CurrencySettings } from './currency';
 
 /**
  * Decide whether a transaction belongs to the income or spending totals.
@@ -22,279 +23,279 @@ function bucketForTransaction(
   return amount >= 0 ? 'income' : 'spending';
 }
 
-export function buildWhere(filters: FilterParams, startDate: Date, endDate: Date) {
-  const where: any = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function buildWhere(filters: FilterParams, startDate: Date, endDate: Date): any {
+  return {
     date: { gte: startDate, lte: endDate },
     isSplitParent: false,
+    ...filterWhere(filters),
   };
-  if (filters.accounts) where.accountId = { in: filters.accounts };
-  if (filters.categories) where.categoryId = { in: filters.categories };
-  if (filters.merchant) where.merchant = { contains: filters.merchant, mode: 'insensitive' };
-  if (filters.tags) where.tags = { array_contains: filters.tags };
-  return where;
 }
 
-export async function dashboardAnalytics(
+/**
+ * A window's countable rows: cash-flow accounts, no transfers, split parents or offsets,
+ * matching the filters. Offsets are not counted themselves; `returnAmounts` holds, per
+ * purchase, the total of its linked returns, wherever in time those returns fall.
+ */
+async function loadPeriodTransactions(
   prisma: PrismaClient,
   filters: FilterParams,
   startDate: Date,
-  endDate: Date
+  endDate: Date,
+  cashFlowIds: string[]
 ) {
-  // Get currency settings
-  const currencySettings = await loadCurrencySettings(prisma);
-
-  // Get cash_flow accounts for budgeting (excludes balance_only accounts like investments)
-  const cashFlowAccounts = await prisma.account.findMany({
-    where: { trackingMode: 'cash_flow' },
-    select: { id: true },
-  });
-  const cashFlowAccountIds = cashFlowAccounts.map((a) => a.id);
-
-  // Build where clause, filtering to cash_flow accounts only
   const baseWhere = buildWhere(filters, startDate, endDate);
-  const whereWithCashFlow = {
-    ...baseWhere,
-    isTransfer: false,
-    // Only include transactions from cash_flow accounts
-    // If user already filtered accounts, intersect with cash_flow accounts
-    accountId: baseWhere.accountId
-      ? {
-          in: (baseWhere.accountId.in as string[]).filter((id: string) =>
-            cashFlowAccountIds.includes(id)
-          ),
-        }
-      : { in: cashFlowAccountIds },
-  };
-
-  let allTransactions = await prisma.transaction.findMany({
-    where: whereWithCashFlow,
+  const rows = await prisma.transaction.findMany({
+    where: {
+      ...baseWhere,
+      isTransfer: false,
+      // Intersect any account filter with the cash-flow accounts
+      accountId: {
+        in: baseWhere.accountId
+          ? (baseWhere.accountId.in as string[]).filter((id) => cashFlowIds.includes(id))
+          : cashFlowIds,
+      },
+    },
     select: {
       id: true,
       date: true,
       amount: true,
       merchant: true,
       isOffset: true,
+      tags: true,
+      categoryId: true,
       category: { select: { name: true, type: true } },
       account: { select: { currency: true } },
     },
   });
 
-  // Filter by date string to handle timezone issues when using custom date ranges
-  if (filters.startDate || filters.endDate) {
-    allTransactions = allTransactions.filter((tx) => {
-      const txDateStr = tx.date.toISOString().split('T')[0]; // Get YYYY-MM-DD
-      if (filters.startDate && txDateStr < filters.startDate) return false;
-      if (filters.endDate && txDateStr > filters.endDate) return false;
-      return true;
-    });
-  }
+  const transactions = rows.filter(
+    (tx) =>
+      !tx.isOffset &&
+      // Tags are a JSON string column, so they are matched here rather than in SQL
+      matchesTags(tx.tags, filters.tags) &&
+      withinDays(dayOf(tx.date), filters.startDate, filters.endDate)
+  );
 
-  // Exclude offset transactions from calculations (they'll be applied to original purchases)
-  const transactions = allTransactions.filter((tx) => !tx.isOffset);
-
-  // Find returns that are linked to purchases in this period (even if return is outside period)
-  const purchaseIds = transactions.map((tx) => tx.id);
   const linkedReturns = await prisma.transaction.findMany({
-    where: {
-      isOffset: true,
-      linkedTransactionId: { in: purchaseIds },
-    },
+    where: { isOffset: true, linkedTransactionId: { in: transactions.map((tx) => tx.id) } },
     select: { linkedTransactionId: true, amount: true },
   });
-
-  // Build a map of purchase -> total return amount
   const returnAmounts = new Map<string, number>();
-  linkedReturns.forEach((ret) => {
-    if (ret.linkedTransactionId) {
-      const current = returnAmounts.get(ret.linkedTransactionId) || 0;
-      returnAmounts.set(ret.linkedTransactionId, current + Math.abs(ret.amount));
-    }
-  });
+  for (const ret of linkedReturns) {
+    if (!ret.linkedTransactionId) continue;
+    const current = returnAmounts.get(ret.linkedTransactionId) || 0;
+    returnAmounts.set(ret.linkedTransactionId, current + Math.abs(ret.amount));
+  }
 
-  // Calculate income and spending with returns applied (converted to base currency)
+  return { transactions, returnAmounts };
+}
+
+/** A stored transaction date as its calendar day, `YYYY-MM-DD`. */
+const dayOf = (date: Date): string => date.toISOString().slice(0, 10);
+
+const withinDays = (day: string, from?: string, to?: string) =>
+  (!from || day >= from) && (!to || day <= to);
+
+/** The filters for a window other than the one their day strings name. */
+const withoutDays = (f: FilterParams): FilterParams => ({
+  ...f,
+  startDate: undefined,
+  endDate: undefined,
+});
+
+/**
+ * What a row adds to a category's net spend, in base currency: a purchase less its
+ * linked returns, or a credit (positive amount) taken off.
+ */
+function netSpend(amount: number, returnAmount: number, currency: string, s: CurrencySettings) {
+  return amount < 0
+    ? Math.abs(toBase(amount, currency, s)) - toBase(returnAmount, currency, s)
+    : -toBase(amount, currency, s);
+}
+
+/** What a row adds to spending, in base currency; null when it belongs to income. */
+function spendOf(
+  amount: number,
+  categoryType: string | null | undefined,
+  returnAmount: number,
+  currency: string,
+  s: CurrencySettings
+): number | null {
+  if (bucketForTransaction(amount, categoryType) === 'income') return null;
+  return netSpend(amount, returnAmount, currency, s);
+}
+
+type PeriodTransaction = Awaited<ReturnType<typeof loadPeriodTransactions>>['transactions'][number];
+
+const currencyOf = (tx: PeriodTransaction) => tx.account?.currency || 'USD';
+
+/** Income and spending totals for a window, in base currency. */
+function totalsOf(
+  transactions: PeriodTransaction[],
+  returnAmounts: Map<string, number>,
+  s: CurrencySettings
+) {
   let income = 0;
   let spending = 0;
-
-  transactions.forEach((tx) => {
-    const accountCurrency = tx.account?.currency || 'USD';
+  for (const tx of transactions) {
     const amount = Number(tx.amount);
-    const returnAmount = returnAmounts.get(tx.id) || 0;
-
-    // Convert to base currency
-    const convertedAmount = toBase(amount, accountCurrency, currencySettings);
-    const convertedReturnAmount = toBase(returnAmount, accountCurrency, currencySettings);
-
-    const bucket = bucketForTransaction(amount, tx.category?.type);
-    if (bucket === 'income') {
-      // Signed contribution so a refunded paycheck (negative amount in income
-      // category) reduces income instead of being counted as spending.
-      income += convertedAmount;
-    } else if (amount < 0) {
-      // Negative in expense/uncategorized: counts as spending, less linked returns
-      spending += Math.abs(convertedAmount) - convertedReturnAmount;
-    } else {
-      // Positive in expense category: a credit that reduces spending
-      spending -= convertedAmount;
-    }
-  });
-
-  const savings = income - spending;
-
-  // Get previous period transactions for month-over-month comparison
-  const periodLength = endDate.getTime() - startDate.getTime();
-  const prevStart = new Date(startDate.getTime() - periodLength);
-  const prevEnd = new Date(startDate.getTime() - 1);
-
-  // Build where clause for previous period, also filtering to cash_flow accounts
-  const prevBaseWhere = buildWhere(filters, prevStart, prevEnd);
-  const prevWhereWithCashFlow = {
-    ...prevBaseWhere,
-    isTransfer: false,
-    accountId: prevBaseWhere.accountId
-      ? {
-          in: (prevBaseWhere.accountId.in as string[]).filter((id: string) =>
-            cashFlowAccountIds.includes(id)
-          ),
-        }
-      : { in: cashFlowAccountIds },
-  };
-
-  let allPrevTransactions = await prisma.transaction.findMany({
-    where: prevWhereWithCashFlow,
-    select: {
-      id: true,
-      date: true,
-      amount: true,
-      merchant: true,
-      isOffset: true,
-      category: { select: { name: true, type: true } },
-      account: { select: { currency: true } },
-    },
-  });
-
-  // Filter previous period by date string too
-  if (filters.startDate || filters.endDate) {
-    const prevStartStr = prevStart.toISOString().split('T')[0];
-    const prevEndStr = prevEnd.toISOString().split('T')[0];
-    allPrevTransactions = allPrevTransactions.filter((tx) => {
-      const txDateStr = tx.date.toISOString().split('T')[0];
-      if (txDateStr < prevStartStr) return false;
-      if (txDateStr > prevEndStr) return false;
-      return true;
-    });
+    const spend = spendOf(
+      amount,
+      tx.category?.type,
+      returnAmounts.get(tx.id) || 0,
+      currencyOf(tx),
+      s
+    );
+    // Income is signed, so a refunded paycheck reduces income rather than adding spend
+    if (spend === null) income += toBase(amount, currencyOf(tx), s);
+    else spending += spend;
   }
+  return { income, spending };
+}
 
-  const prevTransactions = allPrevTransactions.filter((tx) => !tx.isOffset);
-
-  // Get returns for previous period
-  const prevPurchaseIds = prevTransactions.map((tx) => tx.id);
-  const prevLinkedReturns = await prisma.transaction.findMany({
-    where: {
-      isOffset: true,
-      linkedTransactionId: { in: prevPurchaseIds },
-    },
-    select: { linkedTransactionId: true, amount: true },
-  });
-
-  const prevReturnAmounts = new Map<string, number>();
-  prevLinkedReturns.forEach((ret) => {
-    if (ret.linkedTransactionId) {
-      const current = prevReturnAmounts.get(ret.linkedTransactionId) || 0;
-      prevReturnAmounts.set(ret.linkedTransactionId, current + Math.abs(ret.amount));
-    }
-  });
-
-  let prevIncome = 0;
-  let prevSpending = 0;
-
-  prevTransactions.forEach((tx) => {
-    const accountCurrency = tx.account?.currency || 'USD';
-    const amount = Number(tx.amount);
-    const returnAmount = prevReturnAmounts.get(tx.id) || 0;
-
-    // Convert to base currency
-    const convertedAmount = toBase(amount, accountCurrency, currencySettings);
-    const convertedReturnAmount = toBase(returnAmount, accountCurrency, currencySettings);
-
-    const bucket = bucketForTransaction(amount, tx.category?.type);
-    if (bucket === 'income') {
-      prevIncome += convertedAmount;
-    } else if (amount < 0) {
-      prevSpending += Math.abs(convertedAmount) - convertedReturnAmount;
-    } else {
-      prevSpending -= convertedAmount;
-    }
-  });
-
-  const categoryTotals: Record<
+/** Net spend per category name; uncategorized credits count as income, so are left out. */
+function categoryTotalsOf(
+  transactions: PeriodTransaction[],
+  returnAmounts: Map<string, number>,
+  s: CurrencySettings
+) {
+  const totals: Record<
     string,
     { amount: number; type: string | null; txCount: number; returnAmount: number }
   > = {};
   for (const tx of transactions) {
-    const txAmount = Number(tx.amount);
-    const categoryType = tx.category?.type ?? null;
-
-    // Uncategorized positives are routed to income (per bucketForTransaction),
-    // so they should not reduce the Uncategorized spending line.
-    if (categoryType === null && txAmount >= 0) continue;
-
-    const key = tx.category?.name ?? 'Uncategorized';
-    const accountCurrency = tx.account?.currency || 'USD';
-    const returnAmount = returnAmounts.get(tx.id) || 0;
-
-    categoryTotals[key] = categoryTotals[key] ?? {
-      amount: 0,
-      type: categoryType,
-      txCount: 0,
-      returnAmount: 0,
-    };
-
-    // Add all transactions (positive and negative) to get net amount per category
-    const convertedAmount = toBase(txAmount, accountCurrency, currencySettings);
-    const convertedReturnAmount = toBase(returnAmount, accountCurrency, currencySettings);
-
-    if (txAmount < 0) {
-      // For expenses, subtract any returns
-      categoryTotals[key].amount += Math.abs(convertedAmount) - convertedReturnAmount;
-      categoryTotals[key].returnAmount += convertedReturnAmount;
-    } else {
-      // Positive in an expense or income category — net against the category total
-      // (e.g., a roommate Zelle on the Rent line reduces rent spending).
-      categoryTotals[key].amount -= convertedAmount;
-    }
-
-    categoryTotals[key].txCount += 1;
-  }
-
-  // Previous period category totals for comparison (with returns applied and converted)
-  const prevCategoryTotals: Record<string, number> = {};
-  for (const tx of prevTransactions) {
     const amount = Number(tx.amount);
-    const categoryType = tx.category?.type ?? null;
-
-    // Mirror current-period logic: skip uncategorized positives so they don't
-    // reduce the Uncategorized spending baseline used for month-over-month.
-    if (categoryType === null && amount >= 0) continue;
-
+    const type = tx.category?.type ?? null;
+    if (type === null && amount >= 0) continue;
     const key = tx.category?.name ?? 'Uncategorized';
-    const accountCurrency = tx.account?.currency || 'USD';
-    const returnAmount = prevReturnAmounts.get(tx.id) || 0;
+    const returnAmount = returnAmounts.get(tx.id) || 0;
+    const entry = (totals[key] ??= { amount: 0, type, txCount: 0, returnAmount: 0 });
+    entry.amount += netSpend(amount, returnAmount, currencyOf(tx), s);
+    if (amount < 0) entry.returnAmount += toBase(returnAmount, currencyOf(tx), s);
+    entry.txCount += 1;
+  }
+  return totals;
+}
 
-    prevCategoryTotals[key] = prevCategoryTotals[key] ?? 0;
+async function cashFlowAccountIds(prisma: PrismaClient) {
+  // balance_only accounts (investments and the like) are not cash flow
+  const accounts = await prisma.account.findMany({
+    where: { trackingMode: 'cash_flow' },
+    select: { id: true },
+  });
+  return accounts.map((a) => a.id);
+}
 
-    if (amount < 0) {
-      // For expenses, subtract any returns
-      const netAmount = Math.abs(amount) - returnAmount;
-      const convertedNetAmount = toBase(netAmount, accountCurrency, currencySettings);
-      prevCategoryTotals[key] += convertedNetAmount;
-    } else {
-      // For income/credits, subtract from the category total
-      const convertedAmount = toBase(amount, accountCurrency, currencySettings);
-      prevCategoryTotals[key] -= convertedAmount;
-    }
+export type DateRange = { startDate: Date; endDate: Date };
+
+/** One day's net spend in one category (null = uncategorized), in base currency. */
+export type DaySpend = { date: string; categoryId: string | null; amount: number };
+
+/** Net spend per day and category over a window; income is left out. */
+export async function spendingByDay(
+  prisma: PrismaClient,
+  filters: FilterParams,
+  startDate: Date,
+  endDate: Date
+): Promise<DaySpend[]> {
+  const [s, cashFlowIds] = await Promise.all([
+    loadCurrencySettings(prisma),
+    cashFlowAccountIds(prisma),
+  ]);
+  const { transactions, returnAmounts } = await loadPeriodTransactions(
+    prisma,
+    withoutDays(filters),
+    startDate,
+    endDate,
+    cashFlowIds
+  );
+
+  const days = new Map<string, DaySpend>();
+  for (const tx of transactions) {
+    const spend = spendOf(
+      Number(tx.amount),
+      tx.category?.type,
+      returnAmounts.get(tx.id) || 0,
+      currencyOf(tx),
+      s
+    );
+    if (spend === null) continue;
+    const date = dayOf(tx.date);
+    const key = `${date}|${tx.categoryId ?? ''}`;
+    const row = days.get(key) ?? { date, categoryId: tx.categoryId, amount: 0 };
+    row.amount += spend;
+    days.set(key, row);
+  }
+  return [...days.values()].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+/**
+ * The analytics for a period. The comparison is `compare` when given, otherwise the
+ * window of the same length just before the period.
+ */
+export async function dashboardAnalytics(
+  prisma: PrismaClient,
+  filters: FilterParams,
+  startDate: Date,
+  endDate: Date,
+  compare?: DateRange
+) {
+  const currencySettings = await loadCurrencySettings(prisma);
+  const cashFlowIds = await cashFlowAccountIds(prisma);
+
+  const { transactions, returnAmounts } = await loadPeriodTransactions(
+    prisma,
+    filters,
+    startDate,
+    endDate,
+    cashFlowIds
+  );
+  const { income, spending } = totalsOf(transactions, returnAmounts, currencySettings);
+  const savings = income - spending;
+
+  // The filters' day strings name the current period, so they are dropped for the comparison
+  const periodLength = endDate.getTime() - startDate.getTime();
+  const prev = compare ?? {
+    startDate: new Date(startDate.getTime() - periodLength),
+    endDate: new Date(startDate.getTime() - 1),
+  };
+  const { transactions: prevTransactions, returnAmounts: prevReturnAmounts } =
+    await loadPeriodTransactions(
+      prisma,
+      withoutDays(filters),
+      prev.startDate,
+      prev.endDate,
+      cashFlowIds
+    );
+  const { income: prevIncome, spending: prevSpending } = totalsOf(
+    prevTransactions,
+    prevReturnAmounts,
+    currencySettings
+  );
+
+  const categoryTotals = categoryTotalsOf(transactions, returnAmounts, currencySettings);
+  const prevTotals = categoryTotalsOf(prevTransactions, prevReturnAmounts, currencySettings);
+  const prevCategoryTotals: Record<string, number> = {};
+  for (const [name, meta] of Object.entries(prevTotals)) {
+    prevCategoryTotals[name] = meta.amount;
   }
 
-  const spendByCategory = Object.entries(categoryTotals)
+  // With an explicit comparison (Analytics), categories spent in only that period are listed
+  // too, at zero now. Without one, home, Reports and trailing-12 keep today's list.
+  const listedTotals = compare
+    ? {
+        ...Object.fromEntries(
+          Object.entries(prevTotals).map(([name, meta]) => [
+            name,
+            { ...meta, amount: 0, txCount: 0, returnAmount: 0 },
+          ])
+        ),
+        ...categoryTotals,
+      }
+    : categoryTotals;
+
+  const spendByCategory = Object.entries(listedTotals)
     .filter(([, meta]) => (meta.type ?? 'expense') !== 'income')
     .map(([category, meta]) => {
       const prevAmount = prevCategoryTotals[category] ?? 0;
@@ -361,27 +362,18 @@ export async function dashboardAnalytics(
 
   const monthBuckets: Record<string, { income: number; spending: number }> = {};
   for (const tx of transactions) {
-    // Use UTC date string to avoid timezone conversion
-    const month = tx.date.toISOString().split('T')[0].substring(0, 7); // Get YYYY-MM
-    monthBuckets[month] = monthBuckets[month] ?? { income: 0, spending: 0 };
-
-    const accountCurrency = tx.account?.currency || 'USD';
+    const month = dayOf(tx.date).slice(0, 7);
+    const bucket = (monthBuckets[month] ??= { income: 0, spending: 0 });
     const amount = Number(tx.amount);
-    const returnAmount = returnAmounts.get(tx.id) || 0;
-    const convertedAmount = toBase(amount, accountCurrency, currencySettings);
-    const bucket = bucketForTransaction(amount, tx.category?.type);
-
-    if (bucket === 'income') {
-      monthBuckets[month].income += convertedAmount;
-    } else if (amount < 0) {
-      // Apply returns to reduce spending (converted)
-      const netSpending = Math.abs(amount) - returnAmount;
-      const convertedNetSpending = toBase(netSpending, accountCurrency, currencySettings);
-      monthBuckets[month].spending += convertedNetSpending;
-    } else {
-      // Positive in an expense category — reduces that month's spending
-      monthBuckets[month].spending -= convertedAmount;
-    }
+    const spend = spendOf(
+      amount,
+      tx.category?.type,
+      returnAmounts.get(tx.id) || 0,
+      currencyOf(tx),
+      currencySettings
+    );
+    if (spend === null) bucket.income += toBase(amount, currencyOf(tx), currencySettings);
+    else bucket.spending += spend;
   }
   const incomeVsSpending = Object.entries(monthBuckets)
     .filter(([, data]) => data.income > 0 || data.spending > 0) // Only show months with activity
@@ -467,19 +459,14 @@ export async function monthlySnapshot(prisma: PrismaClient, month: string) {
   const [year, m] = month.split('-').map((n) => parseInt(n, 10));
   const { start, end } = utcMonthRange(year, m - 1);
 
-  // Get cash_flow accounts for budgeting (excludes balance_only accounts like investments)
-  const cashFlowAccounts = await prisma.account.findMany({
-    where: { trackingMode: 'cash_flow' },
-    select: { id: true },
-  });
-  const cashFlowAccountIds = cashFlowAccounts.map((a) => a.id);
+  const cashFlowIds = await cashFlowAccountIds(prisma);
 
   const transactions = await prisma.transaction.findMany({
     where: {
       date: { gte: start, lte: end },
       isTransfer: false,
       isSplitParent: false,
-      accountId: { in: cashFlowAccountIds },
+      accountId: { in: cashFlowIds },
     },
     select: {
       amount: true,

@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analytics Periods Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f2f2f7; --surface: #ffffff; --fill: #e9e9ee; --ink: #1c1c1e; --ink-2: #6e6e73; --ink-3: #8a8a8e; --line: #d8d8dc;
+  --tint: #1c1c1e; --on-tint: #ffffff; --soon: #ad500e; --done: #2f7d4f; --info: #3f6fa3; --warn: #a3392f;
+  --serif: "Source Serif 4", "New York", ui-serif, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+    --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+  --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+h1, h2, h3 { text-wrap: balance; }
+.layout { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+.brand { font: 700 15px/1.2 var(--serif); }
+.brand span { display: block; font: 400 13px/1.4 var(--sans); color: var(--ink-2); margin-top: 2px; }
+.overall { background: var(--surface); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.overall b { font: 700 17px/1.2 var(--serif); color: var(--ink); }
+.toc { display: flex; flex-direction: column; gap: 1px; }
+.toc-label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin: 6px 0 6px 10px; }
+.toc a { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; text-decoration: none; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.toc a:hover { background: var(--surface); color: var(--ink); }
+.toc a.active { background: var(--surface); color: var(--ink); font-weight: 600; }
+.toc-n { width: 20px; text-align: right; color: var(--ink-3); font-size: 13px; flex: none; font-variant-numeric: tabular-nums; }
+.theme { align-self: flex-start; background: none; border: 0; color: var(--ink-3); font: 13px var(--sans); cursor: pointer; padding: 4px 10px; }
+.theme:hover { color: var(--ink); }
+main { padding: 48px 0 120px; display: flex; flex-direction: column; gap: 48px; min-width: 0; }
+.eyebrow { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.eyebrow .pill { background: var(--surface); border-radius: 99px; padding: 3px 10px; font-weight: 600; color: var(--ink); }
+h1 { font: 700 44px/1.08 var(--serif); letter-spacing: -0.6px; margin: 12px 0 14px; }
+.goal { font-size: 19px; line-height: 1.5; max-width: 66ch; margin: 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 24px; }
+.meta div { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; line-height: 1.5; }
+.meta b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 4px; }
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 14px; color: var(--ink-2); }
+.stats b { font: 700 20px var(--serif); color: var(--ink); margin-right: 4px; font-variant-numeric: tabular-nums; }
+section > h2 { font: 700 26px/1.2 var(--serif); margin: 0 0 6px; letter-spacing: -0.2px; }
+section > h3.sub { font: 700 19px/1.3 var(--serif); margin: 22px 0 8px; }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 66ch; }
+.decisions { background: var(--surface); border-radius: var(--r); padding: 6px 0; border-left: 4px solid var(--soon); }
+.decisions.agreed { border-left-color: var(--done); }
+.decisions ul { list-style: none; margin: 0; padding: 0; }
+.decision { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 18px; }
+.decision + .decision { border-top: 1px solid var(--line); }
+.dec-name { font-weight: 600; }
+.dec-id { font: 700 13px var(--serif); color: var(--ink-3); margin-right: 6px; }
+.dec-text { color: var(--ink-2); font-size: 15px; max-width: 70ch; }
+.dec-text strong { color: var(--ink); }
+.trefs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 180px; }
+.tref { flex: none; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--fill); padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.tref:hover { background: var(--tint); color: var(--on-tint); }
+.card { background: var(--surface); border-radius: var(--r); padding: 6px 20px; }
+.card ul, .card ol { margin: 0; padding: 0; list-style: none; }
+.card > ul > li, .card > ol > li { padding: 11px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.card > ul > li:first-child, .card > ol > li:first-child { border-top: 0; }
+.card li ul { list-style: disc; padding-left: 20px; margin: 6px 0 0; }
+.card li ul li { padding: 2px 0; border: 0; color: var(--ink-2); }
+.card li ul li strong { color: var(--ink); }
+.numbered { counter-reset: f; }
+.numbered > li { counter-increment: f; display: grid; grid-template-columns: 28px 1fr; gap: 6px; }
+.numbered > li::before { content: counter(f); font: 700 17px/1.4 var(--serif); color: var(--soon); }
+table.md { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border-radius: var(--r); overflow: hidden; }
+table.md th, table.md td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--line); }
+table.md th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); border-top: 0; }
+table.md td:first-child { font-weight: 600; white-space: nowrap; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; }
+.chip.mine { color: var(--soon); background: color-mix(in srgb, var(--soon) 13%, transparent); }
+.chip.agreed { color: var(--done); background: color-mix(in srgb, var(--done) 13%, transparent); }
+.chip.route { color: var(--info); background: color-mix(in srgb, var(--info) 13%, transparent); font-family: var(--mono); font-weight: 500; }
+.callout { background: var(--surface); border-radius: var(--r); padding: 14px 18px; border-left: 4px solid var(--warn); font-size: 15px; margin-top: 12px; }
+.callout b:first-child { display: block; margin-bottom: 4px; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.col { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; }
+.col h3 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 8px; }
+.col ul { margin: 0; padding-left: 16px; } .col li { margin: 5px 0; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
+  .side { position: static; height: auto; padding: 24px 0 0; }
+  .toc { display: none; }
+  h1 { font-size: 34px; }
+  .cols { grid-template-columns: 1fr; }
+  .decision { flex-direction: column; gap: 8px; }
+  .trefs { justify-content: flex-start; max-width: none; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side" aria-label="Sections">
+    <div class="brand">FinanceOS<span>Design · Analytics periods &amp; filters</span></div>
+    <div class="overall"><span>Status</span><b>Waiting on your review</b><span>Next: implementation plan</span></div>
+    <nav class="toc" aria-label="Sections">
+      <div class="toc-label">Overview</div>
+      <a href="#mine"><span class="toc-n"></span><span>Waiting on you</span></a>
+      <a href="#agreed"><span class="toc-n"></span><span>Agreed with you</span></a>
+      <a href="#why"><span class="toc-n"></span><span>Why</span></a>
+      <a href="#scope"><span class="toc-n"></span><span>Scope</span></a>
+      <a href="#constraints"><span class="toc-n"></span><span>Constraints</span></a>
+      <div class="toc-label">Design</div>
+      <a href="#page"><span class="toc-n">1</span><span>The page</span></a>
+      <a href="#period"><span class="toc-n">2</span><span>Period and arrows</span></a>
+      <a href="#compare"><span class="toc-n">3</span><span>Comparison</span></a>
+      <a href="#filters"><span class="toc-n">4</span><span>Filter panel</span></a>
+      <a href="#chart"><span class="toc-n">5</span><span>Over-time chart</span></a>
+      <a href="#where"><span class="toc-n">6</span><span>Where it went</span></a>
+      <a href="#breakdown"><span class="toc-n">7</span><span>Breakdown</span></a>
+      <a href="#engineering"><span class="toc-n">8</span><span>Engineering</span></a>
+      <div class="toc-label">Build</div>
+      <a href="#builder"><span class="toc-n"></span><span>Left to the builder</span></a>
+      <a href="#testing"><span class="toc-n"></span><span>Testing</span></a>
+    </nav>
+    <button class="theme" type="button" id="theme">◐ Light / dark</button>
+  </aside>
+  <main>
+    <header>
+      <div class="eyebrow"><span class="pill">Design</span><span>Written 2026-11-07</span><span>·</span><span>after brainstorm, interactive mock reviews and an independent builder check · not started</span></div>
+      <h1>Analytics: any period, with filters</h1>
+      <p class="goal">Analytics stops being stuck on one calendar month. You pick a month, three months, a year or a custom range, step through them with arrows like today, and narrow everything on the page with filters. That answers questions like "how much did I spend on golf this year, compared with last year?" in a few clicks.</p>
+      <div class="meta">
+        <div><b>Mock</b>Approved interactive mock, layout "C · Right side", floats over: <code>~/Documents/FinanceOS-design-archive/design-mocks/analytics-filters.html</code>. The toolbar strip at its top and the other layouts in it are not part of the design.</div>
+        <div><b>Where</b>Branch off <code>main</code>. Changes <span class="chip route">/analytics</span> and <code>/api/analytics/dashboard</code>. One PR against <code>main</code>.</div>
+        <div><b>Builds on</b><code>PeriodPicker</code>, <code>TransactionDrawer</code> + <code>useTransactionDrawer</code>, <code>TransactionTable</code>, <code>dashboardAnalytics</code>, <code>parseFilters</code>, <code>src/lib/dates.ts</code>, and the existing push-drawer motion.</div>
+      </div>
+      <div class="stats"><span><b>8</b>design sections</span><span><b>12</b>decisions agreed</span><span><b>9</b>calls to check</span></div>
+    </header>
+
+    <section id="mine">
+      <h2>Waiting on you</h2>
+      <p class="lede">My own calls, never discussed. Each is easy to change now; veto any you don't like.</p>
+      <div class="decisions"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M1</span>Tags match "any of"</div><div class="dec-text">Ticking Vacation and Shared shows transactions with <strong>either</strong> tag. Today's server filter requires <strong>all</strong> of them. Within one filter, picks widen; across filters, they narrow.</div></div><div class="trefs"><a class="tref" href="#filters">Filters</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>"3 months" means calendar months</div><div class="dec-text">Three whole months ending with the one the arrows are on (e.g. Sep–Nov), not the last 90 days. That keeps the arrows and the by-month trend clean.</div></div><div class="trefs"><a class="tref" href="#period">Period</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M3</span>Uncategorized is a pick</div><div class="dec-text">The category list ends with an "Uncategorized" row, so you can filter to it like today's breakdown shows it.</div></div><div class="trefs"><a class="tref" href="#filters">Filters</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M4</span>"Each category" needs 2–6 picks</div><div class="dec-text">More than six lines can't be told apart. Outside that range the switch is disabled with a hint. A group whose categories are all ticked counts as one pick.</div></div><div class="trefs"><a class="tref" href="#chart">Chart</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M5</span>Budget bars only when they mean something</div><div class="dec-text">Single month <strong>and</strong> no account, tag or merchant filter. A budget covers the whole category, so "64% of budget" for one card's share of it would mislead.</div></div><div class="trefs"><a class="tref" href="#breakdown">Breakdown</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M6</span>Filters live in the address</div><div class="dec-text">Period, comparison and filters go in the URL query, so a refresh keeps them. Changes <strong>replace</strong> the address rather than adding history, so Back leaves Analytics instead of undoing picks one by one. Opening Analytics fresh gives this month, compared with the period before, no filters, like today. No saved views.</div></div><div class="trefs"><a class="tref" href="#engineering">Engineering</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M7</span>Matching colours, per view</div><div class="dec-text">Colours are handed out <strong>per view, by spend</strong> (biggest first, from <code>PIE_COLORS</code>), so nothing on screen shares a colour. With 2+ category picks, the ring shows the <strong>picks</strong> (a ticked group is one slice), so each line and its slice match. Otherwise the ring shows the top categories. The trade-off: a category's colour can change when the period or filters change. The mock didn't match colours; the build must.</div></div><div class="trefs"><a class="tref" href="#where">Where it went</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M8</span>Running total switch stays</div><div class="dec-text">For periods longer than a month, "Per month / Running total" stays in. You didn't say either way; it's one small switch and easy to drop.</div></div><div class="trefs"><a class="tref" href="#chart">Chart</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M9</span>Custom range comparisons</div><div class="dec-text">"The period before" for a custom range is the same number of days just before it. A custom range under two months draws the daily running total; longer ones draw the monthly trend.</div></div><div class="trefs"><a class="tref" href="#compare">Comparison</a></div></li>
+      </ul></div>
+    </section>
+
+    <section id="agreed">
+      <h2>Agreed with you</h2>
+      <p class="lede">Settled in the brainstorm and the interactive mock rounds.</p>
+      <div class="decisions agreed"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A1</span>The period drives the whole page</div><div class="dec-text">Figures, chart, "Where it went" and the breakdown all follow it. "It's mostly the one graph that changes" — the layout stays the same.</div></div><div class="trefs"><a class="tref" href="#page">Page</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A2</span>Keep today's pieces</div><div class="dec-text">Headline figures, the pie and top categories (merged into one card), and the breakdown by group whose rows open the shared transaction drawer.</div></div><div class="trefs"><a class="tref" href="#page">Page</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A3</span>Floating filter panel on the right</div><div class="dec-text">A round filter-icon button opens a floating card that slides in from the right. It <strong>floats over</strong> the page, because pushing makes the page jerk around.</div></div><div class="trefs"><a class="tref" href="#filters">Filters</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A4</span>Picking doesn't close it</div><div class="dec-text">Only Done, ✕, Esc or a click outside closes the panel. Results update as you pick.</div></div><div class="trefs"><a class="tref" href="#filters">Filters</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A5</span>Button in the header, not pinned</div><div class="dec-text">It scrolls away with the page, so it never sits on top of a card.</div></div><div class="trefs"><a class="tref" href="#page">Page</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A6</span>Built to grow</div><div class="dec-text">Category, account, tag and merchant now. A new filter later is one more section in the panel, not a new layout.</div></div><div class="trefs"><a class="tref" href="#filters">Filters</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A7</span>Compare categories with each other</div><div class="dec-text">Several categories or groups at once, with an "Each category" view: one line per pick.</div></div><div class="trefs"><a class="tref" href="#chart">Chart</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A8</span>Capped chips</div><div class="dec-text">Active filters show as chips under the title, capped to the first pick plus a count: "Groceries +1".</div></div><div class="trefs"><a class="tref" href="#filters">Filters</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A9</span>Line charts</div><div class="dec-text">A single month shows "spending so far" against last month (dashed, to its end). Longer periods show a trend line by month.</div></div><div class="trefs"><a class="tref" href="#chart">Chart</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A10</span>Keep the month arrows</div><div class="dec-text">‹ November 2026 › as today, stepping whatever period you're on. The panel's pills set the kind of period: Month, 3 months, Year, Custom.</div></div><div class="trefs"><a class="tref" href="#period">Period</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A11</span>Whole vs so-far comparisons</div><div class="dec-text">A finished period compares with the whole one before. The current, unfinished one compares day for day (Nov 1–7 vs Oct 1–7).</div></div><div class="trefs"><a class="tref" href="#compare">Comparison</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A12</span>Spending only; budgets stay simple</div><div class="dec-text">Income stays out ("my income is very stable"). Budgets stay monthly, shown only for a single month. No YNAB-style budgeting.</div></div><div class="trefs"><a class="tref" href="#scope">Scope</a></div></li>
+      </ul></div>
+    </section>
+
+    <section id="why">
+      <h2>Why</h2>
+      <p class="lede">You want to see spending over more than one month, and drill into categories. "Improving this will pay dividends for the usability of this page."</p>
+      <div class="card"><ol class="numbered">
+        <li><div><strong>The page is stuck on one calendar month.</strong> Questions like "golf this year" or "clothes since summer" can't be answered here.</div></li>
+        <li><div><strong>The comparison is fixed</strong> to the month before, shown as a percentage.</div></li>
+        <li><div><strong>There's no way to narrow</strong> to a category, a group, a card, a tag or a merchant.</div></li>
+        <li><div><strong>The server can already do much of it.</strong> <code>/api/analytics/dashboard</code> takes any date range and parses account, category, tag and merchant filters; the page just never asks.</div></li>
+      </ol></div>
+    </section>
+
+    <section id="scope">
+      <h2>Scope</h2>
+      <div class="cols">
+        <div class="col"><h3>Goals</h3><ul>
+          <li>Month, 3 months, year and custom periods, stepped with arrows</li>
+          <li>A chosen comparison: period before, same time last year, or none</li>
+          <li>Filters: category (groups and categories), account, tag, merchant</li>
+          <li>An over-time line chart, including one line per category</li>
+        </ul></div>
+        <div class="col"><h3>Non-goals</h3><ul>
+          <li>Income analysis, or reworking the headline figures for it</li>
+          <li>Budgets over longer periods; YNAB-style budgeting</li>
+          <li>Saved views or named filter sets</li>
+          <li>Automatic exchange rates</li>
+          <li>Changes to the home dashboard or Reports</li>
+        </ul></div>
+        <div class="col"><h3>Anti-goals</h3><ul>
+          <li>A page that jerks around when filters open</li>
+          <li>A panel that closes on every pick</li>
+          <li>Losing quick month-to-month stepping</li>
+          <li>A new colour palette, or a bespoke transaction editor</li>
+        </ul></div>
+      </div>
+    </section>
+
+    <section id="constraints">
+      <h2>Constraints</h2>
+      <div class="card"><ul>
+        <li><strong>One transaction editor.</strong> Breakdown rows open the existing <code>TransactionDrawer</code> through <code>useTransactionDrawer</code>, as today (PR #42).</li>
+        <li><strong>The date rule</strong> (<code>src/lib/dates.ts</code>): transaction dates are calendar days, never converted. "Today" is the local date via <code>localDay()</code>. Every period and comparison boundary is a calendar day.</li>
+        <li><strong>Same counting rules as today:</strong> transfers out, split parents out, cash-flow accounts only, returns netted against their purchase, credits netted against their category, everything in base currency. The chart, figures and breakdown must agree to the dollar.</li>
+        <li>Design tokens only (<code>src/app/globals.css</code>), light and dark. The drawer pushes at ≥1100px as today.</li>
+        <li><code>dashboardAnalytics</code> also serves the home dashboard, Reports and the trailing-12-months report. Their behaviour must not change.</li>
+        <li>DRY &gt; YAGNI &gt; SOLID. Tests never touch <code>prisma/dev.db</code>; use <code>tests/helpers/db.ts</code>.</li>
+      </ul></div>
+    </section>
+
+    <section id="page">
+      <h2>1 · The page <span class="chip route">/analytics</span></h2>
+      <p class="lede">Top to bottom, as in the mock.</p>
+      <div class="card"><ol class="numbered">
+        <li><div><strong>Header</strong>: "Spending" caption and "Analytics" title on the left. On the right, the period arrows, then the round filter button with a count badge <span class="chip agreed">A5</span>. Below the title, the active filters as removable chips <span class="chip agreed">A8</span>: period and comparison always, then any filter in use.</div></li>
+        <li><div><strong>Four headline figures</strong>: Spent (with the date range), the comparison figure with the change in dollars and percent (red when up, green when down), Per month (or <strong>Per day</strong> for periods under about six weeks), and Transactions with the average.</div></li>
+        <li><div><strong>Over-time chart</strong> (section 5) and <strong>Where it went</strong> (section 6) side by side, stacking on narrow widths.</div></li>
+        <li><div><strong>Breakdown by group</strong> (section 7).</div></li>
+      </ol></div>
+      <div class="callout" style="border-left-color:var(--info)"><b>The future-month warning</b>goes away: the arrows can't go past the current period.</div>
+    </section>
+
+    <section id="period">
+      <h2>2 · Period and arrows</h2>
+      <p class="lede">The kind of period is set in the panel; the arrows pick which one <span class="chip agreed">A10</span>.</p>
+      <table class="md">
+        <tr><th>Kind</th><th>Covers</th><th>Label</th><th>‹ ›</th><th>Label click</th></tr>
+        <tr><td>Month</td><td>One calendar month</td><td>November 2026</td><td>±1 month</td><td>Month grid (today's)</td></tr>
+        <tr><td>3 months</td><td>Three calendar months ending at the anchor <span class="chip mine">M2</span></td><td>Sep – Nov 2026</td><td>±3 months</td><td>Month grid; you pick the last month</td></tr>
+        <tr><td>Year</td><td>Jan 1 – Dec 31</td><td>2026</td><td>±1 year</td><td>Year list</td></tr>
+        <tr><td>Custom</td><td>Any two dates</td><td>Jun 1 – Oct 31</td><td>± its own length</td><td>Opens the filter panel</td></tr>
+      </table>
+      <h3 class="sub">Rules</h3>
+      <div class="card"><ul>
+        <li>The current period ends at today, never in the future. › is disabled on the current period.</li>
+        <li>Switching kind keeps you near where you were: Year → Month lands on the current month if it's this year, otherwise December of that year; Month or 3 months → Year keeps the year.</li>
+        <li>Default on a fresh visit: Month, the current month <span class="chip mine">M6</span>.</li>
+      </ul></div>
+    </section>
+
+    <section id="compare">
+      <h2>3 · Comparison</h2>
+      <p class="lede">Three choices in the panel: <strong>The period before</strong> (default), <strong>Same time last year</strong>, <strong>Nothing</strong>.</p>
+      <table class="md">
+        <tr><th>Viewing</th><th>The period before</th><th>Same time last year</th></tr>
+        <tr><td>October 2026 (finished)</td><td>All of September 2026</td><td>All of October 2025</td></tr>
+        <tr><td>November 2026 (current, to Nov 7)</td><td>Oct 1 – Oct 7</td><td>Nov 1 – Nov 7, 2025</td></tr>
+        <tr><td>Sep – Nov 2026 (current)</td><td>Jun 1 – Aug 7</td><td>Sep 1 – Nov 7, 2025</td></tr>
+        <tr><td>2026 (current)</td><td>Jan 1 – Nov 7, 2025</td><td>Same</td></tr>
+        <tr><td>Custom</td><td>Same number of days just before <span class="chip mine">M9</span></td><td>Same dates a year earlier</td></tr>
+      </table>
+      <div class="card" style="margin-top:12px"><ul>
+        <li>Finished periods compare whole; the current one compares day for day <span class="chip agreed">A11</span>. Month shifts clamp the day (Mar 31 → Feb 28).</li>
+        <li>Column headings name what's compared: "Oct 2026 | Sep 2026", or "Nov 2026 so far | Oct 1 – Oct 7".</li>
+        <li><strong>Nothing</strong> hides the comparison figure, the comparison column and the dashed line.</li>
+        <li>If your history doesn't reach back to the comparison period, it shows as $0. (Your data starts in 2025.)</li>
+      </ul></div>
+    </section>
+
+    <section id="filters">
+      <h2>4 · Filter panel</h2>
+      <p class="lede">A floating card, top-right, inset from the edges, rounded with a soft shadow. It slides and fades in from the right, growing from the button's corner <span class="chip agreed">A3</span>.</p>
+      <div class="card"><ul>
+        <li><strong>Sections, top to bottom</strong>, each with a small heading showing what's picked:
+          <ul>
+            <li><strong>Period</strong>: pills Month · 3 months · Year · Custom. Custom shows two date fields.</li>
+            <li><strong>Compared with</strong>: pills, as in section 3.</li>
+            <li><strong>Categories</strong>: search, then each group with a tick box (all / some / none) and its categories indented below, each group showing its total for the period. Ticking a group ticks all its categories. Uncategorized last <span class="chip mine">M3</span>.</li>
+            <li><strong>Accounts</strong>, <strong>Tags</strong>: tick lists <span class="chip mine">M1</span>.</li>
+            <li><strong>Merchant</strong>: "name contains", case-insensitive.</li>
+          </ul></li>
+        <li><strong>Footer</strong>: Clear all · Done.</li>
+        <li><strong>Closing</strong> <span class="chip agreed">A4</span>: Done, ✕, Esc, or a click outside. Picks apply immediately.</li>
+        <li><strong>Floats over</strong> the page; nothing re-flows. The headline figures and the chart's left side stay visible while you pick.</li>
+        <li><strong>Opening a transaction closes the panel</strong>; the panel and the transaction drawer are never open together.</li>
+        <li><strong>Chips</strong> under the title: "Category Golf +2", each with ✕ to clear that filter. Period and comparison chips have no ✕.</li>
+        <li><strong>Adding a filter later</strong> = one more section here, one more chip kind, one more server filter <span class="chip agreed">A6</span>.</li>
+      </ul></div>
+    </section>
+
+    <section id="chart">
+      <h2>5 · Over-time chart</h2>
+      <p class="lede">Lines, replacing the mock's earlier bars <span class="chip agreed">A9</span>. Hovering shows the values at that day or month.</p>
+      <h3 class="sub">Under two months: "Spending so far"</h3>
+      <div class="card"><ul>
+        <li>A running total by day across the whole month. This period is a solid accent line with a light fill, ending in a dot at today, with a dashed "Today" marker.</li>
+        <li>The comparison is a dashed muted line running to <strong>its</strong> month end, so you see where last month finished.</li>
+        <li>A sentence above it: "<strong>$3,470</strong> so far · Oct was at <strong>$3,558</strong> by this day (−$88) and ended at $5,425." For a finished month: "<strong>$4,980</strong> in Oct 2026 · Sep was <strong>$5,210</strong>."</li>
+      </ul></div>
+      <h3 class="sub">Two months or more: "Trend"</h3>
+      <div class="card"><ul>
+        <li>One point per calendar month, with the comparison dashed and lined up month for month.</li>
+        <li>"Per month / Running total" switch <span class="chip mine">M8</span>: running total turns it into so-far-this-period.</li>
+      </ul></div>
+      <h3 class="sub">"Total / Each category"</h3>
+      <div class="card"><ul>
+        <li>With 2–6 picks <span class="chip mine">M4</span>, "Each category" draws one line per pick (a fully ticked group is one pick), with each total in the legend. The comparison line is hidden in this view.</li>
+      </ul></div>
+    </section>
+
+    <section id="where">
+      <h2>6 · Where it went</h2>
+      <div class="card"><ul>
+        <li>Today's "Spending Distribution" pie and "Top Categories" list merged into one card: a ring and the top five categories with bars and amounts, plus "Everything else".</li>
+        <li>Follows the period and filters.</li>
+        <li>With 2+ category picks it shows the picks, so each slice matches its line; otherwise the top five categories <span class="chip mine">M7</span>.</li>
+      </ul></div>
+    </section>
+
+    <section id="breakdown">
+      <h2>7 · Breakdown by group</h2>
+      <div class="card"><ul>
+        <li>As today, grouped by parent category, now with columns: Category · <em>this period</em> · <em>comparison</em> · Change (red up, green down). Only categories with spending in either period show.</li>
+        <li>A row opens to its transactions for the period, respecting every filter. A transaction opens the shared drawer, which steps through that list. Today's held-row behaviour stays.</li>
+        <li>Budget bars only for a single month with no account, tag or merchant filter <span class="chip mine">M5</span> <span class="chip agreed">A12</span>.</li>
+        <li>Today's per-category stats row (This Month / Last Month / Change / Avg) becomes This period / Comparison / Change / Avg per transaction.</li>
+      </ul></div>
+    </section>
+
+    <section id="engineering">
+      <h2>8 · Engineering</h2>
+      <p class="lede">DRY &gt; YAGNI &gt; SOLID.</p>
+      <div class="callout"><b>Found while checking: two server filters look broken on SQLite</b>In <code>buildWhere</code> (<code>src/lib/analytics.ts</code>), tags use <code>array_contains</code> but <code>Transaction.tags</code> is a <code>String?</code> column holding JSON, and merchant uses <code>mode: 'insensitive'</code>, which Prisma's SQLite connector doesn't support. Nothing sends these today. Confirm with a failing test first, then fix in this work.</div>
+      <h3 class="sub">DRY: one source for each rule</h3>
+      <div class="card"><ul>
+        <li><strong>One period module</strong> (e.g. <code>src/lib/analytics-period.ts</code>), pure: from kind + anchor + today, it gives the range, the comparison range, labels, stepping and "is current". The page, the chips and the API query all use it. Today comes from <code>localDay()</code>.</li>
+        <li><strong>One spend calculation.</strong> Pull the per-transaction "how much does this count as spending" logic out of <code>dashboardAnalytics</code> so the figures, breakdown and new daily/monthly series all use it and can't disagree.</li>
+        <li><strong>One filter rule</strong> for tags and merchant, shared by <code>buildWhere</code> and <code>applyFilters</code>, which disagree today (any vs all).</li>
+        <li><strong>Reuse <code>PeriodPicker</code></strong>: add a 3-month mode and a custom label, rather than a second picker. Travel keeps using it unchanged.</li>
+        <li><strong>One colour function</strong>: given what's on screen ranked by spend, it hands out <code>PIE_COLORS</code> in order. The lines and the ring both call it <span class="chip mine">M7</span>.</li>
+        <li>The filter editors are one component per filter kind, used only by the panel.</li>
+      </ul></div>
+      <h3 class="sub">The API</h3>
+      <div class="card"><ul>
+        <li><code>/api/analytics/dashboard</code> gains an optional explicit comparison range. Without it, it keeps today's "same length just before", so the home dashboard, Reports and trailing-12 are untouched.</li>
+        <li>It also returns what the chart needs: spending per day (period under two months) or per month, for this period and the comparison, and per pick when "Each category" is on. Whether that's this endpoint or a sibling is left to the builder.</li>
+        <li>Category filters send category ids; a group is sent as its categories.</li>
+      </ul></div>
+      <h3 class="sub">YAGNI: cut</h3>
+      <div class="card"><ul>
+        <li>Saved views, filter presets, income.</li>
+        <li>The other layouts in the mock (filter bar, side panel, drop-down).</li>
+        <li>A "pushes content" mode for the panel.</li>
+        <li>An abstraction for "filter kinds" beyond a list the panel renders. Four kinds don't need a plugin system.</li>
+      </ul></div>
+    </section>
+
+    <section id="builder">
+      <h2>Left to the builder</h2>
+      <div class="card"><ul>
+        <li>Component split, file layout, and whether the chart series is a new endpoint.</li>
+        <li>The line chart: Recharts via <code>ChartRenderer</code>'s line type, or a small dedicated component, as long as it matches the mock.</li>
+        <li>URL parameter names <span class="chip mine">M6</span>.</li>
+        <li>Empty states: nothing matches the filters; a period before your history starts.</li>
+        <li>Narrow-width behaviour of the panel (full-width sheet is fine).</li>
+      </ul></div>
+    </section>
+
+    <section id="testing">
+      <h2>Testing</h2>
+      <div class="cols">
+        <div class="col"><h3>Unit</h3><ul>
+          <li>Period module: every kind, stepping, kind switches, current vs finished, month-end clamping, in more than one time zone (<code>tests/helpers/time-zone.ts</code>)</li>
+          <li>Comparison ranges for each row of section 3's table</li>
+          <li>Tag "any" and merchant case-insensitive filters on SQLite</li>
+          <li>Daily and monthly series total to the headline Spent</li>
+        </ul></div>
+        <div class="col"><h3>Component</h3><ul>
+          <li>Picking keeps the panel open; Done, ✕, Esc and outside click close it</li>
+          <li>Chips cap at "first +N" and ✕ clears a filter</li>
+          <li>Arrows step by the period kind; › disabled on the current period</li>
+          <li>Opening a transaction closes the panel</li>
+          <li>"Each category" disabled outside 2–6 picks</li>
+          <li>Budget bars only in the M5 case</li>
+        </ul></div>
+        <div class="col"><h3>Integration</h3><ul>
+          <li>Dashboard API with filters and an explicit comparison range, against a test database</li>
+          <li>Without a comparison range the response is unchanged (home and Reports)</li>
+        </ul></div>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  btn.addEventListener('click', function () {
+    var r = document.documentElement;
+    var dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (a) { a.classList.remove('active'); });
+        var a = map[e.target.id]; if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+})();
+</script>
+</body>
+</html>

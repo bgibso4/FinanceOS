@@ -1,4 +1,4 @@
-import { PIE_COLORS } from '@/components/chart-renderer';
+import { PIE_COLORS } from '@/lib/chart-colors';
 
 /** Initials (first letters of up to two words) and a stable palette colour for an institution. */
 export function institutionMark(name: string): { initials: string; color: string } {

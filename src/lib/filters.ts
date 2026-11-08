@@ -1,4 +1,5 @@
 import { endOfMonth, startOfMonth, subMonths } from 'date-fns';
+import type { DateRange } from './analytics';
 import { DateRangePreset, FilterParams } from './types';
 
 export function resolveDateRange(
@@ -88,24 +89,21 @@ export function parseFilters(searchParams: URLSearchParams): FilterParams {
   };
 }
 
-export function applyFilters<
-  T extends { accountId?: string; categoryId?: string; merchant?: string; tags?: any },
->(rows: T[], filters: FilterParams): T[] {
-  return rows.filter((row) => {
-    if (filters.accounts && row.accountId && !filters.accounts.includes(row.accountId))
-      return false;
-    if (filters.categories && row.categoryId && !filters.categories.includes(row.categoryId))
-      return false;
-    if (
-      filters.merchant &&
-      row.merchant &&
-      !row.merchant.toLowerCase().includes(filters.merchant.toLowerCase())
-    )
-      return false;
-    if (filters.tags && Array.isArray(row.tags)) {
-      const tagList = row.tags as string[];
-      if (!filters.tags.every((t) => tagList.includes(t))) return false;
-    }
-    return true;
-  });
+/** The query string parseFilters reads back: the inverse of parseFilters. */
+export function filterSearchParams(f: FilterParams): URLSearchParams {
+  const sp = new URLSearchParams();
+  if (f.startDate) sp.set('startDate', f.startDate);
+  if (f.endDate) sp.set('endDate', f.endDate);
+  f.accounts?.forEach((a) => sp.append('account', a));
+  f.categories?.forEach((c) => sp.append('category', c));
+  if (f.merchant) sp.set('merchant', f.merchant);
+  f.tags?.forEach((t) => sp.append('tag', t));
+  return sp;
+}
+
+/** The comparison range named by `compareStart` and `compareEnd`, when both are given. */
+export function compareRangeParam(searchParams: URLSearchParams): DateRange | undefined {
+  const start = searchParams.get('compareStart');
+  const end = searchParams.get('compareEnd');
+  return start && end ? resolveDateRange('custom', start, end) : undefined;
 }
