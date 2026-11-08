@@ -114,7 +114,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
 <body>
 <div class="layout">
   <aside class="side" aria-label="Sections">
-    <div class="brand">FinanceOS<span>Design · Automatic sync &amp; rates</span></div>
+    <div class="brand">FinanceOS<span>Design · Automatic sync &amp; daily rates</span></div>
     <div class="overall"><span>Status</span><b>Waiting on your review</b><span>Next: implementation plan</span></div>
     <nav class="toc" aria-label="Sections">
       <div class="toc-label">Overview</div>
@@ -125,7 +125,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
       <div class="toc-label">Design</div>
       <a href="#when"><span class="toc-n">1</span><span>When it runs</span></a>
       <a href="#pass"><span class="toc-n">2</span><span>What a pass does</span></a>
-      <a href="#fx"><span class="toc-n">3</span><span>Exchange rate</span></a>
+      <a href="#fx"><span class="toc-n">3</span><span>Daily exchange rates</span></a>
       <a href="#seeing"><span class="toc-n">4</span><span>Seeing it worked</span></a>
       <a href="#engineering"><span class="toc-n">5</span><span>Engineering</span></a>
       <div class="toc-label">Build</div>
@@ -137,14 +137,14 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
   <main>
     <header>
       <div class="eyebrow"><span class="pill">Design</span><span>Written 2026-11-08</span><span>·</span><span>after a short brainstorm · not started</span></div>
-      <h1>Automatic sync and exchange rates</h1>
-      <p class="goal">You stop clicking Sync. While the production server is running, it syncs every connected bank and investment account on its own, refreshes investment prices, and refreshes the CAD→USD rate in the same pass. The Sync buttons stay for when you want it right now.</p>
+      <h1>Automatic sync and daily exchange rates</h1>
+      <p class="goal">You stop clicking Sync. While the production server is running, it syncs every connected bank and investment account on its own, refreshes investment prices, and records the CAD→USD rate for the day in the same pass. Every transaction converts at the rate for its own date, so history stops moving when the rate does. The Sync buttons stay for when you want it right now.</p>
       <div class="meta">
         <div><b>Where</b>Branch off <code>main</code>. One PR against <code>main</code>. Server-side scheduler plus small Settings and side-nav changes.</div>
-        <div><b>Builds on</b><code>/api/plaid/sync</code>, <code>/api/teller/sync</code>, Settings "Sync all" and its <code>syncUnits</code> grouping, <code>withSyncLock</code>, <code>InvestmentRefreshService.refresh</code>, <code>YahooPriceProvider</code>, the <code>ExchangeRate</code> table, and the existing <code>lastSyncAt</code> / <code>lastSyncStatus</code> fields.</div>
+        <div><b>Builds on</b><code>/api/plaid/sync</code>, <code>/api/teller/sync</code>, Settings "Sync all" and its <code>syncUnits</code> grouping, <code>withSyncLock</code>, <code>InvestmentRefreshService.refresh</code>, <code>YahooPriceProvider</code>, the <code>ExchangeRate</code> table, <code>convertAmount</code> / <code>toBase</code>, the security price-history backfill, and the existing <code>lastSyncAt</code> / <code>lastSyncStatus</code> fields.</div>
         <div><b>Not this</b>Cloudflare Worker + D1 and the mobile app are deferred to a later project.</div>
       </div>
-      <div class="stats"><span><b>5</b>design sections</span><span><b>7</b>decisions agreed</span><span><b>8</b>calls to check</span></div>
+      <div class="stats"><span><b>5</b>design sections</span><span><b>8</b>decisions agreed</span><span><b>8</b>calls to check</span></div>
     </header>
 
     <section id="mine">
@@ -172,6 +172,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
         <li class="decision"><div><div class="dec-name"><span class="dec-id">A4</span>The rate refreshes in the same pass</div><div class="dec-text">CAD→USD stops going stale.</div></div><div class="trefs"><a class="tref" href="#fx">Rate</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">A5</span>Sync buttons stay</div><div class="dec-text">For when you want it right now.</div></div><div class="trefs"><a class="tref" href="#seeing">Seeing it</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">A7</span>Backup catches up when you open the app</div><div class="dec-text">After an automatic pass, the cloud backup happens the next time the app is open in a browser. "Backed up next time you open the app is fine."</div></div><div class="trefs"><a class="tref" href="#pass">Pass</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A8</span>A rate for each day</div><div class="dec-text">Converting every transaction at today's rate makes last year's totals move with the market, and refreshing every 4 hours would make that constant. Each day keeps its own CAD→USD rate, and amounts convert at the rate for their own date. You chose this over storing a converted amount on each transaction.</div></div><div class="trefs"><a class="tref" href="#fx">Rates</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">A6</span>Cloudflare and mobile later</div><div class="dec-text">Moving to a Worker + D1 and the mobile app are a separate, later project.</div></div><div class="trefs"><a class="tref" href="#scope">Scope</a></div></li>
       </ul></div>
     </section>
@@ -181,20 +182,23 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
       <div class="cols">
         <div class="col"><h3>Goals</h3><ul>
           <li>Banks and investments sync on their own while the production server runs</li>
-          <li>The CAD→USD rate refreshes on its own</li>
+          <li>The CAD→USD rate refreshes on its own, one rate per day</li>
+          <li>Past amounts convert at their own day's rate, so history stays put</li>
           <li>You can tell when it last ran, and when something needs you</li>
         </ul></div>
         <div class="col"><h3>Non-goals</h3><ul>
           <li>Syncing while the laptop is off (that's the Cloudflare project)</li>
           <li>Notifications, emails, pop-ups</li>
           <li>Changing how a sync works inside, or its deduplication</li>
-          <li>A rate history, or currencies beyond those you use</li>
+          <li>Currencies beyond those your accounts use</li>
+          <li>Storing a converted amount on each transaction</li>
           <li>The server pushing cloud backups itself</li>
         </ul></div>
         <div class="col"><h3>Anti-goals</h3><ul>
           <li>A dev server or test touching real bank connections</li>
           <li>Two syncs of the same account running at once</li>
           <li>One failing bank stopping the rest</li>
+          <li>Last year's totals changing because today's rate changed</li>
           <li>The app slowing down or blocking pages while it syncs</li>
         </ul></div>
       </div>
@@ -238,12 +242,30 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
     </section>
 
     <section id="fx">
-      <h2>3 · Exchange rate</h2>
+      <h2>3 · Daily exchange rates</h2>
+      <p class="lede">Today there is one CAD→USD rate and every conversion uses it, past ones included, so your 134 CAD transactions are all priced at whatever the rate is now. This changes to a rate for each day.</p>
+      <h3 class="sub">Where the rates come from</h3>
       <div class="card"><ul>
-        <li>Source: Yahoo Finance's <code>CADUSD=X</code>, through the existing price provider <span class="chip mine">M1</span>. Today that's the only pair needed; more currencies would only come from the base currency setting and the currencies your accounts use.</li>
-        <li>It's written to the existing <code>ExchangeRate</code> row that the hand-typed value uses today, so every conversion (<code>toBase</code>, valuations) picks it up unchanged.</li>
-        <li>If the fetch fails or returns nonsense (zero, negative, or far from the last rate), the last rate stays and the step counts as failed.</li>
-        <li>Settings shows the rate read-only: "1 CAD = 0.7xx USD · updated automatically · as of 2:14 pm", with a Refresh button <span class="chip mine">M4</span>.</li>
+        <li>Source: Yahoo Finance's <code>CADUSD=X</code>, through the existing price provider <span class="chip mine">M1</span>.</li>
+        <li><strong>Each pass</strong> records today's rate. Today's row is updated through the day; once the day is over it is fixed.</li>
+        <li><strong>A one-time backfill</strong> pulls the daily history from the first CAD transaction or balance onward, the same way security price history is backfilled. A pass also fills any days that are missing, so a laptop that was off for a week catches up.</li>
+        <li>The pairs come from the currencies your accounts use and the base currency setting (CAD→USD today). No pair is hard-coded.</li>
+        <li>A fetch that fails or returns nonsense (zero, negative, or far from the previous day) writes nothing; the step counts as failed.</li>
+      </ul></div>
+      <h3 class="sub">Which rate an amount uses</h3>
+      <table class="md">
+        <tr><th>Amount</th><th>Rate</th></tr>
+        <tr><td>A transaction</td><td>The rate for its own date (spending, Analytics, Travel, Reports, budgets)</td></tr>
+        <tr><td>A past balance or snapshot</td><td>The rate for that day (net worth history, investment history)</td></tr>
+        <tr><td>A balance now</td><td>Today's rate (current balances, net worth, investments overview)</td></tr>
+      </table>
+      <div class="card" style="margin-top:12px"><ul>
+        <li>A day with no quote (weekend, holiday) uses the latest earlier day. A date before the history starts uses the earliest rate stored.</li>
+        <li>Transaction dates are calendar days, matched to the rate's calendar day, never converted (<code>src/lib/dates.ts</code>).</li>
+      </ul></div>
+      <h3 class="sub">Settings</h3>
+      <div class="card"><ul>
+        <li>The rate shows read-only: "1 CAD = 0.7xx USD today · updated automatically · as of 2:14 pm", with a Refresh button <span class="chip mine">M4</span>. No hand-typed rate: the pass would overwrite it.</li>
       </ul></div>
     </section>
 
@@ -268,6 +290,9 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
         <li><strong>One pass function.</strong> It runs the four steps in section 2 and returns a summary. The scheduler only decides when to call it. That makes the pass testable with fakes and lets the Settings Refresh button reuse the rate step.</li>
         <li><strong>The scheduler starts once per server</strong>, from Next.js's startup hook (<code>instrumentation.ts</code>, Node runtime only), guarded so a second registration does nothing.</li>
         <li><strong>The rate</strong> goes through the existing price provider, with the currency pair as a symbol, not a second client.</li>
+        <li><strong>One conversion rule.</strong> The rate lookup gains a date: <code>convertAmount</code> / <code>toBase</code> take the day the amount belongs to, and <code>loadCurrencySettings</code> loads the daily rates for the range a caller needs. Every caller passes its date: <code>analytics.ts</code>, <code>travel/totals.ts</code>, the investments modules (<code>current-holdings</code>, <code>overview</code>, <code>history</code>, <code>valuation</code>), and the <code>snapshots</code> and <code>accounts/balances</code> routes. Callers about "now" pass today.</li>
+        <li><strong>Rate storage.</strong> A rate per (pair, day). Whether that is the existing <code>ExchangeRate</code> table with a date added or a new table is the builder's call; the old single row becomes the first history point, not a second source. Schema changes go through <code>prisma db push</code>.</li>
+        <li><strong>Figures still agree.</strong> The Analytics rule holds: chart, figures and breakdown convert the same rows with the same rule, so they still agree to the dollar.</li>
       </ul></div>
     </section>
 
@@ -280,7 +305,8 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
         <li>The existing exchange-rate API routes stay as they are; only the Settings editing UI becomes read-only. <span class="chip mine">my call</span></li>
         <li>Where the last-pass record lives (for example on <code>UserSettings</code>) and its exact fields.</li>
         <li>The environment switch's name and file layout.</li>
-        <li>The exact "far from the last rate" sanity bound.</li>
+        <li>The exact "far from the previous day" sanity bound.</li>
+        <li>Whether the backfill runs on the first pass or as a one-off command.</li>
         <li>How the side-nav dot gets its state (a small status endpoint is fine).</li>
       </ul></div>
     </section>
@@ -290,13 +316,16 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
       <div class="cols">
         <div class="col"><h3>Unit</h3><ul>
           <li>Scheduler: due vs not due, skips while a pass runs, never starts in development or tests, honours the off switch</li>
-          <li>Rate: a good quote is saved; failures and nonsense values keep the last rate</li>
+          <li>Rate: a good quote is saved; failures and nonsense values write nothing</li>
+          <li>Lookup: a transaction converts at its own day's rate; weekends use the earlier day; before history uses the earliest; "now" uses today</li>
           <li>Grouping: one unit per Plaid item or Teller enrollment</li>
         </ul></div>
         <div class="col"><h3>Integration</h3><ul>
           <li>A pass against a test database with fake providers: one failing connection doesn't stop the others, and the summary and last-pass record are right</li>
           <li>Connections needing a re-login are skipped</li>
           <li>The sync routes behave as before after the move into the library</li>
+          <li>Backfill fills history from the first CAD date and fills gaps, with a fake provider</li>
+          <li>Analytics and Travel totals for a past month don't change when today's rate changes</li>
         </ul></div>
         <div class="col"><h3>Component</h3><ul>
           <li>Settings shows the last-run line and the read-only rate with Refresh</li>
