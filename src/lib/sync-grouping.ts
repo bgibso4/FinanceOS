@@ -117,3 +117,17 @@ export function isSyncAllCandidate(r: {
   if (r.status !== 'preview_done' || !r.preview) return false;
   return !!r.investment || r.preview.stats.added > 0 || r.preview.stats.merged > 0;
 }
+
+/**
+ * Whether an account can be synced now: active, with a Teller connection that is not
+ * disconnected or a Plaid connection that does not need re-login.
+ */
+export function isSyncableAccount(a: {
+  isActive?: boolean;
+  tellerConnection?: { status: string } | null;
+  plaidConnection?: { status: string } | null;
+}): boolean {
+  if (!a.isActive) return false;
+  const { tellerConnection: tc, plaidConnection: pc } = a;
+  return (!!tc && tc.status !== 'disconnected') || (!!pc && pc.status !== 'needs_reauth');
+}

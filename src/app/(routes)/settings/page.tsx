@@ -41,7 +41,12 @@ import type { TrackingMode } from '@/lib/account-defaults';
 import { BalanceSource } from '@/lib/investments/codes';
 import { fmtCalendarDay } from '@/lib/dates';
 import { ds } from '@/lib/design-system';
-import { syncUnits, statsForAccount, isSyncAllCandidate } from '@/lib/sync-grouping';
+import {
+  syncUnits,
+  statsForAccount,
+  isSyncAllCandidate,
+  isSyncableAccount,
+} from '@/lib/sync-grouping';
 import { investmentSyncStatus } from '@/lib/investments/sync-status';
 import type { InvestmentSyncResult } from '@/lib/investments/plaid-investment-sync';
 import { getCurrencyFlag } from '@/lib/currency';
@@ -605,14 +610,7 @@ function SettingsPageContent() {
     new Map()
   );
 
-  const syncableAccounts = accounts.filter((a) => {
-    if (!a.isActive) return false;
-    const tc = a.tellerConnection;
-    const pc = a.plaidConnection;
-    if (tc && tc.status !== 'disconnected') return true;
-    if (pc && pc.status !== 'needs_reauth') return true;
-    return false;
-  });
+  const syncableAccounts = accounts.filter(isSyncableAccount);
 
   // Drag-and-drop sensors for account reordering
   const sensors = useSensors(
