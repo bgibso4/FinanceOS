@@ -148,6 +148,7 @@ export type ExchangeRateExport = z.infer<typeof ExchangeRateExportSchema>;
 export const UserSettingsExportSchema = z.object({
   id: z.string(),
   baseCurrency: z.string(),
+  inflationRegion: z.string().optional(), // absent in backups made before monthly price indexes
   updatedAt: z.string(), // ISO 8601
   createdAt: z.string(), // ISO 8601
 });

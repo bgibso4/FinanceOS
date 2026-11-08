@@ -554,9 +554,10 @@ export function NetWorthSnapshots() {
         fetch('/api/inflation-rates'),
       ]);
       const snapshotsData = await snapshotsRes.json();
-      const inflationData = await inflationRes.json();
       setSnapshots(snapshotsData.snapshots || []);
-      setInflationRates(inflationData.rates || []);
+      // Task 4 replaces this; a failed or unreadable answer just hides the toggle.
+      const inflationData = inflationRes.ok ? await inflationRes.json().catch(() => null) : null;
+      setInflationRates(inflationData?.rates || []);
     } catch (error) {
       console.error('Failed to load snapshots:', error);
     } finally {

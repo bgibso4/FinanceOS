@@ -494,9 +494,6 @@ function SettingsPageContent() {
   const [budgetViewMonth, setBudgetViewMonth] = useState<string>(''); // empty = "All months" (defaults)
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
   const [rateRefreshFailed, setRateRefreshFailed] = useState(false);
-  const [inflationRates, setInflationRates] = useState<
-    { id: string; year: number; rate: number; updatedAt: string }[]
-  >([]);
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
 
   // Tags state
@@ -506,10 +503,6 @@ function SettingsPageContent() {
   const [newTagColor, setNewTagColor] = useState('blue');
   const [editingTag, setEditingTag] = useState<TagWithCount | null>(null);
   const [editTagModalOpen, setEditTagModalOpen] = useState(false);
-  const [newInflationRate, setNewInflationRate] = useState({
-    year: new Date().getFullYear().toString(),
-    rate: '',
-  });
 
   const [newAccount, setNewAccount] = useState({
     name: '',
@@ -685,7 +678,7 @@ function SettingsPageContent() {
   }, [budgetViewMonth]);
 
   const refresh = async () => {
-    const [acc, cat, r, rep, bal, rates, settings, tagsData, inflationData] = await Promise.all([
+    const [acc, cat, r, rep, bal, rates, settings, tagsData] = await Promise.all([
       fetch('/api/accounts').then((r) => r.json()),
       fetch('/api/categories').then((r) => r.json()),
       fetch('/api/rules').then((r) => r.json()),
@@ -694,14 +687,12 @@ function SettingsPageContent() {
       fetch('/api/exchange-rates').then((r) => r.json()),
       fetch('/api/settings').then((r) => r.json()),
       fetch('/api/tags?withCounts=true').then((r) => r.json()),
-      fetch('/api/inflation-rates').then((r) => r.json()),
     ]);
     setAccounts(acc.accounts ?? []);
     setCategories(cat.categories ?? []);
     setRules(r.rules ?? []);
     setSnapshots(rep.snapshots ?? []);
     setExchangeRates(rates.rates ?? []);
-    setInflationRates(inflationData.rates ?? []);
     setUserSettings(settings.settings ?? null);
     setSettingsTags(tagsData.tags ?? []);
 
@@ -795,11 +786,6 @@ function SettingsPageContent() {
     } catch (error) {
       console.error('Failed to read exchange rates:', error);
     }
-  };
-
-  const refreshInflationRates = async () => {
-    const inflationData = await fetch('/api/inflation-rates').then((r) => r.json());
-    setInflationRates(inflationData.rates ?? []);
   };
 
   const createAccount = async () => {
@@ -1844,51 +1830,6 @@ function SettingsPageContent() {
     }
   };
 
-  const addInflationRate = async () => {
-    const yearNum = parseInt(newInflationRate.year);
-    const rateNum = parseFloat(newInflationRate.rate);
-
-    if (!newInflationRate.year || isNaN(yearNum) || yearNum < 1900 || yearNum > 2100) {
-      alert('Please enter a valid year (1900-2100)');
-      return;
-    }
-    if (!newInflationRate.rate || isNaN(rateNum) || rateNum < -50 || rateNum > 100) {
-      alert('Please enter a valid rate (-50 to 100%)');
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/inflation-rates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ year: yearNum, rate: rateNum }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        alert(`Failed to add inflation rate: ${error.error || 'Unknown error'}`);
-        return;
-      }
-
-      setNewInflationRate({ year: new Date().getFullYear().toString(), rate: '' });
-      refreshInflationRates();
-    } catch (error) {
-      console.error('Failed to add inflation rate:', error);
-      alert('Failed to add inflation rate');
-    }
-  };
-
-  const deleteInflationRate = async (id: string) => {
-    try {
-      await fetch(`/api/inflation-rates/${id}`, {
-        method: 'DELETE',
-      });
-      refreshInflationRates();
-    } catch (_error) {
-      alert('Failed to delete inflation rate');
-    }
-  };
-
   // Drawer: balances are read live so they update after writes; sections, subtitle and the
   // section keys follow the saved row, not the picker's unsaved value.
   const modalAccountBalance = modalAccount ? (accountBalances.get(modalAccount.id) ?? 0) : 0;
@@ -1993,131 +1934,6 @@ function SettingsPageContent() {
                     Couldn't refresh the rate — showing the last one
                   </p>
                 )}
-              </div>
-            </div>
-
-            {/* Inflation Rates */}
-            <div className={`${ds.bg.secondary} p-4 rounded-lg border ${ds.border.default}`}>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className={`block text-sm font-medium ${ds.text.primary}`}>
-                    Inflation Rates
-                  </label>
-                  <span className={`text-xs ${ds.text.muted}`}>
-                    Used for inflation-adjusted net worth reports
-                  </span>
-                </div>
-
-                {/* Inflation Rates Table */}
-                <div
-                  className={`${ds.bg.primary} rounded-lg border ${ds.border.default} overflow-hidden`}
-                >
-                  {inflationRates.length > 0 ? (
-                    <table className="w-full text-sm">
-                      <thead className={`${ds.bg.tertiary}`}>
-                        <tr>
-                          <th className={`px-4 py-3 text-left ${ds.text.secondary} font-semibold`}>
-                            Year
-                          </th>
-                          <th className={`px-4 py-3 text-right ${ds.text.secondary} font-semibold`}>
-                            Rate (%)
-                          </th>
-                          <th className={`px-4 py-3 text-right ${ds.text.secondary} font-semibold`}>
-                            Last Updated
-                          </th>
-                          <th className="w-20" />
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--border)]">
-                        {inflationRates.map((rate) => (
-                          <tr
-                            key={rate.id}
-                            className={`hover:${ds.bg.secondary} transition-colors`}
-                          >
-                            <td className="px-4 py-3">
-                              <span className={`font-semibold ${ds.text.primary}`}>
-                                {rate.year}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <div
-                                className={`inline-flex items-center gap-1 px-3 py-1 rounded-full ${ds.bg.tertiary}`}
-                              >
-                                <span
-                                  className={`font-mono font-bold text-base ${ds.text.primary}`}
-                                >
-                                  {rate.rate.toFixed(1)}%
-                                </span>
-                              </div>
-                            </td>
-                            <td className={`px-4 py-3 text-right text-xs ${ds.text.muted}`}>
-                              {new Date(rate.updatedAt).toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                              })}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${ds.status.error.text} hover:${ds.status.error.bg}`}
-                                title="Delete this inflation rate"
-                                onClick={() => deleteInflationRate(rate.id)}
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div className={`p-8 text-center ${ds.bg.secondary}`}>
-                      <div className="text-4xl mb-3">📈</div>
-                      <div className={`font-medium ${ds.text.primary} mb-1`}>
-                        No inflation rates configured
-                      </div>
-                      <div className={`text-sm ${ds.text.muted}`}>
-                        Add annual inflation rates to see inflation-adjusted net worth in reports
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Add Inflation Rate Form */}
-                <div className={`${ds.bg.secondary} p-4 rounded-lg border ${ds.border.default}`}>
-                  <div className={`text-sm font-semibold ${ds.text.primary} mb-3`}>
-                    Add Inflation Rate
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <Input
-                      placeholder={new Date().getFullYear().toString()}
-                      type="number"
-                      value={newInflationRate.year}
-                      onChange={(e) =>
-                        setNewInflationRate({ ...newInflationRate, year: e.target.value })
-                      }
-                    />
-                    <Input
-                      placeholder="3.4"
-                      step="0.1"
-                      type="number"
-                      value={newInflationRate.rate}
-                      onChange={(e) =>
-                        setNewInflationRate({ ...newInflationRate, rate: e.target.value })
-                      }
-                    />
-                    <Button
-                      className="py-2 bg-[var(--accent)] hover:bg-[var(--accent)] text-white"
-                      onClick={addInflationRate}
-                    >
-                      Add Rate
-                    </Button>
-                  </div>
-                  <div className={`text-xs ${ds.text.muted} mt-2`}>
-                    Enter the annual CPI inflation rate as a percentage. Example:{' '}
-                    <span className="font-mono">3.4</span> for 3.4% inflation in a given year.
-                  </div>
-                </div>
               </div>
             </div>
 
