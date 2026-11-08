@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { utcDay } from '@/lib/investments/dates';
 
 export async function GET() {
   try {
@@ -30,16 +31,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Rate must be greater than 0' }, { status: 400 });
     }
 
-    // Upsert the exchange rate
+    // Upsert today's exchange rate
+    const date = utcDay(new Date());
     const exchangeRate = await prisma.exchangeRate.upsert({
       where: {
-        fromCurrency_toCurrency: {
+        fromCurrency_toCurrency_date: {
           fromCurrency,
           toCurrency,
+          date,
         },
       },
       update: { rate },
-      create: { fromCurrency, toCurrency, rate },
+      create: { fromCurrency, toCurrency, date, rate },
     });
 
     return NextResponse.json({ exchangeRate });

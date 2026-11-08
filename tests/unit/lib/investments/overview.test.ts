@@ -32,7 +32,12 @@ describe('InvestmentOverviewService', () => {
 
   it('converts a CAD account into the base currency', async () => {
     await prisma.exchangeRate.create({
-      data: { fromCurrency: 'CAD', toCurrency: 'USD', rate: 0.5 },
+      data: {
+        fromCurrency: 'CAD',
+        toCurrency: 'USD',
+        date: new Date('2026-01-01T00:00:00.000Z'),
+        rate: 0.5,
+      },
     });
     const cad = await seedInvestmentAccount(prisma, {
       balanceSource: BalanceSource.Manual,

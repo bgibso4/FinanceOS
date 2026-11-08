@@ -129,6 +129,7 @@ export interface ExchangeRateData {
   id?: string;
   fromCurrency: string;
   toCurrency: string;
+  date: Date;
   rate: number;
 }
 
@@ -139,6 +140,7 @@ export function createExchangeRateData(
     id: uuid(),
     fromCurrency: 'EUR',
     toCurrency: 'USD',
+    date: new Date('2026-01-01T00:00:00.000Z'),
     rate: 1.1,
     ...overrides,
   };

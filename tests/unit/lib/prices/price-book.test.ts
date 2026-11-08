@@ -38,7 +38,12 @@ describe('PriceBook / loadFxRates', () => {
 
   it('loads exchange rates keyed FROM_TO', async () => {
     await prisma.exchangeRate.create({
-      data: { fromCurrency: 'CAD', toCurrency: 'USD', rate: 0.75 },
+      data: {
+        fromCurrency: 'CAD',
+        toCurrency: 'USD',
+        date: new Date('2026-01-01T00:00:00.000Z'),
+        rate: 0.75,
+      },
     });
     expect((await loadFxRates(prisma)).get('CAD_USD')).toBe(0.75);
   });

@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupTestDb, teardownTestDb, resetTestDb } from '../../helpers/db';
 import type { PrismaClient } from '@prisma/client';
 
+const DAY = new Date('2026-01-01T00:00:00.000Z');
+
 describe('exchange rates API integration', () => {
   let prisma: PrismaClient;
 
@@ -26,9 +28,9 @@ describe('exchange rates API integration', () => {
     it('returns all exchange rates', async () => {
       await prisma.exchangeRate.createMany({
         data: [
-          { fromCurrency: 'USD', toCurrency: 'EUR', rate: 0.92 },
-          { fromCurrency: 'USD', toCurrency: 'GBP', rate: 0.79 },
-          { fromCurrency: 'EUR', toCurrency: 'USD', rate: 1.09 },
+          { fromCurrency: 'USD', toCurrency: 'EUR', date: DAY, rate: 0.92 },
+          { fromCurrency: 'USD', toCurrency: 'GBP', date: DAY, rate: 0.79 },
+          { fromCurrency: 'EUR', toCurrency: 'USD', date: DAY, rate: 1.09 },
         ],
       });
 
@@ -40,10 +42,10 @@ describe('exchange rates API integration', () => {
     it('orders rates by fromCurrency then toCurrency', async () => {
       await prisma.exchangeRate.createMany({
         data: [
-          { fromCurrency: 'USD', toCurrency: 'GBP', rate: 0.79 },
-          { fromCurrency: 'EUR', toCurrency: 'USD', rate: 1.09 },
-          { fromCurrency: 'USD', toCurrency: 'EUR', rate: 0.92 },
-          { fromCurrency: 'EUR', toCurrency: 'GBP', rate: 0.86 },
+          { fromCurrency: 'USD', toCurrency: 'GBP', date: DAY, rate: 0.79 },
+          { fromCurrency: 'EUR', toCurrency: 'USD', date: DAY, rate: 1.09 },
+          { fromCurrency: 'USD', toCurrency: 'EUR', date: DAY, rate: 0.92 },
+          { fromCurrency: 'EUR', toCurrency: 'GBP', date: DAY, rate: 0.86 },
         ],
       });
 
@@ -63,7 +65,7 @@ describe('exchange rates API integration', () => {
 
     it('returns rate values correctly', async () => {
       await prisma.exchangeRate.create({
-        data: { fromCurrency: 'USD', toCurrency: 'JPY', rate: 149.5 },
+        data: { fromCurrency: 'USD', toCurrency: 'JPY', date: DAY, rate: 149.5 },
       });
 
       const rates = await prisma.exchangeRate.findMany();
@@ -78,6 +80,7 @@ describe('exchange rates API integration', () => {
         data: {
           fromCurrency: 'USD',
           toCurrency: 'EUR',
+          date: DAY,
           rate: 0.92,
         },
       });
@@ -90,19 +93,20 @@ describe('exchange rates API integration', () => {
     it('updates existing rate with upsert', async () => {
       // Create initial rate
       await prisma.exchangeRate.create({
-        data: { fromCurrency: 'USD', toCurrency: 'EUR', rate: 0.9 },
+        data: { fromCurrency: 'USD', toCurrency: 'EUR', date: DAY, rate: 0.9 },
       });
 
       // Upsert with new rate
       const updated = await prisma.exchangeRate.upsert({
         where: {
-          fromCurrency_toCurrency: {
+          fromCurrency_toCurrency_date: {
             fromCurrency: 'USD',
             toCurrency: 'EUR',
+            date: DAY,
           },
         },
         update: { rate: 0.92 },
-        create: { fromCurrency: 'USD', toCurrency: 'EUR', rate: 0.92 },
+        create: { fromCurrency: 'USD', toCurrency: 'EUR', date: DAY, rate: 0.92 },
       });
 
       expect(updated.rate).toBe(0.92);
@@ -119,6 +123,7 @@ describe('exchange rates API integration', () => {
         data: {
           fromCurrency: 'BTC',
           toCurrency: 'USD',
+          date: DAY,
           rate: 42567.89123,
         },
       });
@@ -131,6 +136,7 @@ describe('exchange rates API integration', () => {
         data: {
           fromCurrency: 'USD',
           toCurrency: 'GBP',
+          date: DAY,
           rate: 0.79,
         },
       });
@@ -143,6 +149,7 @@ describe('exchange rates API integration', () => {
         data: {
           fromCurrency: 'USD',
           toCurrency: 'JPY',
+          date: DAY,
           rate: 149.72,
         },
       });
@@ -164,6 +171,7 @@ describe('exchange rates API integration', () => {
           data: {
             fromCurrency: pair.from,
             toCurrency: pair.to,
+            date: DAY,
             rate: pair.rate,
           },
         });
@@ -175,24 +183,24 @@ describe('exchange rates API integration', () => {
 
     it('enforces unique constraint on currency pair', async () => {
       await prisma.exchangeRate.create({
-        data: { fromCurrency: 'USD', toCurrency: 'EUR', rate: 0.9 },
+        data: { fromCurrency: 'USD', toCurrency: 'EUR', date: DAY, rate: 0.9 },
       });
 
       // Try to create duplicate
       await expect(
         prisma.exchangeRate.create({
-          data: { fromCurrency: 'USD', toCurrency: 'EUR', rate: 0.92 },
+          data: { fromCurrency: 'USD', toCurrency: 'EUR', date: DAY, rate: 0.92 },
         })
       ).rejects.toThrow();
     });
 
     it('allows same currencies in different direction', async () => {
       await prisma.exchangeRate.create({
-        data: { fromCurrency: 'USD', toCurrency: 'EUR', rate: 0.92 },
+        data: { fromCurrency: 'USD', toCurrency: 'EUR', date: DAY, rate: 0.92 },
       });
 
       await prisma.exchangeRate.create({
-        data: { fromCurrency: 'EUR', toCurrency: 'USD', rate: 1.09 },
+        data: { fromCurrency: 'EUR', toCurrency: 'USD', date: DAY, rate: 1.09 },
       });
 
       const rates = await prisma.exchangeRate.findMany();
@@ -204,8 +212,8 @@ describe('exchange rates API integration', () => {
     it('rate must be positive (enforced at application level)', async () => {
       // In a real API, this would return 400
       // Database allows any value, validation is in API layer
-      const zeroRate = { fromCurrency: 'USD', toCurrency: 'EUR', rate: 0 };
-      const negativeRate = { fromCurrency: 'USD', toCurrency: 'GBP', rate: -1 };
+      const zeroRate = { fromCurrency: 'USD', toCurrency: 'EUR', date: DAY, rate: 0 };
+      const negativeRate = { fromCurrency: 'USD', toCurrency: 'GBP', date: DAY, rate: -1 };
 
       // These would pass DB but fail API validation
       expect(zeroRate.rate).toBeLessThanOrEqual(0);
@@ -219,6 +227,7 @@ describe('exchange rates API integration', () => {
           data: {
             fromCurrency: 'USD',
             toCurrency: 'EUR',
+            date: DAY,
             rate: undefined as unknown as number,
           },
         })
@@ -229,13 +238,14 @@ describe('exchange rates API integration', () => {
   describe('exchange rate usage', () => {
     it('can look up rate by currency pair', async () => {
       await prisma.exchangeRate.create({
-        data: { fromCurrency: 'USD', toCurrency: 'EUR', rate: 0.92 },
+        data: { fromCurrency: 'USD', toCurrency: 'EUR', date: DAY, rate: 0.92 },
       });
 
       const rate = await prisma.exchangeRate.findFirst({
         where: {
           fromCurrency: 'USD',
           toCurrency: 'EUR',
+          date: DAY,
         },
       });
 
@@ -248,6 +258,7 @@ describe('exchange rates API integration', () => {
         where: {
           fromCurrency: 'USD',
           toCurrency: 'XYZ',
+          date: DAY,
         },
       });
 
@@ -256,7 +267,7 @@ describe('exchange rates API integration', () => {
 
     it('can calculate converted amount', async () => {
       await prisma.exchangeRate.create({
-        data: { fromCurrency: 'USD', toCurrency: 'EUR', rate: 0.92 },
+        data: { fromCurrency: 'USD', toCurrency: 'EUR', date: DAY, rate: 0.92 },
       });
 
       const rate = await prisma.exchangeRate.findFirst({
@@ -271,7 +282,7 @@ describe('exchange rates API integration', () => {
 
     it('handles rate updates correctly', async () => {
       const initial = await prisma.exchangeRate.create({
-        data: { fromCurrency: 'USD', toCurrency: 'EUR', rate: 0.9 },
+        data: { fromCurrency: 'USD', toCurrency: 'EUR', date: DAY, rate: 0.9 },
       });
 
       const updated = await prisma.exchangeRate.update({
@@ -292,7 +303,7 @@ describe('exchange rates API integration', () => {
   describe('exchange rate timestamps', () => {
     it('has auto-generated id', async () => {
       const rate = await prisma.exchangeRate.create({
-        data: { fromCurrency: 'USD', toCurrency: 'EUR', rate: 0.92 },
+        data: { fromCurrency: 'USD', toCurrency: 'EUR', date: DAY, rate: 0.92 },
       });
 
       expect(rate.id).toBeDefined();
@@ -301,7 +312,7 @@ describe('exchange rates API integration', () => {
 
     it('has created and updated timestamps', async () => {
       const rate = await prisma.exchangeRate.create({
-        data: { fromCurrency: 'USD', toCurrency: 'EUR', rate: 0.92 },
+        data: { fromCurrency: 'USD', toCurrency: 'EUR', date: DAY, rate: 0.92 },
       });
 
       expect(rate.createdAt).toBeDefined();
@@ -311,7 +322,7 @@ describe('exchange rates API integration', () => {
 
     it('updates timestamp on rate change', async () => {
       const initial = await prisma.exchangeRate.create({
-        data: { fromCurrency: 'USD', toCurrency: 'EUR', rate: 0.9 },
+        data: { fromCurrency: 'USD', toCurrency: 'EUR', date: DAY, rate: 0.9 },
       });
 
       await new Promise((resolve) => setTimeout(resolve, 10));

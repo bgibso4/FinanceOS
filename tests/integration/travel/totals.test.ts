@@ -25,7 +25,12 @@ describe('TravelTotals', () => {
     await resetTestDb();
     await prisma.userSettings.create({ data: { baseCurrency: 'USD' } });
     await prisma.exchangeRate.create({
-      data: { fromCurrency: 'CAD', toCurrency: 'USD', rate: 0.75 },
+      data: {
+        fromCurrency: 'CAD',
+        toCurrency: 'USD',
+        date: new Date('2026-01-01T00:00:00.000Z'),
+        rate: 0.75,
+      },
     });
     accountId = (await prisma.account.create({ data: createAccountData() })).id;
     cadAccountId = (await prisma.account.create({ data: createAccountData({ currency: 'CAD' }) }))

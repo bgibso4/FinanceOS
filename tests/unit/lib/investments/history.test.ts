@@ -535,7 +535,12 @@ describe('ValueHistoryService', () => {
 
   it('portfolio sums accounts in the base currency and flags any estimate', async () => {
     await prisma.exchangeRate.create({
-      data: { fromCurrency: 'CAD', toCurrency: 'USD', rate: 0.75 },
+      data: {
+        fromCurrency: 'CAD',
+        toCurrency: 'USD',
+        date: new Date('2026-01-01T00:00:00.000Z'),
+        rate: 0.75,
+      },
     });
     const usd = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Valuation });
     const cad = await seedInvestmentAccount(prisma, {

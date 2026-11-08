@@ -283,11 +283,12 @@ model ExchangeRate {
   id           String   @id @default(uuid())
   fromCurrency String
   toCurrency   String
+  date         DateTime // UTC midnight, like SecurityPrice.date
   rate         Float
   updatedAt    DateTime @updatedAt
   createdAt    DateTime @default(now())
 
-  @@unique([fromCurrency, toCurrency])
+  @@unique([fromCurrency, toCurrency, date])
 }
 
 model InflationRate {
