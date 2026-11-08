@@ -1,7 +1,8 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 
 import { SideNav } from '@/components/side-nav';
+import { signalScheduledSyncChanged } from '@/components/scheduled-sync/use-scheduled-sync-status';
 
 beforeEach(() => {
   vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {} });
@@ -33,5 +34,16 @@ describe('SideNav attention dot', () => {
     render(<SideNav />);
     await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/scheduled-sync/status'));
     expect(screen.queryByLabelText('Settings — needs attention')).not.toBeInTheDocument();
+  });
+
+  it('dotClearsWhenSettingsSignalsAChange', async () => {
+    stubStatus(true);
+    render(<SideNav />);
+    expect(await screen.findByLabelText('Settings — needs attention')).toBeInTheDocument();
+    stubStatus(false);
+    act(() => signalScheduledSyncChanged());
+    await waitFor(() =>
+      expect(screen.queryByLabelText('Settings — needs attention')).not.toBeInTheDocument()
+    );
   });
 });

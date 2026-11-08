@@ -8,9 +8,22 @@ export type ScheduledSyncStatus = {
   needsAttention: boolean;
 };
 
+const CHANGED = 'financeos-scheduled-sync-status-changed';
+
+/** Tells every status reader to re-read, e.g. after a reconnect or a sync finished. */
+export const signalScheduledSyncChanged = () => window.dispatchEvent(new Event(CHANGED));
+
 /** Reads the automatic-sync status on mount and again whenever `refetchKey` changes. */
 export function useScheduledSyncStatus(refetchKey?: string): ScheduledSyncStatus | null {
   const [status, setStatus] = useState<ScheduledSyncStatus | null>(null);
+
+  const [signals, setSignals] = useState(0);
+
+  useEffect(() => {
+    const onChanged = () => setSignals((n) => n + 1);
+    window.addEventListener(CHANGED, onChanged);
+    return () => window.removeEventListener(CHANGED, onChanged);
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -22,7 +35,7 @@ export function useScheduledSyncStatus(refetchKey?: string): ScheduledSyncStatus
     return () => {
       live = false;
     };
-  }, [refetchKey]);
+  }, [refetchKey, signals]);
 
   return status;
 }

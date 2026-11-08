@@ -20,6 +20,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { ds } from '@/lib/design-system';
 import { useScheduledSyncStatus } from '@/components/scheduled-sync/use-scheduled-sync-status';
 
 import type { LucideIcon } from 'lucide-react';
@@ -143,7 +144,7 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
   const attentionDot = (
     <span
       aria-label="Settings — needs attention"
-      className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[var(--red)]"
+      className={`absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-current ${ds.status.error.text}`}
       role="img"
     />
   );

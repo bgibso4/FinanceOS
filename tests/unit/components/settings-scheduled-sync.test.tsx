@@ -110,4 +110,20 @@ describe('Settings → daily exchange rate', () => {
       expect(calls.filter((c) => c.url === '/api/exchange-rates').length).toBeGreaterThan(before)
     );
   });
+
+  it('showsAMessageWhenRefreshFails', async () => {
+    stub(RAN, [CAD_USD]);
+    const ok = global.fetch;
+    global.fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) =>
+      String(url) === '/api/exchange-rates/refresh'
+        ? ({ ok: false, status: 500, json: async () => ({}) } as Response)
+        : ok(url, init)
+    ) as unknown as typeof fetch;
+    render(<SettingsPage />);
+    await screen.findByText(/1 CAD = 0\.7300 USD/);
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    expect(
+      await screen.findByText("Couldn't refresh the rate — showing the last one")
+    ).toBeInTheDocument();
+  });
 });

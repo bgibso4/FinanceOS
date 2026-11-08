@@ -49,7 +49,6 @@ import {
 } from '@/lib/sync-grouping';
 import { investmentSyncStatus } from '@/lib/investments/sync-status';
 import type { InvestmentSyncResult } from '@/lib/investments/plaid-investment-sync';
-import { getCurrencyFlag } from '@/lib/currency';
 import { SyncStatusBadge } from '@/components/plaid/SyncStatusBadge'; // Used for both Plaid and Teller
 import { triggerSync } from '@/lib/cloud-sync';
 import { ConnectedInstitutions } from '@/components/institutions/ConnectedInstitutions';
@@ -58,6 +57,7 @@ import { PlaidAccountLinkSelector } from '@/components/plaid/PlaidAccountLinkSel
 import { PlaidReconnectButton } from '@/components/plaid/PlaidReconnectButton';
 import { SyncSettings } from '@/components/sync-settings';
 import { ScheduledSyncLine } from '@/components/scheduled-sync/scheduled-sync-line';
+import { signalScheduledSyncChanged } from '@/components/scheduled-sync/use-scheduled-sync-status';
 import { RulesTab } from '@/components/rules/RulesTab';
 import { SecuritiesTab } from '@/components/investments/securities-tab';
 import { getTagColors } from '@/components/tag-input';
@@ -493,6 +493,7 @@ function SettingsPageContent() {
   const [defaultBudgets, setDefaultBudgets] = useState<Budget[]>([]);
   const [budgetViewMonth, setBudgetViewMonth] = useState<string>(''); // empty = "All months" (defaults)
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
+  const [rateRefreshFailed, setRateRefreshFailed] = useState(false);
   const [inflationRates, setInflationRates] = useState<
     { id: string; year: number; rate: number; updatedAt: string }[]
   >([]);
@@ -742,6 +743,7 @@ function SettingsPageContent() {
     const fresh: Account[] = acc.accounts ?? [];
     setAccounts(fresh);
     updateBalanceMaps(bal.accounts ?? []);
+    signalScheduledSyncChanged();
     return fresh;
   };
 
@@ -776,16 +778,23 @@ function SettingsPageContent() {
 
   const refreshRatesNow = async () => {
     try {
-      await fetch('/api/exchange-rates/refresh', { method: 'POST' });
+      const res = await fetch('/api/exchange-rates/refresh', { method: 'POST' });
+      const body = res.ok ? await res.json() : null;
+      setRateRefreshFailed(!body || (body.failed?.length ?? 0) > 0);
     } catch (error) {
       console.error('Failed to refresh exchange rates:', error);
+      setRateRefreshFailed(true);
     }
     await refreshExchangeRates();
   };
 
   const refreshExchangeRates = async () => {
-    const ratesData = await fetch('/api/exchange-rates').then((r) => r.json());
-    setExchangeRates(ratesData.rates ?? []);
+    try {
+      const ratesData = await fetch('/api/exchange-rates').then((r) => r.json());
+      setExchangeRates(ratesData.rates ?? []);
+    } catch (error) {
+      console.error('Failed to read exchange rates:', error);
+    }
   };
 
   const refreshInflationRates = async () => {
@@ -1964,14 +1973,6 @@ function SettingsPageContent() {
                   <label className={`block text-sm font-medium ${ds.text.primary}`}>
                     Exchange Rates
                   </label>
-                  <a
-                    className={`text-xs ${ds.text.muted} hover:${ds.text.secondary} underline`}
-                    href="https://www.google.com/search?q=currency+converter"
-                    rel="noopener noreferrer"
-                    target="_blank"
-                  >
-                    Check current rates →
-                  </a>
                 </div>
 
                 <div className={`space-y-2 text-sm ${ds.text.secondary}`}>
@@ -1987,6 +1988,11 @@ function SettingsPageContent() {
                 <Button variant="outline" onClick={refreshRatesNow}>
                   Refresh
                 </Button>
+                {rateRefreshFailed && (
+                  <p className={`text-xs ${ds.status.warning.text}`}>
+                    Couldn't refresh the rate — showing the last one
+                  </p>
+                )}
               </div>
             </div>
 
