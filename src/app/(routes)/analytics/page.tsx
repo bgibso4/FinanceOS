@@ -363,8 +363,8 @@ function AnalyticsContent() {
                 )
               }
               onLabelClick={period.kind === 'custom' ? togglePanel : undefined}
-              onNext={() => setQuery({ ...query, period: stepPeriod(period, 1) })}
-              onPrev={() => setQuery({ ...query, period: stepPeriod(period, -1) })}
+              onNext={() => setQuery({ ...query, period: stepPeriod(period, 1, today) })}
+              onPrev={() => setQuery({ ...query, period: stepPeriod(period, -1, today) })}
             />
             <button
               ref={filterButton}

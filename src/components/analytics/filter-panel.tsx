@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import type { Category } from '@/components/transactions/types';
 import { Input } from '@/components/ui/input';
 import {
@@ -60,16 +60,25 @@ export function FilterPanel({
   const latest = useRef({ query, onChange });
   latest.current = { query, onChange };
   const [merchantBox, setMerchantBox] = useState(0);
+  const openerRef = useRef<HTMLElement | null>(null);
+  /**
+   * Esc, Done and ✕ hand focus back to what opened the panel. A press outside doesn't: the
+   * press is moving focus itself, and focusing the opener would scroll the page under it.
+   */
+  const dismiss = useCallback(() => {
+    onCloseRef.current();
+    if (openerRef.current?.isConnected) openerRef.current.focus();
+  }, []);
 
   useEffect(() => {
     if (!open) return;
     const card = cardRef.current;
-    const opener = document.activeElement as HTMLElement | null;
+    openerRef.current = document.activeElement as HTMLElement | null;
     card?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (document.querySelector('[aria-modal="true"]')) return;
-      onCloseRef.current();
+      dismiss();
     };
     const onPointer = (e: PointerEvent) => {
       const target = e.target as Node | null;
@@ -81,10 +90,8 @@ export function FilterPanel({
     return () => {
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('pointerdown', onPointer);
-      // Hand focus back only if it's still in the card; a press outside has put it elsewhere.
-      if (card?.contains(document.activeElement) && opener?.isConnected) opener.focus();
     };
-  }, [open, toggleRef]);
+  }, [open, toggleRef, dismiss]);
 
   const set = (patch: Partial<AnalyticsQuery>) => onChange({ ...query, ...patch });
   const { period } = query;
@@ -101,7 +108,7 @@ export function FilterPanel({
       aria-hidden={open ? undefined : true}
       aria-label="Filters"
       aria-modal="false"
-      className={`fixed bottom-3.5 right-3.5 top-3.5 z-[35] flex w-[min(340px,calc(100vw-28px))] origin-top-right flex-col rounded-[20px] border border-[var(--border-hover)] bg-[var(--bg-card)] shadow-[0_24px_60px_rgba(0,0,0,0.2),0_2px_8px_rgba(0,0,0,0.06)] outline-none transition-[transform,opacity] duration-[380ms] ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none ${
+      className={`fixed bottom-3.5 right-3.5 top-3.5 z-[35] flex w-[min(340px,calc(100vw-28px))] origin-top-right flex-col rounded-[20px] border border-[var(--border-hover)] bg-[var(--bg-card)] shadow-[0_24px_60px_rgba(0,0,0,0.2),0_2px_8px_rgba(0,0,0,0.06)] outline-none transition-[transform,opacity] [transition-duration:380ms] [transition-timing-function:cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none ${
         open ? 'opacity-100' : 'pointer-events-none translate-x-[30px] scale-[.96] opacity-0'
       }`}
       inert={!open}
@@ -115,7 +122,7 @@ export function FilterPanel({
           className="grid h-8 w-8 place-items-center rounded-[9px] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
           title="Close · Esc"
           type="button"
-          onClick={onClose}
+          onClick={dismiss}
         >
           <svg
             aria-hidden="true"
@@ -229,7 +236,7 @@ export function FilterPanel({
         <button
           className="ml-auto rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90"
           type="button"
-          onClick={onClose}
+          onClick={dismiss}
         >
           Done
         </button>

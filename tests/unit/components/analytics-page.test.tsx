@@ -159,6 +159,44 @@ describe('Analytics page', () => {
     expect(panel()).not.toBeInTheDocument();
   });
 
+  it('rowPressWithPanelOpenLeavesFocusAloneAndOpensDrawer', async () => {
+    visit();
+    await userEvent.click(await screen.findByText('Test A', { selector: 'span.font-semibold' }));
+    const row = await within(await screen.findByRole('table')).findByText('Merchant One');
+    const filters = screen.getByRole('button', { name: 'Filters' });
+    await userEvent.click(filters);
+    expect(panel()).toBeInTheDocument();
+
+    // A real press: pointerdown (outside the panel) comes before the click.
+    fireEvent.pointerDown(row);
+    // Focusing the Filters button here scrolls the page to the top before the click lands.
+    expect(document.activeElement).not.toBe(filters);
+    fireEvent.click(row);
+
+    expect(await screen.findByRole('dialog', { name: 'Merchant One' })).toBeInTheDocument();
+    expect(panel()).not.toBeInTheDocument();
+  });
+
+  it('escDoneAndCloseReturnFocusToFilters', async () => {
+    visit();
+    const filters = await screen.findByRole('button', { name: 'Filters' });
+    const close = async (how: () => Promise<void> | void) => {
+      await userEvent.click(filters);
+      expect(panel()).toBeInTheDocument();
+      filters.blur();
+      await how();
+      expect(panel()).not.toBeInTheDocument();
+      expect(document.activeElement).toBe(filters);
+    };
+    await close(() => {
+      fireEvent.keyDown(document, { key: 'Escape' });
+    });
+    await close(() => userEvent.click(within(panel()!).getByRole('button', { name: 'Done' })));
+    await close(() =>
+      userEvent.click(within(panel()!).getByRole('button', { name: 'Close filters' }))
+    );
+  });
+
   it('rowsFetchCarriesFilters', async () => {
     visit('account=a1&tag=Vacation');
 

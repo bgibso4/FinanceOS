@@ -82,12 +82,30 @@ describe('comparison ranges', () => {
 
 describe('stepping and switching', () => {
   it('steps each kind', () => {
-    expect(stepPeriod(nov, -1).anchor).toBe('2026-10');
-    expect(stepPeriod(q, -1).anchor).toBe('2026-08');
-    expect(stepPeriod(yr, -1).anchor).toBe('2025-12');
-    expect(stepPeriod(oct, 1).anchor).toBe('2026-11');
-    const back = stepPeriod(custom, -1).custom!;
+    expect(stepPeriod(nov, -1, TODAY).anchor).toBe('2026-10');
+    expect(stepPeriod(q, -1, TODAY).anchor).toBe('2026-08');
+    expect(stepPeriod(yr, -1, TODAY).anchor).toBe('2025-12');
+    expect(stepPeriod(oct, 1, TODAY).anchor).toBe('2026-11');
+    const back = stepPeriod(custom, -1, TODAY).custom!;
     expect(back).toEqual({ start: '2025-12-30', end: '2026-05-31' });
+  });
+  it('custom steps forward to the same length ending today, never past it', () => {
+    const mid: Period = {
+      kind: 'custom',
+      anchor: '2026-11',
+      custom: { start: '2026-10-15', end: '2026-11-03' },
+    };
+    const next = stepPeriod(mid, 1, TODAY);
+    expect(next.custom).toEqual({ start: '2026-10-19', end: TODAY });
+    expect(next.anchor).toBe('2026-11');
+    expect(isLatest(next, TODAY)).toBe(true);
+    // A forward step that stays in the past is a plain step.
+    const sep: Period = {
+      kind: 'custom',
+      anchor: '2026-09',
+      custom: { start: '2026-09-01', end: '2026-09-10' },
+    };
+    expect(stepPeriod(sep, 1, TODAY).custom).toEqual({ start: '2026-09-11', end: '2026-09-20' });
   });
   it('isLatest only for the current period', () => {
     expect(isLatest(nov, TODAY)).toBe(true);
@@ -143,6 +161,9 @@ describe('in New York', () => {
   it('gives the same answers under a non-UTC zone', () => {
     expect(compareRange(nov, 'prev', TODAY)).toEqual({ start: '2026-10-01', end: '2026-10-07' });
     expect(periodLabel(custom)).toBe('Jun 1 – Oct 31, 2026');
-    expect(stepPeriod(custom, -1).custom).toEqual({ start: '2025-12-30', end: '2026-05-31' });
+    expect(stepPeriod(custom, -1, TODAY).custom).toEqual({
+      start: '2025-12-30',
+      end: '2026-05-31',
+    });
   });
 });

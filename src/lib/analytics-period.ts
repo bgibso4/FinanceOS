@@ -98,12 +98,14 @@ export function compareChartRange(p: Period, vs: CompareKind, today: string): Da
   return compareRange(p, vs, today);
 }
 
-export function stepPeriod(p: Period, delta: 1 | -1): Period {
+/** One step back or on. A custom range keeps its length; a step on that would pass today ends today. */
+export function stepPeriod(p: Period, delta: 1 | -1, today: string): Period {
   if (p.kind === 'custom' && p.custom) {
-    const n = delta * dayCount(p.custom);
-    const shift = (day: string) => isoDay(addDays(utcDay(day), n));
-    const end = shift(p.custom.end);
-    return { ...p, anchor: end.slice(0, 7), custom: { start: shift(p.custom.start), end } };
+    const length = dayCount(p.custom);
+    const shifted = isoDay(addDays(utcDay(p.custom.end), delta * length));
+    const end = shifted > today ? today : shifted;
+    const start = isoDay(addDays(utcDay(end), 1 - length));
+    return { ...p, anchor: end.slice(0, 7), custom: { start, end } };
   }
   return shiftPeriod(p, delta * stepMonths(p));
 }

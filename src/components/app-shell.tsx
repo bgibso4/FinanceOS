@@ -34,14 +34,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         >
           <SideNav onToggleAnalyst={toggleAnalyst} />
         </Suspense>
-        <div className="flex min-h-screen flex-1 flex-col" {...DRAWER_DISMISS}>
+        <div className="flex min-h-screen min-w-0 flex-1 flex-col" {...DRAWER_DISMISS}>
           {/* A page holding DRAWER_PUSH_CLASS makes room for the drawer here, so the centred
               column re-centres in what is left: the left margin goes first, the content last. */}
           <div
             {...DRAWER_DISMISS}
             className={`flex flex-1 justify-center transition-[padding] motion-reduce:transition-none ${DRAWER_MOTION} min-[1100px]:has-[.drawer-push]:pr-[540px]`}
           >
-            <div className="w-full max-w-[1400px] px-12 py-8" {...DRAWER_DISMISS}>
+            <div className="w-full max-w-[1400px] px-4 py-8 md:px-12" {...DRAWER_DISMISS}>
               <BudgetBanner />
               <main {...DRAWER_DISMISS}>{children}</main>
             </div>

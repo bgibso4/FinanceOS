@@ -107,8 +107,9 @@ export function CategoryBreakdown({
           Category Breakdown by Group
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
+      {/* Narrow screens: the columns scroll sideways inside the card, never the page. */}
+      <CardContent className="overflow-x-auto">
+        <div className="min-w-fit space-y-4">
           <div className={`${grid} px-3 text-xs ${ds.text.muted}`}>
             <span>Category</span>
             <span className="text-right">{columns.current}</span>
