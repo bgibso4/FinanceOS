@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { dashboardAnalytics } from '@/lib/analytics';
-import { parseFilters, resolveDateRange } from '@/lib/filters';
+import { compareRange, parseFilters, resolveDateRange } from '@/lib/filters';
 
 export async function GET(req: NextRequest) {
   const search = req.nextUrl.searchParams;
@@ -9,6 +9,12 @@ export async function GET(req: NextRequest) {
   const preset = (search.get('preset') ?? 'last-3-months') as any;
   const { startDate, endDate } = resolveDateRange(preset, filters.startDate, filters.endDate);
 
-  const payload = await dashboardAnalytics(prisma, filters, startDate, endDate);
+  const payload = await dashboardAnalytics(
+    prisma,
+    filters,
+    startDate,
+    endDate,
+    compareRange(search)
+  );
   return NextResponse.json(payload);
 }

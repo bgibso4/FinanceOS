@@ -87,3 +87,12 @@ export function parseFilters(searchParams: URLSearchParams): FilterParams {
     tags: tags.length ? tags : undefined,
   };
 }
+
+/** The comparison range named by `compareStart` and `compareEnd`, when both are given. */
+export function compareRange(
+  searchParams: URLSearchParams
+): { startDate: Date; endDate: Date } | undefined {
+  const start = searchParams.get('compareStart');
+  const end = searchParams.get('compareEnd');
+  return start && end ? resolveDateRange('custom', start, end) : undefined;
+}
