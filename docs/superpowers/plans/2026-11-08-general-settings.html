@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>General Settings Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f2f2f7; --surface: #ffffff; --fill: #e9e9ee; --ink: #1c1c1e; --ink-2: #6e6e73; --ink-3: #8a8a8e; --line: #d8d8dc;
+  --tint: #1c1c1e; --on-tint: #ffffff; --soon: #ad500e; --done: #2f7d4f; --info: #3f6fa3; --warn: #a3392f;
+  --serif: "Source Serif 4", "New York", ui-serif, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+    --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+  --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+h1, h2, h3 { text-wrap: balance; }
+.layout { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+.brand { font: 700 15px/1.2 var(--serif); }
+.brand span { display: block; font: 400 13px/1.4 var(--sans); color: var(--ink-2); margin-top: 2px; }
+.overall { background: var(--surface); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.overall b { font: 700 17px/1.2 var(--serif); color: var(--ink); }
+.toc { display: flex; flex-direction: column; gap: 1px; }
+.toc-label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin: 6px 0 6px 10px; }
+.toc a { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; text-decoration: none; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.toc a:hover { background: var(--surface); color: var(--ink); }
+.toc a.active { background: var(--surface); color: var(--ink); font-weight: 600; }
+.toc-n { width: 20px; text-align: right; color: var(--ink-3); font-size: 13px; flex: none; font-variant-numeric: tabular-nums; }
+.theme { align-self: flex-start; background: none; border: 0; color: var(--ink-3); font: 13px var(--sans); cursor: pointer; padding: 4px 10px; }
+.theme:hover { color: var(--ink); }
+main { padding: 48px 0 120px; display: flex; flex-direction: column; gap: 48px; min-width: 0; }
+.eyebrow { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.eyebrow .pill { background: var(--surface); border-radius: 99px; padding: 3px 10px; font-weight: 600; color: var(--ink); }
+h1 { font: 700 44px/1.08 var(--serif); letter-spacing: -0.6px; margin: 12px 0 14px; }
+.goal { font-size: 19px; line-height: 1.5; max-width: 66ch; margin: 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 24px; }
+.meta div { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; line-height: 1.5; }
+.meta b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 4px; }
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 14px; color: var(--ink-2); }
+.stats b { font: 700 20px var(--serif); color: var(--ink); margin-right: 4px; font-variant-numeric: tabular-nums; }
+section > h2 { font: 700 26px/1.2 var(--serif); margin: 0 0 6px; letter-spacing: -0.2px; }
+section > h3.sub { font: 700 19px/1.3 var(--serif); margin: 22px 0 8px; }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 66ch; }
+.decisions { background: var(--surface); border-radius: var(--r); padding: 6px 0; border-left: 4px solid var(--soon); }
+.decisions.agreed { border-left-color: var(--done); }
+.decisions ul { list-style: none; margin: 0; padding: 0; }
+.decision { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 18px; }
+.decision + .decision { border-top: 1px solid var(--line); }
+.dec-name { font-weight: 600; }
+.dec-id { font: 700 13px var(--serif); color: var(--ink-3); margin-right: 6px; }
+.dec-text { color: var(--ink-2); font-size: 15px; max-width: 70ch; }
+.dec-text strong { color: var(--ink); }
+.trefs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 180px; }
+.tref { flex: none; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--fill); padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.tref:hover { background: var(--tint); color: var(--on-tint); }
+.card { background: var(--surface); border-radius: var(--r); padding: 6px 20px; }
+.card ul, .card ol { margin: 0; padding: 0; list-style: none; }
+.card > ul > li, .card > ol > li { padding: 11px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.card > ul > li:first-child, .card > ol > li:first-child { border-top: 0; }
+.card li ul { list-style: disc; padding-left: 20px; margin: 6px 0 0; }
+.card li ul li { padding: 2px 0; border: 0; color: var(--ink-2); }
+.card li ul li strong { color: var(--ink); }
+.numbered { counter-reset: f; }
+.numbered > li { counter-increment: f; display: grid; grid-template-columns: 28px 1fr; gap: 6px; }
+.numbered > li::before { content: counter(f); font: 700 17px/1.4 var(--serif); color: var(--soon); }
+table.md { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border-radius: var(--r); overflow: hidden; }
+table.md th, table.md td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--line); }
+table.md th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); border-top: 0; }
+table.md td:first-child { font-weight: 600; white-space: nowrap; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; }
+.chip.mine { color: var(--soon); background: color-mix(in srgb, var(--soon) 13%, transparent); }
+.chip.agreed { color: var(--done); background: color-mix(in srgb, var(--done) 13%, transparent); }
+.chip.route { color: var(--info); background: color-mix(in srgb, var(--info) 13%, transparent); font-family: var(--mono); font-weight: 500; }
+.callout { background: var(--surface); border-radius: var(--r); padding: 14px 18px; border-left: 4px solid var(--warn); font-size: 15px; margin-top: 12px; }
+.callout b:first-child { display: block; margin-bottom: 4px; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.col { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; }
+.col h3 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 8px; }
+.col ul { margin: 0; padding-left: 16px; } .col li { margin: 5px 0; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
+  .side { position: static; height: auto; padding: 24px 0 0; }
+  .toc { display: none; }
+  h1 { font-size: 34px; }
+  .cols { grid-template-columns: 1fr; }
+  .decision { flex-direction: column; gap: 8px; }
+  .trefs { justify-content: flex-start; max-width: none; }
+}
+pre { background: var(--fill); border-radius: 10px; padding: 12px 14px; overflow-x: auto; margin: 8px 0 2px; }
+pre code { background: none; padding: 0; font-size: 12.5px; line-height: 1.55; overflow-wrap: normal; white-space: pre; }
+ol.steps { counter-reset: s; list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+ol.steps > li { counter-increment: s; background: var(--surface); border-radius: var(--r); padding: 12px 16px 12px 52px; position: relative; font-size: 15px; min-width: 0; }
+ol.steps > li::before { content: "Step " counter(s); position: absolute; left: 14px; top: 13px; font: 700 11px var(--sans); color: var(--ink-3); width: 30px; line-height: 1.2; }
+section > .card + ol.steps { margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side" aria-label="Sections">
+    <div class="brand">FinanceOS<span>Plan · General settings &amp; automatic inflation</span></div>
+    <div class="overall"><span>Status</span><b>Waiting on your review</b><span>Starts after PR #46 merges</span></div>
+    <nav class="toc" aria-label="Sections">
+      <div class="toc-label">Overview</div>
+      <a href="#arch"><span class="toc-n"></span><span>Architecture</span></a>
+      <a href="#calls"><span class="toc-n"></span><span>Planning calls</span></a>
+      <a href="#global"><span class="toc-n"></span><span>Global constraints</span></a>
+      <a href="#focus"><span class="toc-n"></span><span>Review focus</span></a>
+      <a href="#files"><span class="toc-n"></span><span>Files</span></a>
+      <div class="toc-label">Tasks</div>
+      <a href="#t1"><span class="toc-n">1</span><span>Index domain</span></a>
+      <a href="#t2"><span class="toc-n">2</span><span>Source adapters</span></a>
+      <a href="#t3"><span class="toc-n">3</span><span>Storage and fill</span></a>
+      <a href="#t4"><span class="toc-n">4</span><span>Reports</span></a>
+      <a href="#t5"><span class="toc-n">5</span><span>Pass step</span></a>
+      <a href="#t6"><span class="toc-n">6</span><span>APIs</span></a>
+      <a href="#t7"><span class="toc-n">7</span><span>Hover sparkline</span></a>
+      <a href="#t8"><span class="toc-n">8</span><span>General tab</span></a>
+      <a href="#t9"><span class="toc-n">9</span><span>Check and ship</span></a>
+    </nav>
+    <button class="theme" type="button" id="theme">◐ Light / dark</button>
+  </aside>
+  <main>
+    <header>
+      <div class="eyebrow"><span class="pill">Plan</span><span>Written 2026-11-08</span><span>·</span><span>9 tasks · not started</span></div>
+      <h1>General settings and automatic inflation</h1>
+      <p class="goal">Build the approved design: a monthly consumer-price-index pipeline for the US and Canada behind a source interface, a sync-pass step that keeps it current, month-exact inflation adjustment in Reports, and the redesigned Settings → General page from the approved mock.</p>
+      <div class="meta">
+        <div><b>Spec</b><code>docs/superpowers/specs/2026-11-08-general-settings-design.html</code> (the authority; this plan argues from it). Mock: <code>~/Documents/FinanceOS-design-archive/design-mocks/settings-general.html</code>.</div>
+        <div><b>Branch</b><code>feat/general-settings</code> off <code>main</code> <strong>after PR #46 is merged</strong>. One PR against <code>main</code>, opened only when Ben says.</div>
+        <div><b>Stack</b>Next.js 16 App Router, React 19, TypeScript, Prisma 5 + SQLite, Zod, vitest + Testing Library. No new dependencies.</div>
+      </div>
+      <div class="stats"><span><b>9</b>tasks</span><span><b>2</b>statistics adapters</span><span><b>1</b>Ben-gated live step</span></div>
+    </header>
+
+    <section id="arch">
+      <h2>Architecture</h2>
+      <div class="card"><ul>
+        <li><strong>Layers, each depending only on the one below through an interface:</strong>
+          <ul>
+            <li><strong>Domain</strong> (<code>src/lib/price-index/types.ts</code>, <code>months.ts</code>, <code>series.ts</code>): vendor-free types — <code>IndexRegion</code>, <code>MonthKey</code>, <code>IndexObservation</code> — and the pure <code>IndexSeries</code> that answers annual change, monthly change and adjustment factors. Runs on server and client.</li>
+            <li><strong>Sources</strong> (<code>src/lib/price-index/sources/</code>): <code>PriceIndexSource</code> implemented once per agency. Each adapter owns its vendor request and response schema privately and returns only <code>IndexObservation[]</code>. HTTP is injected (<code>fetch</code>), so tests use recorded responses.</li>
+            <li><strong>Store</strong> (<code>store.ts</code>): <code>PriceIndexStore</code>, the only code that touches the <code>PriceIndexMonth</code> table.</li>
+            <li><strong>Service</strong> (<code>history.ts</code>): <code>PriceIndexHistory.fill()</code> decides what to ask each source, validates, and saves through the store. It never sees Prisma or a vendor payload.</li>
+            <li><strong>Composition root</strong> (<code>services.ts</code>): the one place real sources, store and clock are wired.</li>
+          </ul></li>
+        <li><strong>Consumers</strong>: the sync pass (new <code>inflation</code> step), <code>GET /api/price-index</code>, Reports (<code>IndexSeries.factor</code>), and the General tab.</li>
+        <li><strong>Rates</strong> reuse the existing <code>ExchangeRate</code> rows; a pure <code>summarizePair</code> adds the sparkline, 1-year change and month-end table to <code>GET /api/exchange-rates</code>.</li>
+        <li><strong>UI</strong>: the General tab moves out of the 4,600-line Settings page into <code>src/components/settings/general/</code>, built from reusable <code>SettingsGroup</code> / <code>SettingsRow</code> / <code>ExpandableRow</code> pieces so later settings are one more row.</li>
+      </ul></div>
+    </section>
+
+    <section id="calls">
+      <h2>Planning calls</h2>
+      <p class="lede">Decisions the spec left to the builder, settled here so every task agrees.</p>
+      <div class="decisions"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P1</span>Months are <code>"YYYY-MM"</code> strings</div><div class="dec-text">Stored and passed as <code>MonthKey</code>. No time zones, sorts as text, matches how both agencies publish.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P2</span>Table <code>PriceIndexMonth</code></div><div class="dec-text"><code>id, region String, month String, value Float, createdAt, updatedAt</code>, <code>@@unique([region, month])</code>. <code>InflationRate</code> is dropped. <code>UserSettings</code> gains <code>inflationRegion String @default("US")</code>.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P3</span>Missing months are absent, not failures</div><div class="dec-text">The US series has no October 2025 (the API returns <code>"-"</code>). Adapters drop non-numeric months; figures that need a missing month are <code>null</code> and show "—". A response with an error status is a failure.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P4</span>Endpoints</div><div class="dec-text">US: <code>POST https://api.bls.gov/publicAPI/v1/timeseries/data/</code> with <code>{"seriesid":["CUUR0000SA0"],"startyear","endyear"}</code>, at most 10 years per request. Canada: <code>GET https://www150.statcan.gc.ca/t1/wds/rest/getDataFromVectorByReferencePeriodRange?vectorIds="41690973"&amp;startRefPeriod=YYYY-MM-01&amp;endReferencePeriod=YYYY-MM-01</code>. Both verified 2026-11-08.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P5</span>When to ask</div><div class="dec-text">Skip a region when its last stored month is last month or later (nothing newer can exist). Otherwise re-read from 3 months before the last stored month (revisions) to the current month. First fill starts 12 months before the earlier of the first net-worth snapshot and 12 months ago, so Settings always has 24 months.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P6</span>Sanity bound</div><div class="dec-text">Reject a fill (write nothing for that region) if any value is non-finite or ≤ 0, or moves more than 5% from the previous observation in the same answer or the store.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P7</span>Plain-SVG sparkline on the existing geometry</div><div class="dec-text">One <code>HoverSparkline</code> built on <code>chartGeometry</code> (<code>src/components/investments/chart-geometry.ts</code>). No Recharts here.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P8</span>One row component</div><div class="dec-text"><code>ExpandableRow</code> serves both rate and inflation rows; the inflation row passes its radio as a leading slot.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">P9</span>Base currencies in one list</div><div class="dec-text"><code>BASE_CURRENCIES</code> in <code>src/lib/currency.ts</code> feeds both the select and the settings route's validation.</div></div></li>
+      </ul></div>
+    </section>
+
+    <section id="global">
+      <h2>Global constraints</h2>
+      <div class="card"><ul>
+        <li><strong>principal-engineer loaded</strong> by every implementer and reviewer. DRY &gt; YAGNI &gt; SOLID.</li>
+        <li><strong>Integration isolation (Ben, 2026-11-08):</strong> vendor request/response types and Zod schemas live only inside their adapter file and are never exported; everything outside <code>sources/</code> sees only <code>IndexObservation</code> / <code>MonthKey</code> / <code>IndexRegion</code>. Services depend on interfaces (<code>PriceIndexSource</code>, <code>PriceIndexStore</code>, <code>Clock</code>), constructed in <code>services.ts</code> only. Prisma appears in <code>store.ts</code> and the composition root, not in <code>history.ts</code>.</li>
+        <li><strong>Vendor names only at the edges:</strong> BLS / Statistics Canada names appear in adapter files and the attribution strings; elsewhere "consumer price index".</li>
+        <li><strong>Follow the approved mock</strong> for layout, wording and behaviour. Design tokens only, light and dark; no emoji in the General tab; accent only on sparklines, the selected radio, "In use" and Save changes.</li>
+        <li><strong>Date rule:</strong> months are calendar months, never time-zone converted; real moments ("as of 7:20 am", "fetched Nov 8") show local via <code>fmtMoment</code>.</li>
+        <li><strong>Tests</strong> never touch <code>prisma/dev.db</code> (use <code>tests/helpers/db.ts</code>), never call a real statistics API, bank or price provider. In zsh list test files explicitly. Use <code>findBy…</code> after fetches. Each implementer runs every test file touching changed modules plus <code>npm run typecheck</code>.</li>
+        <li><strong>Only <code>console.warn</code> / <code>console.error</code>.</strong> Schema changes via <code>prisma db push</code>; the live database only in Task 9, with Ben, after a backup.</li>
+        <li><strong>Port 3000</strong> is Ben's production server: never touch it. Production runs a build made from this checkout, so never run <code>npm run build</code> or <code>next build</code> in the repo (builds go in a scratch export) and never restart production. The scheduler never runs outside production; never run a bank sync on a database copy.</li>
+        <li><strong>Commits</strong> after each task with trailer <code>Co-Authored-By: Claude Opus 5.5 &lt;noreply@anthropic.com&gt;</code>. Spec and plan committed with <code>git add -f</code> in Task 1.</li>
+      </ul></div>
+    </section>
+
+    <section id="focus">
+      <h2>Review focus</h2>
+      <p class="lede">Inputs the spec implies but doesn't spell out, most likely to bite first. Each has a test in its owning task.</p>
+      <div class="card"><ol class="numbered">
+        <li><div><strong>A month missing from a source</strong> (US October 2025). Annual change for October 2026 and monthly change for November 2025 are null ("—"); a snapshot dated in the missing month uses the latest month before it. Tests: Task 1 <code>missingMonthGivesNullChanges</code>, <code>factorForMissingMonthUsesEarlier</code>; Task 2 <code>blsSkipsDashMonths</code>.</div></li>
+        <li><div><strong>A snapshot newer than the latest index</strong> (October or November 2026 before October's figure exists) is not adjusted (factor 1). Test: Task 1 <code>factorAfterLatestIsOne</code>.</div></li>
+        <li><div><strong>An API that answers 200 with an error body</strong> (BLS <code>REQUEST_NOT_PROCESSED</code> when the daily limit is hit; Statistics Canada <code>status</code> other than <code>SUCCESS</code>) is a failure, never an empty success that looks up to date. Tests: Task 2 <code>blsErrorStatusThrows</code>, <code>statcanErrorStatusThrows</code>.</div></li>
+        <li><div><strong>No snapshots yet</strong>: the first fill still fetches 24 months so Settings has 12 rows of annual figures. Test: Task 3 <code>firstFillWithoutSnapshotsFetches24Months</code>.</div></li>
+        <li><div><strong>Save fails, or the tab is left with unsaved changes</strong>: a failed Save keeps the bar and shows the error; leaving and coming back shows the saved values. Tests: Task 8 <code>saveFailureKeepsBar</code>, <code>remountShowsSavedValues</code>.</div></li>
+      </ol></div>
+    </section>
+
+    <section id="files">
+      <h2>Files</h2>
+      <table class="md">
+        <tr><th>Path</th><th>Responsibility</th><th>Task</th></tr>
+        <tr><td><code>src/lib/price-index/types.ts</code></td><td>Domain types, <code>PriceIndexSource</code>, <code>PriceIndexSourceError</code>, region names</td><td>1</td></tr>
+        <tr><td><code>src/lib/price-index/months.ts</code></td><td>Month arithmetic and formatting</td><td>1</td></tr>
+        <tr><td><code>src/lib/price-index/series.ts</code></td><td><code>IndexSeries</code>: changes, recent rows, factor</td><td>1</td></tr>
+        <tr><td><code>src/lib/price-index/sources/bls.ts</code>, <code>statcan.ts</code></td><td>One adapter per agency</td><td>2</td></tr>
+        <tr><td><code>src/lib/price-index/store.ts</code>, <code>history.ts</code>, <code>services.ts</code></td><td>Persistence, fill, wiring</td><td>3</td></tr>
+        <tr><td><code>src/lib/scheduled-sync/pass.ts</code></td><td><code>inflation</code> step; shared step runner</td><td>5</td></tr>
+        <tr><td><code>src/lib/fx/rate-summary.ts</code></td><td>Sparkline points, 1-year change, month ends</td><td>6</td></tr>
+        <tr><td><code>src/app/api/price-index/route.ts</code></td><td>Read API</td><td>3</td></tr>
+        <tr><td><code>src/lib/inflation.ts</code>, <code>NetWorthSnapshots.tsx</code></td><td>Monthly adjustment in Reports</td><td>4</td></tr>
+        <tr><td><code>src/components/ui/hover-sparkline.tsx</code></td><td>The one sparkline</td><td>7</td></tr>
+        <tr><td><code>src/components/settings/general/*</code></td><td>The General tab</td><td>8</td></tr>
+      </table>
+    </section>
+
+    <!-- ===================== TASKS ===================== -->
+
+    <section id="t1">
+      <h2>Task 1 · Index domain</h2>
+      <p class="lede">Branch setup plus the pure, vendor-free core.</p>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> create <code>src/lib/price-index/{types,months,series}.ts</code>; test <code>tests/unit/lib/price-index/series.test.ts</code>, <code>months.test.ts</code>.</li>
+        <li><strong>Produces:</strong>
+<pre><code>type IndexRegion = 'US' | 'CA';  const INDEX_REGIONS: readonly IndexRegion[] = ['US', 'CA'];
+const REGION_NAMES: Record&lt;IndexRegion, string&gt; = { US: 'US', CA: 'Canada' };
+type MonthKey = string;                       // 'YYYY-MM'
+interface IndexObservation { month: MonthKey; value: number }
+interface PriceIndexSource {
+  readonly region: IndexRegion;
+  readonly attribution: string;               // shown under the 12-month table
+  fetchMonths(from: MonthKey, to: MonthKey): Promise&lt;IndexObservation[]&gt;; // missing months absent
+}
+class PriceIndexSourceError extends Error {}
+monthOf(d: Date): MonthKey                    // UTC calendar month
+addMonths(m: MonthKey, n: number): MonthKey
+fmtMonth(m: MonthKey, style: 'short' | 'long'): string   // 'Sep 2026' | 'September 2026'
+type IndexRow = { month: MonthKey; value: number; annual: number | null; monthly: number | null };
+class IndexSeries {
+  static of(obs: IndexObservation[]): IndexSeries;
+  latest(): IndexObservation | null;
+  annualChange(m: MonthKey): number | null;   // % vs m-12; null if either month missing
+  monthlyChange(m: MonthKey): number | null;  // % vs m-1; null if either month missing
+  recent(n: number): IndexRow[];              // last n stored months, newest first
+  factor(from: MonthKey): number;             // latest ÷ value at-or-before from (else earliest); 1 if from ≥ latest or empty
+}</code></pre></li>
+      </ul></div>
+      <ol class="steps">
+        <li>Branch <code>feat/general-settings</code> already exists off <code>main</code> (PR #46 merged as 6fe5e2e). <code>git add -f</code> the spec and this plan; commit <code>docs: general settings spec and plan</code>.</li>
+        <li>Write failing tests with US values from the real series — <code>2025-08: 323.976, 2025-09: 324.800, 2025-11: 324.122, 2025-12: 324.054, 2026-08: 334.980, 2026-09: 336.940</code> (no 2025-10):
+<pre><code>annualChange('2026-09') ≈ 3.737 (toBeCloseTo 3.737, 3)
+monthlyChange('2026-09') ≈ 0.585 (toBeCloseTo 0.585, 3)
+missingMonthGivesNullChanges: monthlyChange('2025-11') === null; annualChange('2026-10') === null
+recent(2) → months ['2026-09','2026-08'], first row annual ≈ 3.737
+factorAfterLatestIsOne: factor('2026-09') === 1; factor('2026-11') === 1
+factor('2025-09') ≈ 336.940 / 324.800
+factorForMissingMonthUsesEarlier: factor('2025-10') ≈ 336.940 / 324.800
+factor('2020-01') uses earliest (323.976); IndexSeries.of([]).factor('2025-01') === 1
+months: addMonths('2026-01', -1) === '2025-12'; monthOf(new Date('2026-03-31T23:30:00Z')) === '2026-03'; fmtMonth('2026-09','long') === 'September 2026'</code></pre></li>
+        <li>Run <code>npx vitest run tests/unit/lib/price-index/series.test.ts tests/unit/lib/price-index/months.test.ts</code> — expect FAIL (modules missing).</li>
+        <li>Implement the three files. <code>fmtMonth</code> formats with <code>timeZone: 'UTC'</code>.</li>
+        <li>Run the same command — PASS. <code>npm run typecheck</code> clean.</li>
+        <li>Commit <code>feat(price-index): monthly index domain</code>.</li>
+      </ol>
+    </section>
+
+    <section id="t2">
+      <h2>Task 2 · Source adapters</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> create <code>src/lib/price-index/sources/bls.ts</code>, <code>statcan.ts</code>; fixtures <code>tests/fixtures/price-index/bls-cpi.json</code>, <code>statcan-cpi.json</code>; test <code>tests/unit/lib/price-index/sources.test.ts</code>.</li>
+        <li><strong>Consumes:</strong> Task 1 types. <strong>Produces:</strong> <code>class BlsCpiSource implements PriceIndexSource</code> (region <code>'US'</code>, attribution <code>'US Bureau of Labor Statistics, CPI-U all items'</code>) and <code>class StatCanCpiSource implements PriceIndexSource</code> (region <code>'CA'</code>, attribution <code>'Statistics Canada, CPI all-items'</code>); both <code>constructor(http: typeof fetch = fetch)</code>.</li>
+        <li><strong>Isolation:</strong> each file defines its own private Zod response schema and maps to <code>IndexObservation</code>; nothing vendor-shaped is exported. A schema mismatch, non-OK HTTP status, or error status in the body throws <code>PriceIndexSourceError</code> with a short reason.</li>
+      </ul></div>
+      <ol class="steps">
+        <li>Save fixtures trimmed from real responses. BLS: <code>{"status":"REQUEST_SUCCEEDED","message":[],"Results":{"series":[{"seriesID":"CUUR0000SA0","data":[…]}]}}</code> with rows <code>{"year":"2026","period":"M09","value":"336.940"}</code>, <code>M08 334.980</code>, 2025 <code>M11 324.122</code>, <code>M10 "-"</code>, <code>M09 324.800</code>. Statistics Canada: <code>[{"status":"SUCCESS","object":{"vectorId":41690973,"vectorDataPoint":[{"refPer":"2026-08-01","value":169.8},{"refPer":"2026-09-01","value":170.0}]}}]</code>.</li>
+        <li>Write failing tests, injecting a fake <code>http</code> that records the request and returns the fixture:
+<pre><code>blsParsesMonths: fetchMonths('2025-09','2026-09') → includes {month:'2026-09', value:336.94}, sorted oldest first
+blsSkipsDashMonths: no '2025-10' in the result
+blsRequestsYears: body has seriesid ['CUUR0000SA0'], startyear '2025', endyear '2026'
+blsSplitsLongRanges: fetchMonths('2010-01','2026-09') makes 2 requests, each ≤ 10 years
+blsErrorStatusThrows: {"status":"REQUEST_NOT_PROCESSED",…} → rejects PriceIndexSourceError
+blsIgnoresOutOfRange: months outside [from, to] are dropped; periods other than M01–M12 dropped
+statcanParsesMonths: → [{month:'2026-08', value:169.8},{month:'2026-09', value:170}]
+statcanRequestsRange: URL has vectorIds="41690973", startRefPeriod=2025-09-01, endReferencePeriod=2026-09-01
+statcanErrorStatusThrows: [{"status":"FAILED",…}] → rejects PriceIndexSourceError
+httpErrorThrows (both): http resolves { ok:false, status:503 } → rejects PriceIndexSourceError</code></pre></li>
+        <li>Run <code>npx vitest run tests/unit/lib/price-index/sources.test.ts</code> — FAIL.</li>
+        <li>Implement both adapters.</li>
+        <li>Run — PASS; typecheck clean.</li>
+        <li>Commit <code>feat(price-index): US and Canada index sources</code>.</li>
+      </ol>
+    </section>
+
+    <section id="t3">
+      <h2>Task 3 · Storage and fill</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> modify <code>prisma/schema.prisma</code> (P2), <code>tests/helpers/db.ts</code> (clean <code>priceIndexMonth</code>, drop <code>inflationRate</code>), <code>src/lib/cloud-sync/{types,sync}.ts</code>; create <code>src/lib/price-index/{store,history,services}.ts</code> and <code>src/app/api/price-index/route.ts</code>; delete <code>src/app/api/inflation-rates/</code> and its test; in <code>src/app/(routes)/settings/page.tsx</code> remove the old Inflation section, its state, handlers and the <code>/api/inflation-rates</code> fetch (the General tab is rebuilt in Task 8). Tests <code>tests/integration/price-index/history.test.ts</code>, <code>tests/integration/api/price-index.test.ts</code>, extend <code>tests/integration/api/cloud-sync.test.ts</code>.</li>
+        <li><strong>Produces:</strong>
+<pre><code>class PriceIndexStore {
+  constructor(prisma: PrismaClient);
+  lastMonth(region: IndexRegion): Promise&lt;MonthKey | null&gt;;
+  save(region: IndexRegion, obs: IndexObservation[]): Promise&lt;void&gt;;   // one $transaction of upserts
+  all(): Promise&lt;Record&lt;IndexRegion, { months: IndexObservation[]; fetchedAt: Date | null }&gt;&gt;; // fetchedAt = newest updatedAt
+}
+type IndexFillResult = { regions: IndexRegion[]; months: number; failed: IndexRegion[] };
+class PriceIndexHistory {
+  constructor(store: PriceIndexStore, sources: PriceIndexSource[],
+              firstNeededMonth: () =&gt; Promise&lt;MonthKey | null&gt;, clock?: Clock);
+  fill(): Promise&lt;IndexFillResult&gt;;
+}
+createPriceIndexServices(deps: { prisma; sources: PriceIndexSource[]; clock?: Clock }):
+  { store: PriceIndexStore; history: PriceIndexHistory; sources: PriceIndexSource[] }
+getPriceIndexServices(): Promise&lt;same&gt;    // app Prisma + [new BlsCpiSource(), new StatCanCpiSource()], built once
+// GET /api/price-index → { selected: IndexRegion,
+//     regions: [{ region, name, attribution, fetchedAt: string | null, months: IndexObservation[] }] }</code></pre></li>
+        <li><code>firstNeededMonth</code> in the composition root = month of the earliest <code>NetWorthSnapshot.date</code>, or null.</li>
+        <li>Constants in <code>history.ts</code>: <code>REVISION_MONTHS = 3</code>, <code>MAX_MONTHLY_MOVE = 0.05</code> (P5, P6). One region failing is logged with <code>console.warn('[price-index] …')</code> and recorded in <code>failed</code>; the others continue.</li>
+        <li>Cloud sync: <code>UserSettingsExportSchema</code> gains <code>inflationRegion: z.string().optional()</code>; export writes it; import uses <code>'US'</code> when absent. <code>PriceIndexMonth</code> is not backed up.</li>
+      </ul></div>
+      <ol class="steps">
+        <li>Schema change, then <code>npx prisma generate</code>. Do not push to <code>prisma/dev.db</code>.</li>
+        <li>Write failing integration tests with a fake source (records calls, returns preset observations) and <code>fixedClock('2026-11-08T12:00:00Z')</code>:
+<pre><code>firstFillWithoutSnapshotsFetches24Months: no snapshots → source asked from '2024-11' to '2026-11'
+firstFillStartsBeforeFirstSnapshot: snapshot 2024-04-30 → asked from '2023-04'
+skipsWhenNothingNewPossible: last stored '2026-10' → source not called, region not failed
+rereadsRecentMonthsForRevisions: last stored '2026-08' → asked from '2026-05'; revised '2026-07' value overwritten
+nonsenseWritesNothing: answer with 0, NaN, or a 6% jump → nothing saved, failed ['US']
+oneRegionFailingDoesNotStopOther: US source throws → CA saved, failed ['US']
+storeAllReturnsFetchedAt: after save, all().US.fetchedAt is a Date and months sorted oldest first
+cloud-sync: inflationRegionRoundTrips; backupWithoutInflationRegionRestoresUS
+route: priceIndexReturnsBothRegionsAndSelected; priceIndexEmptyBeforeFetch (months [], fetchedAt null)</code></pre></li>
+        <li>Run <code>npx vitest run tests/integration/price-index/history.test.ts tests/integration/api/price-index.test.ts tests/integration/api/cloud-sync.test.ts</code> — FAIL.</li>
+        <li>Implement store, history, services, the route and the cloud-sync change; delete the old inflation routes and test; remove the old Inflation section from the Settings page.</li>
+        <li>Run the three files — PASS. Reports still uses the old yearly code until Task 4: its inflation fetch now 404s, so make <code>loadSnapshots</code> tolerate a failed inflation fetch (snapshots still load, toggle hidden) — Task 4 replaces it. Typecheck clean.</li>
+        <li>Commit <code>feat(price-index): monthly index storage, fill and read API</code>.</li>
+      </ol>
+    </section>
+
+    <section id="t4">
+      <h2>Task 4 · Reports</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> rewrite <code>src/lib/inflation.ts</code>; modify <code>src/components/reports/NetWorthSnapshots.tsx</code>; rewrite <code>tests/unit/lib/inflation.test.ts</code>; extend the Reports component test (or add <code>tests/unit/components/net-worth-snapshots.test.tsx</code>).</li>
+        <li><strong>Produces:</strong> <code>adjustSnapshotsForInflation&lt;T extends { date: string; netWorth: number; totalAssets: number; totalLiabilities: number }&gt;(snapshots: T[], series: IndexSeries): (T &amp; { adjustedNetWorth; adjustedTotalAssets; adjustedTotalLiabilities; inflationFactor: number })[]</code>, factor from <code>series.factor(monthOf(new Date(s.date)))</code>. The yearly-rate functions and <code>InflationRateProvider</code> are deleted.</li>
+        <li>Component: loads <code>/api/price-index</code>, builds <code>IndexSeries</code> from the <code>selected</code> region; toggle shows only when <code>series.latest()</code> exists; label reads <code>(in September 2026 prices)</code> via <code>fmtMonth(latest.month, 'long')</code>.</li>
+      </ul></div>
+      <ol class="steps">
+        <li>Failing tests: <code>adjustsByMonthlyIndex</code> (Sept 2025 snapshot × 336.940/324.800), <code>newerSnapshotUnadjusted</code>, component <code>showsReferenceMonth</code>, <code>hidesToggleWithoutIndex</code>.</li>
+        <li>Run them — FAIL.</li>
+        <li>Implement.</li>
+        <li>Run them plus <code>tests/integration/api/reports.test.ts</code> — PASS; typecheck.</li>
+        <li>Commit <code>feat(reports): adjust net worth by the monthly price index</code>.</li>
+      </ol>
+    </section>
+
+    <section id="t5">
+      <h2>Task 5 · Pass step</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> modify <code>src/lib/scheduled-sync/pass.ts</code>, <code>src/components/scheduled-sync/scheduled-sync-line.tsx</code>; test <code>tests/unit/lib/scheduled-sync/pass.test.ts</code>, <code>tests/unit/components/settings-scheduled-sync.test.tsx</code>.</li>
+        <li><strong>Produces:</strong> <code>PassStep = 'rates' | 'inflation' | 'accounts' | 'prices'</code>; <code>PassDeps.fillInflation(): Promise&lt;{ failed: string[] }&gt;</code>. Order: rates → inflation → accounts → prices → record.</li>
+        <li><strong>DRY:</strong> the four steps share one private <code>runStep(step, failures, fn: () =&gt; Promise&lt;boolean&gt;)</code> (true = ok) instead of four copied try/catch blocks. The accounts step keeps its per-unit loop inside its <code>fn</code>.</li>
+        <li><code>defaultPassDeps</code> wires <code>fillInflation: async () =&gt; (await getPriceIndexServices()).history.fill()</code>. <code>STEP_NAMES.inflation = 'inflation'</code> ("couldn't update inflation").</li>
+      </ul></div>
+      <ol class="steps">
+        <li>Failing tests: <code>inflationRunsAfterRatesBeforeAccounts</code> (call order recorded by fakes); <code>inflationFailureIsRecordedAndPassContinues</code> (<code>failed: ['US']</code> → failures contain 'inflation', accounts and prices still ran); <code>inflationThrowIsRecorded</code>; status line shows "couldn't update inflation". Existing pass tests stay green unchanged except for supplying <code>fillInflation</code>.</li>
+        <li>Run <code>npx vitest run tests/unit/lib/scheduled-sync/pass.test.ts tests/unit/components/settings-scheduled-sync.test.tsx</code> — FAIL.</li>
+        <li>Implement.</li>
+        <li>Run both plus <code>tests/unit/lib/scheduled-sync/scheduler.test.ts tests/integration/api/scheduled-sync-status.test.ts tests/unit/components/side-nav.test.tsx</code> — PASS; typecheck.</li>
+        <li>Commit <code>feat(sync): inflation step in the scheduled pass</code>.</li>
+      </ol>
+    </section>
+
+    <section id="t6">
+      <h2>Task 6 · APIs</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> create <code>src/lib/fx/rate-summary.ts</code>; modify <code>src/app/api/exchange-rates/route.ts</code>, <code>src/app/api/settings/route.ts</code>, <code>src/lib/currency.ts</code>; tests <code>tests/unit/lib/fx/rate-summary.test.ts</code>, extend <code>exchange-rates.test.ts</code>, <code>settings.test.ts</code>.</li>
+        <li><strong>Produces:</strong>
+<pre><code>// src/lib/currency.ts
+const BASE_CURRENCIES = [{ code: 'USD', name: 'US Dollar' }, { code: 'CAD', name: 'Canadian Dollar' },
+                         { code: 'EUR', name: 'Euro' }, { code: 'GBP', name: 'British Pound' }] as const;
+// src/lib/fx/rate-summary.ts — rows of ONE pair, any order
+type RateSummary = { rate: number; date: string; yearAgoRate: number | null;
+                     weekly: { day: string; rate: number }[];        // oldest first, ≤ 52
+                     monthEnds: { month: MonthKey; rate: number }[] }; // newest first, ≤ 12
+summarizePair(rows: { date: Date; rate: number }[]): RateSummary
+// GET /api/exchange-rates → { rates: [{ fromCurrency, toCurrency, updatedAt, ...RateSummary }] }
+// PATCH /api/settings body { baseCurrency?, inflationRegion? } (Zod: enums from BASE_CURRENCIES / INDEX_REGIONS; 400 on invalid)</code></pre></li>
+        <li><code>summarizePair</code>: <code>yearAgoRate</code> = latest row at or before (latest day − 365 days), null if the earliest row is later. <code>weekly</code> = last row in each 7-day bucket counted back from the latest day, 52 buckets. <code>monthEnds</code> = last row of each calendar month, latest 12 months.</li>
+      </ul></div>
+      <ol class="steps">
+        <li>Failing tests: <code>summaryYearAgo</code>, <code>summaryYearAgoNullWhenShortHistory</code>, <code>summaryWeeklyPicksLastInBucket</code>, <code>summaryMonthEndsNewestFirst</code>; route tests: <code>exchangeRatesIncludesSummary</code>, <code>settingsPatchSavesBoth</code>, <code>settingsPatchRejectsUnknownRegion</code>, <code>settingsPatchRejectsUnknownCurrency</code>.</li>
+        <li>Run the three test files — FAIL.</li>
+        <li>Implement.</li>
+        <li>Run — PASS; typecheck.</li>
+        <li>Commit <code>feat(api): rate summaries and validated settings</code>.</li>
+      </ol>
+    </section>
+
+    <section id="t7">
+      <h2>Task 7 · Hover sparkline</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> create <code>src/components/ui/hover-sparkline.tsx</code>; test <code>tests/unit/components/hover-sparkline.test.tsx</code>.</li>
+        <li><strong>Produces:</strong> <code>HoverSparkline({ points: { label: string; value: number }[]; format: (v: number) =&gt; string; label: string; height?: number /* 26 */ })</code>. Area fill at 8% accent, 1.5px accent line, endpoint dot; on pointer move the nearest point gets a guide line, dot and tooltip <code>"{label} · {format(value)}"</code> (mock round 5 styling). Fewer than 2 points renders an empty box of the same size. <code>aria-label</code> = <code>label</code>.</li>
+      </ul></div>
+      <ol class="steps">
+        <li>Failing tests: <code>rendersPath</code>, <code>hoverShowsNearestPoint</code> (fire <code>pointerMove</code> at 0% / 100% of width with a mocked <code>getBoundingClientRect</code> → first / last label), <code>leaveHidesTooltip</code>, <code>tooFewPointsRendersPlaceholder</code>.</li>
+        <li>Run — FAIL. Implement on <code>chartGeometry</code> (points mapped with <code>isEstimated: false</code>). Run — PASS; typecheck.</li>
+        <li>Commit <code>feat(ui): hover sparkline</code>.</li>
+      </ol>
+    </section>
+
+    <section id="t8">
+      <h2>Task 8 · General tab</h2>
+      <div class="card"><ul>
+        <li><strong>Files:</strong> create <code>src/components/settings/general/</code>: <code>general-settings.tsx</code> (loads, drafts, saves), <code>settings-group.tsx</code> (<code>SettingsGroup</code> caption + card, <code>SettingsRow</code> label / description / control), <code>expandable-row.tsx</code>, <code>currency-group.tsx</code>, <code>inflation-group.tsx</code>, <code>appearance-group.tsx</code>, <code>save-bar.tsx</code>. Modify <code>src/app/(routes)/settings/page.tsx</code>: the General block, its rate/inflation state and handlers go; it renders <code>&lt;GeneralSettings onSaved={refresh} /&gt;</code>. Test <code>tests/unit/components/general-settings.test.tsx</code>.</li>
+        <li><strong>Produces:</strong> <code>GeneralSettings({ onSaved: () =&gt; void })</code>; <code>ExpandableRow({ leading?: ReactNode; cells: ReactNode; open: boolean; onToggle: () =&gt; void; detail: ReactNode })</code> — a <code>role="button"</code> row with <code>aria-expanded</code>, Enter/Space toggles; clicks inside <code>leading</code> never toggle. One row open at a time across the page.</li>
+        <li><strong>Copy, verbatim from the mock:</strong> captions "Currency", "Inflation", "Appearance"; "Base currency" / "Totals, analytics and reports show in this currency"; headers "Exchange rate · Today · Past year · 1y change" and "Consumer prices · Annual · Past year · Latest"; footers "Updated automatically · as of {time}" with "Refresh", and "Selected index is used by Reports' inflation-adjusted view · fetched monthly"; "In use"; "Not fetched yet"; "No exchange rates yet"; tables "Month · Rate at month end" (current month "Nov 2026 (so far)") and "Month · Annual · Monthly" with "Source: {attribution} · fetched {Mon D}"; save bar "Base currency → CAD", "Reports adjusts by Canada inflation" joined by " · ", buttons "Discard" (outline) and "Save changes" (accent). Theme row "Theme" with Light / Dark / System via <code>getTheme</code>/<code>setTheme</code>. Select options "USD · US Dollar" etc. from <code>BASE_CURRENCIES</code>.</li>
+        <li>Numbers: rate to 4 places; 1y change <code>(rate / yearAgoRate − 1) × 100</code> to 1 place with sign, <code>--red</code> when negative, <code>--green</code> when positive, "—" when null; annual and monthly to 1 place, "—" when null.</li>
+      </ul></div>
+      <ol class="steps">
+        <li>Failing tests (fetch stubbed with the Task 3 and Task 6 shapes): <code>showsRateRowWithChange</code>, <code>showsInflationRowsWithLatest</code>, <code>rowClickOpensTable</code>, <code>radioDoesNotToggleTable</code>, <code>radioShowsSaveBarInUseStays</code>, <code>discardRestores</code>, <code>saveSendsBothAndHidesBar</code> (PATCH body <code>{ baseCurrency, inflationRegion }</code>, <code>onSaved</code> called), <code>saveFailureKeepsBar</code> (error text shown), <code>remountShowsSavedValues</code>, <code>notFetchedYet</code>, <code>refreshUpdatesAsOf</code>, <code>enterKeyTogglesRow</code>.</li>
+        <li>Run <code>npx vitest run tests/unit/components/general-settings.test.tsx</code> — FAIL.</li>
+        <li>Implement; remove the old General block, <code>exchangeRates</code>/<code>rateRefreshFailed</code>/<code>refreshRatesNow</code> and the inflation state and handlers from <code>page.tsx</code>.</li>
+        <li>Run it plus <code>tests/unit/components/settings-scheduled-sync.test.tsx</code> and any other test that renders the Settings page — PASS. <code>npm run typecheck</code>, <code>npm run lint</code> (0 errors).</li>
+        <li>Commit <code>feat(settings): redesigned General tab</code>.</li>
+      </ol>
+    </section>
+
+    <section id="t9">
+      <h2>Task 9 · Check and ship</h2>
+      <ol class="steps">
+        <li>Full suite: <code>npm test</code> — all pass. Whole-branch review on the most capable model; fix wave if needed.</li>
+        <li><strong>Browser check on a copy</strong>: copy <code>prisma/dev.db</code> to the scratchpad; blank Plaid/Teller access tokens on the copy; <code>DATABASE_URL</code> → copy; <code>npx prisma db push --accept-data-loss</code> on the copy only; fill the index once on the copy with a one-off <code>npx tsx</code> call to <code>createPriceIndexServices({ prisma, sources: [real adapters] }).history.fill()</code> (statistics APIs only; no bank or sync call). Dev server on a free port with <code>SCHEDULED_SYNC=off</code>. Check against the mock: light and dark, ~390px width, hover, row tables, radio + save bar, Refresh, Reports label. Stop the server, delete the copy.</li>
+        <li><strong>Live schema — Ben-gated.</strong> With Ben: stop production; back up to <code>prisma/dev.db.bak-YYYY-MM-DD</code> and verify; <code>npx prisma db push --accept-data-loss</code> (drops only <code>InflationRate</code>'s two typed rows; never <code>--force-reset</code>); <code>npx prisma generate</code>; Ben rebuilds and starts. The first pass fills the index; verify rows in the database read-only.</li>
+        <li>Push and open the PR against <code>main</code> only when Ben says.</li>
+      </ol>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  btn.addEventListener('click', function () {
+    var r = document.documentElement;
+    var dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (a) { a.classList.remove('active'); });
+        var a = map[e.target.id]; if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+})();
+</script>
+</body>
+</html>
