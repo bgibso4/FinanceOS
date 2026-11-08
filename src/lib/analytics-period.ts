@@ -8,6 +8,18 @@ export type DayRange = { start: string; end: string };
 /** `anchor` is `YYYY-MM`, the last month of the period (December for a year). */
 export type Period = { kind: PeriodKind; anchor: string; custom?: DayRange };
 
+export const KIND_LABELS: Record<PeriodKind, string> = {
+  month: 'Month',
+  '3m': '3 months',
+  year: 'Year',
+  custom: 'Custom',
+};
+export const COMPARE_LABELS: Record<CompareKind, string> = {
+  prev: 'The period before',
+  lastYear: 'Same time last year',
+  none: 'Nothing',
+};
+
 const MONTHS: Record<Exclude<PeriodKind, 'custom'>, number> = { month: 1, '3m': 3, year: 12 };
 const DAY_MS = 24 * 60 * 60 * 1000;
 
