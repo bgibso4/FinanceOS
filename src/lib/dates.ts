@@ -38,6 +38,15 @@ export const fmtStoredDate = (iso: string, opts: Intl.DateTimeFormatOptions = {}
     ? fmtCalendarDay(iso, opts)
     : new Date(iso).toLocaleDateString('en-US', opts);
 
+/** Formats a moment (an ISO timestamp) in local time, e.g. "2:14 pm"; `opts` adds a date part. */
+export const fmtMoment = (
+  iso: string,
+  opts: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' }
+): string =>
+  new Date(iso)
+    .toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', ...opts })
+    .replace(/ (AM|PM)$/, (m) => m.toLowerCase());
+
 /** The stored span of a month. `monthIndex` is 0-based and may run past either end of the year. */
 export const utcMonthRange = (year: number, monthIndex: number): { start: Date; end: Date } => ({
   start: new Date(Date.UTC(year, monthIndex, 1)),

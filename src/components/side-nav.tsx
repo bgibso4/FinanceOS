@@ -20,6 +20,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { useScheduledSyncStatus } from '@/components/scheduled-sync/use-scheduled-sync-status';
 
 import type { LucideIcon } from 'lucide-react';
 
@@ -86,6 +87,7 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentTab = searchParams.get('tab') || 'general';
+  const needsAttention = useScheduledSyncStatus(pathname)?.needsAttention ?? false;
 
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -137,6 +139,14 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
       setIsDark(true);
     }
   };
+
+  const attentionDot = (
+    <span
+      aria-label="Settings — needs attention"
+      className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[var(--red)]"
+      role="img"
+    />
+  );
 
   return (
     <aside
@@ -197,8 +207,9 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
                   {isActive && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[var(--accent)] rounded-r" />
                   )}
-                  <span className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0">
+                  <span className="relative flex items-center justify-center w-10 h-10 rounded-lg shrink-0">
                     <Icon size={20} />
+                    {link.href === '/settings' && needsAttention && attentionDot}
                   </span>
                   {isExpanded && (
                     <>
@@ -229,8 +240,9 @@ export function SideNav({ onToggleAnalyst }: SideNavProps) {
                   {isActive && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-[var(--accent)] rounded-r" />
                   )}
-                  <span className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0">
+                  <span className="relative flex items-center justify-center w-10 h-10 rounded-lg shrink-0">
                     <Icon size={20} />
+                    {link.href === '/settings' && needsAttention && attentionDot}
                   </span>
                   {isExpanded && (
                     <span className="text-sm font-medium whitespace-nowrap overflow-hidden">
