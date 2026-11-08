@@ -124,6 +124,9 @@ describe('labels', () => {
   it('columnLabel', () => {
     expect(columnLabel(periodRange(nov, TODAY), nov)).toBe('Nov 2026 so far');
     expect(columnLabel({ start: '2026-10-01', end: '2026-10-07' }, nov)).toBe('Oct 1 – Oct 7');
+    expect(columnLabel({ start: '2025-11-01', end: '2025-11-07' }, nov)).toBe(
+      'Nov 1 – Nov 7, 2025'
+    );
     expect(columnLabel({ start: '2026-09-01', end: '2026-09-30' }, oct)).toBe('Sep 2026');
     expect(columnLabel({ start: '2025-01-01', end: '2025-12-31' }, yr)).toBe('2025');
     expect(columnLabel(fullRange(custom), custom)).toBe('Jun 1 – Oct 31, 2026');

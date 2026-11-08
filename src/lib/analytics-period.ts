@@ -86,7 +86,8 @@ export function stepPeriod(p: Period, delta: 1 | -1): Period {
   if (p.kind === 'custom' && p.custom) {
     const n = delta * dayCount(p.custom);
     const shift = (day: string) => isoDay(addDays(utcDay(day), n));
-    return { ...p, custom: { start: shift(p.custom.start), end: shift(p.custom.end) } };
+    const end = shift(p.custom.end);
+    return { ...p, anchor: end.slice(0, 7), custom: { start: shift(p.custom.start), end } };
   }
   return shiftPeriod(p, delta * stepMonths(p));
 }
@@ -145,6 +146,9 @@ export function columnLabel(r: DayRange & { partial?: boolean }, p: Period): str
   if (wholeMonth && r.start.slice(0, 7) === r.end.slice(0, 7)) return fmt(r.start, MONTH_YEAR);
   if (wholeMonth && r.start.endsWith('-01-01') && r.end.endsWith('-12-31'))
     return r.end.slice(0, 4);
-  if (isDaily(r)) return `${fmt(r.start, MONTH_DAY)} – ${fmt(r.end, MONTH_DAY)}`;
+  if (isDaily(r)) {
+    const sameYear = r.end.slice(0, 4) === fullRange(p).end.slice(0, 4);
+    return `${fmt(r.start, MONTH_DAY)} – ${fmt(r.end, sameYear ? MONTH_DAY : FULL_DATE)}`;
+  }
   return dayRangeText(r);
 }
