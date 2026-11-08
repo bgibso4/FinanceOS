@@ -151,7 +151,7 @@ function toRow(
     tripId: t.tripId,
     categoryId: t.categoryId,
     categoryName: t.category?.name ?? null,
-    amount: toBase(t.amount, t.account.currency, settings),
+    amount: toBase(t.amount, t.account.currency, settings, isoDay(t.date)),
   };
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { utcDay, isoDay, addDays, lastAtOrBefore } from '@/lib/investments/dates';
+import { utcDay, isoDay, addDays, lastAtOrBefore, zonedDay } from '@/lib/investments/dates';
 
 describe('investment dates', () => {
   it('utcDay parses a YYYY-MM-DD string to UTC midnight', () => {
@@ -18,6 +18,17 @@ describe('investment dates', () => {
 
   it('addDays adds whole days', () => {
     expect(isoDay(addDays(utcDay('2026-03-01'), -1))).toBe('2026-02-28');
+  });
+});
+
+describe('zonedDay', () => {
+  it('is the calendar day on the zone clock, as UTC midnight', () => {
+    expect(zonedDay(new Date('2026-07-09T23:00:00Z'), 'Europe/London').toISOString()).toBe(
+      '2026-07-10T00:00:00.000Z'
+    );
+    expect(zonedDay(new Date('2026-07-10T02:00:00Z'), 'America/New_York').toISOString()).toBe(
+      '2026-07-09T00:00:00.000Z'
+    );
   });
 });
 

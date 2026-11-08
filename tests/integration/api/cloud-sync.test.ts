@@ -621,6 +621,43 @@ describe('cloud-sync integration', () => {
       expect(accounts[0].institution).toBe('Банк России');
     });
   });
+
+  describe('exchange rate dates', () => {
+    it('exchangeRateDateRoundTrips', async () => {
+      const date = new Date('2026-11-05T00:00:00.000Z');
+      await prisma.exchangeRate.create({
+        data: { fromCurrency: 'CAD', toCurrency: 'USD', rate: 0.72, date },
+      });
+
+      const payload = await exportDatabase();
+      expect(payload.data.exchangeRates[0].date).toBe('2026-11-05T00:00:00.000Z');
+
+      await resetTestDb();
+      await importDatabase(payload);
+
+      const rows = await prisma.exchangeRate.findMany();
+      expect(rows).toHaveLength(1);
+      expect(rows[0].date.toISOString()).toBe(date.toISOString());
+    });
+
+    it('backupWithoutRateDateUsesUpdatedAtDay', async () => {
+      const payload = createTestPayloadData();
+      payload.data.exchangeRates = [
+        {
+          id: 'old-rate',
+          fromCurrency: 'CAD',
+          toCurrency: 'USD',
+          rate: 0.7,
+          updatedAt: '2026-10-03T15:30:00.000Z',
+          createdAt: '2026-09-01T00:00:00.000Z',
+        },
+      ];
+      await importDatabase(await finalizePayload(payload));
+
+      const rows = await prisma.exchangeRate.findMany();
+      expect(rows[0].date.toISOString()).toBe('2026-10-03T00:00:00.000Z');
+    });
+  });
 });
 
 // Helper function to create a minimal valid payload

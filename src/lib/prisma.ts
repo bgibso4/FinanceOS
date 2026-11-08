@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+import { processGlobal } from '@/lib/process-global';
 
 // Connection pool configuration to limit memory usage
 // For SQLite, connection_limit controls prepared statement caching
@@ -9,9 +8,8 @@ const pooledUrl = databaseUrl.includes('?')
   ? `${databaseUrl}&connection_limit=5&pool_timeout=10`
   : `${databaseUrl}?connection_limit=5&pool_timeout=10`;
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
+function createPrismaClient(): PrismaClient {
+  const client = new PrismaClient({
     log: ['warn', 'error'],
     datasources: {
       db: {
@@ -19,12 +17,12 @@ export const prisma =
       },
     },
   });
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
+  // Graceful shutdown to release connections
+  process.on('beforeExit', async () => {
+    await client.$disconnect();
+  });
+  return client;
 }
 
-// Graceful shutdown to release connections
-process.on('beforeExit', async () => {
-  await prisma.$disconnect();
-});
+/** One client per process, in every environment: see processGlobal. */
+export const prisma = processGlobal('financeos:prisma', createPrismaClient);

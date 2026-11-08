@@ -3,6 +3,7 @@ import {
   syncUnits,
   statsForAccount,
   isSyncAllCandidate,
+  isSyncableAccount,
   type GroupableAccount,
 } from '@/lib/sync-grouping';
 
@@ -147,5 +148,29 @@ describe('isSyncAllCandidate', () => {
 
   it('never syncs accounts whose preview failed', () => {
     expect(isSyncAllCandidate({ status: 'error', investment: true })).toBe(false);
+  });
+});
+
+describe('isSyncableAccountMatchesSettingsRule', () => {
+  it('accepts active accounts with a live connection', () => {
+    expect(isSyncableAccount({ isActive: true, tellerConnection: { status: 'active' } })).toBe(
+      true
+    );
+    expect(isSyncableAccount({ isActive: true, plaidConnection: { status: 'connected' } })).toBe(
+      true
+    );
+  });
+
+  it('excludes inactive, disconnected, needs_reauth and unconnected accounts', () => {
+    expect(isSyncableAccount({ isActive: false, tellerConnection: { status: 'active' } })).toBe(
+      false
+    );
+    expect(
+      isSyncableAccount({ isActive: true, tellerConnection: { status: 'disconnected' } })
+    ).toBe(false);
+    expect(isSyncableAccount({ isActive: true, plaidConnection: { status: 'needs_reauth' } })).toBe(
+      false
+    );
+    expect(isSyncableAccount({ isActive: true })).toBe(false);
   });
 });

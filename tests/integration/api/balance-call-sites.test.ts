@@ -89,6 +89,31 @@ describe('balance call sites use the resolver', () => {
     expect(byId[checkingId]).toBe(900);
   });
 
+  it('currentBalanceUsesLatestRate', async () => {
+    const cad = await testPrisma.account.create({
+      data: createAccountData({ name: 'CAD', currency: 'CAD' }),
+    });
+    await testPrisma.transaction.create({
+      data: { accountId: cad.id, date: new Date('2026-10-01'), amount: 100, merchant: 'pay' },
+    });
+    for (const [date, rate] of [
+      ['2026-10-01', 0.7],
+      ['2026-11-07', 0.75],
+    ] as const) {
+      await testPrisma.exchangeRate.create({
+        data: {
+          fromCurrency: 'CAD',
+          toCurrency: 'USD',
+          date: new Date(`${date}T00:00:00.000Z`),
+          rate,
+        },
+      });
+    }
+    const body = await (await getBalances()).json();
+    const row = body.accounts.find((a: { id: string }) => a.id === cad.id);
+    expect(row.balance).toBeCloseTo(75, 6);
+  });
+
   it('snapshot POST stores resolver balances (split parents not double counted)', async () => {
     const req = new NextRequest('http://localhost/api/snapshots', {
       method: 'POST',

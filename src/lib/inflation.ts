@@ -21,7 +21,6 @@ export interface InflationRateProvider {
 
 /**
  * Parse inflation rates from DB array into a Map<year, rate>.
- * Mirrors parseExchangeRates() in currency.ts.
  */
 export function parseInflationRates(rates: InflationRateEntry[]): Map<number, number> {
   const rateMap = new Map<number, number>();

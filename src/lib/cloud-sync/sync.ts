@@ -6,6 +6,7 @@
  */
 
 import { prisma as defaultPrisma } from '@/lib/prisma';
+import { utcDay } from '@/lib/investments/dates';
 import type { PrismaClient } from '@prisma/client';
 import type {
   SyncPayload,
@@ -232,6 +233,7 @@ export async function exportDatabase(): Promise<SyncPayload> {
         id: e.id,
         fromCurrency: e.fromCurrency,
         toCurrency: e.toCurrency,
+        date: e.date.toISOString(),
         rate: e.rate,
         updatedAt: e.updatedAt.toISOString(),
         createdAt: e.createdAt.toISOString(),
@@ -749,6 +751,7 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
           id: rate.id,
           fromCurrency: rate.fromCurrency,
           toCurrency: rate.toCurrency,
+          date: utcDay(rate.date ?? rate.updatedAt),
           rate: rate.rate,
           updatedAt: new Date(rate.updatedAt),
           createdAt: new Date(rate.createdAt),

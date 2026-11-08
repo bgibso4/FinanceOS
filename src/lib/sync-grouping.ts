@@ -117,3 +117,24 @@ export function isSyncAllCandidate(r: {
   if (r.status !== 'preview_done' || !r.preview) return false;
   return !!r.investment || r.preview.stats.added > 0 || r.preview.stats.merged > 0;
 }
+
+/**
+ * The connection status that means Ben must log in to the bank again, per provider. Only active
+ * accounts matter: inactive ones are never synced, so their connection state is moot.
+ */
+export const RELOGIN_STATUS = { teller: 'disconnected', plaid: 'needs_reauth' } as const;
+
+/**
+ * Whether an account can be synced now: active, with a connection that does not need re-login.
+ */
+export function isSyncableAccount(a: {
+  isActive?: boolean;
+  tellerConnection?: { status: string } | null;
+  plaidConnection?: { status: string } | null;
+}): boolean {
+  if (!a.isActive) return false;
+  const { tellerConnection: tc, plaidConnection: pc } = a;
+  return (
+    (!!tc && tc.status !== RELOGIN_STATUS.teller) || (!!pc && pc.status !== RELOGIN_STATUS.plaid)
+  );
+}

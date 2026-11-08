@@ -8,12 +8,16 @@ import {
   seedSecurity,
   seedSnapshot,
 } from '../../../helpers/investments';
+import { RateBook } from '@/lib/fx/rate-book';
 import { CurrentHoldingsReader } from '@/lib/investments/current-holdings';
 import { manualHoldingSecurityId } from '@/lib/investments/entered-balances';
 import { BalanceSource, PriceSource, Pricing, RecordSource } from '@/lib/investments/codes';
 
 let prisma: PrismaClient;
-const rates = new Map([['CAD_USD', 0.5]]); // 1 USD = 2 CAD, exact in floating point
+// 1 USD = 2 CAD, exact in floating point
+const rates = RateBook.of([
+  { fromCurrency: 'CAD', toCurrency: 'USD', date: day('2026-01-01'), rate: 0.5 },
+]);
 const read = (accounts: Awaited<ReturnType<typeof seedInvestmentAccount>>[]) =>
   new CurrentHoldingsReader(prisma).read({
     accounts,

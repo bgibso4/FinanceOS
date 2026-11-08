@@ -36,6 +36,8 @@ export class PriceProviderError extends Error {
 export interface PriceProvider {
   /** How to write a symbol this provider prices; shown in the price window. */
   readonly symbolHint: string;
+  /** The symbol this provider prices the `from` -> `to` currency pair under. */
+  fxSymbol(from: string, to: string): string;
   /** Raw daily closes (null bars dropped) and dividend/split events for inclusive UTC days. */
   getDailyHistory(symbol: string, from: Date, to: Date): Promise<DailyHistory>;
   getQuote(symbol: string): Promise<Quote>;
@@ -44,5 +46,6 @@ export interface PriceProvider {
 
 /** Narrowed views: each consumer depends only on the provider methods it calls. */
 export type HistorySource = Pick<PriceProvider, 'getDailyHistory'>;
+export type FxHistorySource = Pick<PriceProvider, 'getDailyHistory' | 'fxSymbol'>;
 export type QuoteSource = Pick<PriceProvider, 'getQuote'>;
 export type SymbolLookup = Pick<PriceProvider, 'search'>;

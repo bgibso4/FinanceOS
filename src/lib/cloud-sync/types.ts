@@ -138,6 +138,7 @@ export const ExchangeRateExportSchema = z.object({
   id: z.string(),
   fromCurrency: z.string(),
   toCurrency: z.string(),
+  date: z.string().optional(), // ISO 8601; absent in backups made before dated rates
   rate: z.number(),
   updatedAt: z.string(), // ISO 8601
   createdAt: z.string(), // ISO 8601

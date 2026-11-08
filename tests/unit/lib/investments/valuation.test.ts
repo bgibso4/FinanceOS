@@ -179,7 +179,12 @@ describe('ValuationService', () => {
 
   it('converts security currency to the account currency', async () => {
     await prisma.exchangeRate.create({
-      data: { fromCurrency: 'CAD', toCurrency: 'USD', rate: 0.75 },
+      data: {
+        fromCurrency: 'CAD',
+        toCurrency: 'USD',
+        date: new Date('2026-01-01T00:00:00.000Z'),
+        rate: 0.75,
+      },
     });
     const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Valuation });
     const s = await seedSecurity(prisma, { priceSymbol: 'TEQ.TO', currency: 'CAD' });
@@ -257,7 +262,12 @@ describe('ValuationService', () => {
 
     it('adds cash at 1 per unit, converted, to market-priced holdings on every priced day', async () => {
       await prisma.exchangeRate.create({
-        data: { fromCurrency: 'USD', toCurrency: 'CAD', rate: 1.5 },
+        data: {
+          fromCurrency: 'USD',
+          toCurrency: 'CAD',
+          date: new Date('2026-01-01T00:00:00.000Z'),
+          rate: 1.5,
+        },
       });
       const a = await seedInvestmentAccount(prisma, {
         balanceSource: BalanceSource.Valuation,
@@ -286,7 +296,12 @@ describe('ValuationService', () => {
 
     it('values a cash-only account at the cash amount, converted to the account currency', async () => {
       await prisma.exchangeRate.create({
-        data: { fromCurrency: 'CAD', toCurrency: 'USD', rate: 0.75 },
+        data: {
+          fromCurrency: 'CAD',
+          toCurrency: 'USD',
+          date: new Date('2026-01-01T00:00:00.000Z'),
+          rate: 0.75,
+        },
       });
       const a = await seedInvestmentAccount(prisma, { balanceSource: BalanceSource.Valuation });
       const cash = await seedCash('CAD');

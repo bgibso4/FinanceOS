@@ -283,11 +283,12 @@ model ExchangeRate {
   id           String   @id @default(uuid())
   fromCurrency String
   toCurrency   String
+  date         DateTime // UTC midnight, like SecurityPrice.date
   rate         Float
   updatedAt    DateTime @updatedAt
   createdAt    DateTime @default(now())
 
-  @@unique([fromCurrency, toCurrency])
+  @@unique([fromCurrency, toCurrency, date])
 }
 
 model InflationRate {
@@ -301,6 +302,9 @@ model InflationRate {
 model UserSettings {
   id           String   @id @default(uuid())
   baseCurrency String   @default("USD")
+  // Last finished scheduled sync pass; failures is a JSON array of failed step names.
+  scheduledSyncFinishedAt DateTime?
+  scheduledSyncFailures   String?
   updatedAt    DateTime @updatedAt
   createdAt    DateTime @default(now())
 }

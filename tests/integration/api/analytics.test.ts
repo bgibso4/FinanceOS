@@ -355,6 +355,7 @@ describe('analytics API integration', () => {
         data: {
           fromCurrency: 'EUR',
           toCurrency: 'USD',
+          date: new Date('2026-01-01T00:00:00.000Z'),
           rate: 1.1,
         },
       });
@@ -391,6 +392,7 @@ describe('analytics API integration', () => {
         data: {
           fromCurrency: 'EUR',
           toCurrency: 'USD',
+          date: new Date('2026-01-01T00:00:00.000Z'),
           rate: 1.1,
         },
       });
@@ -420,6 +422,45 @@ describe('analytics API integration', () => {
 
       // Total: 100 USD + 110 USD (converted) = 210 USD
       expect(result.netCashflow.spending).toBeCloseTo(210, 0);
+    });
+  });
+
+  describe('exchange rates by day', () => {
+    const cadRate = (date: string, rate: number) =>
+      prisma.exchangeRate.create({
+        data: {
+          fromCurrency: 'CAD',
+          toCurrency: 'USD',
+          date: new Date(`${date}T00:00:00.000Z`),
+          rate,
+        },
+      });
+
+    it('pastMonthIgnoresTodaysRate', async () => {
+      await prisma.account.create({
+        data: createAccountData({ id: 'cad-account', name: 'CAD', currency: 'CAD' }),
+      });
+      await cadRate('2026-10-10', 0.7);
+      await cadRate('2026-11-07', 0.75);
+      await prisma.transaction.create({
+        data: createTransactionData('cad-account', {
+          date: new Date('2026-10-10T12:00:00.000Z'),
+          amount: -100,
+          merchant: 'CAD STORE',
+          categoryId: groceryCategoryId,
+        }),
+      });
+      const october = () =>
+        dashboardAnalytics(
+          prisma,
+          {},
+          new Date('2026-10-01T00:00:00.000Z'),
+          new Date('2026-10-31T23:59:59.999Z')
+        );
+      expect((await october()).netCashflow.spending).toBeCloseTo(70, 6);
+
+      await cadRate('2026-11-08', 0.8);
+      expect((await october()).netCashflow.spending).toBeCloseTo(70, 6);
     });
   });
 

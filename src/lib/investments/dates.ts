@@ -6,6 +6,12 @@ export function utcDay(input: string | Date): Date {
   return new Date(Date.UTC(input.getUTCFullYear(), input.getUTCMonth(), input.getUTCDate()));
 }
 
+/** The calendar day a moment falls on in an IANA time zone, as UTC midnight. */
+export function zonedDay(d: Date, timeZone: string): Date {
+  // en-CA formats as YYYY-MM-DD.
+  return utcDay(new Intl.DateTimeFormat('en-CA', { timeZone }).format(d));
+}
+
 export function isoDay(d: Date): string {
   return d.toISOString().slice(0, 10);
 }

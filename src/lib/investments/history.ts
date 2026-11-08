@@ -1,6 +1,7 @@
 import type { AccountBalance, PrismaClient } from '@prisma/client';
 import { convertAmount } from '@/lib/currency';
-import { loadFxRates, PriceBook } from '@/lib/prices/price-book';
+import { RateBook } from '@/lib/fx/rate-book';
+import { PriceBook } from '@/lib/prices/price-book';
 import { addDays, isoDay, lastAtOrBefore, utcDay } from './dates';
 import { roundCents } from './money';
 import { BalanceRowSource, BalanceSource, RecordSource, SecurityType } from './codes';
@@ -16,15 +17,18 @@ export const MAX_DAYS = 3660;
 
 export type SeriesPoint = { date: string; value: number; isEstimated: boolean };
 
-/** A series re-expressed in another currency at today's rates, rounded to cents. */
+/** A series re-expressed in another currency, each point at its own day's rate, rounded to cents. */
 export function convertSeries(
   points: SeriesPoint[],
   from: string,
   to: string,
-  rates: Map<string, number>
+  rates: RateBook
 ): SeriesPoint[] {
   if (from === to) return points;
-  return points.map((p) => ({ ...p, value: roundCents(convertAmount(p.value, from, to, rates)) }));
+  return points.map((p) => ({
+    ...p,
+    value: roundCents(convertAmount(p.value, from, to, rates, p.date)),
+  }));
 }
 
 /** Day-by-day sum of series in one currency; a day is estimated when any member's point is. */
@@ -68,14 +72,14 @@ export class ValueHistoryService {
     accountId: string,
     from: Date,
     to: Date,
-    opts: { rates?: Map<string, number> } = {}
+    opts: { rates?: RateBook } = {}
   ): Promise<SeriesPoint[]> {
     const prisma = this.prisma;
     const account = await prisma.account.findUniqueOrThrow({
       where: { id: accountId },
       select: { id: true, currency: true, balanceSource: true },
     });
-    const rates = opts.rates ?? (await loadFxRates(prisma));
+    const rates = opts.rates ?? (await RateBook.load(prisma));
     const stored = await prisma.accountBalance.findMany({
       where: { accountId, date: { lte: to } },
       orderBy: { date: 'asc' },
@@ -141,7 +145,7 @@ export class ValueHistoryService {
       where: ACTIVE_INVESTMENT,
       select: { id: true, currency: true },
     });
-    const rates = await loadFxRates(this.prisma);
+    const rates = await RateBook.load(this.prisma);
     const series: SeriesPoint[][] = [];
     for (const a of accounts) {
       const points = await this.accountSeries(a.id, from, to, { rates });
@@ -168,7 +172,7 @@ class ProviderValueDeriver {
     private readonly flows: Flow[], // non-cancelled, ascending
     private readonly cashSecurityIds: Set<string>,
     private readonly book: PriceBook,
-    private readonly toAccount: (amount: number, securityId: string) => number,
+    private readonly toAccount: (amount: number, securityId: string, day: string) => number,
     private readonly storedByDay: Map<number, AccountBalance>,
     /** Stored balance on the first snapshot day, read regardless of the requested range. */
     private readonly firstDayBalance: number | null
@@ -184,7 +188,7 @@ class ProviderValueDeriver {
     prisma: PrismaClient,
     account: { id: string; currency: string },
     to: Date,
-    rates: Map<string, number>,
+    rates: RateBook,
     storedByDay: Map<number, AccountBalance>
   ): Promise<ProviderValueDeriver | null> {
     const securitySelect = { select: { id: true, type: true, currency: true } };
@@ -231,12 +235,13 @@ class ProviderValueDeriver {
         [...securities.values()].filter((s) => s.type === SecurityType.Cash).map((s) => s.id)
       ),
       book,
-      (amount, securityId) =>
+      (amount, securityId, day) =>
         convertAmount(
           amount,
           securities.get(securityId)?.currency ?? account.currency,
           account.currency,
-          rates
+          rates,
+          day
         ),
       storedByDay,
       firstDayRow?.balance ?? null
@@ -281,13 +286,13 @@ class ProviderValueDeriver {
     for (const [securityId, q] of quantity) {
       if (q <= 0) continue;
       const price = this.book.at(securityId, d)?.price ?? fallbackPrice.get(securityId);
-      if (price != null) value += this.toAccount(q * price, securityId);
+      if (price != null) value += this.toAccount(q * price, securityId, isoDay(d));
     }
     if (!cashPosition) {
       // Implicit cash: what the stored balance held beyond the snapshot's positions, moved by
       // flows.
       const anchor = this.storedByDay.get(prevDay);
-      const held = this.heldValue(prevSet);
+      const held = this.heldValue(prevSet, isoDay(new Date(prevDay)));
       value += (anchor ? anchor.balance - held : 0) + cashFlow;
     }
     return roundCents(value);
@@ -322,8 +327,8 @@ class ProviderValueDeriver {
   }
 
   /** A snapshot set's positions valued in the account currency. */
-  private heldValue(set: Position[]): number {
-    return set.reduce((sum, s) => sum + this.toAccount(s.value, s.securityId), 0);
+  private heldValue(set: Position[], day: string): number {
+    return set.reduce((sum, s) => sum + this.toAccount(s.value, s.securityId, day), 0);
   }
 
   /** First snapshot minus BACKFILL_DAYS, walking back until a day can't be estimated. */
@@ -363,16 +368,17 @@ class ProviderValueDeriver {
       if (q <= QUANTITY_EPSILON) continue;
       const price = this.book.at(securityId, d)?.price ?? firstPrice.get(securityId);
       if (price == null) return null;
-      value += this.toAccount(q * price, securityId);
+      value += this.toAccount(q * price, securityId, isoDay(d));
     }
     const cashPosition = firstSet.find((s) => this.isCash(s.securityId));
     if (cashPosition) {
       const units = cashPosition.quantity + undoneCash;
       const price = this.book.at(cashPosition.securityId, d)?.price ?? cashPosition.price;
-      if (units > QUANTITY_EPSILON) value += this.toAccount(units * price, cashPosition.securityId);
+      if (units > QUANTITY_EPSILON)
+        value += this.toAccount(units * price, cashPosition.securityId, isoDay(d));
     } else {
       // Implicit cash: what the first day's balance held beyond its positions, flows undone.
-      const held = this.heldValue(firstSet);
+      const held = this.heldValue(firstSet, isoDay(new Date(firstDay)));
       value += (this.firstDayBalance == null ? 0 : this.firstDayBalance - held) + undoneCash;
     }
     return roundCents(value);

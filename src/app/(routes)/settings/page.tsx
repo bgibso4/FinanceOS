@@ -39,12 +39,16 @@ import { AccountHoldingsSection } from '@/components/investments/account-holding
 import { EnteredBalancesSection } from '@/components/investments/entered-balances-section';
 import type { TrackingMode } from '@/lib/account-defaults';
 import { BalanceSource } from '@/lib/investments/codes';
-import { fmtCalendarDay } from '@/lib/dates';
+import { fmtCalendarDay, fmtMoment } from '@/lib/dates';
 import { ds } from '@/lib/design-system';
-import { syncUnits, statsForAccount, isSyncAllCandidate } from '@/lib/sync-grouping';
+import {
+  syncUnits,
+  statsForAccount,
+  isSyncAllCandidate,
+  isSyncableAccount,
+} from '@/lib/sync-grouping';
 import { investmentSyncStatus } from '@/lib/investments/sync-status';
 import type { InvestmentSyncResult } from '@/lib/investments/plaid-investment-sync';
-import { getCurrencyFlag } from '@/lib/currency';
 import { SyncStatusBadge } from '@/components/plaid/SyncStatusBadge'; // Used for both Plaid and Teller
 import { triggerSync } from '@/lib/cloud-sync';
 import { ConnectedInstitutions } from '@/components/institutions/ConnectedInstitutions';
@@ -52,6 +56,8 @@ import { TellerAccountLinkSelector } from '@/components/teller/TellerAccountLink
 import { PlaidAccountLinkSelector } from '@/components/plaid/PlaidAccountLinkSelector';
 import { PlaidReconnectButton } from '@/components/plaid/PlaidReconnectButton';
 import { SyncSettings } from '@/components/sync-settings';
+import { ScheduledSyncLine } from '@/components/scheduled-sync/scheduled-sync-line';
+import { signalScheduledSyncChanged } from '@/components/scheduled-sync/use-scheduled-sync-status';
 import { RulesTab } from '@/components/rules/RulesTab';
 import { SecuritiesTab } from '@/components/investments/securities-tab';
 import { getTagColors } from '@/components/tag-input';
@@ -128,7 +134,6 @@ type Budget = {
   isOverride?: boolean;
 };
 type ExchangeRate = {
-  id: string;
   fromCurrency: string;
   toCurrency: string;
   rate: number;
@@ -488,6 +493,7 @@ function SettingsPageContent() {
   const [defaultBudgets, setDefaultBudgets] = useState<Budget[]>([]);
   const [budgetViewMonth, setBudgetViewMonth] = useState<string>(''); // empty = "All months" (defaults)
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([]);
+  const [rateRefreshFailed, setRateRefreshFailed] = useState(false);
   const [inflationRates, setInflationRates] = useState<
     { id: string; year: number; rate: number; updatedAt: string }[]
   >([]);
@@ -500,11 +506,6 @@ function SettingsPageContent() {
   const [newTagColor, setNewTagColor] = useState('blue');
   const [editingTag, setEditingTag] = useState<TagWithCount | null>(null);
   const [editTagModalOpen, setEditTagModalOpen] = useState(false);
-  const [newExchangeRate, setNewExchangeRate] = useState({
-    fromCurrency: 'CAD',
-    toCurrency: 'USD',
-    rate: '',
-  });
   const [newInflationRate, setNewInflationRate] = useState({
     year: new Date().getFullYear().toString(),
     rate: '',
@@ -605,14 +606,7 @@ function SettingsPageContent() {
     new Map()
   );
 
-  const syncableAccounts = accounts.filter((a) => {
-    if (!a.isActive) return false;
-    const tc = a.tellerConnection;
-    const pc = a.plaidConnection;
-    if (tc && tc.status !== 'disconnected') return true;
-    if (pc && pc.status !== 'needs_reauth') return true;
-    return false;
-  });
+  const syncableAccounts = accounts.filter(isSyncableAccount);
 
   // Drag-and-drop sensors for account reordering
   const sensors = useSensors(
@@ -749,6 +743,7 @@ function SettingsPageContent() {
     const fresh: Account[] = acc.accounts ?? [];
     setAccounts(fresh);
     updateBalanceMaps(bal.accounts ?? []);
+    signalScheduledSyncChanged();
     return fresh;
   };
 
@@ -781,9 +776,25 @@ function SettingsPageContent() {
     }
   };
 
+  const refreshRatesNow = async () => {
+    try {
+      const res = await fetch('/api/exchange-rates/refresh', { method: 'POST' });
+      const body = res.ok ? await res.json() : null;
+      setRateRefreshFailed(!body || (body.failed?.length ?? 0) > 0);
+    } catch (error) {
+      console.error('Failed to refresh exchange rates:', error);
+      setRateRefreshFailed(true);
+    }
+    await refreshExchangeRates();
+  };
+
   const refreshExchangeRates = async () => {
-    const ratesData = await fetch('/api/exchange-rates').then((r) => r.json());
-    setExchangeRates(ratesData.rates ?? []);
+    try {
+      const ratesData = await fetch('/api/exchange-rates').then((r) => r.json());
+      setExchangeRates(ratesData.rates ?? []);
+    } catch (error) {
+      console.error('Failed to read exchange rates:', error);
+    }
   };
 
   const refreshInflationRates = async () => {
@@ -1833,48 +1844,6 @@ function SettingsPageContent() {
     }
   };
 
-  const addExchangeRate = async () => {
-    if (!newExchangeRate.rate || parseFloat(newExchangeRate.rate) <= 0) {
-      alert('Please enter a valid exchange rate');
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/exchange-rates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fromCurrency: newExchangeRate.fromCurrency,
-          toCurrency: newExchangeRate.toCurrency,
-          rate: parseFloat(newExchangeRate.rate),
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        alert(`Failed to add exchange rate: ${error.error || 'Unknown error'}`);
-        return;
-      }
-
-      setNewExchangeRate({ fromCurrency: 'CAD', toCurrency: 'USD', rate: '' });
-      refreshExchangeRates();
-    } catch (error) {
-      console.error('Failed to add exchange rate:', error);
-      alert('Failed to add exchange rate');
-    }
-  };
-
-  const deleteExchangeRate = async (id: string) => {
-    try {
-      await fetch(`/api/exchange-rates/${id}`, {
-        method: 'DELETE',
-      });
-      refreshExchangeRates();
-    } catch (_error) {
-      alert('Failed to delete exchange rate');
-    }
-  };
-
   const addInflationRate = async () => {
     const yearNum = parseInt(newInflationRate.year);
     const rateNum = parseFloat(newInflationRate.rate);
@@ -2004,172 +1973,26 @@ function SettingsPageContent() {
                   <label className={`block text-sm font-medium ${ds.text.primary}`}>
                     Exchange Rates
                   </label>
-                  <a
-                    className={`text-xs ${ds.text.muted} hover:${ds.text.secondary} underline`}
-                    href="https://www.google.com/search?q=currency+converter"
-                    rel="noopener noreferrer"
-                    target="_blank"
-                  >
-                    Check current rates →
-                  </a>
                 </div>
 
-                {/* Exchange Rates Table */}
-                <div
-                  className={`${ds.bg.primary} rounded-lg border ${ds.border.default} overflow-hidden`}
-                >
-                  {exchangeRates.length > 0 ? (
-                    <table className="w-full text-sm">
-                      <thead className={`${ds.bg.tertiary}`}>
-                        <tr>
-                          <th className={`px-4 py-3 text-left ${ds.text.secondary} font-semibold`}>
-                            From
-                          </th>
-                          <th className={`px-4 py-3 text-center ${ds.text.secondary}`}>→</th>
-                          <th className={`px-4 py-3 text-left ${ds.text.secondary} font-semibold`}>
-                            To
-                          </th>
-                          <th className={`px-4 py-3 text-right ${ds.text.secondary} font-semibold`}>
-                            Exchange Rate
-                          </th>
-                          <th className={`px-4 py-3 text-right ${ds.text.secondary} font-semibold`}>
-                            Last Updated
-                          </th>
-                          <th className="w-20" />
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--border)]">
-                        {exchangeRates.map((rate) => (
-                          <tr
-                            key={rate.id}
-                            className={`hover:${ds.bg.secondary} transition-colors`}
-                          >
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg">
-                                  {getCurrencyFlag(rate.fromCurrency)}
-                                </span>
-                                <span className={`font-semibold ${ds.text.primary}`}>
-                                  {rate.fromCurrency}
-                                </span>
-                              </div>
-                            </td>
-                            <td className={`px-4 py-3 text-center ${ds.text.muted}`}>
-                              <svg
-                                className="w-4 h-4 mx-auto"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  d="M13 7l5 5m0 0l-5 5m5-5H6"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                />
-                              </svg>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg">{getCurrencyFlag(rate.toCurrency)}</span>
-                                <span className={`font-semibold ${ds.text.primary}`}>
-                                  {rate.toCurrency}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <div
-                                className={`inline-flex items-center gap-1 px-3 py-1 rounded-full ${ds.bg.tertiary}`}
-                              >
-                                <span
-                                  className={`font-mono font-bold text-base ${ds.text.primary}`}
-                                >
-                                  {rate.rate.toFixed(4)}
-                                </span>
-                              </div>
-                            </td>
-                            <td className={`px-4 py-3 text-right text-xs ${ds.text.muted}`}>
-                              {new Date(rate.updatedAt).toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                              })}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${ds.status.error.text} hover:${ds.status.error.bg}`}
-                                title="Delete this exchange rate"
-                                onClick={() => deleteExchangeRate(rate.id)}
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div className={`p-8 text-center ${ds.bg.secondary}`}>
-                      <div className="text-4xl mb-3">💱</div>
-                      <div className={`font-medium ${ds.text.primary} mb-1`}>
-                        No exchange rates configured
-                      </div>
-                      <div className={`text-sm ${ds.text.muted}`}>
-                        Add your first exchange rate below to enable multi-currency support
-                      </div>
-                    </div>
+                <div className={`space-y-2 text-sm ${ds.text.secondary}`}>
+                  {exchangeRates.map((rate) => (
+                    <p key={`${rate.fromCurrency}-${rate.toCurrency}`}>
+                      {`1 ${rate.fromCurrency} = ${rate.rate.toFixed(4)} ${rate.toCurrency} today · updated automatically · as of ${fmtMoment(rate.updatedAt, { month: 'short', day: 'numeric' })}`}
+                    </p>
+                  ))}
+                  {exchangeRates.length === 0 && (
+                    <p className={ds.text.muted}>No exchange rates yet</p>
                   )}
                 </div>
-
-                {/* Add Exchange Rate Form */}
-                <div className={`${ds.bg.secondary} p-4 rounded-lg border ${ds.border.default}`}>
-                  <div className={`text-sm font-semibold ${ds.text.primary} mb-3`}>
-                    Add New Exchange Rate
-                  </div>
-                  <div className="grid grid-cols-4 gap-3">
-                    <Select
-                      value={newExchangeRate.fromCurrency}
-                      onChange={(e) =>
-                        setNewExchangeRate({ ...newExchangeRate, fromCurrency: e.target.value })
-                      }
-                    >
-                      <option value="CAD">🇨🇦 CAD</option>
-                      <option value="EUR">🇪🇺 EUR</option>
-                      <option value="GBP">🇬🇧 GBP</option>
-                      <option value="JPY">🇯🇵 JPY</option>
-                    </Select>
-                    <Select
-                      value={newExchangeRate.toCurrency}
-                      onChange={(e) =>
-                        setNewExchangeRate({ ...newExchangeRate, toCurrency: e.target.value })
-                      }
-                    >
-                      <option value="USD">🇺🇸 USD</option>
-                      <option value="CAD">🇨🇦 CAD</option>
-                      <option value="EUR">🇪🇺 EUR</option>
-                      <option value="GBP">🇬🇧 GBP</option>
-                    </Select>
-                    <Input
-                      placeholder="0.7200"
-                      step="0.0001"
-                      type="number"
-                      value={newExchangeRate.rate}
-                      onChange={(e) =>
-                        setNewExchangeRate({ ...newExchangeRate, rate: e.target.value })
-                      }
-                    />
-                    <Button
-                      className="py-2 bg-[var(--accent)] hover:bg-[var(--accent)] text-white"
-                      onClick={addExchangeRate}
-                    >
-                      Add Rate
-                    </Button>
-                  </div>
-                  <div className={`text-xs ${ds.text.muted} mt-2`}>
-                    💡 Example: If 1 CAD = 0.72 USD, enter <span className="font-mono">0.72</span>{' '}
-                    for CAD → USD
-                  </div>
-                </div>
+                <Button variant="outline" onClick={refreshRatesNow}>
+                  Refresh
+                </Button>
+                {rateRefreshFailed && (
+                  <p className={`text-xs ${ds.status.warning.text}`}>
+                    Couldn't refresh the rate — showing the last one
+                  </p>
+                )}
               </div>
             </div>
 
@@ -2348,6 +2171,7 @@ function SettingsPageContent() {
         <>
           {/* Connected Institutions Section */}
           <div className="mb-6">
+            <ScheduledSyncLine />
             <ConnectedInstitutions onRefresh={refreshAccounts} />
           </div>
 

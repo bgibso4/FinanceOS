@@ -5,7 +5,7 @@ import { convertAmount, loadCurrencySettings } from '@/lib/currency';
 
 export async function GET() {
   // Get currency settings for conversion
-  const { rateMap, baseCurrency } = await loadCurrencySettings(prisma);
+  const { rates, baseCurrency } = await loadCurrencySettings(prisma);
 
   // Get all active accounts (without loading transactions)
   const accounts = await prisma.account.findMany({
@@ -30,7 +30,7 @@ export async function GET() {
     const balanceInBaseCurrency =
       account.currency === baseCurrency
         ? balance
-        : convertAmount(balance, account.currency, baseCurrency, rateMap);
+        : convertAmount(balance, account.currency, baseCurrency, rates);
 
     return {
       id: account.id,

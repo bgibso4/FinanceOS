@@ -43,7 +43,12 @@ describe('daily spend and explicit comparison', () => {
     await resetTestDb();
     await testPrisma.userSettings.create({ data: { baseCurrency: 'USD' } });
     await testPrisma.exchangeRate.create({
-      data: { fromCurrency: 'CAD', toCurrency: 'USD', rate: 0.75 },
+      data: {
+        fromCurrency: 'CAD',
+        toCurrency: 'USD',
+        date: new Date('2026-01-01T00:00:00.000Z'),
+        rate: 0.75,
+      },
     });
     await testPrisma.account.create({ data: createAccountData({ id: 'usd', currency: 'USD' }) });
     await testPrisma.account.create({ data: createAccountData({ id: 'cad', currency: 'CAD' }) });

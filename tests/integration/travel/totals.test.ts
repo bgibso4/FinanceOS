@@ -25,7 +25,12 @@ describe('TravelTotals', () => {
     await resetTestDb();
     await prisma.userSettings.create({ data: { baseCurrency: 'USD' } });
     await prisma.exchangeRate.create({
-      data: { fromCurrency: 'CAD', toCurrency: 'USD', rate: 0.75 },
+      data: {
+        fromCurrency: 'CAD',
+        toCurrency: 'USD',
+        date: new Date('2026-01-01T00:00:00.000Z'),
+        rate: 0.75,
+      },
     });
     accountId = (await prisma.account.create({ data: createAccountData() })).id;
     cadAccountId = (await prisma.account.create({ data: createAccountData({ currency: 'CAD' }) }))
@@ -84,6 +89,30 @@ describe('TravelTotals', () => {
     const t = await trip('2026-01-13', '2026-01-21');
     await tx('2026-01-14', -100, { tripId: t.id, accountId: cadAccountId });
     expect((await totals.trip(t.id))?.spend).toBe(75);
+  });
+
+  it('tripTotalUsesEachDaysRate', async () => {
+    await prisma.exchangeRate.create({
+      data: {
+        fromCurrency: 'CAD',
+        toCurrency: 'USD',
+        date: new Date('2026-01-15T00:00:00.000Z'),
+        rate: 0.8,
+      },
+    });
+    const t = await trip('2026-01-13', '2026-01-21');
+    await tx('2026-01-14', -100, { tripId: t.id, accountId: cadAccountId }); // 0.75 (Jan 1 row)
+    await tx('2026-01-16', -100, { tripId: t.id, accountId: cadAccountId }); // 0.80
+    expect((await totals.trip(t.id))?.spend).toBe(155);
+    await prisma.exchangeRate.create({
+      data: {
+        fromCurrency: 'CAD',
+        toCurrency: 'USD',
+        date: new Date('2026-02-01T00:00:00.000Z'),
+        rate: 0.9,
+      },
+    });
+    expect((await totals.trip(t.id))?.spend).toBe(155);
   });
 
   it('perDayAndDays', async () => {
