@@ -32,11 +32,14 @@ export class ConnectionSyncError extends Error {
     this.name = 'ConnectionSyncError';
   }
 
+  /** True when the fix is to log in to the bank again; every code but a missing connection. */
+  get needsRelogin(): boolean {
+    return this.code !== 'NOT_FOUND';
+  }
+
   /** The routes' JSON body. Only re-login states carry a code; a missing connection is bare. */
   get body(): { error: string; code?: ConnectionSyncErrorCode } {
-    return this.code === 'NOT_FOUND'
-      ? { error: this.message }
-      : { error: this.message, code: this.code };
+    return this.needsRelogin ? { error: this.message, code: this.code } : { error: this.message };
   }
 }
 

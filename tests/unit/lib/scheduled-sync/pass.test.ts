@@ -20,7 +20,7 @@ vi.mock('@/lib/investments/services', () => ({
 
 import { runSyncPass, defaultPassDeps } from '@/lib/scheduled-sync/pass';
 import { readPassRecord, writePassRecord } from '@/lib/scheduled-sync/record';
-import { syncPlaidConnection } from '@/lib/connection-sync';
+import { syncPlaidConnection, ConnectionSyncError } from '@/lib/connection-sync';
 import { syncPlaidTransactions } from '@/lib/plaid-sync';
 
 const clock = fixedClock('2026-11-08T12:00:00Z');
@@ -139,6 +139,38 @@ describe('runSyncPass', () => {
     const syncUnit = vi.fn(async () => {});
     await runSyncPass(deps({ syncUnit }));
     expect(syncUnit).toHaveBeenCalledTimes(1);
+  });
+
+  // The connection's own status already shows a re-login (and drives the attention dot), so it
+  // must not also count as a failed step that outlives the reconnect.
+  it.each(['NEEDS_REAUTH', 'DISCONNECTED', 'AUTH_EXPIRED'] as const)(
+    'reloginIsNotAStepFailure (%s)',
+    async (code) => {
+      await tellerAccount('a');
+      const s = await runSyncPass(
+        deps({
+          syncUnit: async () => {
+            throw new ConnectionSyncError(code, 400, 'Bank login required');
+          },
+        })
+      );
+      expect(s.failures).toEqual([]);
+      expect(s.units).toEqual([
+        expect.objectContaining({ ok: false, error: 'Bank login required' }),
+      ]);
+    }
+  );
+
+  it('otherConnectionErrorsAreStillAStepFailure', async () => {
+    await tellerAccount('a');
+    const s = await runSyncPass(
+      deps({
+        syncUnit: async () => {
+          throw new ConnectionSyncError('NOT_FOUND', 404, 'No Teller connection found');
+        },
+      })
+    );
+    expect(s.failures).toEqual(['accounts']);
   });
 
   it('pricesRefreshOncePerPass', async () => {

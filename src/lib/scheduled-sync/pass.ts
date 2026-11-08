@@ -4,6 +4,11 @@
  */
 import type { PrismaClient } from '@prisma/client';
 import { syncUnits, isSyncableAccount, type SyncUnit } from '@/lib/sync-grouping';
+import {
+  ConnectionSyncError,
+  syncPlaidConnection,
+  syncTellerConnection,
+} from '@/lib/connection-sync';
 import { systemClock, type Clock } from '@/lib/clock';
 import { writePassRecord } from './record';
 
@@ -12,7 +17,8 @@ export type PassStep = 'rates' | 'accounts' | 'prices';
 export type PassSummary = {
   finishedAt: Date;
   failures: PassStep[];
-  units: { entryAccountId: string; ok: boolean; error?: string }[];
+  /** needsRelogin: the connection's own status shows it, so it is not an 'accounts' failure. */
+  units: { entryAccountId: string; ok: boolean; error?: string; needsRelogin?: boolean }[];
 };
 
 export type PassDeps = {
@@ -52,10 +58,11 @@ export async function runSyncPass(deps: PassDeps): Promise<PassSummary> {
           entryAccountId: unit.entryAccountId,
           ok: false,
           error: error instanceof Error ? error.message : String(error),
+          ...(error instanceof ConnectionSyncError && error.needsRelogin && { needsRelogin: true }),
         });
       }
     }
-    if (units.some((u) => !u.ok)) failures.push('accounts');
+    if (units.some((u) => !u.ok && !u.needsRelogin)) failures.push('accounts');
   } catch (error) {
     console.warn('Scheduled sync: accounts failed:', error);
     failures.push('accounts');
@@ -81,7 +88,6 @@ export async function runSyncPass(deps: PassDeps): Promise<PassSummary> {
 export async function defaultPassDeps(): Promise<PassDeps> {
   const { prisma } = await import('@/lib/prisma');
   const { getInvestmentServices } = await import('@/lib/investments/services');
-  const { syncPlaidConnection, syncTellerConnection } = await import('@/lib/connection-sync');
   const { fxRates, refresh } = await getInvestmentServices();
   return {
     prisma,
