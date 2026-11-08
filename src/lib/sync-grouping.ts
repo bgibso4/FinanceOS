@@ -119,8 +119,13 @@ export function isSyncAllCandidate(r: {
 }
 
 /**
- * Whether an account can be synced now: active, with a Teller connection that is not
- * disconnected or a Plaid connection that does not need re-login.
+ * The connection status that means Ben must log in to the bank again, per provider. Only active
+ * accounts matter: inactive ones are never synced, so their connection state is moot.
+ */
+export const RELOGIN_STATUS = { teller: 'disconnected', plaid: 'needs_reauth' } as const;
+
+/**
+ * Whether an account can be synced now: active, with a connection that does not need re-login.
  */
 export function isSyncableAccount(a: {
   isActive?: boolean;
@@ -129,5 +134,7 @@ export function isSyncableAccount(a: {
 }): boolean {
   if (!a.isActive) return false;
   const { tellerConnection: tc, plaidConnection: pc } = a;
-  return (!!tc && tc.status !== 'disconnected') || (!!pc && pc.status !== 'needs_reauth');
+  return (
+    (!!tc && tc.status !== RELOGIN_STATUS.teller) || (!!pc && pc.status !== RELOGIN_STATUS.plaid)
+  );
 }

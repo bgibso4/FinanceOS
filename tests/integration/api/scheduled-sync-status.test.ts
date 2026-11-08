@@ -85,4 +85,54 @@ describe('GET /api/scheduled-sync/status', () => {
     });
     expect((await (await GET()).json()).needsAttention).toBe(true);
   });
+
+  // The pass skips inactive accounts and Ben never reconnects a closed one, so its dead
+  // connection must not hold the dot up forever.
+  it('ignoresDeadConnectionsOnInactiveAccounts', async () => {
+    const { GET } = await import('@/app/api/scheduled-sync/status/route');
+    const teller = await testPrisma.account.create({
+      data: createAccountData({ type: 'checking', isActive: false }),
+    });
+    const te = await testPrisma.tellerEnrollment.create({
+      data: {
+        enrollmentId: 'te-closed',
+        institutionId: 'x',
+        institutionName: 'X',
+        accessTokenEncrypted: 'x',
+        accessTokenIv: 'y',
+      },
+    });
+    await testPrisma.tellerConnection.create({
+      data: {
+        accountId: teller.id,
+        tellerEnrollmentId: te.id,
+        tellerAccountId: 't-closed',
+        status: 'disconnected',
+      },
+    });
+    const plaid = await testPrisma.account.create({
+      data: createAccountData({ type: 'checking', isActive: false }),
+    });
+    const pe = await testPrisma.plaidEnrollment.create({
+      data: {
+        plaidItemId: 'item-closed',
+        institutionName: 'Bank',
+        accessTokenEncrypted: 'x',
+        accessTokenIv: 'y',
+      },
+    });
+    await testPrisma.plaidConnection.create({
+      data: {
+        accountId: plaid.id,
+        plaidEnrollmentId: pe.id,
+        plaidAccountId: 'pa-closed',
+        plaidAccountType: 'depository',
+        status: 'needs_reauth',
+      },
+    });
+    expect((await (await GET()).json()).needsAttention).toBe(false);
+
+    await testPrisma.account.update({ where: { id: plaid.id }, data: { isActive: true } });
+    expect((await (await GET()).json()).needsAttention).toBe(true);
+  });
 });
