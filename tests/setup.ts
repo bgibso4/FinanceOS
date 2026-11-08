@@ -36,6 +36,25 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
+// Node 25 defines its own localStorage, unusable without --localstorage-file, and it shadows
+// jsdom's; modules that read it on import (src/lib/theme.ts) need a working one.
+if (typeof globalThis.localStorage?.getItem !== 'function') {
+  const items = new Map<string, string>();
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (k: string) => items.get(k) ?? null,
+      setItem: (k: string, v: string) => void items.set(k, String(v)),
+      removeItem: (k: string) => void items.delete(k),
+      clear: () => items.clear(),
+      key: (i: number) => [...items.keys()][i] ?? null,
+      get length() {
+        return items.size;
+      },
+    } satisfies Storage,
+  });
+}
+
 // Stub ResizeObserver; a class so libraries (Recharts, dnd-kit) can construct it.
 global.ResizeObserver = class {
   observe() {}

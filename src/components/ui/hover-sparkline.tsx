@@ -23,7 +23,9 @@ export function HoverSparkline({
   label: string;
   height?: number;
 }) {
-  const [hover, setHover] = useState<number | null>(null);
+  const [hoverIndex, setHover] = useState<number | null>(null);
+  // A hover kept from a longer `points` (e.g. before a refresh) no longer names a point.
+  const hover = hoverIndex !== null && hoverIndex < points.length ? hoverIndex : null;
   const geo = chartGeometry(
     points.map((p) => ({ value: p.value, isEstimated: false })),
     { width: VIEW_WIDTH, height, pad: PAD }

@@ -9,8 +9,10 @@ const points = [
 ];
 const format = (v: number) => `${v}%`;
 
+let renderResult: ReturnType<typeof render>;
+
 function setup(pts = points) {
-  render(<HoverSparkline format={format} label="Past year" points={pts} />);
+  renderResult = render(<HoverSparkline format={format} label="Past year" points={pts} />);
   const box = screen.getByLabelText('Past year');
   box.getBoundingClientRect = () =>
     ({
@@ -47,6 +49,16 @@ describe('HoverSparkline', () => {
     fireEvent.pointerMove(box, { clientX: 200 });
     expect(screen.getByText('Feb 2026 · 3%')).toBeInTheDocument();
     fireEvent.pointerLeave(box);
+    expect(screen.queryByText(/ · /)).toBeNull();
+  });
+
+  it('staleHoverIsDroppedWhenPointsShrink', () => {
+    const box = setup();
+    fireEvent.pointerMove(box, { clientX: 300 });
+    expect(screen.getByText('Mar 2026 · 2%')).toBeInTheDocument();
+    renderResult.rerender(
+      <HoverSparkline format={format} label="Past year" points={points.slice(0, 2)} />
+    );
     expect(screen.queryByText(/ · /)).toBeNull();
   });
 

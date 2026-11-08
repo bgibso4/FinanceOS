@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen } from '@testing-library/react';
 
 const nav = vi.hoisted(() => ({ tab: 'accounts' }));
 vi.mock('next/navigation', () => ({
@@ -34,22 +33,21 @@ const CAD_USD = {
   rate: 0.73,
   date: '2026-11-08T00:00:00.000Z',
   updatedAt: at(14, 14),
+  yearAgoRate: null,
+  weekly: [],
+  monthEnds: [],
 };
 
-let calls: { url: string; method: string }[];
-
 function stub(status: object, rates: object[] = []) {
-  calls = [];
-  global.fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+  global.fetch = vi.fn(async (url: string | URL | Request) => {
     const u = String(url);
-    calls.push({ url: u, method: init?.method ?? 'GET' });
     const body =
       u === '/api/scheduled-sync/status'
         ? status
         : u === '/api/exchange-rates'
           ? { rates }
-          : u === '/api/exchange-rates/refresh'
-            ? { pairs: 1, days: 1, failed: [] }
+          : u === '/api/price-index'
+            ? { selected: 'US', regions: [] }
             : {};
     return { ok: true, status: 200, json: async () => body } as Response;
   }) as unknown as typeof fetch;
@@ -93,43 +91,16 @@ describe('Settings → automatic sync status', () => {
   });
 });
 
-describe('Settings → daily exchange rate', () => {
+describe('Settings → General', () => {
   beforeEach(() => {
     nav.tab = 'general';
   });
 
-  it('rateIsReadOnlyWithRefresh', async () => {
+  // The tab's behaviour is covered in general-settings.test.tsx; this checks the page mounts it.
+  it('rendersGeneralSettings', async () => {
     stub(RAN, [CAD_USD]);
     render(<SettingsPage />);
-    expect(
-      await screen.findByText(/1 CAD = 0\.7300 USD today · updated automatically · as of /)
-    ).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('0.7200')).not.toBeInTheDocument();
-    expect(screen.queryByTitle('Delete this exchange rate')).not.toBeInTheDocument();
-
-    const before = calls.filter((c) => c.url === '/api/exchange-rates').length;
-    await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
-    await waitFor(() =>
-      expect(calls).toContainEqual({ url: '/api/exchange-rates/refresh', method: 'POST' })
-    );
-    await waitFor(() =>
-      expect(calls.filter((c) => c.url === '/api/exchange-rates').length).toBeGreaterThan(before)
-    );
-  });
-
-  it('showsAMessageWhenRefreshFails', async () => {
-    stub(RAN, [CAD_USD]);
-    const ok = global.fetch;
-    global.fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) =>
-      String(url) === '/api/exchange-rates/refresh'
-        ? ({ ok: false, status: 500, json: async () => ({}) } as Response)
-        : ok(url, init)
-    ) as unknown as typeof fetch;
-    render(<SettingsPage />);
-    await screen.findByText(/1 CAD = 0\.7300 USD/);
-    await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
-    expect(
-      await screen.findByText("Couldn't refresh the rate — showing the last one")
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Updated automatically · as of 2:14 pm')).toBeInTheDocument();
+    expect(screen.getByLabelText('Base currency')).toHaveValue('USD');
   });
 });

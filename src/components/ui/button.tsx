@@ -2,7 +2,7 @@ import React from 'react';
 import { cn } from '@/lib/cn';
 
 type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: 'primary' | 'ghost' | 'outline' | 'destructive';
+  variant?: 'primary' | 'ghost' | 'outline' | 'destructive' | 'accent';
 };
 
 export const Button = React.forwardRef<HTMLButtonElement, Props>(function Button(
@@ -19,6 +19,8 @@ export const Button = React.forwardRef<HTMLButtonElement, Props>(function Button
     outline:
       'border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] focus-visible:outline-[var(--border)]',
     destructive: 'bg-[var(--red)] text-white hover:opacity-90 focus-visible:outline-[var(--red)]',
+    accent:
+      'border border-[var(--accent)] bg-[var(--accent)] text-white hover:opacity-90 focus-visible:outline-[var(--accent)]',
   };
   return <button ref={ref} className={cn(base, variants[variant], className)} {...props} />;
 });
