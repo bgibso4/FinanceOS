@@ -19,7 +19,7 @@ vi.mock('@/lib/investments/services', () => ({
 }));
 
 import { runSyncPass, defaultPassDeps } from '@/lib/scheduled-sync/pass';
-import { readPassRecord } from '@/lib/scheduled-sync/record';
+import { readPassRecord, writePassRecord } from '@/lib/scheduled-sync/record';
 import { syncPlaidConnection } from '@/lib/connection-sync';
 import { syncPlaidTransactions } from '@/lib/plaid-sync';
 
@@ -118,6 +118,24 @@ describe('runSyncPass', () => {
   it('reloginConnectionsAreSkipped', async () => {
     await tellerAccount('ok');
     await tellerAccount('gone', 'disconnected');
+    const p = await testPrisma.account.create({ data: createAccountData({ type: 'checking' }) });
+    const e = await testPrisma.plaidEnrollment.create({
+      data: {
+        plaidItemId: 'item-relogin',
+        institutionName: 'Bank',
+        accessTokenEncrypted: 'x',
+        accessTokenIv: 'y',
+      },
+    });
+    await testPrisma.plaidConnection.create({
+      data: {
+        accountId: p.id,
+        plaidEnrollmentId: e.id,
+        plaidAccountId: 'pa-relogin',
+        plaidAccountType: 'depository',
+        status: 'needs_reauth',
+      },
+    });
     const syncUnit = vi.fn(async () => {});
     await runSyncPass(deps({ syncUnit }));
     expect(syncUnit).toHaveBeenCalledTimes(1);
@@ -133,11 +151,18 @@ describe('runSyncPass', () => {
 
   it('recordWrittenOnlyWhenPassFinishes', async () => {
     const old = { finishedAt: new Date('2026-11-01T00:00:00Z'), failures: [], units: [] };
-    const { writePassRecord } = await import('@/lib/scheduled-sync/record');
     await writePassRecord(testPrisma, old);
-    const broken = { ...deps(), prisma: undefined };
-    await expect(runSyncPass(broken as never)).rejects.toThrow();
-    expect((await readPassRecord(testPrisma))?.finishedAt).toEqual(old.finishedAt);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const refreshPrices = vi.fn(() => gate);
+
+    const pass = runSyncPass(deps({ refreshPrices }));
+    await vi.waitFor(() => expect(refreshPrices).toHaveBeenCalled());
+    expect(await readPassRecord(testPrisma)).toEqual({ finishedAt: old.finishedAt, failures: [] });
+
+    release();
+    await pass;
+    expect((await readPassRecord(testPrisma))?.finishedAt).toEqual(clock.now());
   });
 
   it('passAndRouteShareTheLock', async () => {
