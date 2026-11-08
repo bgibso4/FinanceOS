@@ -59,9 +59,9 @@ describe('BlsCpiSource', () => {
 
   it('blsErrorStatusThrows', async () => {
     const { http } = fakeHttp({ status: 'REQUEST_NOT_PROCESSED', message: ['limit'], Results: {} });
-    await expect(new BlsCpiSource(http).fetchMonths('2025-09', '2026-09')).rejects.toBeInstanceOf(
-      PriceIndexSourceError
-    );
+    const failure = new BlsCpiSource(http).fetchMonths('2025-09', '2026-09');
+    await expect(failure).rejects.toBeInstanceOf(PriceIndexSourceError);
+    await expect(failure).rejects.toThrow(/REQUEST_NOT_PROCESSED.*limit/);
   });
 
   it('blsIgnoresOutOfRange', async () => {
@@ -124,6 +124,23 @@ describe('StatCanCpiSource', () => {
     expect(url).toContain('vectorIds="41690973"');
     expect(url).toContain('startRefPeriod=2025-09-01');
     expect(url).toContain('endReferencePeriod=2026-09-01');
+  });
+
+  it('statcanDropsNullAndOutOfRangePoints', async () => {
+    const { http } = fakeHttp([
+      {
+        status: 'SUCCESS',
+        object: {
+          vectorDataPoint: [
+            { refPer: '2025-08-01', value: 160 },
+            { refPer: '2025-09-01', value: null },
+            { refPer: '2025-10-01', value: 161 },
+          ],
+        },
+      },
+    ]);
+    const rows = await new StatCanCpiSource(http).fetchMonths('2025-09', '2026-09');
+    expect(rows).toEqual([{ month: '2025-10', value: 161 }]);
   });
 
   it('statcanErrorStatusThrows', async () => {

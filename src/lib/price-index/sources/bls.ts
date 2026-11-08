@@ -11,8 +11,9 @@ const ENDPOINT = 'https://api.bls.gov/publicAPI/v1/timeseries/data/';
 const SERIES_ID = 'CUUR0000SA0';
 const MAX_YEARS = 10;
 
-const responseSchema = z.object({
-  status: z.string(),
+const statusSchema = z.object({ status: z.string(), message: z.array(z.string()).optional() });
+
+const resultsSchema = z.object({
   Results: z.object({
     series: z.array(
       z.object({
@@ -55,12 +56,17 @@ export class BlsCpiSource implements PriceIndexSource {
     });
     if (!res.ok) throw new PriceIndexSourceError(`BLS answered HTTP ${res.status}`);
 
-    const parsed = responseSchema.safeParse(await res.json());
+    const body: unknown = await res.json();
+    const head = statusSchema.safeParse(body);
+    if (!head.success)
+      throw new PriceIndexSourceError('BLS response was not in the expected shape');
+    if (head.data.status !== 'REQUEST_SUCCEEDED') {
+      const why = head.data.message?.join(' ');
+      throw new PriceIndexSourceError(`BLS status ${head.data.status}${why ? `: ${why}` : ''}`);
+    }
+    const parsed = resultsSchema.safeParse(body);
     if (!parsed.success)
       throw new PriceIndexSourceError('BLS response was not in the expected shape');
-    if (parsed.data.status !== 'REQUEST_SUCCEEDED') {
-      throw new PriceIndexSourceError(`BLS status ${parsed.data.status}`);
-    }
 
     const rows: IndexObservation[] = [];
     for (const { year, period, value } of parsed.data.Results.series.flatMap((s) => s.data)) {
