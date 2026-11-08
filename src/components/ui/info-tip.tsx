@@ -25,7 +25,7 @@ export function InfoTip({
   return (
     <span
       aria-describedby={open ? id : undefined}
-      className="relative inline-block cursor-help rounded-[2px] underline decoration-[var(--text-muted)] decoration-dotted underline-offset-[3px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--border-hover)]"
+      className="relative inline-block cursor-help rounded-[2px] underline decoration-[color:var(--text-muted)] decoration-dotted underline-offset-[3px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--border-hover)]"
       tabIndex={0}
       onBlur={() => setOpen(false)}
       onFocus={() => setOpen(true)}
@@ -39,7 +39,7 @@ export function InfoTip({
           className="pointer-events-none absolute z-10 block w-max max-w-[240px] whitespace-normal rounded-[6px] bg-[var(--text-primary)] px-[7px] py-[3px] text-left text-[11px] font-normal normal-case leading-snug text-[var(--bg-card)] no-underline"
           id={id}
           role="tooltip"
-          style={{ bottom: 'calc(100% + 6px)', ...(align === 'end' ? { right: 0 } : { left: 0 }) }}
+          style={{ top: 'calc(100% + 6px)', ...(align === 'end' ? { right: 0 } : { left: 0 }) }}
         >
           {text}
         </span>

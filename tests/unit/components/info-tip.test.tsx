@@ -56,4 +56,12 @@ describe('InfoTip', () => {
     await userEvent.hover(trigger);
     expect(screen.getByRole('tooltip').style.right).toBe('0px');
   });
+
+  it('placesTheTooltipBelowSoTheCardEdgeDoesNotClipIt', async () => {
+    const trigger = setup();
+    await userEvent.hover(trigger);
+    const style = screen.getByRole('tooltip').style;
+    expect(style.top).toContain('100%');
+    expect(style.bottom).toBe('');
+  });
 });
