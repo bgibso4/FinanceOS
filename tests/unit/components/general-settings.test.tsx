@@ -6,13 +6,13 @@ import { GeneralSettings } from '@/components/settings/general/general-settings'
 // Local times, so the expected text does not depend on the machine's zone.
 const at = (h: number, m: number) => new Date(2026, 10, 8, h, m).toISOString();
 
-const rate = (updatedAt: string) => ({
+const rate = (updatedAt: string, yearAgoRate: number | null) => ({
   fromCurrency: 'CAD',
   toCurrency: 'USD',
   rate: 0.7046,
   date: '2026-11-08T00:00:00.000Z',
   updatedAt,
-  yearAgoRate: 0.7096,
+  yearAgoRate,
   weekly: [
     { day: '2026-09-18', rate: 0.7 },
     { day: '2026-11-06', rate: 0.7046 },
@@ -38,6 +38,9 @@ type Server = {
   updatedAt: string;
   patchError: string | null;
   refreshFails: boolean;
+  yearAgoRate: number | null;
+  /** GET URLs answering 500. */
+  failing: string[];
 };
 let server: Server;
 let calls: { url: string; method: string; body?: unknown }[];
@@ -50,6 +53,9 @@ function stub() {
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     calls.push({ url: u, method, body });
     const ok = (data: unknown) => ({ ok: true, status: 200, json: async () => data }) as Response;
+    if (method === 'GET' && server.failing.includes(u)) {
+      return { ok: false, status: 500, json: async () => ({ error: 'boom' }) } as Response;
+    }
     if (u === '/api/settings' && method === 'PATCH') {
       if (server.patchError) {
         return {
@@ -62,7 +68,8 @@ function stub() {
       return ok({ settings: { id: 's1', ...server.settings } });
     }
     if (u === '/api/settings') return ok({ settings: { id: 's1', ...server.settings } });
-    if (u === '/api/exchange-rates') return ok({ rates: [rate(server.updatedAt)] });
+    if (u === '/api/exchange-rates')
+      return ok({ rates: [rate(server.updatedAt, server.yearAgoRate)] });
     if (u === '/api/exchange-rates/refresh') {
       if (server.refreshFails)
         return { ok: false, status: 500, json: async () => ({}) } as Response;
@@ -106,6 +113,8 @@ beforeEach(() => {
     updatedAt: at(7, 20),
     patchError: null,
     refreshFails: false,
+    yearAgoRate: 0.7096,
+    failing: [],
   };
   stub();
 });
@@ -266,6 +275,46 @@ describe('GeneralSettings', () => {
     expect(rowOf('Canada')).toHaveAttribute('aria-expanded', 'true');
     await userEvent.keyboard(' ');
     expect(rowOf('Canada')).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('positiveChangeIsGreen', async () => {
+    server.yearAgoRate = 0.7;
+    await setup();
+    const change = within(rowOf('1 CAD')).getByText('+0.7%');
+    expect(change.className).toContain('text-[var(--green)]');
+  });
+
+  it('noYearAgoRateShowsDash', async () => {
+    server.yearAgoRate = null;
+    await setup();
+    expect(within(rowOf('1 CAD')).getByText('—')).toBeInTheDocument();
+  });
+
+  it('sparklineClickDoesNotToggleRow', async () => {
+    await setup();
+    await userEvent.click(within(rowOf('1 CAD')).getByRole('img', { name: 'Past year' }));
+    expect(rowOf('1 CAD')).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('priceIndexFailureShowsMessage', async () => {
+    server.failing = ['/api/price-index'];
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<GeneralSettings onSaved={vi.fn()} />);
+    expect(await screen.findByText("Couldn't load settings")).toBeInTheDocument();
+    expect(screen.queryByText('Inflation')).toBeNull();
+    expect(logged).toHaveBeenCalled();
+    logged.mockRestore();
+  });
+
+  it('settingsFailureAllowsNoSave', async () => {
+    server.failing = ['/api/settings'];
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<GeneralSettings onSaved={vi.fn()} />);
+    expect(await screen.findByText("Couldn't load settings")).toBeInTheDocument();
+    expect(screen.queryByLabelText('Base currency')).toBeNull();
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    expect(logged).toHaveBeenCalled();
+    logged.mockRestore();
   });
 
   it('showsNoRatesLine', async () => {

@@ -81,6 +81,20 @@ export function ExpandableRow({
   );
 }
 
+/** Hides a "Past year" column on narrow screens, where the row has no room for it. */
+export const SPARK_COLUMN = 'hidden sm:block';
+
+/**
+ * A row's sparkline cell. Pointing at the sparkline reads it, so clicks here never toggle the row.
+ */
+export function SparkCell({ children }: { children: ReactNode }) {
+  return (
+    <div className={SPARK_COLUMN} onClick={(e) => e.stopPropagation()}>
+      {children}
+    </div>
+  );
+}
+
 /** The table an ExpandableRow opens: a text column, then right-aligned figures, then a note. */
 export function DetailTable({
   columns,

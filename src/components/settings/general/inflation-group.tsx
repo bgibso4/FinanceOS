@@ -1,16 +1,20 @@
 'use client';
 
 import { HoverSparkline } from '@/components/ui/hover-sparkline';
-import { FlagPill } from '@/components/investments/pills';
 import { fmtPct } from '@/components/investments/format';
-import { MINUS } from '@/lib/currency';
 import { fmtMoment } from '@/lib/dates';
 import type { PriceIndexResponse } from '@/lib/price-index/api';
 import { fmtMonth } from '@/lib/price-index/months';
 import { IndexSeries } from '@/lib/price-index/series';
 import { REGION_NAMES, type IndexRegion } from '@/lib/price-index/types';
 import { cn } from '@/lib/cn';
-import { DetailTable, ExpandableRow, ExpandableRowHeader } from './expandable-row';
+import {
+  DetailTable,
+  ExpandableRow,
+  ExpandableRowHeader,
+  SPARK_COLUMN,
+  SparkCell,
+} from './expandable-row';
 import { SettingsFooter, SettingsGroup } from './settings-group';
 
 type RegionIndex = PriceIndexResponse['regions'][number];
@@ -18,16 +22,11 @@ type RegionIndex = PriceIndexResponse['regions'][number];
 const MONTHS_SHOWN = 12;
 const COLUMNS =
   'grid grid-cols-[1fr_72px_64px] items-center gap-[18px] sm:grid-cols-[140px_84px_1fr_80px]';
-const SPARK_CELL = 'hidden sm:block';
 
 export const indexRowKey = (region: IndexRegion) => `index:${region}`;
 
 /** `2.9%`, `−0.3%`; `—` when unknown. */
-const fmtAnnual = (v: number | null): string => {
-  if (v === null) return '—';
-  const rounded = Number(v.toFixed(1));
-  return `${rounded < 0 ? MINUS : ''}${Math.abs(rounded).toFixed(1)}%`;
-};
+const fmtAnnual = (v: number | null): string => (v === null ? '—' : fmtPct(v, { plus: false }));
 
 /** Each region's consumer prices, with the radio choosing the one Reports adjusts by. */
 export function InflationGroup({
@@ -53,7 +52,7 @@ export function InflationGroup({
           <div className={COLUMNS}>
             <span>Consumer prices</span>
             <span className="text-right">Annual</span>
-            <span className={SPARK_CELL}>Past year</span>
+            <span className={SPARK_COLUMN}>Past year</span>
             <span className="text-right">Latest</span>
           </div>
         }
@@ -100,6 +99,7 @@ function IndexRow({
     .flatMap((r) =>
       r.annual === null ? [] : [{ label: fmtMonth(r.month, 'short'), value: r.annual }]
     );
+  // fmtMoment merges its time defaults into `opts`; clearing them leaves just the day ("Nov 8").
   const fetched = index.fetchedAt
     ? ` · fetched ${fmtMoment(index.fetchedAt, { month: 'short', day: 'numeric', hour: undefined, minute: undefined })}`
     : '';
@@ -110,20 +110,24 @@ function IndexRow({
         <div className={COLUMNS}>
           <div>
             <span>{name}</span>
-            {inUse && <FlagPill>In use</FlagPill>}
+            {inUse && (
+              <span className="ml-1.5 rounded-full border border-[color-mix(in_srgb,var(--accent)_40%,transparent)] px-1.5 align-[1px] text-[10px] uppercase tracking-[0.06em] text-[var(--accent)]">
+                In use
+              </span>
+            )}
           </div>
           {latest ? (
             <>
               <div className="text-right font-mono text-[15px] tabular-nums">
-                {fmtAnnual(series.annualChange(latest.month))}
+                {fmtAnnual(rows[0].annual)}
               </div>
-              <div className={SPARK_CELL}>
+              <SparkCell>
                 <HoverSparkline
                   format={(v) => `${fmtAnnual(v)} annual`}
                   label="Past year"
                   points={points}
                 />
-              </div>
+              </SparkCell>
               <div className="text-right text-xs text-[var(--text-muted)]">
                 {fmtMonth(latest.month, 'short')}
               </div>

@@ -48,7 +48,9 @@ function stub(status: object, rates: object[] = []) {
           ? { rates }
           : u === '/api/price-index'
             ? { selected: 'US', regions: [] }
-            : {};
+            : u === '/api/settings'
+              ? { settings: { id: 's1', baseCurrency: 'USD', inflationRegion: 'US' } }
+              : {};
     return { ok: true, status: 200, json: async () => body } as Response;
   }) as unknown as typeof fetch;
 }

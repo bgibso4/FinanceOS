@@ -9,22 +9,28 @@ import { BASE_CURRENCIES } from '@/lib/currency';
 import { fmtMoment, localDay } from '@/lib/dates';
 import type { ExchangeRatesResponse } from '@/lib/fx/rate-summary';
 import { fmtMonth } from '@/lib/price-index/months';
+import { sendJson } from '@/lib/send-json';
 import { cn } from '@/lib/cn';
 import { ds } from '@/lib/design-system';
-import { DetailTable, ExpandableRow, ExpandableRowHeader } from './expandable-row';
+import {
+  DetailTable,
+  ExpandableRow,
+  ExpandableRowHeader,
+  SPARK_COLUMN,
+  SparkCell,
+} from './expandable-row';
 import { SettingsFooter, SettingsGroup, SettingsRow } from './settings-group';
 
 export type PairRate = ExchangeRatesResponse['rates'][number];
 
 const COLUMNS =
   'grid grid-cols-[1fr_72px_64px] items-center gap-[18px] sm:grid-cols-[150px_84px_1fr_96px]';
-const SPARK_CELL = 'hidden sm:block';
 
 export const rateRowKey = (r: PairRate) => `rate:${r.fromCurrency}-${r.toCurrency}`;
 
 export async function fetchRates(): Promise<PairRate[]> {
-  const body: ExchangeRatesResponse = await fetch('/api/exchange-rates').then((r) => r.json());
-  return body.rates ?? [];
+  const body = await sendJson<ExchangeRatesResponse>('/api/exchange-rates', 'GET');
+  return body.rates;
 }
 
 /** Base currency, one row per stored exchange-rate pair, and the rate refresh. */
@@ -100,7 +106,7 @@ export function CurrencyGroup({
               <div className={COLUMNS}>
                 <span>Exchange rate</span>
                 <span className="text-right">Today</span>
-                <span className={SPARK_CELL}>Past year</span>
+                <span className={SPARK_COLUMN}>Past year</span>
                 <span className="text-right">1y change</span>
               </div>
             }
@@ -160,13 +166,13 @@ function RateRow({
             <span className="text-[var(--text-muted)]">{`→ ${r.toCurrency}`}</span>
           </div>
           <div className="text-right font-mono text-[15px] tabular-nums">{r.rate.toFixed(4)}</div>
-          <div className={SPARK_CELL}>
+          <SparkCell>
             <HoverSparkline
               format={(v) => `1 ${r.fromCurrency} = ${v.toFixed(4)} ${r.toCurrency}`}
               label="Past year"
               points={r.weekly.map((w) => ({ label: fmtDay(w.day), value: w.rate }))}
             />
-          </div>
+          </SparkCell>
           <div className={cn('text-right font-mono text-xs tabular-nums', signedTone(change))}>
             {change === null ? '—' : fmtPct(change)}
           </div>
