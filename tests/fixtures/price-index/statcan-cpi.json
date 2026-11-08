@@ -1,0 +1,13 @@
+[
+  {
+    "status": "SUCCESS",
+    "object": {
+      "responseStatusCode": 0,
+      "vectorId": 41690973,
+      "vectorDataPoint": [
+        { "refPer": "2026-08-01", "value": 169.8, "decimals": 1 },
+        { "refPer": "2026-09-01", "value": 170.0, "decimals": 1 }
+      ]
+    }
+  }
+]
