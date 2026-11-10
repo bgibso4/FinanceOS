@@ -14,12 +14,13 @@ import { triggerSync } from '@/lib/cloud-sync';
 import { FilterRibbon } from '@/components/filter-ribbon';
 import type { TagDef } from '@/components/tag-input';
 import { CategorySelect } from '@/components/transactions/category-select';
+import { BulkEditBar } from '@/components/transactions/bulk-edit-bar';
 import { SubscriptionsTab } from '@/components/subscriptions-tab';
 import { postTag } from '@/components/transactions/create-tag';
 import { TransactionDrawer } from '@/components/transactions/transaction-drawer';
 import { TransactionTable, formatCurrency } from '@/components/transactions/transaction-table';
-import { useTransactionDrawer } from '@/components/transactions/use-transaction-drawer';
-import type { Category, Tx } from '@/components/transactions/types';
+import { fetchTrips, useTransactionDrawer } from '@/components/transactions/use-transaction-drawer';
+import type { Category, TripOption, Tx } from '@/components/transactions/types';
 
 type Queue = {
   uncategorized: Tx[];
@@ -62,15 +63,13 @@ function TransactionsPageContent() {
   const [pendingCategories, setPendingCategories] = useState<Record<string, string>>({});
   const [pendingNotes, setPendingNotes] = useState<Record<string, string>>({});
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
+  const [trips, setTrips] = useState<TripOption[]>([]);
 
   // Tag state
   const [availableTags, setAvailableTags] = useState<TagDef[]>([]);
 
   // Bulk selection state
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
-  const [bulkCategory, setBulkCategory] = useState<string>('');
-  const [bulkTagAction, setBulkTagAction] = useState<'add' | 'remove'>('add');
-  const [bulkTagName, setBulkTagName] = useState<string>('');
 
   const toggleSelection = (txId: string) => {
     setSelectedTransactions((prev) => {
@@ -92,116 +91,16 @@ function TransactionsPageContent() {
     setSelectedTransactions(new Set());
   };
 
-  const bulkUpdateCategory = async () => {
-    if (!bulkCategory || selectedTransactions.size === 0) return;
-
-    await fetch('/api/transactions/bulk', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'update',
-        transactionIds: Array.from(selectedTransactions),
-        data: { categoryId: bulkCategory },
-      }),
-    });
-
-    clearSelection();
-    setBulkCategory('');
-    refreshTransactionsAndQueue();
-    triggerSync();
-  };
-
-  const bulkDelete = async () => {
-    if (selectedTransactions.size === 0) return;
-    if (
-      !confirm(
-        `Delete ${selectedTransactions.size} transaction${selectedTransactions.size > 1 ? 's' : ''}? This cannot be undone.`
-      )
-    ) {
-      return;
-    }
-
-    await fetch('/api/transactions/bulk', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'delete',
-        transactionIds: Array.from(selectedTransactions),
-      }),
-    });
-
-    clearSelection();
-    refreshTransactionsAndQueue();
-    triggerSync();
-  };
-
-  const bulkMarkAsTransfer = async () => {
-    if (selectedTransactions.size === 0) return;
-
-    await fetch('/api/transactions/bulk', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'update',
-        transactionIds: Array.from(selectedTransactions),
-        data: { isTransfer: true },
-      }),
-    });
-
-    clearSelection();
-    refreshTransactionsAndQueue();
-    triggerSync();
-  };
-
-  const bulkUpdateTags = async () => {
-    if (!bulkTagName || selectedTransactions.size === 0) return;
-
-    const updates = Array.from(selectedTransactions).map((txId) => {
-      const tx = transactions.find((t) => t.id === txId);
-      const currentTags = tx?.tags || [];
-      const newTags =
-        bulkTagAction === 'add'
-          ? currentTags.includes(bulkTagName)
-            ? currentTags
-            : [...currentTags, bulkTagName]
-          : currentTags.filter((t) => t !== bulkTagName);
-      return { id: txId, tags: newTags };
-    });
-
-    const tagGroups = new Map<string, string[]>();
-    for (const u of updates) {
-      const key = JSON.stringify(u.tags);
-      const group = tagGroups.get(key) ?? [];
-      group.push(u.id);
-      tagGroups.set(key, group);
-    }
-
-    await Promise.all(
-      Array.from(tagGroups.entries()).map(([tagsJson, ids]) =>
-        fetch('/api/transactions/bulk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'update',
-            transactionIds: ids,
-            data: { tags: JSON.parse(tagsJson) },
-          }),
-        })
-      )
-    );
-
-    clearSelection();
-    setBulkTagName('');
-    refreshTransactionsAndQueue();
-    triggerSync();
-  };
-
   const createTag = async (name: string): Promise<TagDef | null> => {
     const tag = await postTag(name);
     if (tag)
       setAvailableTags((prev) => [...prev, tag].sort((a, b) => a.name.localeCompare(b.name)));
     return tag;
   };
+
+  useEffect(() => {
+    void fetchTrips().then((loaded) => loaded && setTrips(loaded));
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -706,85 +605,23 @@ function TransactionsPageContent() {
 
           {/* Bulk Edit Bar */}
           {selectMode && selectedTransactions.size > 0 && (
-            <div className="px-5 py-3 bg-[var(--accent)]/10 border-b border-[var(--accent)]">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm font-medium text-[var(--accent)]">
-                  {selectedTransactions.size} selected
-                </span>
-                <button
-                  className="text-xs text-[var(--accent)] hover:underline whitespace-nowrap"
-                  onClick={() =>
-                    selectedTransactions.size === transactions.length
-                      ? clearSelection()
-                      : selectAll()
-                  }
-                >
-                  {selectedTransactions.size === transactions.length && transactions.length > 0
-                    ? 'Deselect All'
-                    : 'Select All'}
-                </button>
-                <div className="flex items-center gap-2">
-                  <CategorySelect
-                    categories={categories}
-                    className="w-48"
-                    placeholder="Set category..."
-                    value={bulkCategory}
-                    onChange={(id) => setBulkCategory(id ?? '')}
-                  />
-                  <Button
-                    className="!bg-[var(--accent)] hover:!bg-[var(--accent)] text-white py-2 px-3 text-xs"
-                    disabled={!bulkCategory}
-                    onClick={bulkUpdateCategory}
-                  >
-                    Apply
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <select
-                    className="text-sm border border-[var(--border)] rounded-lg px-2 py-1.5 bg-[var(--bg-card)] text-[var(--text-secondary)]"
-                    value={bulkTagAction}
-                    onChange={(e) => setBulkTagAction(e.target.value as 'add' | 'remove')}
-                  >
-                    <option value="add">Add Tag</option>
-                    <option value="remove">Remove Tag</option>
-                  </select>
-                  <select
-                    className="w-40 text-sm border border-[var(--border)] rounded-lg px-2 py-1.5 bg-[var(--bg-card)] text-[var(--text-secondary)]"
-                    value={bulkTagName}
-                    onChange={(e) => setBulkTagName(e.target.value)}
-                  >
-                    <option value="">Select tag...</option>
-                    {availableTags.map((tag) => (
-                      <option key={tag.id} value={tag.name}>
-                        {tag.name}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    className="!bg-[var(--accent)] hover:!bg-[var(--accent)] text-white py-2 px-3 text-xs"
-                    disabled={!bulkTagName}
-                    onClick={bulkUpdateTags}
-                  >
-                    Apply Tag
-                  </Button>
-                </div>
-                <Button
-                  className="!bg-[var(--red)] hover:!bg-[var(--red)] text-white py-2 px-3 text-xs"
-                  onClick={bulkDelete}
-                >
-                  Delete ({selectedTransactions.size})
-                </Button>
-                <button
-                  className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] underline ml-auto"
-                  onClick={() => {
-                    setSelectMode(false);
-                    clearSelection();
-                  }}
-                >
-                  Done
-                </button>
-              </div>
-            </div>
+            <BulkEditBar
+              availableTags={availableTags}
+              categories={categories}
+              rows={transactions}
+              selected={selectedTransactions}
+              trips={trips}
+              onClear={clearSelection}
+              onDone={() => {
+                refreshTransactionsAndQueue();
+                triggerSync();
+              }}
+              onExit={() => {
+                setSelectMode(false);
+                clearSelection();
+              }}
+              onSelectAll={selectAll}
+            />
           )}
 
           <CardContent className="overflow-x-auto">

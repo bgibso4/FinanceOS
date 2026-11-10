@@ -114,4 +114,10 @@ describe('TransactionTable', () => {
     expect(onOpen).toHaveBeenCalledWith('t1');
     expect(toggle).not.toHaveBeenCalled();
   });
+
+  it('annotateRendersUnderTheMerchantOfEachRow', () => {
+    setup({ annotate: (t) => <span>{`note for ${t.id}`}</span> });
+    expect(within(rowFor('Test Merchant 1')).getByText('note for t1')).toBeInTheDocument();
+    expect(within(rowFor('Test Merchant 2')).getByText('note for t2')).toBeInTheDocument();
+  });
 });

@@ -81,6 +81,8 @@ export async function resetTestDb(): Promise<void> {
   await prisma.securityPrice.deleteMany();
   await prisma.security.deleteMany();
   await prisma.tripDismissal.deleteMany();
+  await prisma.splitwiseRow.deleteMany();
+  await prisma.splitwiseImport.deleteMany();
   await prisma.transaction.deleteMany();
   await prisma.trip.deleteMany();
   await prisma.recurringTransaction.deleteMany();

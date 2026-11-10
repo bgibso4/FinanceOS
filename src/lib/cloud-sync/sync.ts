@@ -16,6 +16,8 @@ import type {
   TransactionExport,
   TripExport,
   TripDismissalExport,
+  SplitwiseImportExport,
+  SplitwiseRowExport,
   CategoryExport,
   RuleExport,
   CategoryBudgetExport,
@@ -106,6 +108,8 @@ export async function exportDatabase(): Promise<SyncPayload> {
     investmentTransactions,
     trips,
     tripDismissals,
+    splitwiseImports,
+    splitwiseRows,
   ] = await Promise.all([
     getPrisma().account.findMany(),
     getPrisma().transaction.findMany(),
@@ -127,6 +131,8 @@ export async function exportDatabase(): Promise<SyncPayload> {
     getPrisma().investmentTransaction.findMany(),
     getPrisma().trip.findMany(),
     getPrisma().tripDismissal.findMany(),
+    getPrisma().splitwiseImport.findMany(),
+    getPrisma().splitwiseRow.findMany(),
   ]);
 
   // Transform to export format (convert dates to ISO strings)
@@ -391,6 +397,32 @@ export async function exportDatabase(): Promise<SyncPayload> {
         createdAt: d.createdAt.toISOString(),
       })
     ),
+    splitwiseImports: splitwiseImports.map(
+      (i): SplitwiseImportExport => ({
+        id: i.id,
+        accountId: i.accountId,
+        group: i.group,
+        fileName: i.fileName,
+        person: i.person,
+        result: i.result,
+        undo: i.undo,
+        createdAt: i.createdAt.toISOString(),
+      })
+    ),
+    splitwiseRows: splitwiseRows.map(
+      (r): SplitwiseRowExport => ({
+        id: r.id,
+        accountId: r.accountId,
+        group: r.group,
+        date: r.date,
+        description: r.description,
+        cost: r.cost,
+        amount: r.amount,
+        status: r.status,
+        transactionId: r.transactionId,
+        createdAt: r.createdAt.toISOString(),
+      })
+    ),
   };
 
   const checksum = await generateChecksum(data);
@@ -416,6 +448,8 @@ export async function exportDatabase(): Promise<SyncPayload> {
       investmentTransactions: data.investmentTransactions?.length ?? 0,
       trips: data.trips?.length ?? 0,
       tripDismissals: data.tripDismissals?.length ?? 0,
+      splitwiseImports: data.splitwiseImports?.length ?? 0,
+      splitwiseRows: data.splitwiseRows?.length ?? 0,
     },
     checksum,
   };
@@ -429,6 +463,15 @@ export async function exportDatabase(): Promise<SyncPayload> {
   };
 
   return payload;
+}
+
+async function hasLocalSplitwiseData(): Promise<boolean> {
+  const db = getPrisma();
+  const found = await Promise.all([
+    db.splitwiseRow.findFirst({ select: { id: true } }),
+    db.splitwiseImport.findFirst({ select: { id: true } }),
+  ]);
+  return found.some(Boolean);
 }
 
 async function hasLocalInvestmentData(): Promise<boolean> {
@@ -460,10 +503,12 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
 
   // A payload from a build without investment support has no investment arrays. Importing it
   // would delete every local investment row and restore pre-migration accounts, so refuse it
-  // when there is investment data to lose. The same goes for a payload from before trips.
+  // when there is investment data to lose. The same goes for a payload from before trips or
+  // before the Splitwise import.
   if (
     (data.accountBalances === undefined && (await hasLocalInvestmentData())) ||
-    (data.trips === undefined && (await getPrisma().trip.findFirst({ select: { id: true } })))
+    (data.trips === undefined && (await getPrisma().trip.findFirst({ select: { id: true } }))) ||
+    (data.splitwiseRows === undefined && (await hasLocalSplitwiseData()))
   ) {
     throw new Error(
       'Cloud data is from an older FinanceOS version; update the other device and push again'
@@ -483,6 +528,8 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
     await tx.security.deleteMany();
     await tx.recurringTransaction.deleteMany();
     await tx.tripDismissal.deleteMany();
+    await tx.splitwiseRow.deleteMany();
+    await tx.splitwiseImport.deleteMany();
     await tx.transaction.deleteMany();
     await tx.trip.deleteMany();
     await tx.goal.deleteMany();
@@ -649,6 +696,14 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
           createdAt: new Date(d.createdAt),
         },
       });
+    }
+
+    // Splitwise rows after the transactions they link to
+    for (const r of data.splitwiseImports ?? []) {
+      await tx.splitwiseImport.create({ data: { ...r, createdAt: new Date(r.createdAt) } });
+    }
+    for (const r of data.splitwiseRows ?? []) {
+      await tx.splitwiseRow.create({ data: { ...r, createdAt: new Date(r.createdAt) } });
     }
 
     // Import investment data (after accounts and transactions; securities before their dependents)

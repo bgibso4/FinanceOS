@@ -1,0 +1,12 @@
+Date,Description,Category,Cost,Currency,Person A,Me
+
+2026-10-10,Hotel night 1 after credit,Hotel,146.00,USD,73.00,-73.00
+2026-10-10,Hotel night 2 after credit,Hotel,107.00,USD,53.50,-53.50
+2026-10-10,Rental stay 1,Hotel,560.00,USD,280.00,-280.00
+2026-10-10,Rental stay 2,Hotel,950.00,USD,475.00,-475.00
+2026-10-31,Other shared costs,General,960.00,USD,480.00,-480.00
+2026-11-01,Getting around,General,866.05,USD,-433.03,433.03
+2026-11-01,Everything else,General,1392.00,USD,-696.00,696.00
+2026-11-08,Me paid Person A,Payment,232.47,USD,-232.47,232.47
+
+2026-11-08,Total balance, , ,USD,0.00,0.00

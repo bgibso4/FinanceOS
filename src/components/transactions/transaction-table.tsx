@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import { formatAmountCompact } from '@/lib/currency';
 import { ds } from '@/lib/design-system';
@@ -21,6 +21,8 @@ type TableContext = {
   availableTags: TagDef[];
   onOpen: (id: string) => void;
   select?: { active: boolean; selected: Set<string>; toggle: (id: string) => void };
+  /** Extra lines under a row's merchant, e.g. why an import listed it. */
+  annotate?: (tx: Tx) => ReactNode;
 };
 
 type TransactionTableProps = TableContext & {
@@ -75,6 +77,7 @@ function TransactionRow({
   availableTags,
   onOpen,
   select,
+  annotate,
 }: TableContext & { tx: Tx }) {
   const selecting = select?.active ?? false;
   const selected = selecting && (select?.selected.has(tx.id) ?? false);
@@ -117,6 +120,7 @@ function TransactionRow({
                 </span>
               )}
             </div>
+            {annotate?.(tx)}
             {tx.isOffset && tx.linkedTransaction && (
               <div className="text-xs text-[var(--accent)] mt-0.5">
                 Linked to {tx.linkedTransaction.date.split('T')[0]} transaction

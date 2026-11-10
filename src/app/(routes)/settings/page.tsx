@@ -60,6 +60,7 @@ import { ScheduledSyncLine } from '@/components/scheduled-sync/scheduled-sync-li
 import { signalScheduledSyncChanged } from '@/components/scheduled-sync/use-scheduled-sync-status';
 import { RulesTab } from '@/components/rules/RulesTab';
 import { GeneralSettings } from '@/components/settings/general/general-settings';
+import { SplitwiseImportCard } from '@/components/settings/import/splitwise-import-card';
 import { SecuritiesTab } from '@/components/investments/securities-tab';
 import { getTagColors } from '@/components/tag-input';
 
@@ -3681,6 +3682,8 @@ function SettingsPageContent() {
           </CardContent>
         </Card>
       )}
+
+      {tab === 'import' && <SplitwiseImportCard />}
 
       {tab === 'import' && (
         <Card>

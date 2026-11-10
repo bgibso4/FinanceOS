@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { parseCsv } from './csv';
 import { autoCategorize, normalizeMerchant } from './categorization';
 import { detectTransfers as detectTransfersShared } from './sync-common';
 import crypto from 'crypto';
@@ -12,7 +13,7 @@ export type CsvMapping = {
 
 type RawRow = Record<string, string>;
 
-function createImportHash(
+export function createImportHash(
   accountId: string,
   date: Date,
   amount: number,
@@ -24,18 +25,18 @@ function createImportHash(
 }
 
 function csvToJson(csv: string): RawRow[] {
-  const rows = csv.trim().split(/\r?\n/);
-  const header = rows.shift();
+  const [header, ...rows] = parseCsv(csv.trim());
   if (!header) return [];
-  const columns = header.split(',').map((c) => c.trim());
-  return rows.filter(Boolean).map((line) => {
-    const cells = line.split(',');
-    const obj: RawRow = {};
-    columns.forEach((col, idx) => {
-      obj[col] = (cells[idx] ?? '').trim();
+  const columns = header.map((c) => c.trim());
+  return rows
+    .filter((cells) => !(cells.length === 1 && cells[0] === ''))
+    .map((cells) => {
+      const obj: RawRow = {};
+      columns.forEach((col, idx) => {
+        obj[col] = (cells[idx] ?? '').trim();
+      });
+      return obj;
     });
-    return obj;
-  });
 }
 
 async function isDuplicate(

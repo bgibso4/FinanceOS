@@ -51,7 +51,7 @@ async function fetchTransaction(id: string): Promise<Tx | null | undefined> {
 }
 
 // Null means no answer, so the caller keeps what it has.
-async function fetchTrips(): Promise<TripOption[] | null> {
+export async function fetchTrips(): Promise<TripOption[] | null> {
   try {
     const res = await fetch('/api/travel/trips');
     if (!res.ok) {
