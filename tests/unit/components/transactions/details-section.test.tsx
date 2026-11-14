@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DetailsSection } from '@/components/transactions/details-section';
 import type { Category, TripOption, Tx } from '@/components/transactions/types';
@@ -174,6 +174,46 @@ describe('DetailsSection', () => {
     it('hiddenOnSplitParents', () => {
       setup({ isSplitParent: true });
       expect(screen.queryByLabelText('Trip')).toBeNull();
+    });
+  });
+  describe('outside budget', () => {
+    const box = () => screen.getByRole('checkbox', { name: 'Outside budget' });
+
+    it('tickBoxIsLastInDetails', () => {
+      setup();
+      const follows = (a: Node, b: Node) =>
+        Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(follows(screen.getByLabelText('Trip'), box())).toBe(true);
+      expect(follows(screen.getByText('Tags'), box())).toBe(true);
+    });
+
+    it('tickingSaves', async () => {
+      const onEdit = setup();
+      await userEvent.click(box());
+      expect(onEdit).toHaveBeenCalledWith({ isOutsideBudget: true }, { immediate: true });
+    });
+
+    it('unticksAFlaggedRow', async () => {
+      const onEdit = setup({ isOutsideBudget: true });
+      await userEvent.click(box());
+      expect(onEdit).toHaveBeenCalledWith({ isOutsideBudget: false }, { immediate: true });
+    });
+
+    it('hintOnlyWhenTicked', () => {
+      const hint = 'Left out of your monthly numbers';
+      setup();
+      expect(screen.queryByText(hint)).toBeNull();
+      cleanup();
+      setup({ isOutsideBudget: true });
+      expect(screen.getByText(hint)).toBeInTheDocument();
+    });
+
+    it('hiddenForTransfersAndSplitParents', () => {
+      setup({ isTransfer: true });
+      expect(screen.queryByRole('checkbox', { name: 'Outside budget' })).toBeNull();
+      cleanup();
+      setup({ isSplitParent: true });
+      expect(screen.queryByRole('checkbox', { name: 'Outside budget' })).toBeNull();
     });
   });
 });

@@ -212,6 +212,14 @@ describe('TransactionDrawer', () => {
     expect(JSON.parse(init.body as string)).toEqual({ isTransfer: true, transferGroupId: null });
   });
 
+  it('drawerReloadsOnTick', async () => {
+    const { onChanged } = setup(edit(list[0]));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Outside budget' }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    const init = fetchMock().mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(init.body as string)).toEqual({ isOutsideBudget: true });
+  });
+
   it('split parts have no delete and show the summary', () => {
     setup(
       edit({

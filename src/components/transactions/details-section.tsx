@@ -59,6 +59,10 @@ export function DetailsSection({
   // The API refuses a trip on a split parent; its parts carry the trips.
   const showTrip = !tx.isSplitParent && (trips.length > 0 || Boolean(tx.tripId));
 
+  // Transfers are already left out of spending, and the API refuses the flag on a split parent.
+  const showOutsideBudget = !tx.isTransfer && !tx.isSplitParent;
+  const outsideBudget = Boolean(tx.isOutsideBudget);
+
   const segment = (label: string, isTransfer: boolean) => (
     <button
       aria-pressed={tx.isTransfer === isTransfer}
@@ -207,6 +211,43 @@ export function DetailsSection({
                 </option>
               ))}
             </select>
+          </div>
+        )}
+        {showOutsideBudget && (
+          <div className="border-t border-[var(--border)] pt-3">
+            <button
+              aria-checked={outsideBudget}
+              className={`flex items-center gap-2 text-[13px] hover:text-[var(--text-primary)] ${
+                outsideBudget ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
+              }`}
+              role="checkbox"
+              type="button"
+              onClick={() => onEdit({ isOutsideBudget: !outsideBudget }, { immediate: true })}
+            >
+              <span
+                aria-hidden="true"
+                className={`grid h-3.5 w-3.5 flex-none place-items-center rounded-[4px] border-[1.5px] ${
+                  outsideBudget
+                    ? 'border-[var(--accent)] bg-[var(--accent)]'
+                    : 'border-[var(--text-muted)]'
+                }`}
+              >
+                {outsideBudget && (
+                  <svg
+                    fill="none"
+                    height="9"
+                    stroke="white"
+                    strokeWidth="2.2"
+                    viewBox="0 0 12 12"
+                    width="9"
+                  >
+                    <path d="M2.5 6.2l2.3 2.3 4.7-5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </span>
+              Outside budget
+            </button>
+            {outsideBudget && <p className={HINT}>Left out of your monthly numbers</p>}
           </div>
         )}
       </div>

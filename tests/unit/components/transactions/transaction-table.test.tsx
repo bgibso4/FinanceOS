@@ -120,4 +120,10 @@ describe('TransactionTable', () => {
     expect(within(rowFor('Test Merchant 1')).getByText('note for t1')).toBeInTheDocument();
     expect(within(rowFor('Test Merchant 2')).getByText('note for t2')).toBeInTheDocument();
   });
+
+  it('rowShowsSuffix', () => {
+    setup({ rows: [{ ...t1, isOutsideBudget: true }, t2] });
+    expect(rowFor('Test Merchant 1')).toHaveTextContent('· Outside budget');
+    expect(rowFor('Test Merchant 2')).not.toHaveTextContent('Outside budget');
+  });
 });

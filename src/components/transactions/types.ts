@@ -7,6 +7,7 @@ export type Tx = {
   account?: { id: string; name: string; currency?: string } | null;
   confidenceScore: number;
   isTransfer: boolean;
+  isOutsideBudget?: boolean;
   note?: string | null;
   tags?: string[];
   isOffset?: boolean;
@@ -48,6 +49,7 @@ export type TxFields = {
   note?: string | null;
   tags?: string[];
   isTransfer?: boolean;
+  isOutsideBudget?: boolean;
   tripId?: string | null;
 };
 

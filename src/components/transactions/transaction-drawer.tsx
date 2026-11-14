@@ -300,8 +300,8 @@ function EditBody({
       await sendJson(`/api/transactions/${tx.id}`, 'PATCH', body);
       triggerSync();
       onRowSaved(tx.id, fields);
-      // Transfer status moves the row between totals, so the whole page needs reloading.
-      if ('isTransfer' in fields) onChanged();
+      // Transfer and outside-budget status move the row between totals, so the page reloads.
+      if ('isTransfer' in fields || 'isOutsideBudget' in fields) onChanged();
     },
     [tx.id, onRowSaved, onChanged]
   );
