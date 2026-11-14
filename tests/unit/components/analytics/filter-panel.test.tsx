@@ -360,4 +360,19 @@ describe('FilterChips', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Clear Merchant filter' }));
     expect(onChange).toHaveBeenLastCalledWith({ ...query, merchant: '' });
   });
+
+  it('chipsMarkAddedFilters', () => {
+    render(
+      <FilterChips
+        accountNames={[]}
+        categoryNames={[]}
+        query={{ ...defaultQuery(TODAY), tags: ['Vacation'] }}
+        onChange={vi.fn()}
+      />
+    );
+    const [period, vs, tag] = screen.getAllByRole('listitem');
+    expect(tag).toHaveAttribute('data-added', 'true');
+    expect(period).not.toHaveAttribute('data-added');
+    expect(vs).not.toHaveAttribute('data-added');
+  });
 });
