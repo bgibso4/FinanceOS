@@ -155,10 +155,18 @@ describe('filters', () => {
 
       const sp = filterSearchParams(filters);
 
-      expect(parseFilters(sp)).toEqual(filters);
+      expect(parseFilters(sp)).toEqual({ ...filters, includeOutsideBudget: false });
       expect(filterSearchParams({ startDate: '2026-11-01' }).toString()).toBe(
         'startDate=2026-11-01'
       );
+    });
+
+    it('outsideRoundTrips', () => {
+      expect(
+        parseFilters(filterSearchParams({ includeOutsideBudget: true })).includeOutsideBudget
+      ).toBe(true);
+      expect(filterSearchParams({}).has('outside')).toBe(false);
+      expect(parseFilters(new URLSearchParams('outside=yes')).includeOutsideBudget).toBe(false);
     });
   });
 });

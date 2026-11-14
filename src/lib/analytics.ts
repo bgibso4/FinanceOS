@@ -35,7 +35,7 @@ export function buildWhere(filters: FilterParams, startDate: Date, endDate: Date
 
 /**
  * A window's countable rows: cash-flow accounts, no transfers, split parents or offsets,
- * matching the filters. Offsets are not counted themselves; `returnAmounts` holds, per
+ * and no outside-budget rows unless the filters ask for them, matching the filters. Offsets are not counted themselves; `returnAmounts` holds, per
  * purchase, the total of its linked returns, wherever in time those returns fall.
  */
 async function loadPeriodTransactions(
@@ -50,6 +50,7 @@ async function loadPeriodTransactions(
     where: {
       ...baseWhere,
       isTransfer: false,
+      ...(filters.includeOutsideBudget ? {} : { isOutsideBudget: false }),
       // Intersect any account filter with the cash-flow accounts
       accountId: {
         in: baseWhere.accountId
@@ -250,7 +251,7 @@ export async function spendingByTag(prisma: PrismaClient): Promise<Map<string, T
   ]);
   const { transactions, returnAmounts } = await loadPeriodTransactions(
     prisma,
-    {},
+    { includeOutsideBudget: true },
     new Date(0),
     new Date(Date.UTC(9999, 0, 1)),
     cashFlowIds
@@ -528,6 +529,7 @@ export async function monthlySnapshot(prisma: PrismaClient, month: string) {
     where: {
       date: { gte: start, lte: end },
       isTransfer: false,
+      isOutsideBudget: false,
       isSplitParent: false,
       accountId: { in: cashFlowIds },
     },

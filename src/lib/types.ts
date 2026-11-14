@@ -15,6 +15,8 @@ export type FilterParams = {
   categories?: string[];
   merchant?: string;
   tags?: string[];
+  /** Count rows the user kept out of their monthly numbers; off unless asked. */
+  includeOutsideBudget?: boolean;
 };
 
 export const analyticQuerySpecSchema = z.object({

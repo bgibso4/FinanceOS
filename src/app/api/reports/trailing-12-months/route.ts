@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       // Calculate from actual transactions first
       const data = await dashboardAnalytics(
         prisma,
-        { startDate: startDateStr, endDate: endDateStr },
+        { startDate: startDateStr, endDate: endDateStr, includeOutsideBudget: true },
         startDate,
         endDate
       );

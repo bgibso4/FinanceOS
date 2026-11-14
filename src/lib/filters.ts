@@ -86,6 +86,7 @@ export function parseFilters(searchParams: URLSearchParams): FilterParams {
     categories: categories.length ? categories : undefined,
     merchant,
     tags: tags.length ? tags : undefined,
+    includeOutsideBudget: searchParams.get('outside') === '1',
   };
 }
 
@@ -98,6 +99,7 @@ export function filterSearchParams(f: FilterParams): URLSearchParams {
   f.categories?.forEach((c) => sp.append('category', c));
   if (f.merchant) sp.set('merchant', f.merchant);
   f.tags?.forEach((t) => sp.append('tag', t));
+  if (f.includeOutsideBudget) sp.set('outside', '1');
   return sp;
 }
 

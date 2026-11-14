@@ -54,6 +54,7 @@ export interface TransactionData {
   tags?: string;
   note?: string;
   isTransfer?: boolean;
+  isOutsideBudget?: boolean;
   transferGroupId?: string;
   confidenceScore?: number;
   externalId?: string;
