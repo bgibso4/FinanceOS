@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Outside Budget Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f2f2f7; --surface: #ffffff; --fill: #e9e9ee; --ink: #1c1c1e; --ink-2: #6e6e73; --ink-3: #8a8a8e; --line: #d8d8dc;
+  --tint: #1c1c1e; --on-tint: #ffffff; --soon: #ad500e; --done: #2f7d4f; --info: #3f6fa3; --warn: #a3392f;
+  --serif: "Source Serif 4", "New York", ui-serif, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+    --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+  --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+h1, h2, h3 { text-wrap: balance; }
+.layout { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+.brand { font: 700 15px/1.2 var(--serif); }
+.brand span { display: block; font: 400 13px/1.4 var(--sans); color: var(--ink-2); margin-top: 2px; }
+.overall { background: var(--surface); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.overall b { font: 700 17px/1.2 var(--serif); color: var(--ink); }
+.toc { display: flex; flex-direction: column; gap: 1px; }
+.toc-label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin: 6px 0 6px 10px; }
+.toc a { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; text-decoration: none; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.toc a:hover { background: var(--surface); color: var(--ink); }
+.toc a.active { background: var(--surface); color: var(--ink); font-weight: 600; }
+.toc-n { width: 20px; text-align: right; color: var(--ink-3); font-size: 13px; flex: none; font-variant-numeric: tabular-nums; }
+.theme { align-self: flex-start; background: none; border: 0; color: var(--ink-3); font: 13px var(--sans); cursor: pointer; padding: 4px 10px; }
+.theme:hover { color: var(--ink); }
+main { padding: 48px 0 120px; display: flex; flex-direction: column; gap: 48px; min-width: 0; }
+.eyebrow { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.eyebrow .pill { background: var(--surface); border-radius: 99px; padding: 3px 10px; font-weight: 600; color: var(--ink); }
+h1 { font: 700 44px/1.08 var(--serif); letter-spacing: -0.6px; margin: 12px 0 14px; }
+.goal { font-size: 19px; line-height: 1.5; max-width: 66ch; margin: 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 24px; }
+.meta div { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; line-height: 1.5; }
+.meta b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 4px; }
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 14px; color: var(--ink-2); }
+.stats b { font: 700 20px var(--serif); color: var(--ink); margin-right: 4px; font-variant-numeric: tabular-nums; }
+section > h2 { font: 700 26px/1.2 var(--serif); margin: 0 0 6px; letter-spacing: -0.2px; }
+section > h3.sub { font: 700 19px/1.3 var(--serif); margin: 22px 0 8px; }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 66ch; }
+.decisions { background: var(--surface); border-radius: var(--r); padding: 6px 0; border-left: 4px solid var(--soon); }
+.decisions.agreed { border-left-color: var(--done); }
+.decisions ul { list-style: none; margin: 0; padding: 0; }
+.decision { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 18px; }
+.decision + .decision { border-top: 1px solid var(--line); }
+.dec-name { font-weight: 600; }
+.dec-id { font: 700 13px var(--serif); color: var(--ink-3); margin-right: 6px; }
+.dec-text { color: var(--ink-2); font-size: 15px; max-width: 70ch; }
+.dec-text strong { color: var(--ink); }
+.trefs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 180px; }
+.tref { flex: none; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--fill); padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.tref:hover { background: var(--tint); color: var(--on-tint); }
+.card { background: var(--surface); border-radius: var(--r); padding: 6px 20px; }
+.card ul, .card ol { margin: 0; padding: 0; list-style: none; }
+.card > ul > li, .card > ol > li { padding: 11px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.card > ul > li:first-child, .card > ol > li:first-child { border-top: 0; }
+.card li ul { list-style: disc; padding-left: 20px; margin: 6px 0 0; }
+.card li ul li { padding: 2px 0; border: 0; color: var(--ink-2); }
+.card li ul li strong { color: var(--ink); }
+.numbered { counter-reset: f; }
+.numbered > li { counter-increment: f; display: grid; grid-template-columns: 28px 1fr; gap: 6px; }
+.numbered > li::before { content: counter(f); font: 700 17px/1.4 var(--serif); color: var(--soon); }
+table.md { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border-radius: var(--r); overflow: hidden; }
+table.md th, table.md td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--line); }
+table.md th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); border-top: 0; }
+table.md td:first-child { font-weight: 600; white-space: nowrap; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; }
+.chip.mine { color: var(--soon); background: color-mix(in srgb, var(--soon) 13%, transparent); }
+.chip.agreed { color: var(--done); background: color-mix(in srgb, var(--done) 13%, transparent); }
+.chip.route { color: var(--info); background: color-mix(in srgb, var(--info) 13%, transparent); font-family: var(--mono); font-weight: 500; }
+.callout { background: var(--surface); border-radius: var(--r); padding: 14px 18px; border-left: 4px solid var(--warn); font-size: 15px; margin-top: 12px; }
+.callout b:first-child { display: block; margin-bottom: 4px; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.col { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; }
+.col h3 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 8px; }
+.col ul { margin: 0; padding-left: 16px; } .col li { margin: 5px 0; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
+  .side { position: static; height: auto; padding: 24px 0 0; }
+  .toc { display: none; }
+  h1 { font-size: 34px; }
+  .cols { grid-template-columns: 1fr; }
+  .decision { flex-direction: column; gap: 8px; }
+  .trefs { justify-content: flex-start; max-width: none; }
+}
+pre { font-family: var(--mono); font-size: 13px; line-height: 1.5; background: var(--fill); border-radius: 10px; padding: 12px 14px; overflow-x: auto; margin: 8px 0; }
+.task { background: var(--surface); border-radius: var(--r); padding: 18px 22px; }
+.task + .task { margin-top: 14px; }
+.task h3 { font: 700 19px/1.3 var(--serif); margin: 0 0 10px; }
+.task .files, .task .ifaces { font-size: 14px; color: var(--ink-2); margin: 0 0 10px; }
+.task .files code, .task .ifaces code { font-size: 12.5px; }
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+.steps > li { counter-increment: s; display: grid; grid-template-columns: 26px 1fr; gap: 6px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.steps > li::before { content: "☐"; color: var(--ink-3); }
+.steps > li:first-child { border-top: 0; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side" aria-label="Sections">
+    <div class="brand">FinanceOS<span>Plan · Outside budget</span></div>
+    <div class="overall"><span>Status</span><b>Waiting on your review</b><span>6 tasks · branch feat/outside-budget</span></div>
+    <nav class="toc" aria-label="Sections">
+      <div class="toc-label">Overview</div>
+      <a href="#header"><span class="toc-n"></span><span>Goal &amp; architecture</span></a>
+      <a href="#constraints"><span class="toc-n"></span><span>Global constraints</span></a>
+      <a href="#focus"><span class="toc-n"></span><span>Review focus</span></a>
+      <a href="#files"><span class="toc-n"></span><span>File map</span></a>
+      <div class="toc-label">Tasks</div>
+      <a href="#t1"><span class="toc-n">1</span><span>The flag and its API</span></a>
+      <a href="#t2"><span class="toc-n">2</span><span>Where it counts</span></a>
+      <a href="#t3"><span class="toc-n">3</span><span>Bank sync</span></a>
+      <a href="#t4"><span class="toc-n">4</span><span>Analytics toggle + Tags</span></a>
+      <a href="#t5"><span class="toc-n">5</span><span>Drawer and list</span></a>
+      <a href="#t6"><span class="toc-n">6</span><span>Browser check</span></a>
+    </nav>
+    <button class="theme" type="button" id="theme">◐ Light / dark</button>
+  </aside>
+  <main>
+    <header id="header">
+      <div class="eyebrow"><span class="pill">Plan</span><span>Written 2026-11-13</span><span>·</span><span>implements the Outside budget design (#51)</span></div>
+      <h1>Outside budget: implementation plan</h1>
+      <p class="goal"><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task by task. Load the <code>principal-engineer</code> skill before writing code.</p>
+      <div class="meta">
+        <div><b>Goal</b>A per-transaction "outside budget" flag that keeps real spending out of monthly views but counts it in Cash Flow and tag totals. Bank sync stops marking unpaired "transfers".</div>
+        <div><b>Architecture</b>One boolean column. One optional filter, <code>includeOutsideBudget</code>, carried by <code>FilterParams</code> and applied in <code>loadPeriodTransactions</code>, the single spending loader. Callers that should count one-offs (Cash Flow, tag totals, the Analytics toggle) ask for it. Sync's only path to a transfer becomes pairing, and every pairing write also clears the flag.</div>
+        <div><b>Stack · Spec</b>Next.js 16, React 19, Tailwind 3.4, Prisma/SQLite, Vitest + Testing Library. Spec: <code>docs/superpowers/specs/2026-11-13-outside-budget-design.html</code>. Mock: <code>~/Documents/FinanceOS-design-archive/design-mocks/outside-budget.html</code> (v2).</div>
+      </div>
+    </header>
+
+    <section id="constraints">
+      <h2>Global constraints</h2>
+      <div class="card"><ul>
+        <li>Field: <code>Transaction.isOutsideBudget Boolean @default(false)</code>. Apply it to <code>prisma/dev.db</code> with <code>npx prisma db push</code>; never <code>migrate dev</code>. The test database pushes the schema itself (<code>tests/helpers/db.ts</code>).</li>
+        <li>A row is never both <code>isTransfer</code> and <code>isOutsideBudget</code>. Any write that sets <code>isTransfer: true</code> also sets <code>isOutsideBudget: false</code>.</li>
+        <li>Filter: <code>FilterParams.includeOutsideBudget?: boolean</code>, sent over the wire as <code>outside=1</code>. Absent or any other value means false.</li>
+        <li>Default is to leave the rows out: Analytics, Dashboard, Reports → Monthly Detail, and <code>monthlySnapshot</code>. Included: Reports → Cash Flow (<code>/api/reports/trailing-12-months</code>), <code>spendingByTag</code>, the Analytics toggle, and links from <code>tagCostHref</code>.</li>
+        <li>Picking a tag in Filters does <strong>not</strong> turn the toggle on.</li>
+        <li>Copy, exactly:
+          <ul>
+            <li>Drawer tick box: label "Outside budget", hint (only when ticked) "Left out of your monthly numbers".</li>
+            <li>Panel switch: label "Include outside budget", hint "Spending you kept out of your monthly numbers".</li>
+            <li>Chip: muted "Incl." and the text "outside budget".</li>
+            <li>List suffix: " · Outside budget".</li>
+          </ul>
+        </li>
+        <li>Tags in the filter panel is always collapsible (the "more than 8" rule goes away).</li>
+        <li>No <code>npm run build</code>: the production server runs from this checkout's <code>.next</code>. For the browser check, use <code>npx next dev -p 3100</code>.</li>
+        <li><code>npm run check</code> and the touched test files must pass, and commit after each task. Vendor names appear only at integration boundaries.</li>
+      </ul></div>
+    </section>
+
+    <section id="focus">
+      <h2>Review focus</h2>
+      <p class="lede">Inputs the spec implies but doesn't spell out. Each has a test in the task named.</p>
+      <div class="card"><ol class="numbered">
+        <li><strong>A ticked row that later gets paired</strong> (you mark the first side outside budget, then its partner arrives) becomes a transfer with the tick cleared. Test in Task 3.</li>
+        <li><strong>An old cloud-sync payload without the field</strong> (another device on the previous version) imports with <code>isOutsideBudget: false</code> instead of failing validation. Test in Task 1.</li>
+        <li><strong>A tag filter with the toggle off</strong> leaves that tag's outside-budget rows out. Only <code>tagCostHref</code> and the toggle bring them in. Test in Task 2.</li>
+        <li><strong>An old Analytics link or <code>outside=0</code> / <code>outside=yes</code></strong> parses as off, and an off query writes no <code>outside</code> param. Test in Task 4.</li>
+        <li><strong>A transfer you marked by hand that the bank re-sends</strong> (a <code>modified</code> update) stays a transfer, because sync no longer writes <code>isTransfer</code> from the label. Test in Task 3.</li>
+      </ol></div>
+    </section>
+
+    <section id="files">
+      <h2>File map</h2>
+      <table class="md">
+        <tr><th>File</th><th>Responsibility</th></tr>
+        <tr><td><code>prisma/schema.prisma</code></td><td>The field (T1)</td></tr>
+        <tr><td><code>src/app/api/transactions/[id]/route.ts</code>, <code>…/bulk/route.ts</code></td><td>Accept and validate the flag; setting a transfer clears it (T1)</td></tr>
+        <tr><td><code>src/lib/cloud-sync/types.ts</code>, <code>sync.ts</code></td><td>Carry the field, defaulting to false (T1)</td></tr>
+        <tr><td><code>src/lib/types.ts</code>, <code>src/lib/filters.ts</code></td><td><code>includeOutsideBudget</code> and <code>outside=1</code> (T2)</td></tr>
+        <tr><td><code>src/lib/analytics.ts</code></td><td>The rule in <code>loadPeriodTransactions</code> and <code>monthlySnapshot</code>; <code>spendingByTag</code> includes the rows (T2)</td></tr>
+        <tr><td><code>src/app/api/reports/trailing-12-months/route.ts</code></td><td>Cash Flow includes the rows (T2)</td></tr>
+        <tr><td><code>src/lib/agent/tools.ts</code></td><td>Its spending queries use the same default exclusion (T2)</td></tr>
+        <tr><td><code>src/lib/plaid-sync.ts</code></td><td>The label no longer sets <code>isTransfer</code> (T3)</td></tr>
+        <tr><td><code>src/lib/sync-common.ts</code>, <code>src/lib/investments/transfer-linking.ts</code></td><td>Pairing writes clear the flag; the dead Venmo un-flag block goes (T3)</td></tr>
+        <tr><td><code>src/lib/analytics-query.ts</code></td><td><code>outside</code> on the query, URL, filter params, count and <code>tagCostHref</code> (T4)</td></tr>
+        <tr><td><code>src/components/analytics/filter-panel.tsx</code>, <code>filter-chips.tsx</code></td><td>Switch, chip, Tags always collapsible (T4)</td></tr>
+        <tr><td><code>src/components/transactions/types.ts</code>, <code>details-section.tsx</code>, <code>transaction-drawer.tsx</code>, <code>transaction-table.tsx</code></td><td>Tick box, reload, list suffix (T5)</td></tr>
+      </table>
+    </section>
+
+    <section id="tasks">
+      <h2>Tasks</h2>
+
+      <div class="task" id="t1">
+        <h3>Task 1 · The flag and its API</h3>
+        <p class="files"><b>Files:</b>
+          <ul>
+            <li>Modify <code>prisma/schema.prisma</code>, <code>src/app/api/transactions/[id]/route.ts</code>, <code>src/app/api/transactions/bulk/route.ts</code>, <code>src/lib/cloud-sync/types.ts</code> and <code>src/lib/cloud-sync/sync.ts</code> (both the export at ~167 and the import at ~676).</li>
+            <li>Create <code>tests/integration/api/outside-budget.test.ts</code>.</li>
+            <li>Extend <code>tests/integration/api/cloud-sync.test.ts</code>.</li>
+          </ul>
+        </p>
+        <p class="ifaces"><b>Produces:</b>
+          <ul>
+            <li>The column <code>isOutsideBudget</code>. Every row from <code>TX_ROW_INCLUDE</code> / <code>toTxRow</code> carries it with no change to those helpers.</li>
+            <li>PATCH accepts <code>isOutsideBudget?: boolean</code>.</li>
+          </ul>
+        </p>
+        <ol class="steps">
+          <li><div>Tests in <code>outside-budget.test.ts</code>, against the PATCH handler as <code>transactions.test.ts</code> does:
+            <ul>
+              <li><code>setsTheFlag</code>: PATCH <code>{isOutsideBudget:true}</code> → 200, and the row has <code>isOutsideBudget === true</code>.</li>
+              <li><code>transferClearsIt</code>: a ticked row, PATCH <code>{isTransfer:true}</code> → the row has <code>isTransfer true</code> and <code>isOutsideBudget false</code>.</li>
+              <li><code>refusesBothInOneRequest</code>: PATCH <code>{isTransfer:true,isOutsideBudget:true}</code> → 400, and the row is unchanged.</li>
+              <li><code>refusesTickingATransfer</code>: on a row with <code>isTransfer true</code>, PATCH <code>{isOutsideBudget:true}</code> → 400.</li>
+              <li><code>untransferAndTickTogether</code>: on a transfer, PATCH <code>{isTransfer:false,isOutsideBudget:true}</code> → 200 with both values applied.</li>
+              <li><code>bulkTransferClearsIt</code>: POST bulk <code>{action:'update', data:{isTransfer:true}}</code> → the flag is cleared on every row.</li>
+            </ul>
+          </div></li>
+          <li><div>Cloud-sync tests:
+            <ul>
+              <li><code>roundTripsOutsideBudget</code>: export then import keeps <code>true</code>.</li>
+              <li><code>oldPayloadDefaultsFalse</code>: a transaction object without the key passes the Zod schema and imports as <code>false</code> (Review focus 2).</li>
+            </ul>
+          </div></li>
+          <li><div>Run <code>npx vitest run tests/integration/api/outside-budget.test.ts tests/integration/api/cloud-sync.test.ts</code>. Expected: FAIL.</div></li>
+          <li><div>Make the changes:
+            <ul>
+              <li>Add the field to the schema, then run <code>npx prisma db push</code> and <code>npx prisma generate</code>.</li>
+              <li>Zod: <code>isOutsideBudget: z.boolean().optional()</code> in both API schemas. Bulk only clears the flag; it doesn't accept setting it.</li>
+              <li>Cloud sync: <code>z.boolean().default(false)</code>.</li>
+              <li>PATCH rule: the result state is computed from the body plus the existing row. If both would be true and the body explicitly sets <code>isOutsideBudget: true</code>, return 400 <code>{ error: "A transfer can't be outside budget" }</code>. Otherwise, setting <code>isTransfer: true</code> also writes <code>isOutsideBudget: false</code>.</li>
+            </ul>
+          </div></li>
+          <li><div>Run the two files again. Expected: PASS. Then run <code>npx vitest run tests/integration/api/transactions.test.ts tests/integration/api/transactions-bulk.test.ts</code>. Expected: PASS.</div></li>
+          <li><div>Commit: <code>feat(transactions): outside-budget flag</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t2">
+        <h3>Task 2 · Where it counts</h3>
+        <p class="files"><b>Files:</b>
+          <ul>
+            <li>Modify <code>src/lib/types.ts</code>, <code>src/lib/filters.ts</code>, <code>src/lib/analytics.ts</code>, <code>src/app/api/reports/trailing-12-months/route.ts</code> and <code>src/lib/agent/tools.ts</code>.</li>
+            <li>Create <code>tests/integration/api/outside-budget-totals.test.ts</code>.</li>
+            <li>Extend <code>tests/unit/lib/filters.test.ts</code>.</li>
+          </ul>
+        </p>
+        <p class="ifaces"><b>Consumes:</b> T1 column. <b>Produces:</b>
+          <ul>
+            <li><code>FilterParams.includeOutsideBudget?: boolean</code>.</li>
+            <li><code>parseFilters</code> reads <code>outside=1</code>; <code>filterSearchParams</code> writes <code>outside=1</code> only when the flag is true.</li>
+          </ul>
+        </p>
+        <ol class="steps">
+          <li><div>Integration tests. The fixture is one cash-flow account, a normal −$100 groceries row and an outside-budget −$1,440 row tagged <code>Green Card</code>, both in October 2026.
+            <ul>
+              <li><code>leftOutByDefault</code>: <code>dashboardAnalytics</code> for October → spending total $100.</li>
+              <li><code>includedWhenAsked</code>: the same call with <code>{includeOutsideBudget:true}</code> → $1,540.</li>
+              <li><code>tagFilterAloneLeavesItOut</code>: <code>{tags:['Green Card']}</code> → $0 (Review focus 3).</li>
+              <li><code>snapshotLeavesItOut</code>: <code>monthlySnapshot(prisma,'2026-10').spendingTotal</code> → 100.</li>
+              <li><code>tagTotalsIncludeIt</code>: <code>spendingByTag</code> gives Green Card a total of 1440.</li>
+              <li><code>cashFlowIncludesIt</code>: GET trailing-12-months <code>?month=2026-10</code> → October spending is 1540.</li>
+              <li><code>dailyRouteReadsTheParam</code>: GET <code>/api/analytics/daily</code> for October with <code>outside=1</code> sums to 1540, and without it to 100.</li>
+            </ul>
+          </div></li>
+          <li><div>Unit test in <code>filters.test.ts</code>, <code>outsideRoundTrips</code>:
+            <ul>
+              <li><code>parseFilters(filterSearchParams({includeOutsideBudget:true}))</code> gives <code>includeOutsideBudget: true</code>.</li>
+              <li><code>filterSearchParams({})</code> has no <code>outside</code> key.</li>
+              <li><code>parseFilters(new URLSearchParams('outside=yes'))</code> gives <code>includeOutsideBudget: false</code>.</li>
+            </ul>
+          </div></li>
+          <li><div>Run both test files. Expected: FAIL.</div></li>
+          <li><div>Make the changes:
+            <ul>
+              <li><code>loadPeriodTransactions</code>: add <code>isOutsideBudget: false</code> to the <code>where</code> unless <code>filters.includeOutsideBudget</code> is set.</li>
+              <li><code>monthlySnapshot</code>: always add <code>isOutsideBudget: false</code>.</li>
+              <li><code>spendingByTag</code>: pass <code>{includeOutsideBudget:true}</code>.</li>
+              <li>trailing-12-months: pass <code>includeOutsideBudget: true</code> in its filters. Its snapshot fallback only covers months with no transactions, so it needs no change.</li>
+              <li>Agent tools: add <code>isOutsideBudget: false</code> beside each spending query's <code>isTransfer: false</code>.</li>
+            </ul>
+          </div></li>
+          <li><div>Run both files again. Expected: PASS. Then run <code>npx vitest run tests/integration/api/analytics.test.ts tests/integration/api/reports.test.ts tests/integration/api/tags-totals.test.ts tests/unit/lib/analytics.test.ts</code>. Expected: PASS.</div></li>
+          <li><div>Commit: <code>feat(analytics): leave outside-budget rows out of monthly views</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t3">
+        <h3>Task 3 · Bank sync: only pairing makes a transfer</h3>
+        <p class="files"><b>Files:</b>
+          <ul>
+            <li>Modify <code>src/lib/plaid-sync.ts</code> (<code>mapPlaidTransaction</code> ~810 and the preview helpers ~547/571/622/656), <code>src/lib/sync-common.ts</code> (writes at ~661, ~668, ~772, ~937, plus the Venmo un-flag block ~572–582) and <code>src/lib/investments/transfer-linking.ts:92</code>.</li>
+            <li>Tests: <code>tests/unit/lib/plaid-sync.test.ts</code> and <code>tests/unit/lib/sync-common.test.ts</code>.</li>
+          </ul>
+        </p>
+        <p class="ifaces"><b>Consumes:</b> T1 column. <b>Produces:</b> no new API. Synced rows start with <code>isTransfer: false</code> unless pairing or an investment link marks them.</p>
+        <ol class="steps">
+          <li><div>Tests:
+            <ul>
+              <li>Rewrite <code>detects transfer transactions</code> as <code>unpairedTransferLabelIsANormalTransaction</code>: a <code>TRANSFER_OUT</code> with no partner → <code>isTransfer false</code>, <code>categoryId null</code>.</li>
+              <li><code>pairsAcrossSeparateSyncs</code>: sync account A with −$500 "Online Transfer" on day D, then sync account B with +$500 on day D+2 → both have <code>isTransfer true</code> and the same <code>transferGroupId</code>.</li>
+              <li><code>pairingClearsOutsideBudget</code>: as above, but set A's row <code>isOutsideBudget: true</code> before B's sync → after it, A has <code>isTransfer true</code> and <code>isOutsideBudget false</code> (Review focus 1).</li>
+              <li><code>manualTransferSurvivesModify</code>: a row you set to <code>isTransfer true</code>, re-sent in <code>modified</code> without a transfer label → it's still a transfer (Review focus 5).</li>
+              <li>The existing brokerage-deposit test (<code>bankRow.isTransfer</code> true) must still pass unchanged.</li>
+            </ul>
+          </div></li>
+          <li><div>Run <code>npx vitest run tests/unit/lib/plaid-sync.test.ts tests/unit/lib/sync-common.test.ts</code>. Expected: the new and rewritten tests FAIL.</div></li>
+          <li><div>Make the changes:
+            <ul>
+              <li>Delete the three duplicated <code>TRANSFER_IN</code>/<code>TRANSFER_OUT</code> checks. The mapping and previews say <code>isTransfer: false</code>; keep <code>plaidCategory</code> as it is.</li>
+              <li>In every pairing or linking write that sets <code>isTransfer: true</code>, also set <code>isOutsideBudget: false</code>.</li>
+              <li>Remove the Venmo block that un-flags label-made transfers (nothing sets them now), and drop or adjust only the tests that covered that block.</li>
+            </ul>
+          </div></li>
+          <li><div>Run both files, then the Venmo, Teller and investment sync suites: <code>npx vitest run tests/unit/lib tests/integration/api/plaid-investment-sync-route.test.ts</code>. Expected: PASS.</div></li>
+          <li><div>Commit: <code>fix(sync): only pairing marks a bank row as a transfer</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t4">
+        <h3>Task 4 · Analytics toggle, chip, and Tags collapsed</h3>
+        <p class="files"><b>Files:</b>
+          <ul>
+            <li>Modify <code>src/lib/analytics-query.ts</code>, <code>src/components/analytics/filter-panel.tsx</code> and <code>filter-chips.tsx</code>.</li>
+            <li>Tests: <code>tests/unit/lib/analytics-query.test.ts</code> and <code>tests/unit/components/analytics/filter-panel.test.tsx</code>.</li>
+          </ul>
+        </p>
+        <p class="ifaces"><b>Consumes:</b> T2 <code>FilterParams.includeOutsideBudget</code>. <b>Produces:</b>
+          <ul>
+            <li><code>AnalyticsQuery.outside: boolean</code>, false in <code>defaultQuery</code>, with URL param <code>outside=1</code>.</li>
+            <li><code>filterParamsFor</code> sets <code>includeOutsideBudget</code> when it's on.</li>
+            <li><code>activeFilterCount</code> counts it as 1.</li>
+            <li><code>tagCostHref</code> sets it.</li>
+          </ul>
+        </p>
+        <ol class="steps">
+          <li><div>Query tests:
+            <ul>
+              <li><code>outsideRoundTrips</code>: on → <code>outside=1</code> → parsed on again.</li>
+              <li><code>outsideOffWritesNothing</code>.</li>
+              <li><code>outsideJunkParsesOff</code>: <code>outside=0</code> and <code>outside=yes</code> both give false (Review focus 4).</li>
+              <li><code>tagCostHrefTurnsItOn</code>: the parsed href has <code>outside: true</code>.</li>
+              <li><code>filterParamsCarryIt</code>.</li>
+              <li><code>countsAsAFilter</code>: a default query with <code>outside: true</code> → 1.</li>
+            </ul>
+          </div></li>
+          <li><div>Panel and chip tests:
+            <ul>
+              <li><code>switchTogglesOutside</code>: a <code>role="switch"</code> named "Include outside budget" sits after the Tags section. Clicking it calls <code>onChange</code> with <code>outside: true</code>, and <code>aria-checked</code> follows the query.</li>
+              <li><code>clearAllTurnsItOff</code>.</li>
+              <li><code>tagsStartCollapsed</code>: with 2 tags, the Tags header has <code>aria-expanded="false"</code> and summary <code>Any · 2</code>.</li>
+              <li><code>pickingATagLeavesItOff</code>: ticking a tag calls <code>onChange</code> with <code>outside: false</code>.</li>
+              <li><code>chipShowsWhenOn</code>: the chip reads "Incl. outside budget", has <code>data-added="true"</code>, and its ✕ sets <code>outside: false</code>. There's no chip when it's off.</li>
+            </ul>
+          </div></li>
+          <li><div>Run both files. Expected: FAIL.</div></li>
+          <li><div>Make the changes:
+            <ul>
+              <li>The switch is a small local component in the panel's style: 34×20 track, <code>bg-accent</code> when on, otherwise <code>bg-[var(--border-hover)]</code>, with the label and hint from Global constraints. Put it in its own <code>Section</code> with no title.</li>
+              <li>Tags: <code>collapsible</code> always; delete <code>MAX_OPEN_TAGS</code>.</li>
+              <li>Clear all adds <code>outside: false</code>.</li>
+              <li>Chip: <code>{kind:'Incl.', text:'outside budget', clear:{outside:false}}</code>, placed last.</li>
+            </ul>
+          </div></li>
+          <li><div>Run both files, plus <code>tests/unit/components/settings</code> (the "See cost" href). Expected: PASS.</div></li>
+          <li><div>Commit: <code>feat(analytics): include-outside-budget toggle; tags start collapsed</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t5">
+        <h3>Task 5 · Drawer tick box and list suffix</h3>
+        <p class="files"><b>Files:</b>
+          <ul>
+            <li>Modify <code>src/components/transactions/types.ts</code> (<code>Tx.isOutsideBudget?: boolean</code>, <code>TxFields.isOutsideBudget?: boolean</code>), <code>details-section.tsx</code>, <code>transaction-drawer.tsx</code> (the <code>save</code> reload) and <code>transaction-table.tsx</code>.</li>
+            <li>Tests: <code>details-section.test.tsx</code>, <code>transaction-drawer.test.tsx</code> and <code>transaction-table.test.tsx</code>.</li>
+          </ul>
+        </p>
+        <p class="ifaces"><b>Consumes:</b> T1 PATCH field.</p>
+        <ol class="steps">
+          <li><div>Tests:
+            <ul>
+              <li><code>tickBoxIsLastInDetails</code>: <code>role="checkbox"</code> named "Outside budget" comes after Trip and Tags in document order.</li>
+              <li><code>tickingSaves</code>: <code>onEdit</code> is called with <code>{isOutsideBudget:true}</code> and <code>{immediate:true}</code>.</li>
+              <li><code>hintOnlyWhenTicked</code>: "Left out of your monthly numbers" appears only when it's checked.</li>
+              <li><code>hiddenForTransfersAndSplitParents</code>.</li>
+              <li><code>drawerReloadsOnTick</code>: <code>onChanged</code> is called after saving <code>isOutsideBudget</code>.</li>
+              <li><code>rowShowsSuffix</code>: the merchant cell text includes "· Outside budget" for a flagged row and not otherwise.</li>
+            </ul>
+          </div></li>
+          <li><div>Run the three files. Expected: FAIL.</div></li>
+          <li><div>Make the changes:
+            <ul>
+              <li>Tick box: the last child of the Details fields. It has a hairline <code>border-t border-[var(--border)] pt-3</code>, the same 14px box and accent fill as <code>TickRow</code>, the label in <code>text-[13px] text-[var(--text-secondary)]</code> (primary when ticked), and the hint in the existing <code>HINT</code> style.</li>
+              <li>Reload rule: <code>'isTransfer' in fields || 'isOutsideBudget' in fields</code>.</li>
+              <li>Suffix: <code>&lt;span className="ml-1.5 text-xs text-[var(--text-muted)]"&gt;· Outside budget&lt;/span&gt;</code> after the merchant name.</li>
+            </ul>
+          </div></li>
+          <li><div>Run <code>npx vitest run tests/unit/components/transactions</code>. Expected: PASS.</div></li>
+          <li><div>Commit: <code>feat(transactions): outside-budget tick box and list marker</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t6">
+        <h3>Task 6 · Browser check</h3>
+        <p class="files"><b>Files:</b> none (fixes go in the task they belong to).</p>
+        <ol class="steps">
+          <li><div><code>npx next dev -p 3100</code>. Never touch port 3000 or run <code>npm run build</code>.</div></li>
+          <li><div>In both themes:
+            <ul>
+              <li>Open a USCIS row in the drawer, tick Outside budget, and check the hint and the list suffix. Switch it to Transfer: the tick box disappears. Switch it back and untick it, so the data is left as it was.</li>
+              <li>Analytics → Filters: Tags starts collapsed. Toggle the switch, check the chip appears and the totals change, then clear it with ✕.</li>
+              <li>Settings → Tags → "See cost →" opens with the chip on.</li>
+            </ul>
+          </div></li>
+          <li><div><code>npm run check &amp;&amp; npm test</code>: all pass. Stop the dev server.</div></li>
+        </ol>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  btn.addEventListener('click', function () {
+    var r = document.documentElement;
+    var dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (a) { a.classList.remove('active'); });
+        var a = map[e.target.id]; if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+})();
+</script>
+</body>
+</html>
