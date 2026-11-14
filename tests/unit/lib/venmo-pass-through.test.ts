@@ -118,20 +118,6 @@ describe('Venmo pass-through handling in detectTransfers', () => {
     expect(await topUps()).toHaveLength(0);
   });
 
-  it('clears the transfer flag Plaid puts on payments to people', async () => {
-    const payment = await addTx(venmoId, {
-      date: daysAgo(5),
-      amount: -1280,
-      merchant: 'Adrian Fekete "Whis"',
-      isTransfer: true,
-    });
-
-    await detectTransfers(venmoId, new Set([payment.id]), prisma);
-
-    const after = await prisma.transaction.findUniqueOrThrow({ where: { id: payment.id } });
-    expect(after.isTransfer).toBe(false);
-  });
-
   it('never pairs a received Venmo payment with an exact-amount card charge', async () => {
     const received = await addTx(venmoId, {
       date: daysAgo(2),

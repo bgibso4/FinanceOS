@@ -544,7 +544,7 @@ async function previewPlaidTransaction(
       category: categoryName,
       categoryConfidence: categorization.confidence,
       plaidCategory: plaidTx.personal_finance_category?.detailed || null,
-      isTransfer: mapped.isTransfer,
+      isTransfer: false,
       action,
       wouldCreate: true,
       wouldMerge: false,
@@ -568,7 +568,7 @@ async function previewPlaidTransaction(
       category: null,
       categoryConfidence: 0,
       plaidCategory: plaidTx.personal_finance_category?.detailed || null,
-      isTransfer: mapped.isTransfer,
+      isTransfer: false,
       action,
       wouldCreate: !!existing,
       wouldMerge: false,
@@ -618,10 +618,6 @@ function createMergePreview(
 ): TransactionPreview {
   const merchant = plaidTx.merchant_name || plaidTx.name || 'Unknown';
   const amount = -plaidTx.amount;
-  const isTransfer =
-    plaidTx.personal_finance_category?.primary === 'TRANSFER_IN' ||
-    plaidTx.personal_finance_category?.primary === 'TRANSFER_OUT';
-
   return {
     accountId,
     accountName,
@@ -633,7 +629,7 @@ function createMergePreview(
     category: null,
     categoryConfidence: 0,
     plaidCategory: plaidTx.personal_finance_category?.detailed || null,
-    isTransfer,
+    isTransfer: false,
     action,
     wouldCreate: false,
     wouldMerge: true,
@@ -652,10 +648,6 @@ function createSkippedPreview(
 ): TransactionPreview {
   const merchant = plaidTx.merchant_name || plaidTx.name || 'Unknown';
   const amount = -plaidTx.amount;
-  const isTransfer =
-    plaidTx.personal_finance_category?.primary === 'TRANSFER_IN' ||
-    plaidTx.personal_finance_category?.primary === 'TRANSFER_OUT';
-
   return {
     accountId,
     accountName,
@@ -667,7 +659,7 @@ function createSkippedPreview(
     category: null,
     categoryConfidence: 0,
     plaidCategory: plaidTx.personal_finance_category?.detailed || null,
-    isTransfer,
+    isTransfer: false,
     action,
     wouldCreate: false,
     wouldMerge: false,
@@ -807,10 +799,6 @@ function mapPlaidTransaction(
   const merchantNormalized = normalizeMerchant(merchant);
   const date = new Date(plaidTx.date);
 
-  const isTransfer =
-    plaidTx.personal_finance_category?.primary === 'TRANSFER_IN' ||
-    plaidTx.personal_finance_category?.primary === 'TRANSFER_OUT';
-
   return {
     externalId: plaidTx.transaction_id,
     date,
@@ -818,7 +806,7 @@ function mapPlaidTransaction(
     merchant,
     merchantNormalized,
     accountId,
-    isTransfer,
+    isTransfer: false,
     note: null,
     tags: '[]',
     importHash: createImportHash(accountId, date, amount, merchantNormalized),

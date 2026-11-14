@@ -89,7 +89,10 @@ export async function linkInvestmentTransfers(
         where: { id: inv.id },
         data: { linkedTransactionId: match },
       }),
-      prisma.transaction.update({ where: { id: match }, data: { isTransfer: true } }),
+      prisma.transaction.update({
+        where: { id: match },
+        data: { isTransfer: true, isOutsideBudget: false },
+      }),
     ]);
     open.delete(inv.id);
     linked++;

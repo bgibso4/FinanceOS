@@ -569,18 +569,6 @@ export async function reconcileVenmoPassThroughs(
     where: { id: { in: [...newTransactionIds] } },
   });
 
-  // Plaid categorizes person-to-person payments as TRANSFER_IN/OUT.
-  const flaggedPayments = newTxs.filter(
-    (tx) =>
-      venmoIds.has(tx.accountId) && tx.isTransfer && !tx.transferGroupId && isVenmoPersonPayment(tx)
-  );
-  if (flaggedPayments.length > 0) {
-    await prismaClient.transaction.updateMany({
-      where: { id: { in: flaggedPayments.map((tx) => tx.id) } },
-      data: { isTransfer: false },
-    });
-  }
-
   const isBankVenmoDebit = (tx: (typeof newTxs)[number]) =>
     !venmoIds.has(tx.accountId) &&
     VENMO_PATTERN.test(tx.merchant) &&
@@ -659,13 +647,14 @@ export async function reconcileVenmoPassThroughs(
         tags: '[]',
         note: `Venmo pulled this payment from ${bank.account.name}`,
         isTransfer: true,
+        isOutsideBudget: false,
         transferGroupId,
         confidenceScore: 1,
       },
     });
     await prismaClient.transaction.update({
       where: { id: bank.id },
-      data: { isTransfer: true, transferGroupId, categoryId: null },
+      data: { isTransfer: true, isOutsideBudget: false, transferGroupId, categoryId: null },
     });
     // Anything you'd already put on the bank row (category, note) belongs to the payment now.
     if (!target.categoryId && bank.categoryId) {
@@ -769,7 +758,7 @@ export async function detectTransfers(
           const transferGroupId = uuid();
           await prismaClient.transaction.updateMany({
             where: { id: { in: [tx.id, match.id] } },
-            data: { isTransfer: true, transferGroupId },
+            data: { isTransfer: true, isOutsideBudget: false, transferGroupId },
           });
           // Mutate in-memory copies so the next iteration's filter sees them as paired
           tx.isTransfer = true;
@@ -934,7 +923,7 @@ export async function detectCrossAccountTransfers(
       // Mark BOTH transactions as transfers, even if one already is
       await prismaClient.transaction.updateMany({
         where: { id: { in: [tx.id, match.id] } },
-        data: { isTransfer: true, transferGroupId },
+        data: { isTransfer: true, isOutsideBudget: false, transferGroupId },
       });
       processed.add(tx.id);
       processed.add(match.id);

@@ -131,6 +131,25 @@ describe('plaid-sync', () => {
     };
   }
 
+  function mockSyncResponse(data: {
+    added?: unknown[];
+    modified?: unknown[];
+    removed?: unknown[];
+  }) {
+    vi.mocked(getPlaidClient).mockReturnValue({
+      transactionsSync: vi.fn().mockResolvedValue({
+        data: {
+          added: [],
+          modified: [],
+          removed: [],
+          next_cursor: 'cursor-x',
+          has_more: false,
+          ...data,
+        },
+      }),
+    } as unknown as ReturnType<typeof getPlaidClient>);
+  }
+
   function createMockPlaidTransaction(overrides: Record<string, unknown> = {}) {
     return {
       transaction_id: `plaid-tx-${Math.random().toString(36).substring(7)}`,
@@ -584,40 +603,131 @@ describe('plaid-sync', () => {
       expect(tx?.amount).toBe(-50); // Should be negative in FinanceOS
     });
 
-    it('detects transfer transactions', async () => {
-      const mockPlaidClient = {
-        transactionsSync: vi.fn().mockResolvedValue({
-          data: {
-            added: [
-              createMockPlaidTransaction({
-                transaction_id: 'transfer-tx',
-                merchant_name: 'Transfer',
-                amount: 500.0,
-                personal_finance_category: {
-                  primary: 'TRANSFER_OUT',
-                  detailed: 'Transfer Out',
-                },
-              }),
-            ],
-            modified: [],
-            removed: [],
-            next_cursor: 'cursor-123',
-            has_more: false,
-          },
-        }),
-      };
-
-      vi.mocked(getPlaidClient).mockReturnValue(
-        mockPlaidClient as unknown as ReturnType<typeof getPlaidClient>
-      );
-
-      const connection = createMockPlaidConnection(testAccountId);
-      await syncPlaidTransactions(connection);
-
-      const tx = await prisma.transaction.findFirst({
-        where: { accountId: testAccountId },
+    it('unpairedTransferLabelIsANormalTransaction', async () => {
+      mockSyncResponse({
+        added: [
+          createMockPlaidTransaction({
+            transaction_id: 'transfer-tx',
+            merchant_name: 'Transfer',
+            amount: 500.0,
+            personal_finance_category: { primary: 'TRANSFER_OUT', detailed: 'Transfer Out' },
+          }),
+        ],
       });
-      expect(tx?.isTransfer).toBe(true);
+
+      await syncPlaidTransactions(createMockPlaidConnection(testAccountId));
+
+      const tx = await prisma.transaction.findFirstOrThrow({ where: { accountId: testAccountId } });
+      expect(tx.isTransfer).toBe(false);
+      expect(tx.categoryId).toBeNull();
+    });
+
+    describe('transfer pairing across syncs', () => {
+      let accountBId: string;
+
+      function dayOffset(days: number): string {
+        const d = new Date();
+        d.setUTCDate(d.getUTCDate() + days);
+        return d.toISOString().split('T')[0];
+      }
+
+      function connectionB() {
+        return {
+          ...createMockPlaidConnection(accountBId),
+          id: 'plaid-conn-b',
+          plaidAccountId: 'plaid-account-b',
+        };
+      }
+
+      async function syncSideA() {
+        mockSyncResponse({
+          added: [
+            createMockPlaidTransaction({
+              transaction_id: 'out-a',
+              name: 'Online Transfer',
+              merchant_name: 'Online Transfer',
+              amount: 500,
+              date: dayOffset(-5),
+            }),
+          ],
+        });
+        await syncPlaidTransactions(createMockPlaidConnection(testAccountId));
+      }
+
+      async function syncSideB() {
+        mockSyncResponse({
+          added: [
+            createMockPlaidTransaction({
+              transaction_id: 'in-b',
+              account_id: 'plaid-account-b',
+              name: 'Online Transfer',
+              merchant_name: 'Online Transfer',
+              amount: -500,
+              date: dayOffset(-3),
+            }),
+          ],
+        });
+        await syncPlaidTransactions(connectionB());
+      }
+
+      beforeEach(async () => {
+        const b = await prisma.account.create({ data: createAccountData({ name: 'Account B' }) });
+        accountBId = b.id;
+        await prisma.plaidConnection.create({
+          data: {
+            id: 'plaid-conn-b',
+            accountId: b.id,
+            plaidEnrollmentId: 'plaid-enroll-1',
+            plaidAccountId: 'plaid-account-b',
+            status: 'connected',
+          },
+        });
+      });
+
+      it('pairsAcrossSeparateSyncs', async () => {
+        await syncSideA();
+        await syncSideB();
+
+        const rowA = await prisma.transaction.findFirstOrThrow({ where: { externalId: 'out-a' } });
+        const rowB = await prisma.transaction.findFirstOrThrow({ where: { externalId: 'in-b' } });
+        expect(rowA.isTransfer).toBe(true);
+        expect(rowB.isTransfer).toBe(true);
+        expect(rowA.transferGroupId).toBeTruthy();
+        expect(rowA.transferGroupId).toBe(rowB.transferGroupId);
+      });
+
+      it('pairingClearsOutsideBudget', async () => {
+        await syncSideA();
+        await prisma.transaction.updateMany({
+          where: { externalId: 'out-a' },
+          data: { isOutsideBudget: true },
+        });
+        await syncSideB();
+
+        const rowA = await prisma.transaction.findFirstOrThrow({ where: { externalId: 'out-a' } });
+        expect(rowA.isTransfer).toBe(true);
+        expect(rowA.isOutsideBudget).toBe(false);
+      });
+    });
+
+    it('manualTransferSurvivesModify', async () => {
+      mockSyncResponse({
+        added: [createMockPlaidTransaction({ transaction_id: 'manual-tx', amount: 40 })],
+      });
+      await syncPlaidTransactions(createMockPlaidConnection(testAccountId));
+      await prisma.transaction.updateMany({
+        where: { externalId: 'manual-tx' },
+        data: { isTransfer: true },
+      });
+
+      mockSyncResponse({
+        modified: [createMockPlaidTransaction({ transaction_id: 'manual-tx', amount: 41 })],
+      });
+      await syncPlaidTransactions(createMockPlaidConnection(testAccountId));
+
+      const tx = await prisma.transaction.findFirstOrThrow({ where: { externalId: 'manual-tx' } });
+      expect(tx.amount).toBe(-41);
+      expect(tx.isTransfer).toBe(true);
     });
 
     it('updates enrollment cursor and connection sync status on success', async () => {
