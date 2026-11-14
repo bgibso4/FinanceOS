@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analytics Cleanup Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f2f2f7; --surface: #ffffff; --fill: #e9e9ee; --ink: #1c1c1e; --ink-2: #6e6e73; --ink-3: #8a8a8e; --line: #d8d8dc;
+  --tint: #1c1c1e; --on-tint: #ffffff; --soon: #ad500e; --done: #2f7d4f; --info: #3f6fa3; --warn: #a3392f;
+  --serif: "Source Serif 4", "New York", ui-serif, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+    --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+  --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+h1, h2, h3 { text-wrap: balance; }
+.layout { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+.brand { font: 700 15px/1.2 var(--serif); }
+.brand span { display: block; font: 400 13px/1.4 var(--sans); color: var(--ink-2); margin-top: 2px; }
+.overall { background: var(--surface); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.overall b { font: 700 17px/1.2 var(--serif); color: var(--ink); }
+.toc { display: flex; flex-direction: column; gap: 1px; }
+.toc-label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin: 6px 0 6px 10px; }
+.toc a { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; text-decoration: none; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.toc a:hover { background: var(--surface); color: var(--ink); }
+.toc a.active { background: var(--surface); color: var(--ink); font-weight: 600; }
+.toc-n { width: 20px; text-align: right; color: var(--ink-3); font-size: 13px; flex: none; font-variant-numeric: tabular-nums; }
+.theme { align-self: flex-start; background: none; border: 0; color: var(--ink-3); font: 13px var(--sans); cursor: pointer; padding: 4px 10px; }
+.theme:hover { color: var(--ink); }
+main { padding: 48px 0 120px; display: flex; flex-direction: column; gap: 48px; min-width: 0; }
+.eyebrow { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.eyebrow .pill { background: var(--surface); border-radius: 99px; padding: 3px 10px; font-weight: 600; color: var(--ink); }
+h1 { font: 700 44px/1.08 var(--serif); letter-spacing: -0.6px; margin: 12px 0 14px; }
+.goal { font-size: 19px; line-height: 1.5; max-width: 66ch; margin: 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 24px; }
+.meta div { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; line-height: 1.5; }
+.meta b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 4px; }
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 14px; color: var(--ink-2); }
+.stats b { font: 700 20px var(--serif); color: var(--ink); margin-right: 4px; font-variant-numeric: tabular-nums; }
+section > h2 { font: 700 26px/1.2 var(--serif); margin: 0 0 6px; letter-spacing: -0.2px; }
+section > h3.sub { font: 700 19px/1.3 var(--serif); margin: 22px 0 8px; }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 66ch; }
+.decisions { background: var(--surface); border-radius: var(--r); padding: 6px 0; border-left: 4px solid var(--soon); }
+.decisions.agreed { border-left-color: var(--done); }
+.decisions ul { list-style: none; margin: 0; padding: 0; }
+.decision { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 18px; }
+.decision + .decision { border-top: 1px solid var(--line); }
+.dec-name { font-weight: 600; }
+.dec-id { font: 700 13px var(--serif); color: var(--ink-3); margin-right: 6px; }
+.dec-text { color: var(--ink-2); font-size: 15px; max-width: 70ch; }
+.dec-text strong { color: var(--ink); }
+.trefs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 180px; }
+.tref { flex: none; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--fill); padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.tref:hover { background: var(--tint); color: var(--on-tint); }
+.card { background: var(--surface); border-radius: var(--r); padding: 6px 20px; }
+.card ul, .card ol { margin: 0; padding: 0; list-style: none; }
+.card > ul > li, .card > ol > li { padding: 11px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.card > ul > li:first-child, .card > ol > li:first-child { border-top: 0; }
+.card li ul { list-style: disc; padding-left: 20px; margin: 6px 0 0; }
+.card li ul li { padding: 2px 0; border: 0; color: var(--ink-2); }
+.card li ul li strong { color: var(--ink); }
+.numbered { counter-reset: f; }
+.numbered > li { counter-increment: f; display: grid; grid-template-columns: 28px 1fr; gap: 6px; }
+.numbered > li::before { content: counter(f); font: 700 17px/1.4 var(--serif); color: var(--soon); }
+table.md { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border-radius: var(--r); overflow: hidden; }
+table.md th, table.md td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--line); }
+table.md th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); border-top: 0; }
+table.md td:first-child { font-weight: 600; white-space: nowrap; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; }
+.chip.mine { color: var(--soon); background: color-mix(in srgb, var(--soon) 13%, transparent); }
+.chip.agreed { color: var(--done); background: color-mix(in srgb, var(--done) 13%, transparent); }
+.chip.route { color: var(--info); background: color-mix(in srgb, var(--info) 13%, transparent); font-family: var(--mono); font-weight: 500; }
+.callout { background: var(--surface); border-radius: var(--r); padding: 14px 18px; border-left: 4px solid var(--warn); font-size: 15px; margin-top: 12px; }
+.callout b:first-child { display: block; margin-bottom: 4px; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.col { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; }
+.col h3 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 8px; }
+.col ul { margin: 0; padding-left: 16px; } .col li { margin: 5px 0; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
+  .side { position: static; height: auto; padding: 24px 0 0; }
+  .toc { display: none; }
+  h1 { font-size: 34px; }
+  .cols { grid-template-columns: 1fr; }
+  .decision { flex-direction: column; gap: 8px; }
+  .trefs { justify-content: flex-start; max-width: none; }
+}
+pre { font-family: var(--mono); font-size: 13px; line-height: 1.5; background: var(--fill); border-radius: 10px; padding: 12px 14px; overflow-x: auto; margin: 8px 0; }
+.task { background: var(--surface); border-radius: var(--r); padding: 18px 22px; }
+.task + .task { margin-top: 14px; }
+.task h3 { font: 700 19px/1.3 var(--serif); margin: 0 0 10px; }
+.task .files, .task .ifaces { font-size: 14px; color: var(--ink-2); margin: 0 0 10px; }
+.task .files code, .task .ifaces code { font-size: 12.5px; }
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+.steps > li { counter-increment: s; display: grid; grid-template-columns: 26px 1fr; gap: 6px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.steps > li::before { content: "☐"; color: var(--ink-3); }
+.steps > li:first-child { border-top: 0; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side" aria-label="Sections">
+    <div class="brand">FinanceOS<span>Plan · Analytics cleanup</span></div>
+    <div class="overall"><span>Status</span><b>Waiting on your review</b><span>7 tasks · branch feat/analytics-cleanup</span></div>
+    <nav class="toc" aria-label="Sections">
+      <div class="toc-label">Overview</div>
+      <a href="#header"><span class="toc-n"></span><span>Goal &amp; architecture</span></a>
+      <a href="#constraints"><span class="toc-n"></span><span>Global constraints</span></a>
+      <a href="#focus"><span class="toc-n"></span><span>Review focus</span></a>
+      <a href="#files"><span class="toc-n"></span><span>File map</span></a>
+      <div class="toc-label">Tasks</div>
+      <a href="#t1"><span class="toc-n">1</span><span>Colour tokens + guard</span></a>
+      <a href="#t2"><span class="toc-n">2</span><span>Filter chips</span></a>
+      <a href="#t3"><span class="toc-n">3</span><span>A–Z sort key</span></a>
+      <a href="#t4"><span class="toc-n">4</span><span>Collapsible panel</span></a>
+      <a href="#t5"><span class="toc-n">5</span><span>Tag totals</span></a>
+      <a href="#t6"><span class="toc-n">6</span><span>Settings tags table</span></a>
+      <a href="#t7"><span class="toc-n">7</span><span>Browser check</span></a>
+    </nav>
+    <button class="theme" type="button" id="theme">◐ Light / dark</button>
+  </aside>
+  <main>
+    <header id="header">
+      <div class="eyebrow"><span class="pill">Plan</span><span>Written 2026-11-13</span><span>·</span><span>implements the Analytics cleanup design</span></div>
+      <h1>Analytics cleanup: implementation plan</h1>
+      <p class="goal"><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task by task. Load the <code>principal-engineer</code> skill before writing code.</p>
+      <div class="meta">
+        <div><b>Goal</b>Make Tailwind opacity tints render, restyle the Analytics chips, make the filter panel collapsible and A–Z, and give Settings → Tags a Total column linking into Analytics.</div>
+        <div><b>Architecture</b>Theme colours become opacity-capable Tailwind tokens (<code>color-mix</code> + <code>&lt;alpha-value&gt;</code>). There's one shared name-sort helper. A collapsible <code>Section</code> in the panel. Tag totals come from a new <code>spendingByTag</code> next to <code>spendingByDay</code>, using the same per-row spend function.</div>
+        <div><b>Stack · Spec</b>Next.js 14, React 19, Tailwind 3.4, Prisma/SQLite, Vitest + Testing Library. Spec: <code>docs/superpowers/specs/2026-11-13-analytics-cleanup-design.html</code>. Mocks: <code>~/Documents/FinanceOS-design-archive/design-mocks/analytics-chips-filters.html</code>, part 3 of <code>tag-cost-analytics.html</code>.</div>
+      </div>
+    </header>
+
+    <section id="constraints">
+      <h2>Global constraints</h2>
+      <div class="card"><ul>
+        <li>No source file may contain <code>[var(--…)]/N</code> (an arbitrary-var colour with an opacity modifier) after Task 1.</li>
+        <li>Tokens with opacity support: <code>accent</code>, <code>green</code>, <code>red</code>, <code>bg-base</code>, <code>bg-surface</code>, <code>bg-card</code>, <code>bg-elevated</code>, <code>text-primary</code>, <code>text-secondary</code>, <code>text-muted</code>, <code>tag-blue</code>, <code>tag-green</code>, <code>tag-red</code>, <code>tag-yellow</code>, <code>tag-purple</code>, <code>tag-pink</code>, <code>tag-indigo</code>, <code>tag-orange</code>, <code>tag-teal</code>. Format: <code>'color-mix(in srgb, var(--X) calc(&lt;alpha-value&gt; * 100%), transparent)'</code>.</li>
+        <li>No new colours. <code>--yellow</code> doesn't exist; its one usage (<code>InstitutionCard</code>) becomes <code>accent</code>.</li>
+        <li>Panel spacing: 12px header→contents, 10px under the search box, 16px vertical padding per section.</li>
+        <li>Collapsible sections: Categories, Accounts, and Tags when there are more than 8 tags. All start closed each time the panel opens.</li>
+        <li>Collapsed header summary: picks via <code>capped()</code> in accent; otherwise muted <code>Any · &lt;count&gt;</code>.</li>
+        <li>A tag's Total equals Analytics' all-time Spent for that tag (transfers excluded, net of returns, base currency).</li>
+        <li>"See cost →" href: <code>/analytics?</code> + <code>toSearchParams</code> of <code>{ period: custom firstDate..lastDate, vs: 'none', tags: [name] }</code>. No link when the tag has no counted spend.</li>
+        <li>Prettier, ESLint, <code>npm run check</code> must pass. Commit after each task.</li>
+      </ul></div>
+    </section>
+
+    <section id="focus">
+      <h2>Review focus</h2>
+      <p class="lede">Inputs the spec implies but doesn't spell out. Each has a test in the task named.</p>
+      <div class="card"><ol class="numbered">
+        <li><strong>Emoji with joiners and variation selectors</strong> (<code>🏌️‍♂️Other Golf</code>, <code>❗️Stuff I forgot…</code>) sort by their first letter. Test in Task 3.</li>
+        <li><strong>Searching while groups are folded:</strong> a child that matches shows even if its group is folded; a group whose name matches shows all its children. Test in Task 4.</li>
+        <li><strong>Tag names with spaces, &amp;, / or quotes</strong> produce a link that Analytics parses back to the same tag. Test in Task 5 (<code>tagCostHref</code> round-trips through <code>parseAnalyticsQuery</code>).</li>
+        <li><strong>A tag whose rows are all transfers or income</strong> has Total $0 with no link, never "-$0". Tests in Tasks 5 and 6.</li>
+        <li><strong>"Clear all" with a section collapsed</strong> updates that section's header to "Any · N". Test in Task 4.</li>
+      </ol></div>
+    </section>
+
+    <section id="files">
+      <h2>File map</h2>
+      <table class="md">
+        <tr><th>File</th><th>Responsibility</th></tr>
+        <tr><td><code>tailwind.config.js</code></td><td>Opacity-capable colour tokens (T1)</td></tr>
+        <tr><td><code>tests/unit/lint/tailwind-var-opacity.test.ts</code></td><td>New guard (T1)</td></tr>
+        <tr><td>~14 files with <code>[var(--x)]/N</code></td><td>Rewrite to named tokens (T1)</td></tr>
+        <tr><td><code>src/components/analytics/filter-chips.tsx</code></td><td>Option-B styling (T2)</td></tr>
+        <tr><td><code>src/lib/sort-by-name.ts</code></td><td>New: <code>nameSortKey</code>, <code>byName</code> (T3)</td></tr>
+        <tr><td><code>src/components/analytics/category-picker.tsx</code></td><td>A–Z groups and children, group folding (T3, T4)</td></tr>
+        <tr><td><code>src/components/analytics/filter-panel.tsx</code></td><td>Collapsible <code>Section</code>, spacing, A–Z accounts (T3, T4)</td></tr>
+        <tr><td><code>src/lib/analytics.ts</code></td><td>New <code>spendingByTag</code> (T5)</td></tr>
+        <tr><td><code>src/app/api/tags/route.ts</code></td><td><code>withCounts</code> adds total/firstDate/lastDate (T5)</td></tr>
+        <tr><td><code>src/lib/analytics-query.ts</code></td><td>New <code>tagCostHref</code> (T5)</td></tr>
+        <tr><td><code>src/components/settings/tags-table.tsx</code></td><td>New: the table (T6)</td></tr>
+        <tr><td><code>src/app/(routes)/settings/page.tsx</code></td><td>Tags tab uses <code>TagsTable</code> (T6)</td></tr>
+      </table>
+    </section>
+
+    <section id="tasks">
+      <h2>Tasks</h2>
+
+      <div class="task" id="t1">
+        <h3>Task 1 · Colour tokens and the guard</h3>
+        <p class="files"><b>Files:</b> modify <code>tailwind.config.js</code> and every file the grep finds (list: <code>grep -rnE "(border|bg|text|ring|divide|outline)-\[var\(--[a-z-]+\)\]/[0-9]+" src</code>); create <code>tests/unit/lint/tailwind-var-opacity.test.ts</code>.</p>
+        <p class="ifaces"><b>Produces:</b> Tailwind classes <code>{bg,border,text,ring,divide,outline}-{token}/N</code> for every token in Global constraints.</p>
+        <ol class="steps">
+          <li><div>Write the guard, following <code>tests/unit/lint/vendor-literals.test.ts</code>: walk <code>src</code>, read <code>.ts/.tsx</code>, and collect lines matching <code>/\b(?:border|bg|text|ring|divide|outline)-\[var\(--[\w-]+\)\]\/\d+/</code>. Tests: <code>recognisesTheBrokenPattern</code> (matches <code>'bg-[var(--accent)]/10'</code>, not <code>'bg-accent/10'</code> or <code>'bg-[var(--accent)]'</code>), and <code>findsNoneInSrc</code> (<code>expect(hits).toEqual([])</code>, printing <code>file:line</code>).</div></li>
+          <li><div>Run <code>npx vitest run tests/unit/lint/tailwind-var-opacity.test.ts</code>. Expected: <code>findsNoneInSrc</code> FAILS listing ~75 hits.</div></li>
+          <li><div>In <code>tailwind.config.js</code>, set every token in Global constraints to the <code>color-mix … &lt;alpha-value&gt;</code> format (add the 9 <code>tag-*</code> keys). Rewrite each hit: <code>bg-[var(--accent)]/10</code> → <code>bg-accent/10</code>, <code>border-[var(--tag-blue)]/15</code> → <code>border-tag-blue/15</code>, <code>bg-[var(--bg-base)]/30</code> → <code>bg-bg-base/30</code>. In <code>InstitutionCard.tsx</code>, both <code>[var(--yellow)]</code> classes become <code>accent</code>.</div></li>
+          <li><div>Run the guard again. Expected: PASS. Then confirm the output: build <code>.next</code> with <code>npm run build</code> and <code>grep -c "bg-accent\\\\/10" .next/static/css/*.css</code> ≥ 1.</div></li>
+          <li><div><code>npm run check &amp;&amp; npm run test:unit</code>: all pass (classes in component tests may need their expected strings updated; update only class-string assertions).</div></li>
+          <li><div>Commit: <code>fix(ui): make theme colours accept opacity modifiers</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t2">
+        <h3>Task 2 · Filter chips, option B</h3>
+        <p class="files"><b>Files:</b> modify <code>src/components/analytics/filter-chips.tsx</code>; test <code>tests/unit/components/analytics/filter-panel.test.tsx</code> (chip tests live there).</p>
+        <p class="ifaces"><b>Consumes:</b> T1 tokens. <b>Produces:</b> each <code>&lt;li&gt;</code> carries <code>data-added="true"</code> when it's a removable filter (has <code>clear</code>).</p>
+        <ol class="steps">
+          <li><div>Test <code>chipsMarkAddedFilters</code>: with <code>tags: ['Vacation']</code>, the Tag chip has <code>data-added="true"</code>; the Period and vs chips don't have the attribute.</div></li>
+          <li><div>Run it. Expected: FAIL.</div></li>
+          <li><div>Restyle: base <code>rounded-lg border bg-bg-elevated py-[5px] text-[13px] text-text-primary</code>, border <code>border-[var(--border)]</code>, or <code>border-accent/35</code> when added. The label word uses <code>text-text-muted</code>. The ✕ hover becomes <code>hover:bg-accent/20</code>. Add <code>data-added</code>.</div></li>
+          <li><div>Run the file. Expected: all chip tests PASS.</div></li>
+          <li><div>Commit: <code>feat(analytics): quieter filter chips</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t3">
+        <h3>Task 3 · A–Z sort key</h3>
+        <p class="files"><b>Files:</b> create <code>src/lib/sort-by-name.ts</code>, <code>tests/unit/lib/sort-by-name.test.ts</code>; modify <code>category-picker.tsx</code> (<code>groupsOf</code>), <code>filter-panel.tsx</code> (accounts list).</p>
+        <p class="ifaces"><b>Produces:</b> <code>nameSortKey(name: string): string</code> (strips leading non-letter/non-digit characters, so it handles <code>\p{Extended_Pictographic}</code>, ZWJ and VS16 via <code>/^[^\p{L}\p{N}]+/u</code>, then trims). <code>byName&lt;T extends { name: string }&gt;(a: T, b: T): number</code> uses <code>localeCompare(…, undefined, { sensitivity: 'base', numeric: true })</code> on the keys.</p>
+        <ol class="steps">
+          <li><div>Tests: <code>ignoresLeadingEmoji</code>: sorting <code>['🛒 Groceries','⛽️ Gas','Bills','🏌️‍♂️Other Golf','❗️Stuff']</code> by <code>byName</code> gives <code>['Bills','⛽️ Gas','🛒 Groceries','🏌️‍♂️Other Golf','❗️Stuff']</code>. <code>caseAndNumbers</code>: <code>['b','A','Item 10','Item 2']</code> → <code>['A','b','Item 2','Item 10']</code>. In <code>filter-panel.test.tsx</code>, <code>categoriesAndAccountsAreAlphabetical</code>: with categories in fixture order Food(Groceries, Dining), Golf, Rent, the group rows read Food, Golf, Rent and Food's children read Dining, Groceries; accounts <code>[Chase, Amex]</code> read Amex, Chase. Uncategorized stays last.</div></li>
+          <li><div>Run. Expected: FAIL (module missing).</div></li>
+          <li><div>Implement <code>sort-by-name.ts</code>; sort roots and each children list in <code>groupsOf</code> with <code>byName</code>; sort <code>accounts</code> with <code>byName</code> before rendering.</div></li>
+          <li><div>Run both test files. Expected: PASS. (Category tests from T4 need sections opened; this task runs before T4, so they open as today.)</div></li>
+          <li><div>Commit: <code>feat(analytics): list categories and accounts A–Z</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t4">
+        <h3>Task 4 · Collapsible panel sections, group folding, spacing</h3>
+        <p class="files"><b>Files:</b> modify <code>filter-panel.tsx</code> (<code>Section</code>), <code>category-picker.tsx</code>; test <code>filter-panel.test.tsx</code>.</p>
+        <p class="ifaces"><b>Produces:</b> <code>Section</code> props add <code>collapsible?: boolean</code> and <code>emptySummary?: string</code>. When collapsible, the header is a <code>&lt;button aria-expanded&gt;</code> whose accessible name starts with the title. Open state is local <code>useState(false)</code>, reset when the panel's <code>open</code> goes false→true (key the sections on an open counter).</p>
+        <ol class="steps">
+          <li><div>Update existing tests that tick categories, search or read group totals (<code>tickingGroupTicksItsCategories</code>, <code>groupRowsShowTotalsAndUncategorizedIsLast</code>, <code>searchNarrowsCategories</code>, <code>categoriesAndAccountsAreAlphabetical</code>) to click the Categories header first and, where they read children, the group's chevron.</div></li>
+          <li><div>New tests:
+            <ul>
+              <li><code>categoriesAndAccountsStartCollapsed</code>: the headers have <code>aria-expanded="false"</code>; no "Search categories" box and no Amex row are in the DOM; the headers read "Any · 6" and "Any · 2" (6 = the fixture categories excluding Uncategorized).</li>
+              <li><code>collapsedHeaderShowsPicks</code>: with <code>categories: ['dining']</code>, the Categories header shows "Dining".</li>
+              <li><code>clearAllUpdatesCollapsedSummary</code>: with <code>accounts: ['amex']</code>, after "Clear all" the Accounts header reads "Any · 2".</li>
+              <li><code>groupsFoldUntilOpenedPickedOrSearched</code>: open Categories → Groceries isn't shown; click Food's chevron → Groceries shows. With <code>categories: ['fees']</code>, Green Fees shows without opening Golf. Typing "groc" shows Groceries with Food folded; typing "golf" shows Green Fees.</li>
+              <li><code>tagsCollapseOnlyPastEight</code>: with 2 tags, the Tags section has no expand button; with 9 tags, it does.</li>
+              <li><code>sectionsReopenClosed</code>: open Categories, close the panel (<code>open=false</code>) and reopen it → <code>aria-expanded="false"</code>.</li>
+            </ul></div></li>
+          <li><div>Run. Expected: the new tests FAIL.</div></li>
+          <li><div>Implement. The header is a full-width button with the title on the left, and the summary plus a <code>›</code> chevron (rotated 90° when open) on the right. Use <code>mb-3</code> header→contents when open (also on non-collapsible sections), <code>py-4</code> per section, and <code>mb-2.5</code> under the search input. Group fold: per-group open state in <code>CategoryPicker</code>; children render when the group is open OR any child is ticked OR the search is non-empty (with today's match rules). The chevron is a separate <code>&lt;button aria-label="Show &lt;group&gt;"&gt;</code> next to the tick row, so ticking still toggles the whole group.</div></li>
+          <li><div>Run <code>npx vitest run tests/unit/components/analytics</code>. Expected: PASS.</div></li>
+          <li><div>Commit: <code>feat(analytics): collapsible filter sections and folding groups</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t5">
+        <h3>Task 5 · Tag totals and the cost link</h3>
+        <p class="files"><b>Files:</b> modify <code>src/lib/analytics.ts</code>, <code>src/app/api/tags/route.ts</code>, <code>src/lib/analytics-query.ts</code>; tests in a new <code>tests/integration/api/tags-totals.test.ts</code> (copy the DB setup from <code>analytics-daily.test.ts</code>) and <code>tests/unit/lib/analytics-query.test.ts</code>.</p>
+        <p class="ifaces"><b>Produces:</b> <code>type TagSpend = { total: number; firstDate: string | null; lastDate: string | null }</code>. <code>spendingByTag(prisma: PrismaClient): Promise&lt;Map&lt;string, TagSpend&gt;&gt;</code>. <code>GET /api/tags?withCounts=true</code> → each tag also has <code>total</code>, <code>firstDate</code> and <code>lastDate</code>. <code>tagCostHref(tag: { name: string; firstDate: string; lastDate: string }, today: string): string</code>.</p>
+        <ol class="steps">
+          <li><div>Integration tests:
+            <ul>
+              <li><code>totalsMatchSpendingByDay</code>: seed two tags across categorized, uncategorized, returned (linked offset), foreign-currency and transfer rows. For each tag, <code>total</code> equals the sum of <code>spendingByDay(prisma, { tags: [name] }, new Date(0), farFuture)</code>, and <code>firstDate</code>/<code>lastDate</code> are the first and last <code>date</code> in those rows.</li>
+              <li><code>allTransferTagHasZeroAndNoDates</code>: <code>{ total: 0, firstDate: null, lastDate: null }</code>, with <code>Object.is(total, -0) === false</code>.</li>
+              <li><code>routeReturnsTotals</code>: GET with <code>withCounts=true</code> includes the three fields; a tag with no rows gets <code>total: 0, firstDate: null, lastDate: null</code>.</li>
+            </ul>
+            Unit test <code>tagCostHrefRoundTrips</code>: for name <code>'R&amp;D / "Q1"'</code>, <code>parseAnalyticsQuery(new URL(href, 'http://x').searchParams, today)</code> gives <code>tags: [name]</code>, <code>vs: 'none'</code>, and a custom period with the given dates; href starts with <code>/analytics?</code>.</div></li>
+          <li><div>Run. Expected: FAIL.</div></li>
+          <li><div>Implement <code>spendingByTag</code>: call <code>loadPeriodTransactions(prisma, {}, new Date(0), now, cashFlowIds)</code>, keep rows with tags, compute <code>spendOf</code> exactly as <code>spendingByDay</code> does, and skip <code>null</code>. Add it to every tag in the row's tags, and track min/max day. Round totals to cents; normalize -0 to 0. The route merges this map into the existing <code>withCounts</code> branch. <code>tagCostHref</code> builds the query with <code>period: { kind: 'custom', anchor: lastDate.slice(0, 7), custom: { start: firstDate, end: lastDate } }</code> and calls <code>toSearchParams</code>.</div></li>
+          <li><div>Run both files. Expected: PASS.</div></li>
+          <li><div>Commit: <code>feat(tags): all-time spend per tag and a link into Analytics</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t6">
+        <h3>Task 6 · Settings → Tags table</h3>
+        <p class="files"><b>Files:</b> create <code>src/components/settings/tags-table.tsx</code>, <code>tests/unit/components/settings/tags-table.test.tsx</code>; modify the Tags tab in <code>src/app/(routes)/settings/page.tsx</code> (replace the card grid; extend <code>TagWithCount</code> with the T5 fields).</p>
+        <p class="ifaces"><b>Consumes:</b> <code>tagCostHref</code>, <code>fmtMoney</code>, <code>getTagColors</code>. <b>Produces:</b> <code>TagsTable({ tags: TagWithTotals[]; today: string; onEdit(tag): void; onDelete(tag): void })</code>.</p>
+        <ol class="steps">
+          <li><div>Tests:
+            <ul>
+              <li><code>showsCountTotalAndLink</code>: a row for Green Card (9, 5943) shows "9", "$5,943", and a "See cost →" link whose href equals <code>tagCostHref(…)</code>.</li>
+              <li><code>zeroSpendTagHasNoLink</code>: a tag with <code>total: 0, firstDate: null</code> shows "$0" and no link.</li>
+              <li><code>rowClickEditsLinkDoesNot</code>: clicking the row calls <code>onEdit</code>; clicking the link doesn't.</li>
+              <li><code>deleteCallsOnDelete</code>: the row's delete button calls <code>onDelete</code> and not <code>onEdit</code>.</li>
+            </ul></div></li>
+          <li><div>Run. Expected: FAIL.</div></li>
+          <li><div>Implement as in mock 3 of <code>tag-cost-analytics.html</code>: columns Tag (colour-dot pill), Transactions, Total (mono, right-aligned), and the link (muted). Delete is a hover ✕ in the last cell. Rows use <code>divide-[var(--border)]</code>. The page keeps its existing confirm + DELETE + <code>refreshTags()</code> + <code>triggerSync()</code> inside <code>onDelete</code>, and the edit modal inside <code>onEdit</code>.</div></li>
+          <li><div>Run the file plus <code>npm run test:unit</code>. Expected: PASS.</div></li>
+          <li><div>Commit: <code>feat(settings): tags table with totals</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t7">
+        <h3>Task 7 · Verify in the browser</h3>
+        <p class="files">No code unless a check fails. Start a dev server on a free port (production may hold 3000).</p>
+        <ol class="steps">
+          <li><div>Analytics, both themes: the chips match option B; the panel opens with Categories and Accounts collapsed; the spacing matches the mock; the lists are A–Z.</div></li>
+          <li><div>Settings → Tags: the table renders. "See cost →" on Tax Deductable lands on Analytics showing $103. Green Card shows $0 with no link (expected until #51).</div></li>
+          <li><div>Spot-check the newly rendering tints in both themes: Transactions (row highlights, badges), the transaction drawer's tag input, Settings (Accounts, Import, Rules), and the Institution cards. List anything that looks wrong in the PR description rather than restyling it.</div></li>
+          <li><div><code>npm run check &amp;&amp; npm test</code>: all pass. Push and open a PR against <code>main</code>.</div></li>
+        </ol>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  btn.addEventListener('click', function () {
+    var r = document.documentElement;
+    var dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (a) { a.classList.remove('active'); });
+        var a = map[e.target.id]; if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+})();
+</script>
+</body>
+</html>
