@@ -115,7 +115,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
 <div class="layout">
   <aside class="side" aria-label="Sections">
     <div class="brand">FinanceOS<span>Design · Outside budget</span></div>
-    <div class="overall"><span>Status</span><b>Waiting on your review</b><span>Next: implementation plan</span></div>
+    <div class="overall"><span>Status</span><b>Approved</b><span>Next: implementation plan</span></div>
     <nav class="toc" aria-label="Sections">
       <div class="toc-label">Overview</div>
       <a href="#mine"><span class="toc-n"></span><span>Waiting on you</span></a>
@@ -144,7 +144,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
         <div><b>Builds on</b><code>Transaction</code> in <code>prisma/schema.prisma</code>, <code>loadPeriodTransactions</code> / <code>monthlySnapshot</code> / <code>spendingByTag</code> in <code>src/lib/analytics.ts</code>, <code>parseAnalyticsQuery</code> / <code>toSearchParams</code> / <code>tagCostHref</code>, <code>FilterPanel</code>, <code>FilterChips</code>, <code>DetailsSection</code>, <code>TransactionTable</code>, the transfer mapping in <code>src/lib/plaid-sync.ts</code>, pairing in <code>src/lib/sync-common.ts</code>, and the cloud-sync payload schema.</div>
         <div><b>Approved mock</b><code>~/Documents/FinanceOS-design-archive/design-mocks/outside-budget.html</code> (v2: the checkbox at the bottom of Details, and the Analytics toggle).</div>
       </div>
-      <div class="stats"><span><b>5</b>design sections</span><span><b>6</b>decisions agreed</span><span><b>6</b>calls to check</span></div>
+      <div class="stats"><span><b>5</b>design sections</span><span><b>7</b>decisions agreed</span><span><b>6</b>calls to check</span></div>
     </header>
 
     <section id="mine">
@@ -152,7 +152,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
       <p class="lede">My own calls. Each is easy to change now; veto any you don't like. <strong>M5 changes what I suggested in chat.</strong></p>
       <div class="decisions"><ul>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M1</span>Left out of spending and budget views, counted in Cash Flow</div><div class="dec-text"><strong>Agreed in review.</strong> Outside-budget rows are left out of Analytics (unless the toggle is on), the Dashboard, and Reports → Monthly Detail. They're <strong>counted</strong> in Reports → Cash Flow, because that view answers "how much did I actually save?". Net Worth is built from balances, so it always includes them. Trade-off: in a month with a one-off, the Dashboard's savings rate looks better than Cash Flow's for the same month.</div></div><div class="trefs"><a class="tref" href="#data">Data</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>Tag totals always include outside-budget rows</div><div class="dec-text">A tag answers "what did this cost?", so Settings → Tags counts outside-budget rows, and "See cost →" opens Analytics with the toggle already on. The Green Card tag shows $3,005 once those four fees are marked outside budget.</div></div><div class="trefs"><a class="tref" href="#analytics">Analytics</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>Tag totals always include outside-budget rows</div><div class="dec-text">A tag answers "what did this cost?", so Settings → Tags counts outside-budget rows, and "See cost →" opens Analytics with the toggle already on. Picking a tag yourself in Filters does <strong>not</strong> turn it on (agreed in review). The Green Card tag shows $3,005 once those four fees are marked outside budget.</div></div><div class="trefs"><a class="tref" href="#analytics">Analytics</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M3</span>Budgets follow the toggle</div><div class="dec-text">With the toggle on, a category's spending in the Analytics month view includes its one-offs, and it's compared against the budget as usual. You turned the toggle on, so the numbers say what you asked for.</div></div><div class="trefs"><a class="tref" href="#analytics">Analytics</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M4</span>A transfer is never outside budget</div><div class="dec-text">Switching a row to Transfer clears its outside-budget tick, and the server refuses both at once. That keeps the three states clean: transaction, transaction outside budget, or transfer.</div></div><div class="trefs"><a class="tref" href="#drawer">Drawer</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M5</span>No bulk change to your 30. You go through them by hand</div><div class="dec-text">In chat I suggested un-hiding all 30 at once. But some you hid on purpose (the Green Card fees, Manifest Legal), so un-hiding them all would quietly inflate past months until you'd been through the list. Instead nothing changes in bulk. After merging, I give you the list and you open each one in the drawer and pick Transfer, Transaction, or Transaction plus Outside budget.</div></div><div class="trefs"><a class="tref" href="#existing">Existing</a></div></li>
@@ -170,6 +170,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
         <li class="decision"><div><div class="dec-name"><span class="dec-id">A4</span>One Analytics toggle, no "Only"</div><div class="dec-text">"Include outside budget" in Filters, off by default. A chip shows it while it's on.</div></div><div class="trefs"><a class="tref" href="#analytics">Analytics</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">A5</span>Nothing on the Review tab</div><div class="dec-text">That screen needs an overhaul anyway, so this work doesn't add a review section.</div></div><div class="trefs"><a class="tref" href="#sync">Sync</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">A6</span>Tags collapsed by default</div><div class="dec-text">In the Analytics filter panel, Tags starts collapsed, like Categories and Accounts, whatever the number of tags. This replaces the earlier "collapse past 8" rule.</div></div><div class="trefs"><a class="tref" href="#analytics">Analytics</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A7</span>One-offs get a category you make</div><div class="dec-text">A category isn't required. For purchases that don't belong to any category (USCIS, a wedding venue), you'll make one yourself in Settings → Categories, such as "Big one-offs". No code is needed, and the Uncategorized list is unchanged.</div></div><div class="trefs"><a class="tref" href="#existing">Existing</a></div></li>
       </ul></div>
     </section>
 
