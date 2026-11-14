@@ -35,8 +35,9 @@ export function buildWhere(filters: FilterParams, startDate: Date, endDate: Date
 
 /**
  * A window's countable rows: cash-flow accounts, no transfers, split parents or offsets,
- * and no outside-budget rows unless the filters ask for them, matching the filters. Offsets are not counted themselves; `returnAmounts` holds, per
- * purchase, the total of its linked returns, wherever in time those returns fall.
+ * and no outside-budget rows unless the filters ask for them, matching the filters. Offsets
+ * are not counted themselves; `returnAmounts` holds, per purchase, the total of its linked
+ * returns, wherever in time those returns fall.
  */
 async function loadPeriodTransactions(
   prisma: PrismaClient,

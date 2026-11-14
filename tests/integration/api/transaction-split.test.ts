@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { NextRequest } from 'next/server';
 import { setupTestDb, teardownTestDb, resetTestDb } from '../../helpers/db';
 import {
   createAccountData,
@@ -6,6 +7,15 @@ import {
   createCategoryData,
 } from '../../helpers/factories';
 import type { PrismaClient } from '@prisma/client';
+
+let routePrisma: PrismaClient;
+vi.mock('@/lib/prisma', () => ({
+  get prisma() {
+    return routePrisma;
+  },
+}));
+
+import { POST as splitPost } from '@/app/api/transactions/split/route';
 
 describe('transaction split API integration', () => {
   let prisma: PrismaClient;
@@ -15,6 +25,7 @@ describe('transaction split API integration', () => {
 
   beforeAll(async () => {
     prisma = await setupTestDb();
+    routePrisma = prisma;
   });
 
   afterAll(async () => {
@@ -42,6 +53,29 @@ describe('transaction split API integration', () => {
   });
 
   describe('POST /api/transactions/split', () => {
+    it('copies the outside-budget flag from the parent to every part', async () => {
+      const parent = await prisma.transaction.create({
+        data: createTransactionData(testAccountId, { amount: -100, isOutsideBudget: true }),
+      });
+
+      const res = await splitPost(
+        new NextRequest('http://localhost/api/transactions/split', {
+          method: 'POST',
+          body: JSON.stringify({
+            transactionId: parent.id,
+            parts: [{ amount: -60 }, { amount: -40 }],
+          }),
+        })
+      );
+
+      expect(res.status).toBe(200);
+      const parts = await prisma.transaction.findMany({
+        where: { parentTransactionId: parent.id },
+      });
+      expect(parts).toHaveLength(2);
+      expect(parts.every((p) => p.isOutsideBudget)).toBe(true);
+    });
+
     it('splits a transaction into multiple parts', async () => {
       // Create parent transaction
       const parent = await prisma.transaction.create({

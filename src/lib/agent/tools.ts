@@ -385,7 +385,6 @@ export async function executeGetCashFlow(
         gte: new Date(params.startDate),
         lte: new Date(params.endDate + 'T23:59:59.999Z'),
       },
-      isOutsideBudget: false,
       isTransfer: false,
       isSplitParent: false,
     },

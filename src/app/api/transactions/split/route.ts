@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
             note: part.note ?? null,
             tags: parent.tags,
             isTransfer: parent.isTransfer,
+            isOutsideBudget: parent.isOutsideBudget,
             confidenceScore: 1.0,
             parentTransactionId: parent.id,
             tripId: parent.tripId,

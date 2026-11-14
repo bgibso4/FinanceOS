@@ -229,9 +229,11 @@ function AnalyticsContent() {
     void loadRows();
   }, [rowsUrl, loadRows]);
 
-  // Matches what the figures count: transfers and offsets are left out.
+  // Matches what the figures count: transfers and offsets are left out, as are outside-budget
+  // rows unless the toggle is on.
   const list = categoryTransactions.filter(
-    (t) => t.id === heldRowId || (!t.isOffset && !t.isTransfer)
+    (t) =>
+      t.id === heldRowId || (!t.isOffset && !t.isTransfer && (query.outside || !t.isOutsideBudget))
   );
 
   const drawer = useTransactionDrawer({

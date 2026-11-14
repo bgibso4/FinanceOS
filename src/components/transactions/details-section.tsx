@@ -59,7 +59,7 @@ export function DetailsSection({
   // The API refuses a trip on a split parent; its parts carry the trips.
   const showTrip = !tx.isSplitParent && (trips.length > 0 || Boolean(tx.tripId));
 
-  // Transfers are already left out of spending, and the API refuses the flag on a split parent.
+  // Transfers are already left out of spending, and a split parent is never counted (its parts are).
   const showOutsideBudget = !tx.isTransfer && !tx.isSplitParent;
   const outsideBudget = Boolean(tx.isOutsideBudget);
 

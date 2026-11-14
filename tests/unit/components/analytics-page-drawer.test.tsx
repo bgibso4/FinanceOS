@@ -123,6 +123,22 @@ const monthKey = (offset: number) => {
 };
 
 describe('Analytics page → shared drawer', () => {
+  it('leaves outside-budget rows out of the list unless the toggle is on', async () => {
+    store.push({ ...base, id: 't4', merchant: 'Outside Merchant', isOutsideBudget: true });
+    const { unmount } = render(<AnalyticsPage />);
+    await expand('Test A');
+
+    expect(within(rowsTable()).getByText('Merchant One')).toBeInTheDocument();
+    expect(within(rowsTable()).queryByText('Outside Merchant')).not.toBeInTheDocument();
+    unmount();
+
+    resetNavigation('outside=1');
+    render(<AnalyticsPage />);
+    await expand('Test A');
+
+    expect(within(rowsTable()).getByText('Outside Merchant')).toBeInTheDocument();
+  });
+
   it('opens the shared drawer from a row and pushes the page', async () => {
     render(<AnalyticsPage />);
     await expand('Test A');
