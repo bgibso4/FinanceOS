@@ -332,7 +332,7 @@ function TransactionsPageContent() {
                     <div className={`font-medium ${ds.text.primary} truncate`}>
                       {tx.merchant}
                       {tx.parentTransactionId && (
-                        <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)] font-medium">
+                        <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-accent/10 text-[var(--accent)] font-medium">
                           Split
                         </span>
                       )}
@@ -417,7 +417,7 @@ function TransactionsPageContent() {
                       />
                       {tx.category && !hasPendingCategory && (
                         <button
-                          className="text-[var(--green)] hover:text-[var(--green)] hover:bg-[var(--green)]/10 p-2 rounded-lg transition-colors"
+                          className="text-[var(--green)] hover:text-[var(--green)] hover:bg-green/10 p-2 rounded-lg transition-colors"
                           title="Confirm this category"
                           onClick={(e) => {
                             e.stopPropagation();

@@ -13,7 +13,7 @@ export function BankAccountRow({ account }: { account: LinkedAccount }) {
           </span>
           <p className={`text-xs ${ds.text.muted} mt-1`}>Linked to: {account.linkedAccountName}</p>
         </div>
-        <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">
+        <span className="text-xs px-2 py-0.5 rounded bg-accent/15 text-[var(--accent)]">
           Linked
         </span>
       </div>

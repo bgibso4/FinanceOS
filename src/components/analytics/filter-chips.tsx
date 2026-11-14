@@ -33,7 +33,7 @@ export function FilterChips({ query, categoryNames, accountNames, onChange }: Fi
       {chips.map(({ kind, text, clear }) => (
         <li
           key={kind}
-          className={`inline-flex max-w-[340px] items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[var(--accent)]/30 bg-[var(--accent)]/10 py-[5px] pl-[11px] text-[13px] text-[var(--text-primary)] ${
+          className={`inline-flex max-w-[340px] items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-accent/30 bg-accent/10 py-[5px] pl-[11px] text-[13px] text-[var(--text-primary)] ${
             clear ? 'pr-[5px]' : 'pr-[11px]'
           }`}
         >
@@ -43,7 +43,7 @@ export function FilterChips({ query, categoryNames, accountNames, onChange }: Fi
           {clear && (
             <button
               aria-label={`Clear ${kind} filter`}
-              className="grid h-5 w-5 flex-none place-items-center rounded-[5px] text-[var(--text-muted)] hover:bg-[var(--accent)]/20 hover:text-[var(--text-primary)]"
+              className="grid h-5 w-5 flex-none place-items-center rounded-[5px] text-[var(--text-muted)] hover:bg-accent/20 hover:text-[var(--text-primary)]"
               type="button"
               onClick={() => onChange({ ...query, ...clear })}
             >

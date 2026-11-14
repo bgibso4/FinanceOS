@@ -50,7 +50,7 @@ export function DiscoveredAccountRow({
   };
 
   return (
-    <div className={`p-3 rounded border border-[var(--accent)]/40 ${ds.bg.primary}`}>
+    <div className={`p-3 rounded border border-accent/40 ${ds.bg.primary}`}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">

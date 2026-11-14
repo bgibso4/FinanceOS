@@ -43,8 +43,8 @@ export function TellerAccountSelector({
   };
 
   const getAccountTypeColor = (type: string) => {
-    if (type === 'depository') return 'bg-[var(--accent)]/15 text-[var(--accent)]';
-    if (type === 'credit') return 'bg-[var(--accent)]/15 text-[var(--accent)]';
+    if (type === 'depository') return 'bg-accent/15 text-[var(--accent)]';
+    if (type === 'credit') return 'bg-accent/15 text-[var(--accent)]';
     return 'bg-[var(--bg-elevated)] text-[var(--text-secondary)]';
   };
 

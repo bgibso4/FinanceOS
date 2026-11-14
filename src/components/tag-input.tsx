@@ -7,49 +7,49 @@ export type TagDef = { id: string; name: string; color: string };
 
 export const tagColorMap: Record<string, { bg: string; text: string; border: string }> = {
   blue: {
-    bg: 'bg-[var(--tag-blue)]/10',
+    bg: 'bg-tag-blue/10',
     text: 'text-[var(--tag-blue)]',
-    border: 'border-[var(--tag-blue)]/15',
+    border: 'border-tag-blue/15',
   },
   green: {
-    bg: 'bg-[var(--tag-green)]/10',
+    bg: 'bg-tag-green/10',
     text: 'text-[var(--tag-green)]',
-    border: 'border-[var(--tag-green)]/15',
+    border: 'border-tag-green/15',
   },
   red: {
-    bg: 'bg-[var(--tag-red)]/10',
+    bg: 'bg-tag-red/10',
     text: 'text-[var(--tag-red)]',
-    border: 'border-[var(--tag-red)]/15',
+    border: 'border-tag-red/15',
   },
   yellow: {
-    bg: 'bg-[var(--tag-yellow)]/10',
+    bg: 'bg-tag-yellow/10',
     text: 'text-[var(--tag-yellow)]',
-    border: 'border-[var(--tag-yellow)]/15',
+    border: 'border-tag-yellow/15',
   },
   purple: {
-    bg: 'bg-[var(--tag-purple)]/10',
+    bg: 'bg-tag-purple/10',
     text: 'text-[var(--tag-purple)]',
-    border: 'border-[var(--tag-purple)]/15',
+    border: 'border-tag-purple/15',
   },
   pink: {
-    bg: 'bg-[var(--tag-pink)]/10',
+    bg: 'bg-tag-pink/10',
     text: 'text-[var(--tag-pink)]',
-    border: 'border-[var(--tag-pink)]/15',
+    border: 'border-tag-pink/15',
   },
   indigo: {
-    bg: 'bg-[var(--tag-indigo)]/10',
+    bg: 'bg-tag-indigo/10',
     text: 'text-[var(--tag-indigo)]',
-    border: 'border-[var(--tag-indigo)]/15',
+    border: 'border-tag-indigo/15',
   },
   orange: {
-    bg: 'bg-[var(--tag-orange)]/10',
+    bg: 'bg-tag-orange/10',
     text: 'text-[var(--tag-orange)]',
-    border: 'border-[var(--tag-orange)]/15',
+    border: 'border-tag-orange/15',
   },
   teal: {
-    bg: 'bg-[var(--tag-teal)]/10',
+    bg: 'bg-tag-teal/10',
     text: 'text-[var(--tag-teal)]',
-    border: 'border-[var(--tag-teal)]/15',
+    border: 'border-tag-teal/15',
   },
   gray: {
     bg: 'bg-[var(--bg-elevated)]',

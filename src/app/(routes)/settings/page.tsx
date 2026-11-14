@@ -208,7 +208,7 @@ const getAccountStyle = (type: string) => {
     case 'crypto':
       return {
         icon: '₿',
-        color: 'bg-[var(--accent)]/10 border-[var(--accent)]',
+        color: 'bg-accent/10 border-[var(--accent)]',
         textColor: 'text-[var(--accent)]',
       };
     case 'cash':
@@ -367,12 +367,12 @@ function SortableAccountCard({
                   {account.type.charAt(0).toUpperCase() + account.type.slice(1)}
                 </span>
                 {modeBadge && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--accent)]/50 text-white font-medium backdrop-blur-sm">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-accent/50 text-white font-medium backdrop-blur-sm">
                     {modeBadge}
                   </span>
                 )}
                 {isArchived && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--red)]/50 text-white font-medium backdrop-blur-sm">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-red/50 text-white font-medium backdrop-blur-sm">
                     Archived
                   </span>
                 )}
@@ -3059,19 +3059,19 @@ function SettingsPageContent() {
                       </td>
                       <td className="p-2">
                         {tx.wouldCreate ? (
-                          <span className="text-xs px-2 py-0.5 rounded bg-[var(--green)]/10 text-[var(--green)]">
+                          <span className="text-xs px-2 py-0.5 rounded bg-green/10 text-[var(--green)]">
                             New
                           </span>
                         ) : tx.wouldMerge ? (
                           <span
-                            className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]"
+                            className="text-xs px-2 py-0.5 rounded bg-accent/10 text-[var(--accent)]"
                             title={tx.skipReason || 'Will merge with existing transaction'}
                           >
                             Merge
                           </span>
                         ) : (
                           <span
-                            className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]"
+                            className="text-xs px-2 py-0.5 rounded bg-accent/10 text-[var(--accent)]"
                             title={tx.skipReason || 'Skipped'}
                           >
                             Skip
@@ -3281,17 +3281,17 @@ function SettingsPageContent() {
                             <span className={`text-xs ${ds.text.muted}`}>Previewing...</span>
                           )}
                           {r.status === 'preview_done' && (
-                            <span className="text-xs rounded bg-[var(--green)]/10 px-2 py-0.5 text-[var(--green)]">
+                            <span className="text-xs rounded bg-green/10 px-2 py-0.5 text-[var(--green)]">
                               Ready
                             </span>
                           )}
                           {r.status === 'syncing' && (
-                            <span className="text-xs rounded bg-[var(--accent)]/10 px-2 py-0.5 text-[var(--accent)]">
+                            <span className="text-xs rounded bg-accent/10 px-2 py-0.5 text-[var(--accent)]">
                               Syncing...
                             </span>
                           )}
                           {r.status === 'synced' && (
-                            <span className="text-xs rounded bg-[var(--green)]/10 px-2 py-0.5 text-[var(--green)]">
+                            <span className="text-xs rounded bg-green/10 px-2 py-0.5 text-[var(--green)]">
                               {r.syncResult
                                 ? `${r.syncResult.added} added${r.syncResult.merged ? `, ${r.syncResult.merged} merged` : ''}`
                                 : 'Done'}
@@ -3299,7 +3299,7 @@ function SettingsPageContent() {
                           )}
                           {r.status === 'error' && (
                             <span
-                              className="text-xs rounded bg-[var(--red)]/10 px-2 py-0.5 text-[var(--red)]"
+                              className="text-xs rounded bg-red/10 px-2 py-0.5 text-[var(--red)]"
                               title={r.error}
                             >
                               Error: {r.error}
@@ -3515,7 +3515,7 @@ function SettingsPageContent() {
             {budgets.length > 0 ? (
               <div className="space-y-6">
                 {/* Total Budget Summary */}
-                <div className="bg-[var(--green)]/10 rounded-xl p-5 border border-[var(--green)]">
+                <div className="bg-green/10 rounded-xl p-5 border border-[var(--green)]">
                   <div className="text-sm text-[var(--green)] font-medium">
                     {budgetViewMonth
                       ? `Total Budget for ${fmtCalendarDay(`${budgetViewMonth}-01`, { month: 'long', year: 'numeric' })}`
@@ -3591,7 +3591,7 @@ function SettingsPageContent() {
                                         {category?.name ?? 'Unknown'}
                                       </span>
                                       {isOverride && (
-                                        <span className="text-xs px-1.5 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded font-medium">
+                                        <span className="text-xs px-1.5 py-0.5 bg-accent/10 text-[var(--accent)] rounded font-medium">
                                           Override
                                         </span>
                                       )}
@@ -4041,7 +4041,7 @@ function SettingsPageContent() {
                           className={`${ds.status.warning.bg} rounded-lg border ${ds.status.warning.border}`}
                         >
                           <summary
-                            className={`cursor-pointer p-3 font-medium text-sm ${ds.status.warning.text} hover:bg-[var(--accent)]/10`}
+                            className={`cursor-pointer p-3 font-medium text-sm ${ds.status.warning.text} hover:bg-accent/10`}
                           >
                             ❓ Need Categorization ({importState.summary.uncategorized})
                           </summary>
@@ -4206,7 +4206,7 @@ function SettingsPageContent() {
                       )}
                       {/* Hover delete button */}
                       <button
-                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--red)]/10 text-[var(--red)] transition-all"
+                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red/10 text-[var(--red)] transition-all"
                         title="Delete tag"
                         onClick={async (e) => {
                           e.stopPropagation();

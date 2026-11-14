@@ -114,7 +114,7 @@ export function BulkEditBar({
   };
 
   return (
-    <div className="px-5 py-3 bg-[var(--accent)]/10 border-b border-[var(--accent)]">
+    <div className="px-5 py-3 bg-accent/10 border-b border-[var(--accent)]">
       <div className="flex items-center gap-3 flex-wrap">
         <span className="text-sm font-medium text-[var(--accent)]">{selected.size} selected</span>
         <button
