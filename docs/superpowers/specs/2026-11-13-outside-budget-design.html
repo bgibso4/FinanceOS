@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Outside Budget Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f2f2f7; --surface: #ffffff; --fill: #e9e9ee; --ink: #1c1c1e; --ink-2: #6e6e73; --ink-3: #8a8a8e; --line: #d8d8dc;
+  --tint: #1c1c1e; --on-tint: #ffffff; --soon: #ad500e; --done: #2f7d4f; --info: #3f6fa3; --warn: #a3392f;
+  --serif: "Source Serif 4", "New York", ui-serif, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+    --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+  --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+h1, h2, h3 { text-wrap: balance; }
+.layout { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+.brand { font: 700 15px/1.2 var(--serif); }
+.brand span { display: block; font: 400 13px/1.4 var(--sans); color: var(--ink-2); margin-top: 2px; }
+.overall { background: var(--surface); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.overall b { font: 700 17px/1.2 var(--serif); color: var(--ink); }
+.toc { display: flex; flex-direction: column; gap: 1px; }
+.toc-label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin: 6px 0 6px 10px; }
+.toc a { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; text-decoration: none; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.toc a:hover { background: var(--surface); color: var(--ink); }
+.toc a.active { background: var(--surface); color: var(--ink); font-weight: 600; }
+.toc-n { width: 20px; text-align: right; color: var(--ink-3); font-size: 13px; flex: none; font-variant-numeric: tabular-nums; }
+.theme { align-self: flex-start; background: none; border: 0; color: var(--ink-3); font: 13px var(--sans); cursor: pointer; padding: 4px 10px; }
+.theme:hover { color: var(--ink); }
+main { padding: 48px 0 120px; display: flex; flex-direction: column; gap: 48px; min-width: 0; }
+.eyebrow { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.eyebrow .pill { background: var(--surface); border-radius: 99px; padding: 3px 10px; font-weight: 600; color: var(--ink); }
+h1 { font: 700 44px/1.08 var(--serif); letter-spacing: -0.6px; margin: 12px 0 14px; }
+.goal { font-size: 19px; line-height: 1.5; max-width: 66ch; margin: 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 24px; }
+.meta div { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; line-height: 1.5; }
+.meta b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 4px; }
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 14px; color: var(--ink-2); }
+.stats b { font: 700 20px var(--serif); color: var(--ink); margin-right: 4px; font-variant-numeric: tabular-nums; }
+section > h2 { font: 700 26px/1.2 var(--serif); margin: 0 0 6px; letter-spacing: -0.2px; }
+section > h3.sub { font: 700 19px/1.3 var(--serif); margin: 22px 0 8px; }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 66ch; }
+.decisions { background: var(--surface); border-radius: var(--r); padding: 6px 0; border-left: 4px solid var(--soon); }
+.decisions.agreed { border-left-color: var(--done); }
+.decisions ul { list-style: none; margin: 0; padding: 0; }
+.decision { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 18px; }
+.decision + .decision { border-top: 1px solid var(--line); }
+.dec-name { font-weight: 600; }
+.dec-id { font: 700 13px var(--serif); color: var(--ink-3); margin-right: 6px; }
+.dec-text { color: var(--ink-2); font-size: 15px; max-width: 70ch; }
+.dec-text strong { color: var(--ink); }
+.trefs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 180px; }
+.tref { flex: none; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--fill); padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.tref:hover { background: var(--tint); color: var(--on-tint); }
+.card { background: var(--surface); border-radius: var(--r); padding: 6px 20px; }
+.card ul, .card ol { margin: 0; padding: 0; list-style: none; }
+.card > ul > li, .card > ol > li { padding: 11px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.card > ul > li:first-child, .card > ol > li:first-child { border-top: 0; }
+.card li ul { list-style: disc; padding-left: 20px; margin: 6px 0 0; }
+.card li ul li { padding: 2px 0; border: 0; color: var(--ink-2); }
+.card li ul li strong { color: var(--ink); }
+.numbered { counter-reset: f; }
+.numbered > li { counter-increment: f; display: grid; grid-template-columns: 28px 1fr; gap: 6px; }
+.numbered > li::before { content: counter(f); font: 700 17px/1.4 var(--serif); color: var(--soon); }
+table.md { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border-radius: var(--r); overflow: hidden; }
+table.md th, table.md td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--line); }
+table.md th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); border-top: 0; }
+table.md td:first-child { font-weight: 600; white-space: nowrap; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; }
+.chip.mine { color: var(--soon); background: color-mix(in srgb, var(--soon) 13%, transparent); }
+.chip.agreed { color: var(--done); background: color-mix(in srgb, var(--done) 13%, transparent); }
+.chip.route { color: var(--info); background: color-mix(in srgb, var(--info) 13%, transparent); font-family: var(--mono); font-weight: 500; }
+.callout { background: var(--surface); border-radius: var(--r); padding: 14px 18px; border-left: 4px solid var(--warn); font-size: 15px; margin-top: 12px; }
+.callout b:first-child { display: block; margin-bottom: 4px; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.col { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; }
+.col h3 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 8px; }
+.col ul { margin: 0; padding-left: 16px; } .col li { margin: 5px 0; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
+  .side { position: static; height: auto; padding: 24px 0 0; }
+  .toc { display: none; }
+  h1 { font-size: 34px; }
+  .cols { grid-template-columns: 1fr; }
+  .decision { flex-direction: column; gap: 8px; }
+  .trefs { justify-content: flex-start; max-width: none; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side" aria-label="Sections">
+    <div class="brand">FinanceOS<span>Design · Outside budget</span></div>
+    <div class="overall"><span>Status</span><b>Waiting on your review</b><span>Next: implementation plan</span></div>
+    <nav class="toc" aria-label="Sections">
+      <div class="toc-label">Overview</div>
+      <a href="#mine"><span class="toc-n"></span><span>Waiting on you</span></a>
+      <a href="#agreed"><span class="toc-n"></span><span>Agreed with you</span></a>
+      <a href="#scope"><span class="toc-n"></span><span>Scope</span></a>
+      <a href="#approaches"><span class="toc-n"></span><span>Approaches</span></a>
+      <div class="toc-label">Design</div>
+      <a href="#data"><span class="toc-n">1</span><span>The flag and where it counts</span></a>
+      <a href="#drawer"><span class="toc-n">2</span><span>Drawer and list</span></a>
+      <a href="#analytics"><span class="toc-n">3</span><span>Analytics and tags</span></a>
+      <a href="#sync"><span class="toc-n">4</span><span>Bank sync</span></a>
+      <a href="#existing"><span class="toc-n">5</span><span>Your 30 existing rows</span></a>
+      <div class="toc-label">Build</div>
+      <a href="#builder"><span class="toc-n"></span><span>Left to the builder</span></a>
+      <a href="#testing"><span class="toc-n"></span><span>Testing</span></a>
+    </nav>
+    <button class="theme" type="button" id="theme">◐ Light / dark</button>
+  </aside>
+  <main>
+    <header>
+      <div class="eyebrow"><span class="pill">Design</span><span>Written 2026-11-13</span><span>·</span><span>small change · after a brainstorm and three mock rounds · not started</span></div>
+      <h1>Outside budget</h1>
+      <p class="goal">"Transfer" has been doing two jobs. Sometimes it means money moving between your own accounts. Sometimes it means "real spending I don't want wrecking a normal month", like the Green Card fees. Because both hide the money everywhere, the Green Card tag showed $0. On top of that, bank sync hides anything the bank calls a transfer, even when nothing in your other accounts matches it, so some everyday payments and income vanish without you choosing. This gives "outside budget" its own checkbox, makes Transfer mean only transfers again, and stops sync hiding payments it can't match. (Issue #51.)</p>
+      <div class="meta">
+        <div><b>Where</b>Branch <code>feat/outside-budget</code> off <code>main</code>. One PR against <code>main</code>.</div>
+        <div><b>Builds on</b><code>Transaction</code> in <code>prisma/schema.prisma</code>, <code>loadPeriodTransactions</code> / <code>monthlySnapshot</code> / <code>spendingByTag</code> in <code>src/lib/analytics.ts</code>, <code>parseAnalyticsQuery</code> / <code>toSearchParams</code> / <code>tagCostHref</code>, <code>FilterPanel</code>, <code>FilterChips</code>, <code>DetailsSection</code>, <code>TransactionTable</code>, the transfer mapping in <code>src/lib/plaid-sync.ts</code>, pairing in <code>src/lib/sync-common.ts</code>, and the cloud-sync payload schema.</div>
+        <div><b>Approved mock</b><code>~/Documents/FinanceOS-design-archive/design-mocks/outside-budget.html</code> (v2: the checkbox at the bottom of Details, and the Analytics toggle).</div>
+      </div>
+      <div class="stats"><span><b>5</b>design sections</span><span><b>6</b>decisions agreed</span><span><b>6</b>calls to check</span></div>
+    </header>
+
+    <section id="mine">
+      <h2>Waiting on you</h2>
+      <p class="lede">My own calls. Each is easy to change now; veto any you don't like. <strong>M5 changes what I suggested in chat.</strong></p>
+      <div class="decisions"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M1</span>"Monthly numbers" means every spending view</div><div class="dec-text">Outside-budget rows are left out wherever spending is totalled: Analytics, the Dashboard, Reports (the trailing 12 months, Cash Flow and Monthly Detail) and month-close snapshots. All of these share one rule, so they can't disagree. Net Worth is unaffected because it's built from balances. Cost if wrong: Cash Flow would look slightly better than reality in a month with a one-off. If you'd rather Cash Flow counted them, that's a single exception.</div></div><div class="trefs"><a class="tref" href="#data">Data</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>Tag totals always include outside-budget rows</div><div class="dec-text">A tag answers "what did this cost?", so Settings → Tags counts outside-budget rows, and "See cost →" opens Analytics with the toggle already on. The Green Card tag shows $3,005 once those four fees are marked outside budget.</div></div><div class="trefs"><a class="tref" href="#analytics">Analytics</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M3</span>Budgets follow the toggle</div><div class="dec-text">With the toggle on, a category's spending in the Analytics month view includes its one-offs, and it's compared against the budget as usual. You turned the toggle on, so the numbers say what you asked for.</div></div><div class="trefs"><a class="tref" href="#analytics">Analytics</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M4</span>A transfer is never outside budget</div><div class="dec-text">Switching a row to Transfer clears its outside-budget tick, and the server refuses both at once. That keeps the three states clean: transaction, transaction outside budget, or transfer.</div></div><div class="trefs"><a class="tref" href="#drawer">Drawer</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M5</span>No bulk change to your 30. You go through them by hand</div><div class="dec-text">In chat I suggested un-hiding all 30 at once. But some you hid on purpose (the Green Card fees, Manifest Legal), so un-hiding them all would quietly inflate past months until you'd been through the list. Instead nothing changes in bulk. After merging, I give you the list and you open each one in the drawer and pick Transfer, Transaction, or Transaction plus Outside budget.</div></div><div class="trefs"><a class="tref" href="#existing">Existing</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M6</span>Sync stops hiding what it can't pair</div><div class="dec-text">Going forward, a payment the bank calls a transfer comes in as a normal transaction unless it pairs with a matching transaction in another of your accounts. Unmatched ones usually have no category, so they land in the Uncategorized review you already check. Expect about 2–3 a month.</div></div><div class="trefs"><a class="tref" href="#sync">Sync</a></div></li>
+      </ul></div>
+    </section>
+
+    <section id="agreed">
+      <h2>Agreed with you</h2>
+      <p class="lede">From the brainstorm and mock rounds.</p>
+      <div class="decisions agreed"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A1</span>Three kinds of row</div><div class="dec-text">A <strong>transfer</strong> is money between your own accounts. An <strong>outside-budget</strong> row is real spending kept out of your monthly numbers. Everything else is a normal transaction.</div></div><div class="trefs"><a class="tref" href="#data">Data</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A2</span>Marked per transaction</div><div class="dec-text">Not per tag. A one-off doesn't need a tag.</div></div><div class="trefs"><a class="tref" href="#drawer">Drawer</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A3</span>A quiet checkbox at the bottom of Details</div><div class="dec-text">Below Trip, styled like the filter tick boxes. When unticked it's a single line; the explanation only appears when it's ticked. The <em>Transaction | Transfer</em> switch is unchanged.</div></div><div class="trefs"><a class="tref" href="#drawer">Drawer</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A4</span>One Analytics toggle, no "Only"</div><div class="dec-text">"Include outside budget" in Filters, off by default. A chip shows it while it's on.</div></div><div class="trefs"><a class="tref" href="#analytics">Analytics</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A5</span>Nothing on the Review tab</div><div class="dec-text">That screen needs an overhaul anyway, so this work doesn't add a review section.</div></div><div class="trefs"><a class="tref" href="#sync">Sync</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A6</span>Tags collapsed by default</div><div class="dec-text">In the Analytics filter panel, Tags starts collapsed, like Categories and Accounts, whatever the number of tags. This replaces the earlier "collapse past 8" rule.</div></div><div class="trefs"><a class="tref" href="#analytics">Analytics</a></div></li>
+      </ul></div>
+    </section>
+
+    <section id="scope">
+      <h2>Scope</h2>
+      <div class="cols">
+        <div class="col"><h3>Goals</h3><ul>
+          <li>Keep a real cost out of your monthly numbers without hiding it</li>
+          <li>The Green Card tag shows what it cost</li>
+          <li>Sync stops hiding payments nobody confirmed were transfers</li>
+          <li>Tags collapsed in the filter panel</li>
+        </ul></div>
+        <div class="col"><h3>Non-goals</h3><ul>
+          <li>The Review tab (needs its own overhaul)</li>
+          <li>Remembering a decision per payee</li>
+          <li>Budgeting for non-monthly costs (#50)</li>
+          <li>Bulk-editing your 30 existing rows</li>
+        </ul></div>
+        <div class="col"><h3>Anti-goals</h3><ul>
+          <li>Two spending views that disagree about what counts</li>
+          <li>A checkbox that draws attention on every transaction</li>
+          <li>Undoing a transfer you marked by hand on a later sync</li>
+          <li>Breaking the pairing of real transfers between your accounts</li>
+        </ul></div>
+      </div>
+    </section>
+
+    <section id="approaches">
+      <h2>Approaches</h2>
+      <table class="md">
+        <tr><th>Approach</th><th>Trade-off</th><th>Outcome</th></tr>
+        <tr><td>"Transfer or spending?" review section for unmatched transfers</td><td>One place to sort them, but a new screen on a page due for an overhaul</td><td>Rejected</td></tr>
+        <tr><td>Outside budget as a tag setting</td><td>Less clicking for a series, but a one-off needs a tag made for it</td><td>Rejected</td></tr>
+        <tr><td>A per-transaction checkbox, an Analytics toggle, and sync that only hides paired transfers</td><td>Smallest change; uses the drawer and the Uncategorized list you already use</td><td><span class="chip agreed">Picked</span></td></tr>
+      </table>
+    </section>
+
+    <section id="data">
+      <h2>1 · The flag and where it counts</h2>
+      <div class="card"><ul>
+        <li>New field <code>Transaction.isOutsideBudget Boolean @default(false)</code>, applied with <code>prisma db push</code>. <code>migrate dev</code> fails on this database.</li>
+        <li>One rule in <code>src/lib/analytics.ts</code>: <code>loadPeriodTransactions</code> and <code>monthlySnapshot</code> leave out <code>isOutsideBudget</code> rows unless the filters say to include them. Every spending view goes through these (M1).</li>
+        <li>It works the same for money coming in. A one-off refund or gift marked outside budget is left out of the totals in the same way.</li>
+        <li>The PATCH and bulk transaction APIs accept the field. Setting <code>isTransfer: true</code> clears it, and a request setting both to true is refused (M4).</li>
+        <li>The cloud-sync payload carries the field, so a pull on another device keeps it.</li>
+      </ul></div>
+    </section>
+
+    <section id="drawer">
+      <h2>2 · Drawer and list</h2>
+      <div class="card"><ul>
+        <li><code>DetailsSection</code>: the last line of the card, below Trip, is a tick box labelled <b>Outside budget</b>, separated by a hairline. When it's ticked, a muted line underneath reads "Left out of your monthly numbers". It's hidden while the row is a Transfer. Ticking saves straight away and reloads the page's totals, the same way the Transfer switch does.</li>
+        <li>Split parts each have their own tick box. A split parent doesn't show one, because it's never counted.</li>
+        <li><code>TransactionTable</code>: an outside-budget row reads <code>Merchant · Outside budget</code>, with the suffix in muted text. Category, colours and amount are unchanged.</li>
+      </ul></div>
+    </section>
+
+    <section id="analytics">
+      <h2>3 · Analytics and tags</h2>
+      <div class="card"><ul>
+        <li>The query gains an <code>outside</code> flag, written to the address as <code>outside=1</code> only when it's on, so existing links are unchanged. <code>parseAnalyticsQuery</code> and <code>toSearchParams</code> round-trip it.</li>
+        <li>Filter panel: a new section below Tags, with the label <b>Include outside budget</b>, the hint "Spending you kept out of your monthly numbers", and a switch. It counts towards the funnel badge when on, and "Clear all" turns it off.</li>
+        <li>Chips: <b>Incl. outside budget ✕</b> appears while it's on, styled like the other chips you add (faint cognac edge).</li>
+        <li>Tags starts collapsed like Categories and Accounts, with what's picked shown in its header (A6).</li>
+        <li><code>spendingByTag</code> always includes outside-budget rows, and <code>tagCostHref</code> adds <code>outside=1</code>, so the Settings total and the page it links to agree (M2).</li>
+      </ul></div>
+    </section>
+
+    <section id="sync">
+      <h2>4 · Bank sync</h2>
+      <div class="card"><ul>
+        <li>The aggregator's <code>TRANSFER_IN</code> / <code>TRANSFER_OUT</code> label stops setting <code>isTransfer</code> on its own. A row becomes a transfer when the existing cross-account pairing in <code>sync-common.ts</code> matches it with a transaction in another of your accounts, or when you mark it.</li>
+        <li>Pairing must still work when the two sides arrive in different syncs (the second bank posts a day later). The earlier side is now an ordinary transaction, and the later sync has to find it and pair them.</li>
+        <li>Anything already marked as a transfer, by you or by pairing, is never changed back by a later sync.</li>
+        <li>Existing special cases (Venmo person payments, card top-ups, brokerage deposits) carry on as before.</li>
+      </ul></div>
+    </section>
+
+    <section id="existing">
+      <h2>5 · Your 30 existing rows</h2>
+      <div class="card"><ul>
+        <li>No data change ships with the PR (M5).</li>
+        <li>After merging, I give you the list: the 22 payments out and 8 deposits in that are marked as transfers with no match, oldest first, Balance Adjustments excluded. You open each in the drawer.</li>
+        <li>For the Green Card fees and Manifest Legal, the likely steps are Transaction, then tick Outside budget, then (if you want) the Green Card tag.</li>
+      </ul></div>
+    </section>
+
+    <section id="builder">
+      <h2>Left to the builder</h2>
+      <div class="card"><ul>
+        <li>How the include flag travels through <code>FilterParams</code> (one optional boolean, defaulting to off).</li>
+        <li>Whether the filter-panel switch reuses an existing toggle component or is a small new one in the panel's style.</li>
+        <li>Where the transfer-label change sits in <code>plaid-sync.ts</code>: one place, not in each of the preview helpers.</li>
+        <li>Whether the agent tools in <code>src/lib/agent/tools.ts</code> already go through the shared rule; if not, apply the same rule there.</li>
+      </ul></div>
+    </section>
+
+    <section id="testing">
+      <h2>Testing</h2>
+      <div class="card"><ul>
+        <li>Integration:
+          <ul>
+            <li>An outside-budget row is left out of Analytics totals, the dashboard and a month snapshot by default, and included when the flag is on.</li>
+            <li>Tag totals include it.</li>
+            <li>PATCH clears the flag when <code>isTransfer</code> is set, and refuses both at once.</li>
+          </ul>
+        </li>
+        <li>Sync:
+          <ul>
+            <li>An unmatched <code>TRANSFER_OUT</code> comes in as a normal, uncategorised transaction.</li>
+            <li>A matching pair in two accounts still becomes a transfer, including when the sides arrive in separate syncs.</li>
+            <li>A transfer you marked by hand survives a re-sync.</li>
+          </ul>
+        </li>
+        <li>Unit and component:
+          <ul>
+            <li>The query flag round-trips.</li>
+            <li>The chip appears only when the flag is on.</li>
+            <li>Tags starts collapsed.</li>
+            <li>The tick box shows only for transactions that aren't transfers and aren't split parents.</li>
+          </ul>
+        </li>
+        <li>In the browser, both themes: the drawer tick box, the list suffix, and the Analytics toggle and chip.</li>
+        <li><code>npm run check</code> and the full suite. Don't run <code>npm run build</code> while the production server is running; use a dev server on a spare port.</li>
+      </ul></div>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  btn.addEventListener('click', function () {
+    var r = document.documentElement;
+    var dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (a) { a.classList.remove('active'); });
+        var a = map[e.target.id]; if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+})();
+</script>
+</body>
+</html>
