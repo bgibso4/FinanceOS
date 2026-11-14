@@ -13,6 +13,7 @@ import {
 } from '@/lib/analytics-period';
 import { activeFilterCount, capped, type AnalyticsQuery } from '@/lib/analytics-query';
 import { picksFor } from '@/lib/analytics-series';
+import { byName } from '@/lib/sort-by-name';
 import { CategoryPicker } from './category-picker';
 import { TickRow } from './tick-row';
 
@@ -190,7 +191,7 @@ export function FilterPanel({
           }
           title="Accounts"
         >
-          {accounts.map((a) => (
+          {[...accounts].sort(byName).map((a) => (
             <TickRow
               key={a.id}
               checked={query.accounts.includes(a.id)}

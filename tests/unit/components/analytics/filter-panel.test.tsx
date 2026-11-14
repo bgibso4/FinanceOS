@@ -24,7 +24,7 @@ const accounts = [
 ];
 
 /** The panel with its query held in state, as the page will hold it. */
-function setup(initial: Partial<AnalyticsQuery> = {}) {
+function setup(initial: Partial<AnalyticsQuery> = {}, accountList = accounts) {
   const onChange = vi.fn();
   const onClose = vi.fn();
   const toggleRef = createRef<HTMLButtonElement>();
@@ -38,7 +38,7 @@ function setup(initial: Partial<AnalyticsQuery> = {}) {
         <p>Page</p>
         <FilterPanel
           open
-          accounts={accounts}
+          accounts={accountList}
           categories={categories}
           groupTotals={{ food: 512, golf: 80, rent: 1500, [UNCATEGORIZED]: 12 }}
           query={query}
@@ -125,6 +125,21 @@ describe('FilterPanel', () => {
       list.findIndex((t) => t?.startsWith('Amex'))
     );
     expect(cats.at(-1)).toMatch(/^Uncategorized/);
+  });
+
+  it('categoriesAndAccountsAreAlphabetical', () => {
+    setup({}, [
+      { id: 'chase', name: 'Chase' },
+      { id: 'amex', name: 'Amex' },
+    ]);
+    const names = screen.getAllByRole('checkbox').map((b) => b.textContent ?? '');
+    const at = (n: string) => names.findIndex((t) => t.startsWith(n));
+    expect([at('Food'), at('Golf'), at('Rent')]).toEqual(
+      [at('Food'), at('Golf'), at('Rent')].sort((a, b) => a - b)
+    );
+    expect(at('Dining')).toBeLessThan(at('Groceries'));
+    expect(at('Amex')).toBeLessThan(at('Chase'));
+    expect(at('Rent')).toBeLessThan(at('Uncategorized'));
   });
 
   it('searchNarrowsCategories', async () => {

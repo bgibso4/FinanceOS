@@ -5,6 +5,7 @@ import type { Category } from '@/components/transactions/types';
 import { Input } from '@/components/ui/input';
 import { childrenByParent } from '@/lib/analytics-series';
 import { fmtMoney } from '@/lib/currency';
+import { byName } from '@/lib/sort-by-name';
 import { UNCATEGORIZED } from '@/lib/transaction-filters';
 import { TickRow, type Ticked } from './tick-row';
 
@@ -22,7 +23,8 @@ function groupsOf(categories: Category[]): Group[] {
   const children = childrenByParent(categories);
   return categories
     .filter((c) => !c.parentId)
-    .map((cat) => ({ cat, children: children.get(cat.id) ?? [] }));
+    .sort(byName)
+    .map((cat) => ({ cat, children: [...(children.get(cat.id) ?? [])].sort(byName) }));
 }
 
 /**
