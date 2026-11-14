@@ -27,6 +27,8 @@ export function FilterChips({ query, categoryNames, accountNames, onChange }: Fi
   if (query.tags.length) chips.push({ kind: 'Tag', text: capped(query.tags), clear: { tags: [] } });
   if (query.merchant)
     chips.push({ kind: 'Merchant', text: `contains “${query.merchant}”`, clear: { merchant: '' } });
+  if (query.outside)
+    chips.push({ kind: 'Incl.', text: 'outside budget', clear: { outside: false } });
 
   return (
     <ul aria-label="Active filters" className="flex flex-wrap gap-1.5">

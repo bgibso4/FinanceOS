@@ -9,6 +9,8 @@ export type AnalyticsQuery = {
   accounts: string[];
   tags: string[];
   merchant: string;
+  /** Also count spending kept out of the monthly numbers. */
+  outside: boolean;
 };
 
 const KINDS: PeriodKind[] = ['month', '3m', 'year', 'custom'];
@@ -36,6 +38,7 @@ export const defaultQuery = (today: string): AnalyticsQuery => ({
   accounts: [],
   tags: [],
   merchant: '',
+  outside: false,
 });
 
 function parsePeriod(sp: URLSearchParams, today: string): Period {
@@ -62,6 +65,7 @@ export function parseAnalyticsQuery(sp: URLSearchParams, today: string): Analyti
     accounts: nonEmpty(sp.getAll('account')),
     tags: nonEmpty(sp.getAll('tag')),
     merchant: sp.get('merchant') ?? '',
+    outside: sp.get('outside') === '1',
   };
 }
 
@@ -81,6 +85,7 @@ export function toSearchParams(q: AnalyticsQuery, today: string): URLSearchParam
   q.accounts.forEach((a) => sp.append('account', a));
   q.tags.forEach((t) => sp.append('tag', t));
   if (q.merchant) sp.set('merchant', q.merchant);
+  if (q.outside) sp.set('outside', '1');
   return sp;
 }
 
@@ -98,6 +103,7 @@ export function tagCostHref(
     },
     vs: 'none',
     tags: [tag.name],
+    outside: true,
   };
   return `/analytics?${toSearchParams(q, today)}`;
 }
@@ -109,11 +115,14 @@ export function filterParamsFor(q: AnalyticsQuery, r: DayRange): FilterParams {
   if (q.accounts.length) params.accounts = q.accounts;
   if (q.tags.length) params.tags = q.tags;
   if (q.merchant) params.merchant = q.merchant;
+  if (q.outside) params.includeOutsideBudget = true;
   return params;
 }
 
 export const activeFilterCount = (q: AnalyticsQuery): number =>
-  [q.categories, q.accounts, q.tags].filter((l) => l.length).length + (q.merchant ? 1 : 0);
+  [q.categories, q.accounts, q.tags].filter((l) => l.length).length +
+  (q.merchant ? 1 : 0) +
+  (q.outside ? 1 : 0);
 
 /** Chip text: the first name and how many more ("Groceries +1"), or "Any". */
 export const capped = (names: string[]): string =>

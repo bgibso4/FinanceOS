@@ -19,8 +19,6 @@ import { TickRow } from './tick-row';
 
 /** P6: the merchant box applies this long after typing stops, so keystrokes don't refetch. */
 const MERCHANT_DELAY_MS = 300;
-/** Tags fold away only when there are more than this many. */
-const MAX_OPEN_TAGS = 8;
 
 type FilterPanelProps = {
   open: boolean;
@@ -219,7 +217,7 @@ export function FilterPanel({
 
         <Section
           key={`tags-${opened}`}
-          collapsible={tags.length > MAX_OPEN_TAGS}
+          collapsible
           emptySummary={`Any · ${tags.length}`}
           summary={query.tags.length ? capped(query.tags) : undefined}
           title="Tags"
@@ -232,6 +230,10 @@ export function FilterPanel({
               onToggle={() => set({ tags: toggled(query.tags, t) })}
             />
           ))}
+        </Section>
+
+        <Section>
+          <OutsideSwitch checked={query.outside} onChange={(outside) => set({ outside })} />
         </Section>
 
         <Section summary={query.merchant ? `“${query.merchant}”` : undefined} title="Merchant">
@@ -249,7 +251,7 @@ export function FilterPanel({
           disabled={activeFilterCount(query) === 0}
           type="button"
           onClick={() => {
-            set({ categories: [], accounts: [], tags: [], merchant: '' });
+            set({ categories: [], accounts: [], tags: [], merchant: '', outside: false });
             // A fresh box drops typing not yet applied, even when the merchant was already empty.
             setMerchantBox((n) => n + 1);
           }}
@@ -275,7 +277,7 @@ function Section({
   collapsible,
   children,
 }: {
-  title: string;
+  title?: string;
   summary?: string;
   /** Muted text for the collapsed header when nothing is picked. */
   emptySummary?: string;
@@ -313,23 +315,55 @@ function Section({
 
   return (
     <div className="border-t border-[var(--border)] py-4 first:border-t-0 first:pt-1">
-      <h3
-        className={`${expanded ? 'mb-3' : ''} text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted`}
-      >
-        {collapsible ? (
-          <button
-            aria-expanded={open}
-            className={headerClass}
-            type="button"
-            onClick={() => setOpen((o) => !o)}
-          >
-            {heading}
-          </button>
-        ) : (
-          <div className={headerClass}>{heading}</div>
-        )}
-      </h3>
+      {title && (
+        <h3
+          className={`${expanded ? 'mb-3' : ''} text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted`}
+        >
+          {collapsible ? (
+            <button
+              aria-expanded={open}
+              className={headerClass}
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+            >
+              {heading}
+            </button>
+          ) : (
+            <div className={headerClass}>{heading}</div>
+          )}
+        </h3>
+      )}
       {expanded && children}
+    </div>
+  );
+}
+
+function OutsideSwitch({ checked, onChange }: { checked: boolean; onChange(on: boolean): void }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <div className="text-[13px] text-text-primary">Include outside budget</div>
+        <div className="text-[12px] text-text-muted">
+          Spending you kept out of your monthly numbers
+        </div>
+      </div>
+      <button
+        aria-checked={checked}
+        aria-label="Include outside budget"
+        className={`relative h-5 w-[34px] flex-none rounded-full transition-colors ${
+          checked ? 'bg-accent' : 'bg-[var(--border-hover)]'
+        }`}
+        role="switch"
+        type="button"
+        onClick={() => onChange(!checked)}
+      >
+        <span
+          aria-hidden="true"
+          className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+            checked ? 'translate-x-[14px]' : ''
+          }`}
+        />
+      </button>
     </div>
   );
 }

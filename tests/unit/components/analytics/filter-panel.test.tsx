@@ -264,12 +264,36 @@ describe('FilterPanel', () => {
     expect(box('Green Fees')).toBeInTheDocument();
   });
 
-  it('tagsCollapseOnlyPastEight', () => {
+  it('tagsStartCollapsed', () => {
     setup();
-    expect(screen.queryByRole('button', { name: /^Tags/ })).toBeNull();
-    cleanup();
-    setup({}, accounts, categories, ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']);
     expect(header('Tags')).toHaveAttribute('aria-expanded', 'false');
+    expect(header('Tags')).toHaveTextContent('Any · 2');
+  });
+
+  it('switchTogglesOutside', async () => {
+    const { last } = setup();
+    const sw = screen.getByRole('switch', { name: /^Include outside budget/ });
+    expect(sw).toHaveAttribute('aria-checked', 'false');
+    expect(
+      header('Tags').compareDocumentPosition(sw) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    await userEvent.click(sw);
+    expect(last().outside).toBe(true);
+    expect(sw).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('clearAllTurnsItOff', async () => {
+    const { last } = setup({ outside: true });
+    await userEvent.click(screen.getByRole('button', { name: 'Clear all' }));
+    expect(last().outside).toBe(false);
+  });
+
+  it('pickingATagLeavesItOff', async () => {
+    const { last } = setup();
+    await openSection('Tags');
+    await userEvent.click(box('Vacation'));
+    expect(last().tags).toEqual(['Vacation']);
+    expect(last().outside).toBe(false);
   });
 
   it('sectionsReopenClosed', async () => {
@@ -527,5 +551,23 @@ describe('FilterChips', () => {
     expect(tag).toHaveAttribute('data-added', 'true');
     expect(period).not.toHaveAttribute('data-added');
     expect(vs).not.toHaveAttribute('data-added');
+  });
+
+  it('chipShowsWhenOn', async () => {
+    const onChange = vi.fn();
+    const base = defaultQuery(TODAY);
+    const { rerender } = render(
+      <FilterChips accountNames={[]} categoryNames={[]} query={base} onChange={onChange} />
+    );
+    expect(screen.queryByText(/outside budget/)).toBeNull();
+    const query = { ...base, outside: true };
+    rerender(
+      <FilterChips accountNames={[]} categoryNames={[]} query={query} onChange={onChange} />
+    );
+    const chip = screen.getAllByRole('listitem').at(-1)!;
+    expect(chip).toHaveTextContent('Incl. outside budget');
+    expect(chip).toHaveAttribute('data-added', 'true');
+    await userEvent.click(within(chip).getByRole('button'));
+    expect(onChange).toHaveBeenLastCalledWith({ ...query, outside: false });
   });
 });

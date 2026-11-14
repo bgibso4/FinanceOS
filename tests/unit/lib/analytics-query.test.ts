@@ -28,6 +28,7 @@ describe('analytics query in the address', () => {
         accounts: ['a1', 'a2'],
         tags: ['trip'],
         merchant: 'whole foods',
+        outside: false,
       },
       { ...defaultQuery(TODAY), period: { kind: 'year', anchor: '2025-12' }, vs: 'none' },
       {
@@ -175,5 +176,42 @@ describe('analytics query in the address', () => {
   it('defaultsToLocalMonthLateEvening', () => {
     freezeClock('2026-12-01T03:30:00.000Z');
     expect(defaultQuery(localDay()).period.anchor).toBe('2026-11');
+  });
+});
+
+describe('outside budget in the query', () => {
+  const on = { ...defaultQuery(TODAY), outside: true };
+
+  it('outsideRoundTrips', () => {
+    const sp = toSearchParams(on, TODAY);
+    expect(sp.get('outside')).toBe('1');
+    expect(parse(sp.toString()).outside).toBe(true);
+  });
+
+  it('outsideOffWritesNothing', () => {
+    expect(toSearchParams(defaultQuery(TODAY), TODAY).has('outside')).toBe(false);
+  });
+
+  it('outsideJunkParsesOff', () => {
+    expect(parse('outside=0').outside).toBe(false);
+    expect(parse('outside=yes').outside).toBe(false);
+  });
+
+  it('tagCostHrefTurnsItOn', () => {
+    const href = tagCostHref(
+      { name: 'Trip', firstDate: '2026-01-02', lastDate: '2026-03-04' },
+      TODAY
+    );
+    expect(parse(href.split('?')[1]).outside).toBe(true);
+  });
+
+  it('filterParamsCarryIt', () => {
+    const r = { start: '2026-11-01', end: '2026-11-30' };
+    expect(filterParamsFor(on, r).includeOutsideBudget).toBe(true);
+    expect(filterParamsFor(defaultQuery(TODAY), r).includeOutsideBudget).toBeUndefined();
+  });
+
+  it('countsAsAFilter', () => {
+    expect(activeFilterCount(on)).toBe(1);
   });
 });
