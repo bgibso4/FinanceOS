@@ -50,6 +50,7 @@ export function CategoryPicker({
   groupTotals,
 }: CategoryPickerProps) {
   const [search, setSearch] = useState('');
+  const [unfolded, setUnfolded] = useState<Set<string>>(new Set());
   const q = search.trim().toLowerCase();
   const groups = groupsOf(categories);
   const ticked = new Set(selected);
@@ -61,17 +62,24 @@ export function CategoryPicker({
     onChange(withGroupIds(next, groups));
   };
 
+  const fold = (id: string) =>
+    setUnfolded((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+
   return (
     <div>
       <Input
         aria-label="Search categories"
-        className="h-8 rounded-lg text-[13px]"
+        className="mb-2.5 h-8 rounded-lg text-[13px]"
         placeholder="Search categories…"
         type="search"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
-      <div className="mt-1.5">
+      <div>
         {groups.map(({ cat, children }) => {
           if (!children.length) {
             if (!matches(cat.name, q)) return null;
@@ -90,24 +98,41 @@ export function CategoryPicker({
             : children.filter((c) => matches(c.name, q));
           if (!shown.length) return null;
           const count = children.filter((c) => ticked.has(c.id)).length;
+          const isOpen = unfolded.has(cat.id) || !!q || count > 0;
           const state: Ticked = count === children.length ? true : count ? 'mixed' : false;
           return (
             <div key={cat.id}>
-              <TickRow
-                aside={total(cat.id)}
-                checked={state}
-                label={cat.name}
-                onToggle={() => toggle([cat.id, ...children.map((c) => c.id)], state !== true)}
-              />
-              {shown.map((c) => (
-                <TickRow
-                  key={c.id}
-                  indent
-                  checked={ticked.has(c.id)}
-                  label={c.name}
-                  onToggle={() => toggle([c.id], !ticked.has(c.id))}
-                />
-              ))}
+              <div className="flex items-center">
+                <button
+                  aria-expanded={isOpen}
+                  aria-label={`Show ${cat.name}`}
+                  className={`flex-none px-1 text-[13px] leading-none text-text-muted transition-transform ${
+                    isOpen ? 'rotate-90' : ''
+                  }`}
+                  type="button"
+                  onClick={() => fold(cat.id)}
+                >
+                  ›
+                </button>
+                <div className="min-w-0 flex-1">
+                  <TickRow
+                    aside={total(cat.id)}
+                    checked={state}
+                    label={cat.name}
+                    onToggle={() => toggle([cat.id, ...children.map((c) => c.id)], state !== true)}
+                  />
+                </div>
+              </div>
+              {isOpen &&
+                shown.map((c) => (
+                  <TickRow
+                    key={c.id}
+                    indent
+                    checked={ticked.has(c.id)}
+                    label={c.name}
+                    onToggle={() => toggle([c.id], !ticked.has(c.id))}
+                  />
+                ))}
             </div>
           );
         })}

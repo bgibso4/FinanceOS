@@ -19,6 +19,8 @@ import { TickRow } from './tick-row';
 
 /** P6: the merchant box applies this long after typing stops, so keystrokes don't refetch. */
 const MERCHANT_DELAY_MS = 300;
+/** Tags fold away only when there are more than this many. */
+const MAX_OPEN_TAGS = 8;
 
 type FilterPanelProps = {
   open: boolean;
@@ -61,6 +63,11 @@ export function FilterPanel({
   const latest = useRef({ query, onChange });
   latest.current = { query, onChange };
   const [merchantBox, setMerchantBox] = useState(0);
+  // Keys the collapsible sections so each starts closed every time the panel opens.
+  const [opened, setOpened] = useState(0);
+  useEffect(() => {
+    if (open) setOpened((n) => n + 1);
+  }, [open]);
   const openerRef = useRef<HTMLElement | null>(null);
   /**
    * Esc, Done and ✕ hand focus back to what opened the panel. A press outside doesn't: the
@@ -174,7 +181,13 @@ export function FilterPanel({
           />
         </Section>
 
-        <Section summary={pickNames.length ? capped(pickNames) : undefined} title="Categories">
+        <Section
+          key={`categories-${opened}`}
+          collapsible
+          emptySummary={`Any · ${categories.length}`}
+          summary={pickNames.length ? capped(pickNames) : undefined}
+          title="Categories"
+        >
           <CategoryPicker
             categories={categories}
             groupTotals={groupTotals}
@@ -184,6 +197,9 @@ export function FilterPanel({
         </Section>
 
         <Section
+          key={`accounts-${opened}`}
+          collapsible
+          emptySummary={`Any · ${accounts.length}`}
           summary={
             query.accounts.length
               ? capped(query.accounts.map((id) => accountName.get(id) ?? id))
@@ -201,7 +217,13 @@ export function FilterPanel({
           ))}
         </Section>
 
-        <Section summary={query.tags.length ? capped(query.tags) : undefined} title="Tags">
+        <Section
+          key={`tags-${opened}`}
+          collapsible={tags.length > MAX_OPEN_TAGS}
+          emptySummary={`Any · ${tags.length}`}
+          summary={query.tags.length ? capped(query.tags) : undefined}
+          title="Tags"
+        >
           {tags.map((t) => (
             <TickRow
               key={t}
@@ -249,23 +271,65 @@ export function FilterPanel({
 function Section({
   title,
   summary,
+  emptySummary,
+  collapsible,
   children,
 }: {
   title: string;
   summary?: string;
+  /** Muted text for the collapsed header when nothing is picked. */
+  emptySummary?: string;
+  collapsible?: boolean;
   children: ReactNode;
 }) {
-  return (
-    <div className="border-t border-[var(--border)] py-3.5 first:border-t-0 first:pt-1">
-      <h3 className="mb-2 flex justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-        <span>{title}</span>
-        {summary && (
-          <span className="truncate font-medium normal-case tracking-normal text-[var(--accent)]">
-            {summary}
+  const [open, setOpen] = useState(false);
+  const expanded = !collapsible || open;
+  const shown = summary ?? (collapsible ? emptySummary : undefined);
+  const headerClass = 'flex w-full items-center justify-between gap-3 text-left';
+  const heading = (
+    <>
+      <span>{title}</span>
+      <span className="flex min-w-0 items-center gap-2">
+        {shown && (
+          <span
+            className={`min-w-0 truncate font-medium normal-case tracking-normal ${
+              summary ? 'text-accent' : 'text-text-muted'
+            }`}
+          >
+            {shown}
           </span>
         )}
+        {collapsible && (
+          <span
+            aria-hidden="true"
+            className={`text-[14px] leading-none transition-transform ${open ? 'rotate-90' : ''}`}
+          >
+            ›
+          </span>
+        )}
+      </span>
+    </>
+  );
+
+  return (
+    <div className="border-t border-[var(--border)] py-4 first:border-t-0 first:pt-1">
+      <h3
+        className={`${expanded ? 'mb-3' : ''} text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted`}
+      >
+        {collapsible ? (
+          <button
+            aria-expanded={open}
+            className={headerClass}
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+          >
+            {heading}
+          </button>
+        ) : (
+          <div className={headerClass}>{heading}</div>
+        )}
       </h3>
-      {children}
+      {expanded && children}
     </div>
   );
 }
