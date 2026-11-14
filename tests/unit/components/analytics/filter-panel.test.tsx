@@ -193,6 +193,35 @@ describe('FilterPanel', () => {
     expect(header('Accounts')).toHaveTextContent('Any · 2');
   });
 
+  it('collapsibleHeaderTitleIsUppercase', () => {
+    setup();
+    expect(header('Categories').querySelector('span')).toHaveClass('uppercase');
+  });
+
+  it('everyRootRowHasTheSameLeadingSlot', async () => {
+    setup();
+    await openSection('Categories');
+    for (const name of ['Food', 'Golf', 'Rent', 'Uncategorized']) {
+      const row = box(name).parentElement!.parentElement!;
+      expect(row.firstElementChild).toHaveAttribute('data-slot', 'lead');
+    }
+  });
+
+  it('chevronSaysHideWhenShownAndIsAbsentWhenForcedOpen', async () => {
+    setup();
+    await openSection('Categories');
+    await openGroup('Food');
+    await userEvent.click(screen.getByRole('button', { name: 'Hide Food' }));
+    expect(screen.getByRole('button', { name: 'Show Food' })).toBeInTheDocument();
+    await openGroup('Food');
+    await userEvent.click(box('Groceries'));
+    expect(screen.queryByRole('button', { name: /^(Show|Hide) Food$/ })).toBeNull();
+    expect(box('Food').parentElement!.parentElement!.firstElementChild).toHaveAttribute(
+      'data-slot',
+      'lead'
+    );
+  });
+
   it('collapsedHeaderShowsPicks', () => {
     setup({ categories: ['dining'] });
     expect(header('Categories')).toHaveTextContent('Dining');

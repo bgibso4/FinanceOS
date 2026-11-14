@@ -3,6 +3,7 @@ import { isAfter, isBefore } from 'date-fns';
 import { utcMonthRange } from './dates';
 import { FilterParams } from './types';
 import { filterWhere, matchesTags } from './transaction-filters';
+import { parseTags } from './transaction-rows';
 import { loadCurrencySettings, toBase, type CurrencySettings } from './currency';
 
 /**
@@ -268,7 +269,7 @@ export async function spendingByTag(prisma: PrismaClient): Promise<Map<string, T
       s
     );
     if (spend === null) continue;
-    for (const name of JSON.parse(tx.tags) as string[]) {
+    for (const name of new Set(parseTags(tx.tags))) {
       const row = byTag.get(name) ?? { total: 0, firstDate: null, lastDate: null };
       row.total += spend;
       if (row.firstDate === null || date < row.firstDate) row.firstDate = date;

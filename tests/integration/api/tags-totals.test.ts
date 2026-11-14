@@ -118,6 +118,60 @@ describe('all-time spend per tag', () => {
     expect(Object.is(spend.total, -0)).toBe(false);
   });
 
+  it('incomeOnlyTagHasZeroAndNoDates', async () => {
+    const salary = (
+      await testPrisma.category.create({
+        data: createCategoryData({ name: 'Salary', type: 'income' }),
+      })
+    ).id;
+    await testPrisma.transaction.create({
+      data: createTransactionData('usd', {
+        date: day('2026-06-01'),
+        amount: 900,
+        categoryId: salary,
+        tags: tagged('Pay'),
+      }),
+    });
+    const map = await spendingByTag(testPrisma);
+    expect(map.get('Pay') ?? { total: 0, firstDate: null, lastDate: null }).toEqual({
+      total: 0,
+      firstDate: null,
+      lastDate: null,
+    });
+  });
+
+  it('duplicateTagInOneRowCountsOnce', async () => {
+    await testPrisma.transaction.create({
+      data: createTransactionData('usd', {
+        date: day('2026-03-10'),
+        amount: -30,
+        tags: tagged('A', 'A'),
+      }),
+    });
+    const map = await spendingByTag(testPrisma);
+    const rows = await spendingByDay(testPrisma, { tags: ['A'] }, new Date(0), FAR_FUTURE);
+    expect(map.get('A')!.total).toBe(30);
+    expect(map.get('A')!.total).toBeCloseTo(
+      rows.reduce((acc, r) => acc + r.amount, 0),
+      6
+    );
+    const res = await getTags(new NextRequest('http://x/api/tags?withCounts=true'));
+    expect(res.status).toBe(200);
+  });
+
+  it('malformedTagsDoNotThrow', async () => {
+    await testPrisma.transaction.createMany({
+      data: [
+        createTransactionData('usd', { date: day('2026-03-10'), amount: -30, tags: '{oops' }),
+        createTransactionData('usd', { date: day('2026-03-11'), amount: -5, tags: tagged('B') }),
+      ],
+    });
+    const map = await spendingByTag(testPrisma);
+    expect(map.get('B')!.total).toBe(5);
+    const res = await getTags(new NextRequest('http://x/api/tags?withCounts=true'));
+    expect(res.status).toBe(200);
+  });
+
   it('routeReturnsTotals', async () => {
     await testPrisma.tag.createMany({
       data: [

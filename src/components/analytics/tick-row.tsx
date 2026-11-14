@@ -18,7 +18,7 @@ export function TickRow({ label, checked, onToggle, aside, indent }: TickRowProp
     <button
       aria-checked={checked}
       className={`flex w-full items-center gap-2 rounded-md py-1 pr-0.5 text-left text-[13px] hover:text-[var(--text-primary)] ${
-        indent ? 'pl-6' : 'pl-0.5'
+        indent ? 'pl-8' : 'pl-0.5'
       } ${on ? 'font-medium text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}
       role="checkbox"
       type="button"

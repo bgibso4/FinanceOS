@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { Category } from '@/components/transactions/types';
 import { Input } from '@/components/ui/input';
 import { childrenByParent } from '@/lib/analytics-series';
@@ -38,6 +38,16 @@ function withGroupIds(ids: Set<string>, groups: Group[]): string[] {
     else ids.delete(cat.id);
   }
   return [...ids];
+}
+
+/** A root row: a fixed-width leading slot (fold chevron or spacer) so every tick box lines up. */
+function RootRow({ lead, children }: { lead?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="flex items-center">
+      {lead ?? <span aria-hidden="true" className="w-4 flex-none" data-slot="lead" />}
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
 }
 
 const matches = (name: string, q: string) => name.toLowerCase().includes(q);
@@ -84,13 +94,14 @@ export function CategoryPicker({
           if (!children.length) {
             if (!matches(cat.name, q)) return null;
             return (
-              <TickRow
-                key={cat.id}
-                aside={total(cat.id)}
-                checked={ticked.has(cat.id)}
-                label={cat.name}
-                onToggle={() => toggle([cat.id], !ticked.has(cat.id))}
-              />
+              <RootRow key={cat.id}>
+                <TickRow
+                  aside={total(cat.id)}
+                  checked={ticked.has(cat.id)}
+                  label={cat.name}
+                  onToggle={() => toggle([cat.id], !ticked.has(cat.id))}
+                />
+              </RootRow>
             );
           }
           const shown = matches(cat.name, q)
@@ -98,31 +109,36 @@ export function CategoryPicker({
             : children.filter((c) => matches(c.name, q));
           if (!shown.length) return null;
           const count = children.filter((c) => ticked.has(c.id)).length;
-          const isOpen = unfolded.has(cat.id) || !!q || count > 0;
+          const forcedOpen = !!q || count > 0;
+          const isOpen = forcedOpen || unfolded.has(cat.id);
           const state: Ticked = count === children.length ? true : count ? 'mixed' : false;
           return (
             <div key={cat.id}>
-              <div className="flex items-center">
-                <button
-                  aria-expanded={isOpen}
-                  aria-label={`Show ${cat.name}`}
-                  className={`flex-none px-1 text-[13px] leading-none text-text-muted transition-transform ${
-                    isOpen ? 'rotate-90' : ''
-                  }`}
-                  type="button"
-                  onClick={() => fold(cat.id)}
-                >
-                  ›
-                </button>
-                <div className="min-w-0 flex-1">
-                  <TickRow
-                    aside={total(cat.id)}
-                    checked={state}
-                    label={cat.name}
-                    onToggle={() => toggle([cat.id, ...children.map((c) => c.id)], state !== true)}
-                  />
-                </div>
-              </div>
+              <RootRow
+                lead={
+                  forcedOpen ? undefined : (
+                    <button
+                      aria-expanded={isOpen}
+                      aria-label={`${isOpen ? 'Hide' : 'Show'} ${cat.name}`}
+                      className={`w-4 flex-none text-[13px] leading-none text-text-muted transition-transform ${
+                        isOpen ? 'rotate-90' : ''
+                      }`}
+                      data-slot="lead"
+                      type="button"
+                      onClick={() => fold(cat.id)}
+                    >
+                      ›
+                    </button>
+                  )
+                }
+              >
+                <TickRow
+                  aside={total(cat.id)}
+                  checked={state}
+                  label={cat.name}
+                  onToggle={() => toggle([cat.id, ...children.map((c) => c.id)], state !== true)}
+                />
+              </RootRow>
               {isOpen &&
                 shown.map((c) => (
                   <TickRow
@@ -137,12 +153,14 @@ export function CategoryPicker({
           );
         })}
         {matches('Uncategorized', q) && (
-          <TickRow
-            aside={total(UNCATEGORIZED)}
-            checked={ticked.has(UNCATEGORIZED)}
-            label="Uncategorized"
-            onToggle={() => toggle([UNCATEGORIZED], !ticked.has(UNCATEGORIZED))}
-          />
+          <RootRow>
+            <TickRow
+              aside={total(UNCATEGORIZED)}
+              checked={ticked.has(UNCATEGORIZED)}
+              label="Uncategorized"
+              onToggle={() => toggle([UNCATEGORIZED], !ticked.has(UNCATEGORIZED))}
+            />
+          </RootRow>
         )}
       </div>
     </div>

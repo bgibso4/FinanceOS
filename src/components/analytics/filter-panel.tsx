@@ -288,7 +288,7 @@ function Section({
   const headerClass = 'flex w-full items-center justify-between gap-3 text-left';
   const heading = (
     <>
-      <span>{title}</span>
+      <span className="uppercase tracking-[0.08em]">{title}</span>
       <span className="flex min-w-0 items-center gap-2">
         {shown && (
           <span
