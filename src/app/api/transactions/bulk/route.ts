@@ -72,6 +72,8 @@ export async function POST(req: NextRequest) {
       updateData.confidenceScore = data.categoryId === null ? 0.3 : 1.0;
     }
     if (data.isTransfer !== undefined) updateData.isTransfer = data.isTransfer;
+    // A row is never both a transfer and outside budget.
+    if (data.isTransfer === true) updateData.isOutsideBudget = false;
     if (data.confidenceScore !== undefined) updateData.confidenceScore = data.confidenceScore;
     if (data.note !== undefined) updateData.note = data.note;
 

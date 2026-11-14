@@ -22,6 +22,7 @@ const updateSchema = z.object({
   tags: z.array(z.string()).optional(),
   note: z.string().nullable().optional(),
   isTransfer: z.boolean().optional(),
+  isOutsideBudget: z.boolean().optional(),
   transferGroupId: z.string().nullable().optional(),
   confidenceScore: z.number().optional(),
   isOffset: z.boolean().optional(),
@@ -57,6 +58,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         { error: 'A split transaction cannot join a trip' },
         { status: 400 }
       );
+    }
+  }
+
+  // A row is never both a transfer and outside budget. Judge the resulting state:
+  // explicitly ticking outside budget on a (resulting) transfer is refused; making a
+  // row a transfer clears the tick.
+  if (parsed.isTransfer !== undefined || parsed.isOutsideBudget !== undefined) {
+    const existing = await prisma.transaction.findUniqueOrThrow({
+      where: { id },
+      select: { isTransfer: true },
+    });
+    const willBeTransfer = parsed.isTransfer ?? existing.isTransfer;
+    if (willBeTransfer && parsed.isOutsideBudget === true) {
+      return NextResponse.json({ error: "A transfer can't be outside budget" }, { status: 400 });
     }
   }
 
@@ -97,6 +112,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     ...parsed,
     tags: parsed.tags ? JSON.stringify(parsed.tags) : undefined,
   };
+
+  if (parsed.isTransfer === true) updateData.isOutsideBudget = false;
 
   // If categoryId is being set and confidence isn't explicitly provided, set to 1.0
   if (parsed.categoryId !== undefined && parsed.confidenceScore === undefined) {

@@ -165,6 +165,7 @@ export async function exportDatabase(): Promise<SyncPayload> {
         tags: t.tags,
         note: t.note,
         isTransfer: t.isTransfer,
+        isOutsideBudget: t.isOutsideBudget,
         transferGroupId: t.transferGroupId,
         confidenceScore: t.confidenceScore,
         externalId: t.externalId,
@@ -493,8 +494,9 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
   // Validate the payload
   const validated = validateSyncPayload(payload);
 
-  // Verify checksum
-  const checksum = await generateChecksum(validated.data);
+  // Verify checksum over the payload as received: validation fills defaults for fields an
+  // older device never wrote, which would otherwise change the bytes it checksummed.
+  const checksum = await generateChecksum(payload.data);
   if (checksum !== validated.metadata.checksum) {
     throw new Error('Sync payload checksum mismatch - data may be corrupted');
   }
@@ -674,6 +676,7 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
           tags: txn.tags,
           note: txn.note,
           isTransfer: txn.isTransfer,
+          isOutsideBudget: txn.isOutsideBudget,
           transferGroupId: txn.transferGroupId,
           confidenceScore: txn.confidenceScore,
           externalId: txn.externalId,

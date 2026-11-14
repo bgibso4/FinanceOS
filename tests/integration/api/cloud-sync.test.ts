@@ -296,6 +296,7 @@ describe('cloud-sync integration', () => {
           tags: null,
           note: null,
           isTransfer: false,
+          isOutsideBudget: false,
           transferGroupId: null,
           confidenceScore: 0.9,
           externalId: null,
@@ -619,6 +620,40 @@ describe('cloud-sync integration', () => {
       const accounts = await prisma.account.findMany();
       expect(accounts[0].name).toBe('日本語アカウント 🏦');
       expect(accounts[0].institution).toBe('Банк России');
+    });
+  });
+
+  describe('outside budget flag', () => {
+    it('roundTripsOutsideBudget', async () => {
+      const account = await prisma.account.create({ data: createAccountData() });
+      await prisma.transaction.create({
+        data: { ...createTransactionData(account.id), isOutsideBudget: true },
+      });
+
+      const payload = await exportDatabase();
+      await resetTestDb();
+      await importDatabase(payload);
+
+      const [tx] = await prisma.transaction.findMany();
+      expect(tx.isOutsideBudget).toBe(true);
+    });
+
+    it('oldPayloadDefaultsFalse', async () => {
+      const account = await prisma.account.create({ data: createAccountData() });
+      await prisma.transaction.create({ data: createTransactionData(account.id) });
+
+      const payload = await exportDatabase();
+      for (const t of payload.data.transactions) {
+        delete (t as Record<string, unknown>).isOutsideBudget;
+      }
+      const old = await finalizePayload(payload);
+      expect(isSyncPayload(old)).toBe(true);
+
+      await resetTestDb();
+      await importDatabase(old);
+
+      const [tx] = await prisma.transaction.findMany();
+      expect(tx.isOutsideBudget).toBe(false);
     });
   });
 
