@@ -239,6 +239,47 @@ export async function spendingByDay(
   return [...days.values()].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
+export type TagSpend = { total: number; firstDate: string | null; lastDate: string | null };
+
+/** All-time net spend per tag name, with the first and last day it was counted. */
+export async function spendingByTag(prisma: PrismaClient): Promise<Map<string, TagSpend>> {
+  const [s, cashFlowIds] = await Promise.all([
+    loadCurrencySettings(prisma),
+    cashFlowAccountIds(prisma),
+  ]);
+  const { transactions, returnAmounts } = await loadPeriodTransactions(
+    prisma,
+    {},
+    new Date(0),
+    new Date(Date.UTC(9999, 0, 1)),
+    cashFlowIds
+  );
+
+  const byTag = new Map<string, TagSpend>();
+  for (const tx of transactions) {
+    if (!tx.tags) continue;
+    const date = dayOf(tx.date);
+    const spend = spendOf(
+      Number(tx.amount),
+      tx.category?.type,
+      returnAmounts.get(tx.id) || 0,
+      currencyOf(tx),
+      date,
+      s
+    );
+    if (spend === null) continue;
+    for (const name of JSON.parse(tx.tags) as string[]) {
+      const row = byTag.get(name) ?? { total: 0, firstDate: null, lastDate: null };
+      row.total += spend;
+      if (row.firstDate === null || date < row.firstDate) row.firstDate = date;
+      if (row.lastDate === null || date > row.lastDate) row.lastDate = date;
+      byTag.set(name, row);
+    }
+  }
+  for (const row of byTag.values()) row.total = Math.round(row.total * 100) / 100 || 0;
+  return byTag;
+}
+
 /**
  * The analytics for a period. The comparison is `compare` when given, otherwise the
  * window of the same length just before the period.
