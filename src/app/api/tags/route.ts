@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
+import { spendingByTag } from '@/lib/analytics';
+import { parseTags } from '@/lib/transaction-rows';
 
 const createTagSchema = z.object({
   name: z.string().min(1).max(50),
@@ -22,14 +24,18 @@ export async function GET(req: NextRequest) {
 
     const countMap: Record<string, number> = {};
     transactions.forEach((tx) => {
-      const txTags: string[] = JSON.parse(tx.tags!);
-      txTags.forEach((t) => {
+      new Set(parseTags(tx.tags)).forEach((t) => {
         countMap[t] = (countMap[t] || 0) + 1;
       });
     });
 
+    const spend = await spendingByTag(prisma);
     return NextResponse.json({
-      tags: tags.map((t) => ({ ...t, transactionCount: countMap[t.name] || 0 })),
+      tags: tags.map((t) => ({
+        ...t,
+        transactionCount: countMap[t.name] || 0,
+        ...(spend.get(t.name) ?? { total: 0, firstDate: null, lastDate: null }),
+      })),
     });
   }
 

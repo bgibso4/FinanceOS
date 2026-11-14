@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analytics Cleanup Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f2f2f7; --surface: #ffffff; --fill: #e9e9ee; --ink: #1c1c1e; --ink-2: #6e6e73; --ink-3: #8a8a8e; --line: #d8d8dc;
+  --tint: #1c1c1e; --on-tint: #ffffff; --soon: #ad500e; --done: #2f7d4f; --info: #3f6fa3; --warn: #a3392f;
+  --serif: "Source Serif 4", "New York", ui-serif, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+    --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+  --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+h1, h2, h3 { text-wrap: balance; }
+.layout { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+.brand { font: 700 15px/1.2 var(--serif); }
+.brand span { display: block; font: 400 13px/1.4 var(--sans); color: var(--ink-2); margin-top: 2px; }
+.overall { background: var(--surface); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.overall b { font: 700 17px/1.2 var(--serif); color: var(--ink); }
+.toc { display: flex; flex-direction: column; gap: 1px; }
+.toc-label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin: 6px 0 6px 10px; }
+.toc a { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; text-decoration: none; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.toc a:hover { background: var(--surface); color: var(--ink); }
+.toc a.active { background: var(--surface); color: var(--ink); font-weight: 600; }
+.toc-n { width: 20px; text-align: right; color: var(--ink-3); font-size: 13px; flex: none; font-variant-numeric: tabular-nums; }
+.theme { align-self: flex-start; background: none; border: 0; color: var(--ink-3); font: 13px var(--sans); cursor: pointer; padding: 4px 10px; }
+.theme:hover { color: var(--ink); }
+main { padding: 48px 0 120px; display: flex; flex-direction: column; gap: 48px; min-width: 0; }
+.eyebrow { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.eyebrow .pill { background: var(--surface); border-radius: 99px; padding: 3px 10px; font-weight: 600; color: var(--ink); }
+h1 { font: 700 44px/1.08 var(--serif); letter-spacing: -0.6px; margin: 12px 0 14px; }
+.goal { font-size: 19px; line-height: 1.5; max-width: 66ch; margin: 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 24px; }
+.meta div { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; line-height: 1.5; }
+.meta b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 4px; }
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 14px; color: var(--ink-2); }
+.stats b { font: 700 20px var(--serif); color: var(--ink); margin-right: 4px; font-variant-numeric: tabular-nums; }
+section > h2 { font: 700 26px/1.2 var(--serif); margin: 0 0 6px; letter-spacing: -0.2px; }
+section > h3.sub { font: 700 19px/1.3 var(--serif); margin: 22px 0 8px; }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 66ch; }
+.decisions { background: var(--surface); border-radius: var(--r); padding: 6px 0; border-left: 4px solid var(--soon); }
+.decisions.agreed { border-left-color: var(--done); }
+.decisions ul { list-style: none; margin: 0; padding: 0; }
+.decision { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 18px; }
+.decision + .decision { border-top: 1px solid var(--line); }
+.dec-name { font-weight: 600; }
+.dec-id { font: 700 13px var(--serif); color: var(--ink-3); margin-right: 6px; }
+.dec-text { color: var(--ink-2); font-size: 15px; max-width: 70ch; }
+.dec-text strong { color: var(--ink); }
+.trefs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 180px; }
+.tref { flex: none; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--fill); padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.tref:hover { background: var(--tint); color: var(--on-tint); }
+.card { background: var(--surface); border-radius: var(--r); padding: 6px 20px; }
+.card ul, .card ol { margin: 0; padding: 0; list-style: none; }
+.card > ul > li, .card > ol > li { padding: 11px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.card > ul > li:first-child, .card > ol > li:first-child { border-top: 0; }
+.card li ul { list-style: disc; padding-left: 20px; margin: 6px 0 0; }
+.card li ul li { padding: 2px 0; border: 0; color: var(--ink-2); }
+.card li ul li strong { color: var(--ink); }
+.numbered { counter-reset: f; }
+.numbered > li { counter-increment: f; display: grid; grid-template-columns: 28px 1fr; gap: 6px; }
+.numbered > li::before { content: counter(f); font: 700 17px/1.4 var(--serif); color: var(--soon); }
+table.md { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border-radius: var(--r); overflow: hidden; }
+table.md th, table.md td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--line); }
+table.md th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); border-top: 0; }
+table.md td:first-child { font-weight: 600; white-space: nowrap; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; }
+.chip.mine { color: var(--soon); background: color-mix(in srgb, var(--soon) 13%, transparent); }
+.chip.agreed { color: var(--done); background: color-mix(in srgb, var(--done) 13%, transparent); }
+.chip.route { color: var(--info); background: color-mix(in srgb, var(--info) 13%, transparent); font-family: var(--mono); font-weight: 500; }
+.callout { background: var(--surface); border-radius: var(--r); padding: 14px 18px; border-left: 4px solid var(--warn); font-size: 15px; margin-top: 12px; }
+.callout b:first-child { display: block; margin-bottom: 4px; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.col { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; }
+.col h3 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 8px; }
+.col ul { margin: 0; padding-left: 16px; } .col li { margin: 5px 0; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
+  .side { position: static; height: auto; padding: 24px 0 0; }
+  .toc { display: none; }
+  h1 { font-size: 34px; }
+  .cols { grid-template-columns: 1fr; }
+  .decision { flex-direction: column; gap: 8px; }
+  .trefs { justify-content: flex-start; max-width: none; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side" aria-label="Sections">
+    <div class="brand">FinanceOS<span>Design · Analytics cleanup</span></div>
+    <div class="overall"><span>Status</span><b>Waiting on your review</b><span>Next: implementation plan</span></div>
+    <nav class="toc" aria-label="Sections">
+      <div class="toc-label">Overview</div>
+      <a href="#mine"><span class="toc-n"></span><span>Waiting on you</span></a>
+      <a href="#agreed"><span class="toc-n"></span><span>Agreed with you</span></a>
+      <a href="#scope"><span class="toc-n"></span><span>Scope</span></a>
+      <a href="#approaches"><span class="toc-n"></span><span>Approaches</span></a>
+      <div class="toc-label">Design</div>
+      <a href="#colours"><span class="toc-n">1</span><span>Colour tokens</span></a>
+      <a href="#chips"><span class="toc-n">2</span><span>Filter chips</span></a>
+      <a href="#panel"><span class="toc-n">3</span><span>Filter panel</span></a>
+      <a href="#tags"><span class="toc-n">4</span><span>Settings → Tags</span></a>
+      <div class="toc-label">Build</div>
+      <a href="#builder"><span class="toc-n"></span><span>Left to the builder</span></a>
+      <a href="#testing"><span class="toc-n"></span><span>Testing</span></a>
+    </nav>
+    <button class="theme" type="button" id="theme">◐ Light / dark</button>
+  </aside>
+  <main>
+    <header>
+      <div class="eyebrow"><span class="pill">Design</span><span>Written 2026-11-13</span><span>·</span><span>small change · after a brainstorm and three mock rounds · not started</span></div>
+      <h1>Analytics cleanup</h1>
+      <p class="goal">This started as "how do I track the cost of a big purchase?" The answer turned out to be the tags you already have, plus Analytics, which already filters by tag and draws a running total. So the work is cleanup: the filter chips look broken in dark mode, the filter panel makes you scroll past every category and account, and tags have nowhere to show what they cost. Fixing the chips also fixes a colour bug that has been quietly affecting about 75 places across the app.</p>
+      <div class="meta">
+        <div><b>Where</b>Branch <code>feat/analytics-cleanup</code> off <code>main</code>. One PR against <code>main</code>.</div>
+        <div><b>Builds on</b><code>tailwind.config.js</code>, <code>FilterChips</code>, <code>FilterPanel</code> and its <code>Section</code>, <code>CategoryPicker</code>, <code>/api/tags</code>, the Settings Tags tab, <code>parseAnalyticsQuery</code> / <code>toSearchParams</code>, and the spending code in <code>src/lib/analytics.ts</code>.</div>
+        <div><b>Approved mock</b><code>~/Documents/FinanceOS-design-archive/design-mocks/analytics-chips-filters.html</code> (chips option B, the proposed panels). For the Tags table: part 3 of <code>tag-cost-analytics.html</code>.</div>
+      </div>
+      <div class="stats"><span><b>4</b>design sections</span><span><b>7</b>decisions agreed</span><span><b>5</b>calls to check</span></div>
+    </header>
+
+    <section id="mine">
+      <h2>Waiting on you</h2>
+      <p class="lede">My own calls. Each is easy to change now; veto any you don't like.</p>
+      <div class="decisions"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M1</span>A tag's Total uses Analytics' numbers</div><div class="dec-text">A tag's Total is exactly what Analytics shows as Spent for that tag over all time: net of refunds, in base currency, <strong>transfers excluded</strong>. That keeps it consistent with the page it links to. It also means Green Card shows <strong>$0</strong> until its four fees stop being marked as transfers (#51, or un-mark them by hand).</div></div><div class="trefs"><a class="tref" href="#tags">Tags</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>"See cost →" doesn't switch on Running total</div><div class="dec-text">The link opens Analytics with the tag, its first-to-last date range and "vs Nothing". Running total stays one click away, so nothing new has to be stored in the address.</div></div><div class="trefs"><a class="tref" href="#tags">Tags</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M3</span>A–Z ignores emoji</div><div class="dec-text">Most category names start with an emoji (⛽️ Gas, 🛒 Groceries). Sorting skips leading symbols, so Gas sorts under G. It ignores case and sorts numbers in natural order.</div></div><div class="trefs"><a class="tref" href="#panel">Panel</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M4</span>A guard against the colour bug coming back</div><div class="dec-text">A unit test fails if any source file uses the pattern Tailwind silently drops (<code>[var(--x)]/N</code>), so the bug can't creep back in.</div></div><div class="trefs"><a class="tref" href="#colours">Colours</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M5</span>Tags collapses once it passes 8</div><div class="dec-text">Tags stays open while you have 8 or fewer, and collapses like Categories after that. You have 2 today.</div></div><div class="trefs"><a class="tref" href="#panel">Panel</a></div></li>
+      </ul></div>
+    </section>
+
+    <section id="agreed">
+      <h2>Agreed with you</h2>
+      <p class="lede">From the brainstorm and mock rounds.</p>
+      <div class="decisions agreed"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A1</span>Big purchases are tags</div><div class="dec-text">No Projects and no new page. Trips stay separate. A purchase's cost is read in Analytics, filtered to its tag.</div></div><div class="trefs"><a class="tref" href="#scope">Scope</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A2</span>Transactions stays a ledger</div><div class="dec-text">No cost summary on the Transactions page; summaries belong in Analytics.</div></div><div class="trefs"><a class="tref" href="#scope">Scope</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A3</span>Chips: option B, quiet fill</div><div class="dec-text">Neutral filled chips with no bright border. Filters you added get a faint cognac edge.</div></div><div class="trefs"><a class="tref" href="#chips">Chips</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A4</span>Categories and Accounts collapse</div><div class="dec-text">Collapsed by default, with what's picked in the header. Groups inside Categories fold too.</div></div><div class="trefs"><a class="tref" href="#panel">Panel</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A5</span>Comfortable spacing in the panel</div><div class="dec-text">There's clear space between a section's header (title, picks, chevron) and its contents, such as the search box.</div></div><div class="trefs"><a class="tref" href="#panel">Panel</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A6</span>Categories A–Z</div><div class="dec-text">Groups and the categories within them are listed alphabetically.</div></div><div class="trefs"><a class="tref" href="#panel">Panel</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A7</span>Tags table: Total + "See cost →"</div><div class="dec-text">Settings → Tags gains a Total column and a link into Analytics. No Planned amount; a spending goal on the tag covers that if you ever want one.</div></div><div class="trefs"><a class="tref" href="#tags">Tags</a></div></li>
+      </ul></div>
+    </section>
+
+    <section id="scope">
+      <h2>Scope</h2>
+      <div class="cols">
+        <div class="col"><h3>Goals</h3><ul>
+          <li>The chips look right in both themes</li>
+          <li>Every <code>/N</code> tint across the app actually renders</li>
+          <li>The filter panel fits without a long scroll</li>
+          <li>Tags show their cost and link to it</li>
+        </ul></div>
+        <div class="col"><h3>Non-goals</h3><ul>
+          <li>How transfers are detected (#51)</li>
+          <li>Planned amounts or budgets on tags</li>
+          <li>Restyling other pages, beyond the tints that start rendering</li>
+          <li>Non-monthly budgeting (#50)</li>
+        </ul></div>
+        <div class="col"><h3>Anti-goals</h3><ul>
+          <li>A tag Total that disagrees with Analytics</li>
+          <li>Picks that are hidden: collapsed sections must still say what's picked</li>
+          <li>A tint fix that changes colours nobody asked to change</li>
+        </ul></div>
+      </div>
+      <div class="callout"><b>Heads-up: the colour fix changes what you see in other places.</b>About 75 tinted borders and backgrounds (tag pills, badges, status colours, the transaction table) have never rendered, and they will after this. They'll show as the code intended, which hasn't been seen before. Review the main pages in both themes before merging.</div>
+    </section>
+
+    <section id="approaches">
+      <h2>Approaches</h2>
+      <p class="lede">For the big-purchase question that started this.</p>
+      <table class="md">
+        <tr><th>Approach</th><th>Trade-off</th><th>Outcome</th></tr>
+        <tr><td>Projects (generalise Trips)</td><td>New concept; projects don't compare with each other the way trips do, and the category split matters less</td><td>Rejected</td></tr>
+        <tr><td>Cost summary on Transactions</td><td>Puts analysis on the ledger page</td><td>Rejected</td></tr>
+        <tr><td>Tags + Analytics, plus cleanup</td><td>Nothing new to learn; Analytics already has the tag filter and running total</td><td><span class="chip agreed">Picked</span></td></tr>
+      </table>
+    </section>
+
+    <section id="colours">
+      <h2>1 · Colour tokens</h2>
+      <p class="lede">The root cause of the chips' bright border, and of ~75 other tints across the app.</p>
+      <div class="card"><ul>
+        <li><strong>The bug.</strong> Tailwind 3 can't apply an opacity modifier to an arbitrary <code>var()</code> colour, so classes like <code>border-[var(--accent)]/30</code> and <code>bg-[var(--accent)]/10</code> are never generated. Elements fall back to the default border colour (light gray). Confirmed with the Tailwind CLI.</li>
+        <li><strong>The fix.</strong> In <code>tailwind.config.js</code>, define each themed colour so it accepts opacity, using Tailwind's <code>&lt;alpha-value&gt;</code> placeholder with <code>color-mix</code>: <code>accent: 'color-mix(in srgb, var(--accent) calc(&lt;alpha-value&gt; * 100%), transparent)'</code>. Then <code>border-accent/30</code> works.
+          <ul>
+            <li>Tokens needed: <code>accent</code>, <code>green</code>, <code>red</code>, <code>yellow</code>, <code>bg-base</code>, and <code>tag-blue</code> … <code>tag-yellow</code> (9).</li>
+            <li>Rewrite every <code>[var(--x)]/N</code> usage to the named token (<code>accent/30</code>, <code>tag-blue/15</code>, …). Most are in <code>tag-input.tsx</code>, <code>design-system.ts</code>, the Settings page and <code>transaction-table.tsx</code>.</li>
+            <li>Colours without a modifier keep working unchanged.</li>
+          </ul></li>
+        <li><strong>Guard (M4).</strong> A unit test scans <code>src/**/*.{ts,tsx}</code> and fails on any <code>[var(--…)]/N</code>.</li>
+      </ul></div>
+    </section>
+
+    <section id="chips">
+      <h2>2 · Filter chips</h2>
+      <p class="lede">The row under the Analytics title (<code>FilterChips</code>).</p>
+      <div class="card"><ul>
+        <li><strong>Always-present chips</strong> (Period, vs): <code>bg-elevated</code> fill, a 1px <code>--border</code> edge, 8px radius. The label word ("Period") is muted and the value is primary.</li>
+        <li><strong>Chips you added</strong> (Category, Account, Tag, Merchant): the same, but with an <code>accent/35</code> edge, plus the existing ✕.</li>
+        <li>No other changes: same order, the same capped text, and ✕ clears the filter as it does today.</li>
+      </ul></div>
+    </section>
+
+    <section id="panel">
+      <h2>3 · Filter panel</h2>
+      <p class="lede">The floating card that opens from the funnel button (<code>FilterPanel</code>).</p>
+      <div class="card"><ul>
+        <li><strong>Collapsible sections.</strong> Categories and Accounts are collapsible; Tags is too once it passes 8 tags (M5). The whole header row toggles it, with a chevron on the right that rotates when open.
+          <ul>
+            <li>The header shows the picks in accent ("Dining +1"), or, muted, "Any · 52" when nothing is picked.</li>
+            <li>Every collapsible section starts closed each time the panel opens. Open state lasts while the panel stays open.</li>
+            <li>Keyboard: the header is a button with <code>aria-expanded</code>; Enter and Space toggle it.</li>
+          </ul></li>
+        <li><strong>Groups fold inside Categories.</strong> With Categories open, each group shows a single row (tick box, name, total) and a small chevron. Its children show when you open it, when any of them is picked, or while you're searching.</li>
+        <li><strong>Alphabetical.</strong> Groups A–Z, then categories A–Z within each group; accounts A–Z. The sort key skips leading emoji and symbols and ignores case (M3). Ungrouped categories sort in among the groups.</li>
+        <li><strong>Spacing.</strong> 12px between a section header and its contents, 10px under the search box, and 16px of padding above and below each section. Period, Compared with and Merchant also get the 12px.</li>
+        <li>Period, Compared with and Merchant are otherwise unchanged.</li>
+      </ul></div>
+    </section>
+
+    <section id="tags">
+      <h2>4 · Settings → Tags</h2>
+      <p class="lede">The existing tags table.</p>
+      <div class="card"><ul>
+        <li><strong>Total column</strong>, right-aligned in monospace. It's each tag's all-time spend as Analytics counts it (M1). <code>/api/tags?withCounts=true</code> also returns <code>total</code>, <code>firstDate</code> and <code>lastDate</code>, computed by the same spending code Analytics uses (no second formula).</li>
+        <li><strong>"See cost →"</strong> on each row links to <code>/analytics?period=custom&amp;from=&lt;firstDate&gt;&amp;to=&lt;lastDate&gt;&amp;vs=none&amp;tag=&lt;name&gt;</code>, built with <code>toSearchParams</code> (M2). A tag with no transactions shows no link.</li>
+        <li>Create, edit, colour and delete stay as they are.</li>
+      </ul></div>
+    </section>
+
+    <section id="builder">
+      <h2>Left to the builder</h2>
+      <div class="card"><ul>
+        <li>The exact shape of the sort-key helper and where it lives (one shared helper for categories and accounts).</li>
+        <li>Whether the collapse is a small <code>Section</code> prop or its own component.</li>
+        <li>How totals per tag are batched: one pass over tagged rows, not one query per tag.</li>
+        <li>Fixing any tint that, once it renders, looks wrong. Flag it in the PR rather than restyling quietly.</li>
+      </ul></div>
+    </section>
+
+    <section id="testing">
+      <h2>Testing</h2>
+      <div class="card"><ul>
+        <li>Unit: the colour guard (M4); the A–Z sort key (emoji, case, numbers); group fold rules (picked child, search); tag totals match <code>spendingByDay</code> for the same filters.</li>
+        <li>Component: the collapsible section's header summary, toggle and <code>aria-expanded</code>; the chips' added vs always-present styling.</li>
+        <li>In the browser, both themes: Analytics chips and the panel; Settings → Tags; a quick pass over Transactions, Settings and the transaction drawer to check the newly rendering tints.</li>
+        <li><code>npm run check</code> and the full unit suite.</li>
+      </ul></div>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  btn.addEventListener('click', function () {
+    var r = document.documentElement;
+    var dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (a) { a.classList.remove('active'); });
+        var a = map[e.target.id]; if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+})();
+</script>
+</body>
+</html>

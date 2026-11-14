@@ -84,6 +84,24 @@ export function toSearchParams(q: AnalyticsQuery, today: string): URLSearchParam
   return sp;
 }
 
+/** A link into Analytics showing one tag's whole spending history, with no comparison. */
+export function tagCostHref(
+  tag: { name: string; firstDate: string; lastDate: string },
+  today: string
+): string {
+  const q: AnalyticsQuery = {
+    ...defaultQuery(today),
+    period: {
+      kind: 'custom',
+      anchor: tag.lastDate.slice(0, 7),
+      custom: { start: tag.firstDate, end: tag.lastDate },
+    },
+    vs: 'none',
+    tags: [tag.name],
+  };
+  return `/analytics?${toSearchParams(q, today)}`;
+}
+
 /** The shared filter parameters for a date range, carrying only the filters in use. */
 export function filterParamsFor(q: AnalyticsQuery, r: DayRange): FilterParams {
   const params: FilterParams = { startDate: r.start, endDate: r.end };

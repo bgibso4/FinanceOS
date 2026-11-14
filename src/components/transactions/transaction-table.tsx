@@ -91,11 +91,11 @@ function TransactionRow({
         selected
           ? 'bg-[var(--bg-elevated)]'
           : tx.isTransfer
-            ? 'bg-[var(--accent)]/5'
+            ? 'bg-accent/5'
             : tx.isOffset
-              ? 'bg-[var(--accent)]/5'
+              ? 'bg-accent/5'
               : tx.amount > 0
-                ? 'bg-[var(--green)]/5'
+                ? 'bg-green/5'
                 : ''
       }`}
       style={open ? SELECTED_ROW_STYLE : selected ? SELECTED_BAR_STYLE : undefined}
@@ -115,7 +115,7 @@ function TransactionRow({
             <div className="text-[var(--text-primary)]">
               {tx.merchant}
               {tx.parentTransactionId && (
-                <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)] font-medium">
+                <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-accent/10 text-[var(--accent)] font-medium">
                   Split
                 </span>
               )}
@@ -162,11 +162,11 @@ function TransactionRow({
       </td>
       <td className="px-3 py-2 whitespace-nowrap" onClick={openOnClick}>
         {tx.isTransfer ? (
-          <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]">
+          <span className="text-xs px-1.5 py-0.5 rounded bg-accent/10 text-[var(--accent)]">
             Transfer
           </span>
         ) : tx.isOffset ? (
-          <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]">
+          <span className="text-xs px-1.5 py-0.5 rounded bg-accent/10 text-[var(--accent)]">
             Linked
           </span>
         ) : tx.category?.name ? (
@@ -174,7 +174,7 @@ function TransactionRow({
             {tx.category.name}
           </span>
         ) : (
-          <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--red)]/10 text-[var(--red)]">
+          <span className="text-xs px-1.5 py-0.5 rounded bg-red/10 text-[var(--red)]">
             Uncategorized
           </span>
         )}

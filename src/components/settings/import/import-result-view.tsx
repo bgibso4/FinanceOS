@@ -24,7 +24,7 @@ export type ImportView = Omit<ImportResult, 'transactions'> & { transactions: Tx
 export const API = '/api/import/splitwise';
 
 const badgeClass = 'ml-1.5 rounded px-1.5 py-0.5 text-xs font-medium';
-const ACCENT_BADGE = `${badgeClass} bg-[var(--accent)]/10 text-[var(--accent)]`;
+const ACCENT_BADGE = `${badgeClass} bg-accent/10 text-[var(--accent)]`;
 const MUTED_BADGE = `${badgeClass} bg-[var(--bg-elevated)] text-[var(--text-secondary)]`;
 
 const shortDay = (date: string) => fmtCalendarDay(date, { month: 'short', day: 'numeric' });
@@ -238,7 +238,7 @@ export function ImportResultView({
               className={cn(
                 'rounded-full border px-2.5 py-0.5 text-xs',
                 chip.warn
-                  ? 'border-[var(--red)]/30 text-[var(--red)]'
+                  ? 'border-red/30 text-[var(--red)]'
                   : 'border-[var(--border)] text-[var(--text-secondary)]'
               )}
             >

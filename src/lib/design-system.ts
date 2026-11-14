@@ -29,38 +29,38 @@ export const ds = {
 
   status: {
     success: {
-      bg: 'bg-[var(--green)]/10',
-      bgRow: 'bg-[var(--green)]/10',
+      bg: 'bg-green/10',
+      bgRow: 'bg-green/10',
       text: 'text-[var(--green)]',
-      border: 'border-[var(--green)]/30',
+      border: 'border-green/30',
       accent: 'border-l-4 border-l-[var(--green)]',
     },
     warning: {
-      bg: 'bg-[var(--accent)]/10',
-      bgRow: 'bg-[var(--accent)]/10',
+      bg: 'bg-accent/10',
+      bgRow: 'bg-accent/10',
       text: 'text-[var(--accent)]',
-      border: 'border-[var(--accent)]/30',
+      border: 'border-accent/30',
       accent: 'border-l-4 border-l-[var(--accent)]',
     },
     error: {
-      bg: 'bg-[var(--red)]/10',
-      bgRow: 'bg-[var(--red)]/10',
+      bg: 'bg-red/10',
+      bgRow: 'bg-red/10',
       text: 'text-[var(--red)]',
-      border: 'border-[var(--red)]/30',
+      border: 'border-red/30',
       accent: 'border-l-4 border-l-[var(--red)]',
     },
     info: {
-      bg: 'bg-[var(--accent)]/10',
-      bgRow: 'bg-[var(--accent)]/10',
+      bg: 'bg-accent/10',
+      bgRow: 'bg-accent/10',
       text: 'text-[var(--accent)]',
-      border: 'border-[var(--accent)]/30',
+      border: 'border-accent/30',
       accent: 'border-l-4 border-l-[var(--accent)]',
     },
     purple: {
-      bg: 'bg-[var(--accent)]/10',
-      bgRow: 'bg-[var(--accent)]/10',
+      bg: 'bg-accent/10',
+      bgRow: 'bg-accent/10',
       text: 'text-[var(--accent)]',
-      border: 'border-[var(--accent)]/30',
+      border: 'border-accent/30',
       accent: 'border-l-4 border-l-[var(--accent)]',
     },
   },
@@ -78,7 +78,7 @@ export const ds = {
   table: {
     header: 'bg-[var(--bg-base)] text-[var(--text-muted)]',
     row: 'border-[var(--border)] hover:bg-[var(--bg-elevated)]',
-    rowAlt: 'bg-[var(--bg-base)]/30',
+    rowAlt: 'bg-bg-base/30',
   },
 };
 

@@ -8,8 +8,8 @@ type Props = React.HTMLAttributes<HTMLDivElement> & {
 export function Badge({ className, tone = 'default', ...props }: Props) {
   const colors: Record<string, string> = {
     default: 'bg-[var(--track-bg)] text-[var(--text-secondary)]',
-    positive: 'bg-[var(--green)]/10 text-[var(--green)]',
-    warning: 'bg-[var(--accent)]/10 text-[var(--accent)]',
+    positive: 'bg-green/10 text-[var(--green)]',
+    warning: 'bg-accent/10 text-[var(--accent)]',
   };
   return (
     <div

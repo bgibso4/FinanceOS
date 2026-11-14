@@ -5,6 +5,7 @@ import {
   defaultQuery,
   filterParamsFor,
   parseAnalyticsQuery,
+  tagCostHref,
   toSearchParams,
   type AnalyticsQuery,
 } from '@/lib/analytics-query';
@@ -158,6 +159,17 @@ describe('analytics query in the address', () => {
     expect(capped(['Groceries'])).toBe('Groceries');
     expect(capped(['Groceries', 'Dining'])).toBe('Groceries +1');
     expect(capped(['Golf', 'A', 'B'])).toBe('Golf +2');
+  });
+
+  it('tagCostHrefRoundTrips', () => {
+    const name = 'R&D / "Q1"';
+    const href = tagCostHref({ name, firstDate: '2025-12-03', lastDate: '2026-09-20' }, TODAY);
+    expect(href.startsWith('/analytics?')).toBe(true);
+    const q = parseAnalyticsQuery(new URL(href, 'http://x').searchParams, TODAY);
+    expect(q.tags).toEqual([name]);
+    expect(q.vs).toBe('none');
+    expect(q.period.kind).toBe('custom');
+    expect(q.period.custom).toEqual({ start: '2025-12-03', end: '2026-09-20' });
   });
 
   it('defaultsToLocalMonthLateEvening', () => {

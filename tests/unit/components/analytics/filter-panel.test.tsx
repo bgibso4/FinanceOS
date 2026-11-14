@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRef, useState, type RefObject } from 'react';
 import { FilterPanel } from '@/components/analytics/filter-panel';
@@ -24,7 +24,12 @@ const accounts = [
 ];
 
 /** The panel with its query held in state, as the page will hold it. */
-function setup(initial: Partial<AnalyticsQuery> = {}) {
+function setup(
+  initial: Partial<AnalyticsQuery> = {},
+  accountList = accounts,
+  categoryList = categories,
+  tagList = ['Vacation', 'Shared']
+) {
   const onChange = vi.fn();
   const onClose = vi.fn();
   const toggleRef = createRef<HTMLButtonElement>();
@@ -38,11 +43,11 @@ function setup(initial: Partial<AnalyticsQuery> = {}) {
         <p>Page</p>
         <FilterPanel
           open
-          accounts={accounts}
-          categories={categories}
+          accounts={accountList}
+          categories={categoryList}
           groupTotals={{ food: 512, golf: 80, rent: 1500, [UNCATEGORIZED]: 12 }}
           query={query}
-          tags={['Vacation', 'Shared']}
+          tags={tagList}
           today={TODAY}
           toggleRef={toggleRef as RefObject<HTMLElement>}
           onChange={(q) => {
@@ -60,6 +65,15 @@ function setup(initial: Partial<AnalyticsQuery> = {}) {
 }
 
 const box = (name: string) => screen.getByRole('checkbox', { name: new RegExp(`^${name}`) });
+const header = (title: string) => screen.getByRole('button', { name: new RegExp(`^${title}`) });
+const openSection = (title: string) => userEvent.click(header(title));
+const openGroup = (name: string) =>
+  userEvent.click(screen.getByRole('button', { name: `Show ${name}` }));
+/** The row labels in DOM order, without the totals. */
+const rowLabels = () =>
+  screen
+    .getAllByRole('checkbox')
+    .map((b) => b.querySelector('span:not([aria-hidden])')?.textContent ?? '');
 
 afterEach(() => {
   vi.useRealTimers();
@@ -68,6 +82,8 @@ afterEach(() => {
 describe('FilterPanel', () => {
   it('pickingKeepsPanelOpen', async () => {
     const { onClose, last } = setup();
+    await openSection('Categories');
+    await openGroup('Food');
     await userEvent.click(box('Groceries'));
     expect(last().categories).toEqual(['groceries']);
     await userEvent.click(screen.getByRole('button', { name: 'Year' }));
@@ -97,6 +113,8 @@ describe('FilterPanel', () => {
 
   it('tickingGroupTicksItsCategories', async () => {
     const { last } = setup();
+    await openSection('Categories');
+    await openGroup('Food');
     await userEvent.click(box('Food'));
     expect(new Set(last().categories)).toEqual(new Set(['food', 'groceries', 'dining']));
     expect(box('Food')).toHaveAttribute('aria-checked', 'true');
@@ -115,20 +133,45 @@ describe('FilterPanel', () => {
     expect(box('Food')).toHaveAttribute('aria-checked', 'false');
   });
 
-  it('groupRowsShowTotalsAndUncategorizedIsLast', () => {
-    setup();
+  it('groupRowsShowTotalsAndUncategorizedIsLast', async () => {
+    setup({}, accounts, categories, []);
+    await openSection('Categories');
     expect(box('Food')).toHaveTextContent('$512');
     expect(box('Rent')).toHaveTextContent('$1,500');
-    const list = screen.getAllByRole('checkbox').map((b) => b.textContent);
-    const cats = list.slice(
-      0,
-      list.findIndex((t) => t?.startsWith('Amex'))
+    expect(rowLabels().at(-1)).toBe('Uncategorized');
+  });
+
+  it('categoriesAndAccountsAreAlphabetical', async () => {
+    const shuffled = [categories[5], ...categories.slice(0, 5)];
+    setup(
+      {},
+      [
+        { id: 'chase', name: 'Chase' },
+        { id: 'amex', name: 'Amex' },
+      ],
+      shuffled,
+      []
     );
-    expect(cats.at(-1)).toMatch(/^Uncategorized/);
+    await openSection('Categories');
+    await openGroup('Food');
+    await openGroup('Golf');
+    await openSection('Accounts');
+    expect(rowLabels()).toEqual([
+      'Food',
+      'Dining',
+      'Groceries',
+      'Golf',
+      'Green Fees',
+      'Rent',
+      'Uncategorized',
+      'Amex',
+      'Chase',
+    ]);
   });
 
   it('searchNarrowsCategories', async () => {
     setup();
+    await openSection('Categories');
     await userEvent.type(screen.getByPlaceholderText('Search categories…'), 'gro');
     expect(box('Groceries')).toBeInTheDocument();
     expect(box('Food')).toBeInTheDocument();
@@ -136,7 +179,117 @@ describe('FilterPanel', () => {
     expect(screen.queryByRole('checkbox', { name: /^Golf/ })).toBeNull();
     expect(screen.queryByRole('checkbox', { name: /^Uncategorized/ })).toBeNull();
     // Accounts aren't narrowed by the category search.
+    await openSection('Accounts');
     expect(box('Amex')).toBeInTheDocument();
+  });
+
+  it('categoriesAndAccountsStartCollapsed', () => {
+    setup();
+    expect(header('Categories')).toHaveAttribute('aria-expanded', 'false');
+    expect(header('Accounts')).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByPlaceholderText('Search categories…')).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: /^Amex/ })).toBeNull();
+    expect(header('Categories')).toHaveTextContent('Any · 6');
+    expect(header('Accounts')).toHaveTextContent('Any · 2');
+  });
+
+  it('collapsibleHeaderTitleIsUppercase', () => {
+    setup();
+    expect(header('Categories').querySelector('span')).toHaveClass('uppercase');
+  });
+
+  it('everyRootRowHasTheSameLeadingSlot', async () => {
+    setup();
+    await openSection('Categories');
+    for (const name of ['Food', 'Golf', 'Rent', 'Uncategorized']) {
+      const row = box(name).parentElement!.parentElement!;
+      expect(row.firstElementChild).toHaveAttribute('data-slot', 'lead');
+    }
+  });
+
+  it('chevronSaysHideWhenShownAndIsAbsentWhenForcedOpen', async () => {
+    setup();
+    await openSection('Categories');
+    await openGroup('Food');
+    await userEvent.click(screen.getByRole('button', { name: 'Hide Food' }));
+    expect(screen.getByRole('button', { name: 'Show Food' })).toBeInTheDocument();
+    await openGroup('Food');
+    await userEvent.click(box('Groceries'));
+    expect(screen.queryByRole('button', { name: /^(Show|Hide) Food$/ })).toBeNull();
+    expect(box('Food').parentElement!.parentElement!.firstElementChild).toHaveAttribute(
+      'data-slot',
+      'lead'
+    );
+  });
+
+  it('collapsedHeaderShowsPicks', () => {
+    setup({ categories: ['dining'] });
+    expect(header('Categories')).toHaveTextContent('Dining');
+    expect(header('Categories')).not.toHaveTextContent('Any');
+  });
+
+  it('clearAllUpdatesCollapsedSummary', async () => {
+    setup({ accounts: ['amex'] });
+    expect(header('Accounts')).toHaveTextContent('Amex');
+    await userEvent.click(screen.getByRole('button', { name: 'Clear all' }));
+    expect(header('Accounts')).toHaveTextContent('Any · 2');
+  });
+
+  it('groupsFoldUntilOpenedPickedOrSearched', async () => {
+    setup();
+    await openSection('Categories');
+    expect(screen.queryByRole('checkbox', { name: /^Groceries/ })).toBeNull();
+    await openGroup('Food');
+    expect(box('Groceries')).toBeInTheDocument();
+    // Ticking the group row still ticks the whole group; the chevron is separate.
+    await userEvent.click(box('Food'));
+    expect(box('Food')).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('pickedChildShowsWithItsGroupFolded', async () => {
+    setup({ categories: ['fees'] });
+    await openSection('Categories');
+    expect(box('Green Fees')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /^Groceries/ })).toBeNull();
+  });
+
+  it('searchShowsMatchesInFoldedGroups', async () => {
+    setup();
+    await openSection('Categories');
+    const search = screen.getByPlaceholderText('Search categories…');
+    await userEvent.type(search, 'groc');
+    expect(box('Groceries')).toBeInTheDocument();
+    await userEvent.clear(search);
+    await userEvent.type(search, 'golf');
+    expect(box('Green Fees')).toBeInTheDocument();
+  });
+
+  it('tagsCollapseOnlyPastEight', () => {
+    setup();
+    expect(screen.queryByRole('button', { name: /^Tags/ })).toBeNull();
+    cleanup();
+    setup({}, accounts, categories, ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']);
+    expect(header('Tags')).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('sectionsReopenClosed', async () => {
+    const props = {
+      accounts,
+      categories,
+      groupTotals: {},
+      query: defaultQuery(TODAY),
+      tags: [],
+      today: TODAY,
+      toggleRef: createRef<HTMLElement>() as RefObject<HTMLElement>,
+      onChange: vi.fn(),
+      onClose: vi.fn(),
+    };
+    const { rerender } = render(<FilterPanel {...props} open />);
+    await openSection('Categories');
+    expect(header('Categories')).toHaveAttribute('aria-expanded', 'true');
+    rerender(<FilterPanel {...props} open={false} />);
+    rerender(<FilterPanel {...props} open />);
+    expect(header('Categories')).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('customShowsDateFields', async () => {
@@ -359,5 +512,20 @@ describe('FilterChips', () => {
     expect(onChange).toHaveBeenLastCalledWith({ ...query, categories: [] });
     await userEvent.click(screen.getByRole('button', { name: 'Clear Merchant filter' }));
     expect(onChange).toHaveBeenLastCalledWith({ ...query, merchant: '' });
+  });
+
+  it('chipsMarkAddedFilters', () => {
+    render(
+      <FilterChips
+        accountNames={[]}
+        categoryNames={[]}
+        query={{ ...defaultQuery(TODAY), tags: ['Vacation'] }}
+        onChange={vi.fn()}
+      />
+    );
+    const [period, vs, tag] = screen.getAllByRole('listitem');
+    expect(tag).toHaveAttribute('data-added', 'true');
+    expect(period).not.toHaveAttribute('data-added');
+    expect(vs).not.toHaveAttribute('data-added');
   });
 });

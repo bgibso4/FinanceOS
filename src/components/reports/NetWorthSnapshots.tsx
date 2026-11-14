@@ -1024,7 +1024,7 @@ export function NetWorthSnapshots() {
                       return (
                         <tr
                           key={snapshot.id}
-                          className={`hover:${ds.bg.secondary} ${isSelected ? 'bg-[var(--accent)]/10' : ''}`}
+                          className={`hover:${ds.bg.secondary} ${isSelected ? 'bg-accent/10' : ''}`}
                         >
                           {compareMode && (
                             <td className="px-3 py-2">

@@ -14,23 +14,17 @@ import type { DiscoveredAccount, InstitutionView, Provider, UpdateResult } from 
 function StatusBadge({ status }: { status: string }) {
   if (status === 'connected') {
     return (
-      <span className="text-xs px-2 py-0.5 rounded bg-[var(--green)]/15 text-[var(--green)]">
-        Connected
-      </span>
+      <span className="text-xs px-2 py-0.5 rounded bg-green/15 text-[var(--green)]">Connected</span>
     );
   }
   if (status === 'disconnected' || status === 'needs_reauth' || status === 'error') {
     return (
-      <span className="text-xs px-2 py-0.5 rounded bg-[var(--red)]/15 text-[var(--red)]">
+      <span className="text-xs px-2 py-0.5 rounded bg-red/15 text-[var(--red)]">
         Needs Reconnection
       </span>
     );
   }
-  return (
-    <span className="text-xs px-2 py-0.5 rounded bg-[var(--yellow)]/15 text-[var(--yellow)]">
-      {status}
-    </span>
-  );
+  return <span className="text-xs px-2 py-0.5 rounded bg-accent/15 text-accent">{status}</span>;
 }
 
 type IgnoredAccountRecord = {
@@ -153,13 +147,13 @@ export function InstitutionCard({
                   Teller
                 </span>
               ) : (
-                <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">
+                <span className="text-xs px-2 py-0.5 rounded bg-accent/15 text-[var(--accent)]">
                   Plaid
                 </span>
               )}
               <StatusBadge status={view.status} />
               {view.discovered.length > 0 && (
-                <span className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)]">
+                <span className="text-xs px-2 py-0.5 rounded bg-accent/15 text-[var(--accent)]">
                   {view.discovered.length} new{' '}
                   {view.discovered.length === 1 ? 'account' : 'accounts'}
                 </span>

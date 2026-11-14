@@ -39,7 +39,7 @@ import { AccountHoldingsSection } from '@/components/investments/account-holding
 import { EnteredBalancesSection } from '@/components/investments/entered-balances-section';
 import type { TrackingMode } from '@/lib/account-defaults';
 import { BalanceSource } from '@/lib/investments/codes';
-import { fmtCalendarDay } from '@/lib/dates';
+import { fmtCalendarDay, localDay } from '@/lib/dates';
 import { ds } from '@/lib/design-system';
 import {
   syncUnits,
@@ -63,6 +63,7 @@ import { GeneralSettings } from '@/components/settings/general/general-settings'
 import { SplitwiseImportCard } from '@/components/settings/import/splitwise-import-card';
 import { SecuritiesTab } from '@/components/investments/securities-tab';
 import { getTagColors } from '@/components/tag-input';
+import { TagsTable, type TagWithTotals } from '@/components/settings/tags-table';
 
 type PlaidConnection = {
   id: string;
@@ -208,7 +209,7 @@ const getAccountStyle = (type: string) => {
     case 'crypto':
       return {
         icon: '₿',
-        color: 'bg-[var(--accent)]/10 border-[var(--accent)]',
+        color: 'bg-accent/10 border-[var(--accent)]',
         textColor: 'text-[var(--accent)]',
       };
     case 'cash':
@@ -367,12 +368,12 @@ function SortableAccountCard({
                   {account.type.charAt(0).toUpperCase() + account.type.slice(1)}
                 </span>
                 {modeBadge && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--accent)]/50 text-white font-medium backdrop-blur-sm">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-accent/50 text-white font-medium backdrop-blur-sm">
                     {modeBadge}
                   </span>
                 )}
                 {isArchived && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--red)]/50 text-white font-medium backdrop-blur-sm">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-red/50 text-white font-medium backdrop-blur-sm">
                     Archived
                   </span>
                 )}
@@ -491,11 +492,10 @@ function SettingsPageContent() {
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
 
   // Tags state
-  type TagWithCount = { id: string; name: string; color: string; transactionCount?: number };
-  const [settingsTags, setSettingsTags] = useState<TagWithCount[]>([]);
+  const [settingsTags, setSettingsTags] = useState<TagWithTotals[]>([]);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('blue');
-  const [editingTag, setEditingTag] = useState<TagWithCount | null>(null);
+  const [editingTag, setEditingTag] = useState<TagWithTotals | null>(null);
   const [editTagModalOpen, setEditTagModalOpen] = useState(false);
 
   const [newAccount, setNewAccount] = useState({
@@ -3059,19 +3059,19 @@ function SettingsPageContent() {
                       </td>
                       <td className="p-2">
                         {tx.wouldCreate ? (
-                          <span className="text-xs px-2 py-0.5 rounded bg-[var(--green)]/10 text-[var(--green)]">
+                          <span className="text-xs px-2 py-0.5 rounded bg-green/10 text-[var(--green)]">
                             New
                           </span>
                         ) : tx.wouldMerge ? (
                           <span
-                            className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]"
+                            className="text-xs px-2 py-0.5 rounded bg-accent/10 text-[var(--accent)]"
                             title={tx.skipReason || 'Will merge with existing transaction'}
                           >
                             Merge
                           </span>
                         ) : (
                           <span
-                            className="text-xs px-2 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)]"
+                            className="text-xs px-2 py-0.5 rounded bg-accent/10 text-[var(--accent)]"
                             title={tx.skipReason || 'Skipped'}
                           >
                             Skip
@@ -3281,17 +3281,17 @@ function SettingsPageContent() {
                             <span className={`text-xs ${ds.text.muted}`}>Previewing...</span>
                           )}
                           {r.status === 'preview_done' && (
-                            <span className="text-xs rounded bg-[var(--green)]/10 px-2 py-0.5 text-[var(--green)]">
+                            <span className="text-xs rounded bg-green/10 px-2 py-0.5 text-[var(--green)]">
                               Ready
                             </span>
                           )}
                           {r.status === 'syncing' && (
-                            <span className="text-xs rounded bg-[var(--accent)]/10 px-2 py-0.5 text-[var(--accent)]">
+                            <span className="text-xs rounded bg-accent/10 px-2 py-0.5 text-[var(--accent)]">
                               Syncing...
                             </span>
                           )}
                           {r.status === 'synced' && (
-                            <span className="text-xs rounded bg-[var(--green)]/10 px-2 py-0.5 text-[var(--green)]">
+                            <span className="text-xs rounded bg-green/10 px-2 py-0.5 text-[var(--green)]">
                               {r.syncResult
                                 ? `${r.syncResult.added} added${r.syncResult.merged ? `, ${r.syncResult.merged} merged` : ''}`
                                 : 'Done'}
@@ -3299,7 +3299,7 @@ function SettingsPageContent() {
                           )}
                           {r.status === 'error' && (
                             <span
-                              className="text-xs rounded bg-[var(--red)]/10 px-2 py-0.5 text-[var(--red)]"
+                              className="text-xs rounded bg-red/10 px-2 py-0.5 text-[var(--red)]"
                               title={r.error}
                             >
                               Error: {r.error}
@@ -3515,7 +3515,7 @@ function SettingsPageContent() {
             {budgets.length > 0 ? (
               <div className="space-y-6">
                 {/* Total Budget Summary */}
-                <div className="bg-[var(--green)]/10 rounded-xl p-5 border border-[var(--green)]">
+                <div className="bg-green/10 rounded-xl p-5 border border-[var(--green)]">
                   <div className="text-sm text-[var(--green)] font-medium">
                     {budgetViewMonth
                       ? `Total Budget for ${fmtCalendarDay(`${budgetViewMonth}-01`, { month: 'long', year: 'numeric' })}`
@@ -3591,7 +3591,7 @@ function SettingsPageContent() {
                                         {category?.name ?? 'Unknown'}
                                       </span>
                                       {isOverride && (
-                                        <span className="text-xs px-1.5 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded font-medium">
+                                        <span className="text-xs px-1.5 py-0.5 bg-accent/10 text-[var(--accent)] rounded font-medium">
                                           Override
                                         </span>
                                       )}
@@ -4041,7 +4041,7 @@ function SettingsPageContent() {
                           className={`${ds.status.warning.bg} rounded-lg border ${ds.status.warning.border}`}
                         >
                           <summary
-                            className={`cursor-pointer p-3 font-medium text-sm ${ds.status.warning.text} hover:bg-[var(--accent)]/10`}
+                            className={`cursor-pointer p-3 font-medium text-sm ${ds.status.warning.text} hover:bg-accent/10`}
                           >
                             ❓ Need Categorization ({importState.summary.uncategorized})
                           </summary>
@@ -4169,80 +4169,35 @@ function SettingsPageContent() {
               </Button>
             </div>
 
-            {/* Tag Cards Grid */}
+            {/* Tags table */}
             {settingsTags.length === 0 ? (
               <div className={`py-8 text-center text-sm ${ds.text.muted}`}>
                 No tags yet. Type a name above and press Enter.
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-                {settingsTags.map((tag) => {
-                  const colors = getTagColors(tag.color);
-                  return (
-                    <div
-                      key={tag.id}
-                      className="group relative px-3 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] cursor-pointer hover:bg-[var(--bg-elevated)] transition-all"
-                      onClick={() => {
-                        setEditingTag(tag);
-                        setEditTagModalOpen(true);
-                      }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`w-2.5 h-2.5 rounded-full shrink-0 ${colors.text}`}
-                          style={{ backgroundColor: 'currentColor' }}
-                        />
-                        <span
-                          className={`font-medium text-sm ${colors.text} truncate`}
-                          title={tag.name}
-                        >
-                          {tag.name}
-                        </span>
-                      </div>
-                      {tag.transactionCount !== undefined && tag.transactionCount > 0 && (
-                        <div className={`text-xs ${colors.text} opacity-70 mt-0.5 ml-[18px]`}>
-                          {tag.transactionCount} txn{tag.transactionCount !== 1 ? 's' : ''}
-                        </div>
-                      )}
-                      {/* Hover delete button */}
-                      <button
-                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--red)]/10 text-[var(--red)] transition-all"
-                        title="Delete tag"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          if (
-                            !confirm(
-                              `Delete "${tag.name}"?${
-                                tag.transactionCount
-                                  ? ` Removes from ${tag.transactionCount} transaction(s).`
-                                  : ''
-                              }`
-                            )
-                          )
-                            return;
-                          await fetch(`/api/tags/${tag.id}`, { method: 'DELETE' });
-                          refreshTags();
-                          triggerSync();
-                        }}
-                      >
-                        <svg
-                          className="w-3.5 h-3.5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            d="M6 18L18 6M6 6l12 12"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+              <TagsTable
+                tags={settingsTags}
+                today={localDay()}
+                onDelete={async (tag) => {
+                  if (
+                    !confirm(
+                      `Delete "${tag.name}"?${
+                        tag.transactionCount
+                          ? ` Removes from ${tag.transactionCount} transaction(s).`
+                          : ''
+                      }`
+                    )
+                  )
+                    return;
+                  await fetch(`/api/tags/${tag.id}`, { method: 'DELETE' });
+                  refreshTags();
+                  triggerSync();
+                }}
+                onEdit={(tag) => {
+                  setEditingTag(tag);
+                  setEditTagModalOpen(true);
+                }}
+              />
             )}
           </CardContent>
         </Card>

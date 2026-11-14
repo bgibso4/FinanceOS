@@ -33,17 +33,18 @@ export function FilterChips({ query, categoryNames, accountNames, onChange }: Fi
       {chips.map(({ kind, text, clear }) => (
         <li
           key={kind}
-          className={`inline-flex max-w-[340px] items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[var(--accent)]/30 bg-[var(--accent)]/10 py-[5px] pl-[11px] text-[13px] text-[var(--text-primary)] ${
-            clear ? 'pr-[5px]' : 'pr-[11px]'
+          className={`inline-flex max-w-[340px] items-center gap-1.5 whitespace-nowrap rounded-lg border bg-bg-elevated py-[5px] pl-[11px] text-[13px] text-text-primary ${
+            clear ? 'border-accent/35 pr-[5px]' : 'border-[var(--border)] pr-[11px]'
           }`}
+          data-added={clear ? 'true' : undefined}
         >
           <span className="truncate">
-            <span className="text-[var(--text-secondary)]">{kind}</span> {text}
+            <span className="text-text-muted">{kind}</span> {text}
           </span>
           {clear && (
             <button
               aria-label={`Clear ${kind} filter`}
-              className="grid h-5 w-5 flex-none place-items-center rounded-[5px] text-[var(--text-muted)] hover:bg-[var(--accent)]/20 hover:text-[var(--text-primary)]"
+              className="grid h-5 w-5 flex-none place-items-center rounded-[5px] text-text-muted hover:bg-accent/20 hover:text-text-primary"
               type="button"
               onClick={() => onChange({ ...query, ...clear })}
             >

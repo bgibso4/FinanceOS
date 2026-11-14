@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { Category } from '@/components/transactions/types';
 import { Input } from '@/components/ui/input';
 import { childrenByParent } from '@/lib/analytics-series';
 import { fmtMoney } from '@/lib/currency';
+import { byName } from '@/lib/sort-by-name';
 import { UNCATEGORIZED } from '@/lib/transaction-filters';
 import { TickRow, type Ticked } from './tick-row';
 
@@ -22,7 +23,8 @@ function groupsOf(categories: Category[]): Group[] {
   const children = childrenByParent(categories);
   return categories
     .filter((c) => !c.parentId)
-    .map((cat) => ({ cat, children: children.get(cat.id) ?? [] }));
+    .sort(byName)
+    .map((cat) => ({ cat, children: [...(children.get(cat.id) ?? [])].sort(byName) }));
 }
 
 /**
@@ -38,6 +40,16 @@ function withGroupIds(ids: Set<string>, groups: Group[]): string[] {
   return [...ids];
 }
 
+/** A root row: a fixed-width leading slot (fold chevron or spacer) so every tick box lines up. */
+function RootRow({ lead, children }: { lead?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="flex items-center">
+      {lead ?? <span aria-hidden="true" className="w-4 flex-none" data-slot="lead" />}
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
 const matches = (name: string, q: string) => name.toLowerCase().includes(q);
 
 /** Groups with tick boxes (all / some / none) and their categories indented below. */
@@ -48,6 +60,7 @@ export function CategoryPicker({
   groupTotals,
 }: CategoryPickerProps) {
   const [search, setSearch] = useState('');
+  const [unfolded, setUnfolded] = useState<Set<string>>(new Set());
   const q = search.trim().toLowerCase();
   const groups = groupsOf(categories);
   const ticked = new Set(selected);
@@ -59,28 +72,36 @@ export function CategoryPicker({
     onChange(withGroupIds(next, groups));
   };
 
+  const fold = (id: string) =>
+    setUnfolded((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+
   return (
     <div>
       <Input
         aria-label="Search categories"
-        className="h-8 rounded-lg text-[13px]"
+        className="mb-2.5 h-8 rounded-lg text-[13px]"
         placeholder="Search categories…"
         type="search"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
-      <div className="mt-1.5">
+      <div>
         {groups.map(({ cat, children }) => {
           if (!children.length) {
             if (!matches(cat.name, q)) return null;
             return (
-              <TickRow
-                key={cat.id}
-                aside={total(cat.id)}
-                checked={ticked.has(cat.id)}
-                label={cat.name}
-                onToggle={() => toggle([cat.id], !ticked.has(cat.id))}
-              />
+              <RootRow key={cat.id}>
+                <TickRow
+                  aside={total(cat.id)}
+                  checked={ticked.has(cat.id)}
+                  label={cat.name}
+                  onToggle={() => toggle([cat.id], !ticked.has(cat.id))}
+                />
+              </RootRow>
             );
           }
           const shown = matches(cat.name, q)
@@ -88,34 +109,58 @@ export function CategoryPicker({
             : children.filter((c) => matches(c.name, q));
           if (!shown.length) return null;
           const count = children.filter((c) => ticked.has(c.id)).length;
+          const forcedOpen = !!q || count > 0;
+          const isOpen = forcedOpen || unfolded.has(cat.id);
           const state: Ticked = count === children.length ? true : count ? 'mixed' : false;
           return (
             <div key={cat.id}>
-              <TickRow
-                aside={total(cat.id)}
-                checked={state}
-                label={cat.name}
-                onToggle={() => toggle([cat.id, ...children.map((c) => c.id)], state !== true)}
-              />
-              {shown.map((c) => (
+              <RootRow
+                lead={
+                  forcedOpen ? undefined : (
+                    <button
+                      aria-expanded={isOpen}
+                      aria-label={`${isOpen ? 'Hide' : 'Show'} ${cat.name}`}
+                      className={`w-4 flex-none text-[13px] leading-none text-text-muted transition-transform ${
+                        isOpen ? 'rotate-90' : ''
+                      }`}
+                      data-slot="lead"
+                      type="button"
+                      onClick={() => fold(cat.id)}
+                    >
+                      ›
+                    </button>
+                  )
+                }
+              >
                 <TickRow
-                  key={c.id}
-                  indent
-                  checked={ticked.has(c.id)}
-                  label={c.name}
-                  onToggle={() => toggle([c.id], !ticked.has(c.id))}
+                  aside={total(cat.id)}
+                  checked={state}
+                  label={cat.name}
+                  onToggle={() => toggle([cat.id, ...children.map((c) => c.id)], state !== true)}
                 />
-              ))}
+              </RootRow>
+              {isOpen &&
+                shown.map((c) => (
+                  <TickRow
+                    key={c.id}
+                    indent
+                    checked={ticked.has(c.id)}
+                    label={c.name}
+                    onToggle={() => toggle([c.id], !ticked.has(c.id))}
+                  />
+                ))}
             </div>
           );
         })}
         {matches('Uncategorized', q) && (
-          <TickRow
-            aside={total(UNCATEGORIZED)}
-            checked={ticked.has(UNCATEGORIZED)}
-            label="Uncategorized"
-            onToggle={() => toggle([UNCATEGORIZED], !ticked.has(UNCATEGORIZED))}
-          />
+          <RootRow>
+            <TickRow
+              aside={total(UNCATEGORIZED)}
+              checked={ticked.has(UNCATEGORIZED)}
+              label="Uncategorized"
+              onToggle={() => toggle([UNCATEGORIZED], !ticked.has(UNCATEGORIZED))}
+            />
+          </RootRow>
         )}
       </div>
     </div>
