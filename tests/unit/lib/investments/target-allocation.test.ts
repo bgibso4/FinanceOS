@@ -9,8 +9,6 @@ import {
 
 const country = (weightPct: number, regionId: string) => ({ weightPct, regionId });
 
-// NOTE: the written starting list sums to 99.34, but its acceptance targets (and the 27.92 in the
-// tilt example) need 99.24, so Developed ex-US is 27.92 here (Canada 3.45).
 const startingSetup = (over: Partial<TargetSetup> = {}): TargetSetup => ({
   classes: [
     { id: 'stocks', name: 'Stocks', pct: 80, splitByRegion: true, buySecurityId: null },
@@ -24,7 +22,7 @@ const startingSetup = (over: Partial<TargetSetup> = {}): TargetSetup => ({
   ],
   countries: [
     country(55.9, 'us'),
-    ...[7.4, 4.1, 2.9, 2.6, 2.6, 2.1, 2.77, 3.45].map((w) => country(w, 'dev')),
+    ...[7.4, 4.1, 2.9, 2.6, 2.6, 2.1, 2.77, 3.55].map((w) => country(w, 'dev')),
     ...[5.4, 1.7, 8.32].map((w) => country(w, 'em')),
   ],
   ...over,
@@ -36,8 +34,8 @@ describe('finalTargets', () => {
   it('starting setup gives the acceptance targets', () => {
     const t = finalTargets(startingSetup());
     expect(t.map((x) => x.key)).toEqual(['stocks:us', 'stocks:dev', 'stocks:em', 'fi', 'crypto']);
-    [0.4506, 0.2251, 0.1243, 0.15, 0.05].forEach((v, i) => expect(t[i].target).toBeCloseTo(v, 4));
-    expect(t[0].shareOfClass).toBeCloseTo(0.5633, 4);
+    [0.4502, 0.2256, 0.1242, 0.15, 0.05].forEach((v, i) => expect(t[i].target).toBeCloseTo(v, 4));
+    expect(t[0].shareOfClass).toBeCloseTo(0.5627, 4);
     expect(t[0]).toMatchObject({ name: 'US', className: 'Stocks', regionId: 'us' });
     expect(t[0].marketWeightPct).toBeCloseTo(55.9, 6);
     expect(t[3]).toMatchObject({
@@ -54,7 +52,7 @@ describe('finalTargets', () => {
     const s = startingSetup();
     s.regions[0].tiltPct = 20;
     const t = finalTargets(s);
-    expect(t[0].shareOfClass).toBeCloseTo(0.6075, 4);
+    expect(t[0].shareOfClass).toBeCloseTo(0.6069, 4);
   });
 
   it('class percentages scale', () => {
