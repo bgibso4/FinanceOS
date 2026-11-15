@@ -93,107 +93,110 @@ export default function InvestmentsPage() {
   };
 
   return (
-    <div className={cn('animate-fade-in', investOpen && DRAWER_PUSH_CLASS)}>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-[-0.3px] text-[var(--text-primary)]">
-          Investments
-        </h1>
-        <div className="flex items-center gap-3.5">
-          <PricesNote overview={overview} refresh={refresh} onRetry={refreshPrices} />
-          <div className="inline-flex gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] p-0.5">
-            {RANGES.map((r) => (
-              <button
-                key={r}
-                aria-pressed={r === range}
-                className={`rounded-md px-2.5 py-[3px] text-[11px] font-medium ${
-                  r === range
-                    ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
-                    : 'text-[var(--text-muted)]'
-                }`}
-                type="button"
-                onClick={() => setRange(r)}
-              >
-                {r}
-              </button>
-            ))}
+    <>
+      <div className={cn('animate-fade-in', investOpen && DRAWER_PUSH_CLASS)}>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-xl font-semibold tracking-[-0.3px] text-[var(--text-primary)]">
+            Investments
+          </h1>
+          <div className="flex items-center gap-3.5">
+            <PricesNote overview={overview} refresh={refresh} onRetry={refreshPrices} />
+            <div className="inline-flex gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] p-0.5">
+              {RANGES.map((r) => (
+                <button
+                  key={r}
+                  aria-pressed={r === range}
+                  className={`rounded-md px-2.5 py-[3px] text-[11px] font-medium ${
+                    r === range
+                      ? 'bg-[var(--bg-elevated)] text-[var(--text-primary)]'
+                      : 'text-[var(--text-muted)]'
+                  }`}
+                  type="button"
+                  onClick={() => setRange(r)}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+            <Button
+              className="px-3 py-1 text-[12px]"
+              variant="outline"
+              onClick={() => setInvestOpen(true)}
+            >
+              Invest
+            </Button>
           </div>
-          <Button
-            className="px-3 py-1 text-[12px]"
-            variant="outline"
-            onClick={() => setInvestOpen(true)}
-          >
-            Invest
-          </Button>
         </div>
+
+        {!overview && loadFailed && (
+          <Card className="p-6 text-sm text-[var(--text-secondary)]">
+            Couldn’t load investments.{' '}
+            <button
+              className="font-medium text-[var(--accent)]"
+              type="button"
+              onClick={() => load(range)}
+            >
+              Try again
+            </button>
+          </Card>
+        )}
+
+        {overview && overview.accounts.length === 0 && (
+          <Card className="p-6">
+            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+              No investment accounts yet
+            </h2>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              Set an account’s tracking mode to Investment in{' '}
+              <Link className="text-[var(--accent)]" href="/settings?tab=accounts">
+                Settings → Accounts
+              </Link>
+              .
+            </p>
+          </Card>
+        )}
+
+        {overview && overview.accounts.length > 0 && (
+          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[400px_1fr]">
+            <Card className="px-5 pb-[18px] pt-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
+              <AccountNavigator overview={overview} selected={selected} onSelect={setSelected} />
+            </Card>
+            <Card className="px-[26px] pb-7 pt-6">
+              <AccountDetail
+                overview={overview}
+                selected={selected}
+                onEditHoldings={(account) => setDialog({ kind: 'holdings', account })}
+                onReconnected={() => load(range)}
+                onRecordBalance={(account) => setDialog({ kind: 'record', account })}
+                onRetryPrices={refreshPrices}
+              />
+            </Card>
+          </div>
+        )}
+
+        {dialog?.kind === 'record' && (
+          <RecordBalanceModal
+            key={dialog.account.id}
+            account={dialog.account}
+            today={localDay()}
+            onClose={() => setDialog(null)}
+            onSaved={saved}
+          />
+        )}
+        {dialog?.kind === 'holdings' && overview && (
+          <HoldingsEditorModal
+            key={dialog.account.id}
+            account={dialog.account}
+            holdings={overview.holdings.filter((h) => h.accountId === dialog.account.id)}
+            pricesAsOf={dialog.account.prices?.asOf ?? null}
+            onClose={() => setDialog(null)}
+            onSaved={saved}
+          />
+        )}
       </div>
-
-      {!overview && loadFailed && (
-        <Card className="p-6 text-sm text-[var(--text-secondary)]">
-          Couldn’t load investments.{' '}
-          <button
-            className="font-medium text-[var(--accent)]"
-            type="button"
-            onClick={() => load(range)}
-          >
-            Try again
-          </button>
-        </Card>
-      )}
-
-      {overview && overview.accounts.length === 0 && (
-        <Card className="p-6">
-          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-            No investment accounts yet
-          </h2>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            Set an account’s tracking mode to Investment in{' '}
-            <Link className="text-[var(--accent)]" href="/settings?tab=accounts">
-              Settings → Accounts
-            </Link>
-            .
-          </p>
-        </Card>
-      )}
-
-      {overview && overview.accounts.length > 0 && (
-        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[400px_1fr]">
-          <Card className="px-5 pb-[18px] pt-4 lg:sticky lg:top-6">
-            <AccountNavigator overview={overview} selected={selected} onSelect={setSelected} />
-          </Card>
-          <Card className="px-[26px] pb-7 pt-6">
-            <AccountDetail
-              overview={overview}
-              selected={selected}
-              onEditHoldings={(account) => setDialog({ kind: 'holdings', account })}
-              onReconnected={() => load(range)}
-              onRecordBalance={(account) => setDialog({ kind: 'record', account })}
-              onRetryPrices={refreshPrices}
-            />
-          </Card>
-        </div>
-      )}
-
-      {dialog?.kind === 'record' && (
-        <RecordBalanceModal
-          key={dialog.account.id}
-          account={dialog.account}
-          today={localDay()}
-          onClose={() => setDialog(null)}
-          onSaved={saved}
-        />
-      )}
-      {dialog?.kind === 'holdings' && overview && (
-        <HoldingsEditorModal
-          key={dialog.account.id}
-          account={dialog.account}
-          holdings={overview.holdings.filter((h) => h.accountId === dialog.account.id)}
-          pricesAsOf={dialog.account.prices?.asOf ?? null}
-          onClose={() => setDialog(null)}
-          onSaved={saved}
-        />
-      )}
+      {/* Outside the fade-in wrapper: its leftover transform would pin this fixed drawer to the page. */}
       <InvestDrawer open={investOpen} onClose={() => setInvestOpen(false)} />
-    </div>
+    </>
   );
 }
 

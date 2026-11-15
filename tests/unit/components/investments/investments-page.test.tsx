@@ -191,4 +191,14 @@ describe('InvestmentsPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Invest' }));
     expect(await screen.findByRole('dialog', { name: 'Invest' })).toBeInTheDocument();
   });
+
+  it('keeps the invest drawer outside the animated page wrapper', async () => {
+    // The fade-in animation leaves a transform on its element, and a transformed ancestor
+    // pins a `position: fixed` drawer to the page instead of the window edge.
+    render(<InvestmentsPage />);
+    await screen.findByRole('heading', { name: 'All accounts' });
+    await userEvent.click(screen.getByRole('button', { name: 'Invest' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Invest' });
+    expect(drawer.closest('.animate-fade-in')).toBeNull();
+  });
 });
