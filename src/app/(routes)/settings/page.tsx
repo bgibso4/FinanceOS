@@ -62,8 +62,11 @@ import { RulesTab } from '@/components/rules/RulesTab';
 import { GeneralSettings } from '@/components/settings/general/general-settings';
 import { SplitwiseImportCard } from '@/components/settings/import/splitwise-import-card';
 import { SecuritiesTab } from '@/components/investments/securities-tab';
+import { TargetsTab } from '@/components/investments/targets-tab';
 import { getTagColors } from '@/components/tag-input';
 import { TagsTable, type TagWithTotals } from '@/components/settings/tags-table';
+
+const TAB_LABELS: Record<string, string> = { sync: 'Cloud Sync', targets: 'Investing Targets' };
 
 type PlaidConnection = {
   id: string;
@@ -1814,6 +1817,7 @@ function SettingsPageContent() {
           'general',
           'accounts',
           'securities',
+          'targets',
           'categories',
           'rules',
           'budgets',
@@ -1831,7 +1835,7 @@ function SettingsPageContent() {
             )}
             href={`/settings?tab=${t}`}
           >
-            {t === 'sync' ? 'Cloud Sync' : t.charAt(0).toUpperCase() + t.slice(1)}
+            {TAB_LABELS[t] ?? t.charAt(0).toUpperCase() + t.slice(1)}
           </Link>
         ))}
       </div>
@@ -1947,6 +1951,7 @@ function SettingsPageContent() {
         </>
       )}
 
+      {tab === 'targets' && <TargetsTab />}
       {tab === 'securities' && <SecuritiesTab focusId={searchParams.get('security')} />}
 
       {tab === 'categories' && (

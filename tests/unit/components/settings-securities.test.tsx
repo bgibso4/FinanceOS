@@ -30,11 +30,11 @@ beforeEach(() => {
 });
 
 describe('Settings → Securities', () => {
-  it('sits between Accounts and Categories and opens on the deep-linked security', async () => {
+  it('sits between Accounts and Investing Targets and opens on the deep-linked security', async () => {
     render(<SettingsPage />);
     const tabs = screen.getAllByRole('link').map((l) => l.textContent);
     const at = tabs.indexOf('Accounts');
-    expect(tabs.slice(at, at + 3)).toEqual(['Accounts', 'Securities', 'Categories']);
+    expect(tabs.slice(at, at + 3)).toEqual(['Accounts', 'Securities', 'Investing Targets']);
     expect(screen.getByRole('link', { name: 'Securities' })).toHaveAttribute(
       'href',
       '/settings?tab=securities'
