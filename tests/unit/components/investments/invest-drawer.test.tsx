@@ -52,6 +52,7 @@ function makePlan(over: Record<string, unknown> = {}): InvestPlan {
     accountsCounted: 2,
     rows: [makeRow(), fixed],
     leftOut: [],
+    rates: [],
     totals: { countryWeightPct: 100, classPct: 100 },
     pricesAsOf: null,
     ...over,
@@ -116,7 +117,15 @@ describe('InvestDrawer', () => {
               makeRow({
                 trade: -400,
                 shares: null,
-                holdings: [{ label: 'VTI', accountName: 'Brokerage', value: 5000 }],
+                holdings: [
+                  {
+                    accountId: 'a1',
+                    securityId: 's1',
+                    label: 'VTI',
+                    accountName: 'Brokerage',
+                    value: 5000,
+                  },
+                ],
               }),
             ],
           })
@@ -180,8 +189,20 @@ describe('InvestDrawer', () => {
     reply = () =>
       makePlan({
         leftOut: [
-          { label: 'Old RRSP', reason: 'typed_balance', value: 500 },
-          { label: 'Cash · Brokerage', reason: 'cash', value: 250 },
+          {
+            accountId: 'a1',
+            securityId: null,
+            label: 'Old RRSP',
+            reason: 'typed_balance',
+            value: 500,
+          },
+          {
+            accountId: 'a2',
+            securityId: 's1',
+            label: 'Cash · Brokerage',
+            reason: 'cash',
+            value: 250,
+          },
         ],
       });
     render(<InvestDrawer open onClose={() => {}} />);
@@ -206,10 +227,75 @@ describe('InvestDrawer', () => {
     reply = () => ({ ready: false, reason: 'no_class_targets' });
     render(<InvestDrawer open onClose={() => {}} />);
     expect(await screen.findByText('Set your investing targets first')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Edit investing targets/ })).toHaveAttribute(
-      'href',
-      '/settings?tab=targets'
-    );
+    const links = screen.getAllByRole('link', { name: /Edit investing targets/ });
+    expect(links).toHaveLength(2);
+    for (const link of links) expect(link).toHaveAttribute('href', '/settings?tab=targets');
+    expect(
+      within(screen.getByText('Set your investing targets first').closest('div')!).getByRole('link')
+    ).toBeInTheDocument();
+  });
+
+  it('shows one note per converted currency', async () => {
+    reply = () =>
+      makePlan({
+        rates: [
+          { currency: 'CAD', rate: 0.72 },
+          { currency: 'GBP', rate: 1.27014 },
+        ],
+      });
+    render(<InvestDrawer open onClose={() => {}} />);
+    await type('1000');
+    expect(await screen.findByText('CAD converted at 0.72.')).toBeInTheDocument();
+    expect(screen.getByText('GBP converted at 1.27.')).toBeInTheDocument();
+  });
+
+  it('left out rows with the same label do not collide on keys', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    reply = () =>
+      makePlan({
+        leftOut: [
+          { accountId: 'a1', securityId: 's1', label: 'Cash · Q', reason: 'cash', value: 5 },
+          { accountId: 'a1', securityId: 's2', label: 'Cash · Q', reason: 'cash', value: 7 },
+        ],
+        sells: true,
+        rows: [
+          makeRow({
+            trade: -50,
+            holdings: [
+              { accountId: 'a1', securityId: 's1', label: 'VTI', accountName: 'Q', value: 1 },
+              { accountId: 'a2', securityId: 's1', label: 'VTI', accountName: 'Q', value: 2 },
+            ],
+          }),
+        ],
+      });
+    render(<InvestDrawer open onClose={() => {}} />);
+    await type('1000');
+    await userEvent.click(await screen.findByRole('button', { name: /Left out/ }));
+    expect(screen.getAllByText('Cash · Q')).toHaveLength(2);
+    expect(screen.getAllByText('VTI · Q')).toHaveLength(2);
+    const keyWarnings = error.mock.calls.filter((c) => String(c[0]).includes('same key'));
+    error.mockRestore();
+    expect(keyWarnings).toEqual([]);
+  });
+
+  it('shows a dash instead of "over target" for a 0% target', async () => {
+    reply = () =>
+      makePlan({
+        rows: [makeRow({ trade: 0, shares: null, targetPct: 0, name: 'Crypto', className: null })],
+      });
+    render(<InvestDrawer open onClose={() => {}} />);
+    await type('1000');
+    await screen.findByText('Buy list');
+    expect(screen.queryByText('over target')).toBeNull();
+  });
+
+  it('uses the base currency for the prefix and quick amounts', async () => {
+    reply = () => makePlan({ baseCurrency: 'CAD' });
+    render(<InvestDrawer open onClose={() => {}} />);
+    await screen.findByText('Buy list');
+    expect(screen.getByRole('button', { name: 'CA$2,500' })).toBeInTheDocument();
+    expect(screen.getByText('CA$', { selector: 'span' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '$2,500' })).toBeNull();
   });
 
   it('does not fetch while closed', () => {

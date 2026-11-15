@@ -119,6 +119,13 @@ describe('planTrades', () => {
     expect(values(r).every((v) => v >= 0)).toBe(true);
   });
 
+  it('a rounding remainder never goes to a target that is over', () => {
+    const r = planTrades(rows([1000, 0, 0, 0], [0.25, 0.25, 0.25, 0.25]), 0.01, false);
+    expect(r.k0).toBe(0);
+    expect(Math.round(sum(values(r)) * 100)).toBe(1);
+    expect(values(r).every((v) => v >= 0)).toBe(true);
+  });
+
   it('sells on lands on target', () => {
     const r = planTrades(rows([900, 100], [0.5, 0.5]), 0, true);
     expect(values(r)).toEqual([-400, 400]);

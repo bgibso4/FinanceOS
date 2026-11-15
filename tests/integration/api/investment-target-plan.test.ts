@@ -158,6 +158,32 @@ describe('invest plan API', () => {
     const p = await ready('');
     expect(rowOf(p, 'US').current).toBe(750);
     expect(p.countedTotal).toBe(750);
+    expect(p.rates).toEqual([{ currency: 'CAD', rate: 0.75 }]);
+  });
+
+  it('reports no rates when everything is in the base currency', async () => {
+    const { stocks, us } = await stocksOnly();
+    const a = await seedInvestmentAccount(testPrisma);
+    await hold(a.id, 1000, { classId: stocks.id, regionId: us.id });
+    expect((await ready('')).rates).toEqual([]);
+  });
+
+  it('prices shares of a CAD buy-with fund through the CAD rate', async () => {
+    const usBuy = await buyFund(40, '2026-10-09', { currency: 'CAD' });
+    const { stocks, us } = await stocksOnly({ us: usBuy.id });
+    const a = await seedInvestmentAccount(testPrisma);
+    await hold(a.id, 1000, { classId: stocks.id, regionId: us.id });
+    await testPrisma.exchangeRate.create({
+      data: { fromCurrency: 'CAD', toCurrency: 'USD', date: day('2026-10-09'), rate: 0.8 },
+    });
+    // US target is 50% of 3000 = 1500 against 1000 held, so the gap is 500.
+    const p = await ready('?amount=2000');
+    const row = rowOf(p, 'US');
+    expect(row.trade).toBe(500);
+    // 500 USD / 0.8 = 625 CAD; 625 / 40 = 15.625 shares
+    expect(row.shares).toBe(15.625);
+    expect(row.fund).toMatchObject({ currency: 'CAD', price: 40 });
+    expect(p.rates).toEqual([{ currency: 'CAD', rate: 0.8 }]);
   });
 
   it('lists what is left out and does not count it', async () => {
@@ -195,10 +221,16 @@ describe('invest plan API', () => {
     const p = await ready('?amount=100');
     const count = (reason: string) => p.leftOut.filter((l) => l.reason === reason);
     expect(count('account_excluded')).toEqual([
-      { label: 'Off', reason: 'account_excluded', value: 70 },
+      { label: 'Off', reason: 'account_excluded', value: 70, accountId: off.id, securityId: null },
     ]);
     expect(count('typed_balance')).toEqual([
-      { label: 'Typed', reason: 'typed_balance', value: 40 },
+      {
+        label: 'Typed',
+        reason: 'typed_balance',
+        value: 40,
+        accountId: manual.id,
+        securityId: null,
+      },
     ]);
     expect(count('cash')).toHaveLength(1);
     expect(
@@ -207,6 +239,25 @@ describe('invest plan API', () => {
         .sort()
     ).toEqual([10, 20, 30]);
     expect(p.countedTotal).toBe(100);
+    expect(p.accountsCounted).toBe(1);
+  });
+
+  it('labels cash by currency and carries ids for keys', async () => {
+    await stocksOnly();
+    const a = await seedInvestmentAccount(testPrisma, { name: 'Questrade RRSP' });
+    const cad = await hold(a.id, 5, {}, { type: SecurityType.Cash, name: 'Cash', currency: 'CAD' });
+    const usd = await hold(a.id, 7, {}, { type: SecurityType.Cash, name: 'Cash' });
+    await testPrisma.exchangeRate.create({
+      data: { fromCurrency: 'CAD', toCurrency: 'USD', date: day('2026-10-09'), rate: 0.75 },
+    });
+    const p = await ready('');
+    const cash = p.leftOut.filter((l) => l.reason === 'cash');
+    expect(cash.map((c) => c.label).sort()).toEqual([
+      'Cash (CAD) · Questrade RRSP',
+      'Cash · Questrade RRSP',
+    ]);
+    expect(cash.map((c) => c.securityId).sort()).toEqual([cad.id, usd.id].sort());
+    expect(cash.every((c) => c.accountId === a.id)).toBe(true);
   });
 
   it('sells on lists holdings', async () => {
@@ -214,7 +265,7 @@ describe('invest plan API', () => {
     const { stocks, us, dev } = await stocksOnly({ us: usBuy.id });
     const a = await seedInvestmentAccount(testPrisma, { name: 'A' });
     const b = await seedInvestmentAccount(testPrisma, { name: 'B' });
-    await hold(a.id, 700, { classId: stocks.id, regionId: us.id });
+    const held = await hold(a.id, 700, { classId: stocks.id, regionId: us.id });
     await hold(b.id, 100, { classId: stocks.id, regionId: us.id });
     await hold(b.id, 200, { classId: stocks.id, regionId: dev.id });
 
@@ -227,6 +278,10 @@ describe('invest plan API', () => {
       ['A', 700],
       ['B', 100],
     ]);
+    expect(row.holdings.find((h) => h.accountName === 'A')).toMatchObject({
+      accountId: a.id,
+      securityId: held.id,
+    });
     expect(rowOf(p, 'Developed ex-US').trade).toBe(300);
   });
 

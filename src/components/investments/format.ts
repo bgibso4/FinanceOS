@@ -3,7 +3,7 @@ import { fmtCalendarDay } from '@/lib/dates';
 import { BalanceSource } from '@/lib/investments/codes';
 import type { SeriesChange } from '@/lib/investments/portfolio-view';
 
-export { fmtMoney, MINUS, type MoneyOpts };
+export { fmtMoney, MINUS, moneySymbol, type MoneyOpts };
 
 /** How each balance source reads in pills, badges and the source picker. */
 export const SOURCE_LABEL: Record<BalanceSource, 'Synced' | 'Valued' | 'Manual'> = {

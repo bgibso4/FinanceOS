@@ -2,8 +2,14 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { fmtDay, fmtMoney } from '@/components/investments/format';
-import { leftOutText, parseAmount, rowTag, scaleNotes } from '@/components/investments/invest-view';
+import { fmtDay, fmtMoney, moneySymbol } from '@/components/investments/format';
+import {
+  leftOutText,
+  parseAmount,
+  rateNote,
+  rowTag,
+  scaleNotes,
+} from '@/components/investments/invest-view';
 import { TD, TH, fraction } from '@/components/investments/targets-kit';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -82,6 +88,7 @@ export function InvestDrawer({ open, onClose }: { open: boolean; onClose: () => 
             <p className={`mt-1 ${MUTED}`}>
               The plan needs class targets and country weights to split your money.
             </p>
+            <TargetsLink className="mt-3 inline-block" />
           </Card>
         )}
         {ready && <PlanBody plan={ready} />}
@@ -96,13 +103,22 @@ function Footer() {
       <span className={`text-[12px] ${MUTED}`}>
         Nothing is saved. Your next sync brings in the buys.
       </span>
-      <Link
-        className="shrink-0 text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-        href="/settings?tab=targets"
-      >
-        Edit investing targets →
-      </Link>
+      <TargetsLink className="shrink-0" />
     </div>
+  );
+}
+
+function TargetsLink({ className }: { className?: string }) {
+  return (
+    <Link
+      className={cn(
+        'text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+        className
+      )}
+      href="/settings?tab=targets"
+    >
+      Edit investing targets →
+    </Link>
   );
 }
 
@@ -125,7 +141,7 @@ function AmountCard({
         Amount to invest
       </label>
       <div className="flex items-center gap-2">
-        <span className={MUTED}>$</span>
+        <span className={MUTED}>{moneySymbol(currency)}</span>
         <Input
           autoComplete="off"
           id="amt"
@@ -144,7 +160,7 @@ function AmountCard({
             variant="outline"
             onClick={() => onText(String(n))}
           >
-            {fmtMoney(n)}
+            {fmtMoney(n, { currency })}
           </Button>
         ))}
       </div>
@@ -186,6 +202,7 @@ function PlanBody({ plan }: { plan: Ready }) {
   const notes = useMemo(() => {
     const lines = scaleNotes(plan.totals);
     if (plan.pricesAsOf) lines.push(`Prices from ${fmtDay(plan.pricesAsOf)} close.`);
+    lines.push(...plan.rates.map(rateNote));
     if (!plan.sells && hasAmt && plan.rows.some((r) => r.trade === 0 && r.targetPct > 0))
       lines.push('Targets already over get nothing. Turn on sells to rebalance fully.');
     return lines;
@@ -282,7 +299,7 @@ function RowView({ hasAmt, money, row }: { hasAmt: boolean; money: Money; row: P
                 <span>Value</span>
               </div>
               {row.holdings.map((h) => (
-                <div key={`${h.accountName}-${h.label}`} className="flex justify-between">
+                <div key={`${h.accountId}-${h.securityId}`} className="flex justify-between">
                   <span>{`${h.label} · ${h.accountName}`}</span>
                   <span className="font-mono">{money(h.value)}</span>
                 </div>
@@ -335,7 +352,7 @@ function TradeCell({ hasAmt, money, row }: { hasAmt: boolean; money: Money; row:
         {money(row.trade, true)}
       </span>
       {row.trade === 0 ? (
-        <span className={sub}>over target</span>
+        <span className={sub}>{row.targetPct === 0 ? '—' : 'over target'}</span>
       ) : !row.fund ? (
         <span className={sub}>Pick a fund to buy</span>
       ) : price == null || row.shares == null ? (
@@ -380,7 +397,7 @@ function LeftOut({ items, money }: { items: Ready['leftOut']; money: Money }) {
             .sort((a, b) => b.value - a.value)
             .map((i) => (
               <div
-                key={`${i.label}-${i.reason}`}
+                key={`${i.accountId}-${i.securityId}-${i.reason}`}
                 className="flex justify-between gap-3 text-[13px]"
               >
                 <div className="min-w-0">

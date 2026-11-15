@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { triggerSync } from '@/lib/cloud-sync';
 import { Pricing } from '@/lib/investments/codes';
 import type { SecurityList } from '@/lib/investments/security-list';
 import type { TargetChange, TargetSettingsView } from '@/lib/investments/targets/settings';
@@ -62,6 +63,7 @@ export function TargetsTab() {
     setErrors((e) => ({ ...e, [change.section]: undefined }));
     try {
       setView(await sendJson<TargetSettingsView>('/api/investments/targets', 'PUT', change));
+      triggerSync();
       return true;
     } catch (e) {
       setErrors((prev) => ({ ...prev, [change.section]: errorText(e) }));

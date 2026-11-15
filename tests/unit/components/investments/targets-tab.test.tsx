@@ -5,7 +5,10 @@ import { TargetsTab } from '@/components/investments/targets-tab';
 import { Pricing } from '@/lib/investments/codes';
 import type { TargetSettingsView } from '@/lib/investments/targets/settings';
 import { finalTargets, targetTotals } from '@/lib/investments/targets/allocation';
+import { triggerSync } from '@/lib/cloud-sync';
 import { makeSecurityItem } from '../../../helpers/investment-overview';
+
+vi.mock('@/lib/cloud-sync', () => ({ triggerSync: vi.fn() }));
 
 const classes = [
   { id: 'c-stocks', name: 'Stocks', pct: 80, splitByRegion: true, buySecurityId: null },
@@ -53,6 +56,7 @@ let view: TargetSettingsView;
 let putResponse: { status: number; body: unknown };
 
 beforeEach(() => {
+  vi.mocked(triggerSync).mockClear();
   view = makeView();
   putResponse = { status: 200, body: null };
   global.fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
@@ -130,6 +134,22 @@ describe('TargetsTab', () => {
     expect(
       (card('Asset classes').getByLabelText('Target for Crypto') as HTMLInputElement).value
     ).toBe('10');
+  });
+
+  it('triggers a cloud sync after a successful save, not after a failed one', async () => {
+    render(<TargetsTab />);
+    await ready();
+    const user = userEvent.setup();
+    const crypto = card('Asset classes').getByLabelText('Target for Crypto');
+    await user.clear(crypto);
+    await user.type(crypto, '10');
+    putResponse = { status: 400, body: { error: 'nope' } };
+    await user.click(card('Asset classes').getByRole('button', { name: 'Save' }));
+    await card('Asset classes').findByText('nope');
+    expect(triggerSync).not.toHaveBeenCalled();
+    putResponse = { status: 200, body: view };
+    await user.click(card('Asset classes').getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(triggerSync).toHaveBeenCalledTimes(1));
   });
 
   it('shows a save error', async () => {

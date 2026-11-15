@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { leftOutText, parseAmount, rowTag, scaleNotes } from '@/components/investments/invest-view';
+import {
+  leftOutText,
+  parseAmount,
+  rateNote,
+  rowTag,
+  scaleNotes,
+} from '@/components/investments/invest-view';
 import type { PlanRow } from '@/lib/investments/targets/planner';
 
 const row = (className: string | null, name: string) => ({ className, name }) as PlanRow;
@@ -44,5 +50,13 @@ describe('scaleNotes', () => {
   });
   it('says nothing at 100', () => {
     expect(scaleNotes({ countryWeightPct: 100.001, classPct: 100 })).toEqual([]);
+  });
+});
+
+describe('rateNote', () => {
+  it('shows 4 significant digits with trailing zeros trimmed', () => {
+    expect(rateNote({ currency: 'CAD', rate: 0.72 })).toBe('CAD converted at 0.72.');
+    expect(rateNote({ currency: 'CAD', rate: 0.723456 })).toBe('CAD converted at 0.7235.');
+    expect(rateNote({ currency: 'GBP', rate: 1.2701 })).toBe('GBP converted at 1.27.');
   });
 });

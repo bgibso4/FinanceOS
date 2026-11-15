@@ -33,11 +33,27 @@ export type PlanRow = {
   trade: number;
   afterPct: number;
   shares: number | null;
-  holdings: { label: string; accountName: string; value: number }[];
+  holdings: {
+    accountId: string;
+    securityId: string;
+    label: string;
+    accountName: string;
+    value: number;
+  }[];
 };
 
 export type LeftOutReason = 'account_excluded' | 'typed_balance' | 'cash' | 'not_counted';
-export type LeftOutItem = { label: string; reason: LeftOutReason; value: number };
+export type LeftOutItem = {
+  accountId: string;
+  /** Null for account-level items (a left-out account, a typed balance). */
+  securityId: string | null;
+  label: string;
+  reason: LeftOutReason;
+  value: number;
+};
+
+/** One unit of `currency` in the base currency, for the notes under the plan. */
+export type PlanRate = { currency: string; rate: number };
 
 export type InvestPlan =
   | {
@@ -49,6 +65,7 @@ export type InvestPlan =
       accountsCounted: number;
       rows: PlanRow[];
       leftOut: LeftOutItem[];
+      rates: PlanRate[];
       totals: { countryWeightPct: number; classPct: number };
       pricesAsOf: string | null;
     }
@@ -101,12 +118,15 @@ export class TargetPlanner {
     );
 
     const leftOut: LeftOutItem[] = [];
+    const typedBalance = new Set(rows.filter((r) => r.kind === 'account').map((r) => r.accountId));
     const heldBy = new Map(final.map((f) => [f.key, [] as PlanRow['holdings']]));
     const currentOf = new Map(final.map((f) => [f.key, 0]));
     for (const account of accounts.filter((a) => !a.inTargets)) {
       const own = rows.filter((r) => r.accountId === account.id);
       if (own.length) {
         leftOut.push({
+          accountId: account.id,
+          securityId: null,
           label: account.name,
           reason: 'account_excluded',
           value: roundCents(sum(own.map((r) => r.valueBase))),
@@ -117,22 +137,35 @@ export class TargetPlanner {
       const account = accountById.get(row.accountId)!;
       if (!account.inTargets) continue;
       const value = roundCents(row.valueBase);
+      const item = { accountId: account.id, securityId: row.securityId, value };
       if (row.kind === 'account') {
-        leftOut.push({ label: account.name, reason: 'typed_balance', value });
+        leftOut.push({
+          ...item,
+          securityId: null,
+          label: account.name,
+          reason: 'typed_balance',
+        });
+        continue;
+      }
+      if (row.kind === 'cash') {
+        const name = row.currency === baseCurrency ? row.label : `${row.label} (${row.currency})`;
+        leftOut.push({ ...item, label: `${name} · ${account.name}`, reason: 'cash' });
         continue;
       }
       const label = `${row.label} · ${account.name}`;
-      if (row.kind === 'cash') {
-        leftOut.push({ label, reason: 'cash', value });
-        continue;
-      }
       const s = assigned.get(row.securityId);
       const key = s?.targetClassId ? targetKey(s.targetClassId, s.targetRegionId) : null;
       if (key === null || !heldBy.has(key)) {
-        leftOut.push({ label, reason: 'not_counted', value });
+        leftOut.push({ ...item, label, reason: 'not_counted' });
         continue;
       }
-      heldBy.get(key)!.push({ label: row.label, accountName: account.name, value });
+      heldBy.get(key)!.push({
+        accountId: account.id,
+        securityId: row.securityId,
+        label: row.label,
+        accountName: account.name,
+        value,
+      });
       currentOf.set(key, currentOf.get(key)! + row.valueBase);
     }
 
@@ -179,9 +212,18 @@ export class TargetPlanner {
       amount,
       sells,
       countedTotal,
-      accountsCounted: accounts.filter((a) => a.inTargets).length,
+      accountsCounted: accounts.filter((a) => a.inTargets && !typedBalance.has(a.id)).length,
       rows: planRows,
       leftOut,
+      rates: [
+        ...new Set([
+          ...rows.map((r) => r.currency),
+          ...planRows.flatMap((r) => (r.fund ? [r.fund.currency] : [])),
+        ]),
+      ]
+        .filter((currency) => currency !== baseCurrency)
+        .sort()
+        .map((currency) => ({ currency, rate: rates.rate(currency, baseCurrency) })),
       totals,
       pricesAsOf: dates.length ? dates.sort()[0] : null,
     };

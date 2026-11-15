@@ -207,6 +207,24 @@ export class TargetSettingsService {
           throw new InvestmentInputError('Only one class can be split by region');
         }
         await this.prisma.$transaction(async (tx) => {
+          // A class changing its split leaves its funds with a wrong region: fix them first.
+          const before = new Map(
+            (await tx.targetClass.findMany({ select: { id: true, splitByRegion: true } })).map(
+              (c) => [c.id, c.splitByRegion]
+            )
+          );
+          const flipped = (on: boolean) =>
+            change.items.flatMap((c) =>
+              c.id && before.get(c.id) === !on && c.splitByRegion === on ? [c.id] : []
+            );
+          await tx.security.updateMany({
+            where: { targetClassId: { in: flipped(false) } },
+            data: { targetRegionId: null },
+          });
+          await tx.security.updateMany({
+            where: { targetClassId: { in: flipped(true) } },
+            data: { targetClassId: null, targetRegionId: null },
+          });
           await this.saveList(
             tx.targetClass as unknown as ListModel,
             change.items,

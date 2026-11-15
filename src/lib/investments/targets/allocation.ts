@@ -91,7 +91,7 @@ export function finalTargets(setup: TargetSetup): FinalTarget[] {
  * Dollar trade per row key (positive buys, negative sells).
  * gap = target * (total + amount) - current. Sells off: fill positive gaps, split any extra by
  * target, or split the amount by gap if it is smaller. Rounded to cents; the remainder goes on the
- * trade with the largest absolute value so the trades add up to the amount.
+ * largest trade (the largest buy when sells are off) so the trades add up to the amount.
  */
 export function planTrades(
   rows: { key: string; current: number; target: number }[],
@@ -118,11 +118,11 @@ export function planTrades(
 
   const cents = raw.map(roundCents);
   if (cents.length > 0) {
-    const largest = cents.reduce(
-      (best, v, i) => (Math.abs(v) > Math.abs(cents[best]) ? i : best),
-      0
-    );
-    cents[largest] = roundCents(cents[largest] + amount - sum(cents));
+    // Sells off: the remainder goes to the largest buy (never to a target that is over).
+    const pick = (value: (i: number) => number) =>
+      cents.reduce((best, _, i) => (value(i) > value(best) ? i : best), 0);
+    const target = sells ? pick((i) => Math.abs(cents[i])) : pick((i) => raw[i]);
+    cents[target] = roundCents(cents[target] + amount - sum(cents));
   }
   return Object.fromEntries(rows.map((r, i) => [r.key, cents[i]]));
 }

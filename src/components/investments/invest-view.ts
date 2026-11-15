@@ -1,4 +1,4 @@
-import type { LeftOutReason, PlanRow } from '@/lib/investments/targets/planner';
+import type { LeftOutReason, PlanRate, PlanRow } from '@/lib/investments/targets/planner';
 
 /** "1,000" or "$1,000" as 1000; empty, invalid or negative text is null. */
 export function parseAmount(text: string): number | null {
@@ -30,3 +30,7 @@ export function scaleNotes(totals: { countryWeightPct: number; classPct: number 
     notes.push(`Your class targets add to ${totals.classPct.toFixed(2)}%; scaled to 100%.`);
   return notes;
 }
+
+/** "CAD converted at 0.72." with the rate to 4 significant digits, trailing zeros trimmed. */
+export const rateNote = ({ currency, rate }: PlanRate): string =>
+  `${currency} converted at ${Number(rate.toPrecision(4))}.`;

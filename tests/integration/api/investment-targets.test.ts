@@ -157,6 +157,62 @@ describe('investing targets API', () => {
     expect(after.targetRegionId).toBeNull();
   });
 
+  it('turning split off clears a fund region; turning it on clears the fund target', async () => {
+    const before = await view();
+    const byName = (n: string) => before.classes.find((c: { name: string }) => c.name === n);
+    const stocks = byName('Stocks');
+    const fixed = byName('Fixed income');
+    const crypto = byName('Crypto');
+    const a = await seedInvestmentAccount(testPrisma);
+    const inStocks = await heldFund(a.id, 'AAA', 1, 10);
+    const inFixed = await heldFund(a.id, 'BBB', 1, 10);
+    await testPrisma.security.update({
+      where: { id: inStocks.id },
+      data: { targetClassId: stocks.id, targetRegionId: before.regions[0].id },
+    });
+    await testPrisma.security.update({
+      where: { id: inFixed.id },
+      data: { targetClassId: fixed.id },
+    });
+    const item = (c: { id: string; name: string; pct: number }, splitByRegion: boolean) => ({
+      id: c.id,
+      name: c.name,
+      pct: c.pct,
+      splitByRegion,
+      buySecurityId: null,
+    });
+    const fundNow = (id: string) => testPrisma.security.findUniqueOrThrow({ where: { id } });
+
+    // Stocks off: keeps its class, loses the region.
+    expect(
+      (
+        await put({
+          section: 'classes',
+          items: [item(stocks, false), item(fixed, false), item(crypto, false)],
+        })
+      ).status
+    ).toBe(200);
+    expect(await fundNow(inStocks.id)).toMatchObject({
+      targetClassId: stocks.id,
+      targetRegionId: null,
+    });
+
+    // Fixed income on: its fund would lack a region, so it goes back to not counted.
+    expect(
+      (
+        await put({
+          section: 'classes',
+          items: [item(stocks, false), item(fixed, true), item(crypto, false)],
+        })
+      ).status
+    ).toBe(200);
+    expect(await fundNow(inFixed.id)).toMatchObject({
+      targetClassId: null,
+      targetRegionId: null,
+    });
+    expect(await fundNow(inStocks.id)).toMatchObject({ targetClassId: stocks.id });
+  });
+
   describe('validation', () => {
     const cls = (name: string, splitByRegion: boolean) => ({
       name,
