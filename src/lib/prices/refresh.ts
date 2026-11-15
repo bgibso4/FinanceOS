@@ -76,6 +76,8 @@ export class PriceRefresher {
                 { holdings: { some: {} } },
                 { transactions: { some: {} } },
                 { proxyFor: { some: {} } },
+                { targetClassBuys: { some: {} } },
+                { targetRegionBuys: { some: {} } },
               ],
             }),
       },

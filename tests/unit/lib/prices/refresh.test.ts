@@ -320,6 +320,16 @@ describe('PriceRefresher', () => {
       expect(await fetchedFrom(security.id)).toBeNull();
     });
 
+    it('refreshes an unheld buy-with fund', async () => {
+      const fund = await seedSecurity(prisma, { priceSymbol: 'BUYW' });
+      await prisma.targetRegion.create({
+        data: { name: 'US', sortOrder: 0, buySecurityId: fund.id },
+      });
+      const { provider, calls } = fakeProvider({ closes: { BUYW: { '2026-10-09': 50 } } });
+      await refresher(provider).refresh();
+      expect(calls.map((c) => c.symbol)).toEqual(['BUYW']);
+    });
+
     it('prices a proxy back to the history start of the fund that follows it', async () => {
       const account = await seedInvestmentAccount(prisma);
       const proxy = await seedSecurity(prisma, { priceSymbol: 'PRXY' });
