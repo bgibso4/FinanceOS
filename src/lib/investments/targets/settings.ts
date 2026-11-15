@@ -81,6 +81,10 @@ type ListModel = {
   deleteMany(args: { where: { id: { in: string[] } } }): Promise<unknown>;
 };
 
+function rejectDuplicates(ids: string[]) {
+  if (new Set(ids).size !== ids.length) throw new InvestmentInputError('Duplicate id');
+}
+
 /** Investing targets: the setup, what is held, and validated saves one section at a time. */
 export class TargetSettingsService {
   constructor(
@@ -206,24 +210,31 @@ export class TargetSettingsService {
     await this.ensureDefaults();
     switch (change.section) {
       case 'classes':
+        if (!change.items.length) throw new InvestmentInputError('Keep at least one class');
+        await this.requireSecurities(change.items.map((c) => c.buySecurityId));
         if (change.items.filter((c) => c.splitByRegion).length > 1) {
           throw new InvestmentInputError('Only one class can be split by region');
         }
         await this.prisma.$transaction(async (tx) => {
-          await this.saveList(tx.targetClass as unknown as ListModel, change.items, (removed) =>
-            tx.security.updateMany({
-              where: { targetClassId: { in: removed } },
-              data: { targetClassId: null, targetRegionId: null },
-            })
+          await this.saveList(
+            tx.targetClass as unknown as ListModel,
+            change.items,
+            'class',
+            (removed) =>
+              tx.security.updateMany({
+                where: { targetClassId: { in: removed } },
+                data: { targetClassId: null, targetRegionId: null },
+              })
           );
         });
         break;
       case 'regions':
+        await this.requireSecurities(change.items.map((r) => r.buySecurityId));
         if (change.items.some((r) => r.tiltPct <= -100)) {
           throw new InvestmentInputError('Tilt must be above −100%');
         }
         await this.prisma.$transaction((tx) =>
-          this.saveList(tx.targetRegion as unknown as ListModel, change.items)
+          this.saveList(tx.targetRegion as unknown as ListModel, change.items, 'region')
         );
         break;
       case 'countries':
@@ -232,7 +243,14 @@ export class TargetSettingsService {
       case 'funds':
         await this.saveFunds(change.items);
         break;
-      case 'accounts':
+      case 'accounts': {
+        const ids = change.items.map((i) => i.accountId);
+        rejectDuplicates(ids);
+        const known = await this.prisma.account.findMany({
+          where: { id: { in: ids }, trackingMode: 'investment', isActive: true },
+          select: { id: true },
+        });
+        if (known.length !== ids.length) throw new InvestmentInputError('Unknown account');
         await this.prisma.$transaction(
           change.items.map((i) =>
             this.prisma.account.update({
@@ -242,6 +260,7 @@ export class TargetSettingsService {
           )
         );
         break;
+      }
     }
     return this.read();
   }
@@ -252,7 +271,7 @@ export class TargetSettingsService {
       throw new InvestmentInputError('Unknown region');
     }
     await this.prisma.$transaction((tx) =>
-      this.saveList(tx.targetCountry as unknown as ListModel, items)
+      this.saveList(tx.targetCountry as unknown as ListModel, items, 'country')
     );
   }
 
@@ -261,6 +280,9 @@ export class TargetSettingsService {
       this.prisma.targetClass.findMany(),
       this.prisma.targetRegion.findMany({ select: { id: true } }),
     ]);
+    const securityIds = items.map((i) => i.securityId);
+    rejectDuplicates(securityIds);
+    await this.requireSecurities(securityIds, 'Unknown security');
     const split = new Set(classes.filter((c) => c.splitByRegion).map((c) => c.id));
     for (const i of items) {
       if (i.classId && !classes.some((c) => c.id === i.classId)) {
@@ -285,6 +307,14 @@ export class TargetSettingsService {
     );
   }
 
+  /** Every non-null id is a real security, else 400 with `message`. */
+  private async requireSecurities(ids: (string | null)[], message = 'Unknown security') {
+    const wanted = [...new Set(ids.filter((id): id is string => id !== null))];
+    if (!wanted.length) return;
+    const found = await this.prisma.security.count({ where: { id: { in: wanted } } });
+    if (found !== wanted.length) throw new InvestmentInputError(message);
+  }
+
   /**
    * Make `model` hold exactly `items`, inside the caller's transaction: rows with an id are
    * updated, rows without one created, rows not listed deleted. `sortOrder` is the list index.
@@ -293,10 +323,15 @@ export class TargetSettingsService {
   private async saveList<T extends { id?: string }>(
     model: ListModel,
     items: T[],
+    label: string,
     beforeDelete?: (removed: string[]) => Promise<unknown>
   ): Promise<void> {
     const existing = (await model.findMany({ select: { id: true } })).map((r) => r.id);
     const kept = new Set(items.map((i) => i.id).filter((id): id is string => !!id));
+    rejectDuplicates([...items.map((i) => i.id)].filter((id): id is string => !!id));
+    if ([...kept].some((id) => !existing.includes(id))) {
+      throw new InvestmentInputError(`Unknown ${label}`);
+    }
     const removed = existing.filter((id) => !kept.has(id));
     for (const [sortOrder, { id, ...data }] of items.entries()) {
       if (id) await model.update({ where: { id }, data: { ...data, sortOrder } as never });

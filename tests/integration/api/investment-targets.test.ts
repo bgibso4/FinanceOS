@@ -230,6 +230,97 @@ describe('investing targets API', () => {
     });
   });
 
+  describe('unknown and duplicate ids', () => {
+    const expect400 = async (res: Response, error: string) => {
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe(error);
+    };
+    const classItem = (over: object = {}) => ({
+      name: 'Gold',
+      pct: 5,
+      splitByRegion: false,
+      buySecurityId: null,
+      ...over,
+    });
+
+    it('rejects an unknown row id with no partial write', async () => {
+      const v = await view();
+      await expect400(
+        await put({
+          section: 'classes',
+          items: [{ ...classItem({ id: 'nope' }) }, { ...classItem({ id: v.classes[0].id }) }],
+        }),
+        'Unknown class'
+      );
+      expect((await view()).classes.map((c: { name: string }) => c.name)).toEqual([
+        'Stocks',
+        'Fixed income',
+        'Crypto',
+      ]);
+    });
+
+    it('rejects an unknown securityId on funds', async () => {
+      await view();
+      await expect400(
+        await put({
+          section: 'funds',
+          items: [{ securityId: 'nope', classId: null, regionId: null }],
+        }),
+        'Unknown security'
+      );
+    });
+
+    it('rejects an unknown or inactive accountId with no partial write', async () => {
+      const a = await seedInvestmentAccount(testPrisma);
+      const gone = await seedInvestmentAccount(testPrisma, { isActive: false });
+      for (const bad of ['nope', gone.id]) {
+        await expect400(
+          await put({
+            section: 'accounts',
+            items: [
+              { accountId: a.id, inTargets: false },
+              { accountId: bad, inTargets: false },
+            ],
+          }),
+          'Unknown account'
+        );
+      }
+      expect((await testPrisma.account.findUniqueOrThrow({ where: { id: a.id } })).inTargets).toBe(
+        true
+      );
+    });
+
+    it('rejects an unknown buySecurityId', async () => {
+      await view();
+      await expect400(
+        await put({ section: 'classes', items: [classItem({ buySecurityId: 'nope' })] }),
+        'Unknown security'
+      );
+      await expect400(
+        await put({
+          section: 'regions',
+          items: [{ name: 'US', tiltPct: 0, buySecurityId: 'nope' }],
+        }),
+        'Unknown security'
+      );
+    });
+
+    it('rejects duplicate ids', async () => {
+      const v = await view();
+      const id = v.classes[0].id;
+      await expect400(
+        await put({ section: 'classes', items: [classItem({ id }), classItem({ id })] }),
+        'Duplicate id'
+      );
+    });
+
+    it('rejects an empty classes list', async () => {
+      await view();
+      await expect400(await put({ section: 'classes', items: [] }), 'Keep at least one class');
+      expect(await testPrisma.targetClass.count()).toBe(3);
+    });
+  });
+
   it('PUT accounts saves inTargets', async () => {
     const a = await seedInvestmentAccount(testPrisma);
     const res = await put({ section: 'accounts', items: [{ accountId: a.id, inTargets: false }] });
