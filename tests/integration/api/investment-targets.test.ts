@@ -102,6 +102,7 @@ describe('investing targets API', () => {
     await services.enteredBalances.record(manual.id, { date: '2026-10-01', balance: 500 });
 
     const v = await view();
+    expect(v.baseCurrency).toBe('USD');
     expect(v.funds).toEqual([
       {
         securityId: fund.id,

@@ -11,8 +11,13 @@ import {
   CountriesCard,
   FundsCard,
   RegionsCard,
-  type BuyOption,
+  type ClassItem,
+  type CountryItem,
+  type RegionItem,
 } from './targets-cards';
+import { useDraft, type BuyOption } from './targets-kit';
+
+const NONE: never[] = [];
 
 type Section = TargetChange['section'];
 
@@ -23,6 +28,10 @@ export function TargetsTab() {
   const [failed, setFailed] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<Section, string>>>({});
   const [saving, setSaving] = useState<Section | null>(null);
+  // The countries draft lives here too, since removing a region depends on it.
+  const classes = useDraft<ClassItem>(view?.classes ?? NONE);
+  const regions = useDraft<RegionItem>(view?.regions ?? NONE);
+  const countries = useDraft<CountryItem>(view?.countries ?? NONE);
 
   useEffect(() => {
     let live = true;
@@ -73,6 +82,7 @@ export function TargetsTab() {
     return <p className="py-6 text-center text-sm text-[var(--text-secondary)]">Loading…</p>;
   }
 
+  const usedRegionIds = new Set([...view.countries, ...countries.rows].map((c) => c.regionId));
   const props = (section: Section) => ({
     error: errors[section] ?? null,
     saving: saving !== null,
@@ -80,9 +90,15 @@ export function TargetsTab() {
   });
   return (
     <div className="max-w-[920px] space-y-4">
-      <ClassesCard buyOptions={buyOptions} view={view} {...props('classes')} />
-      <RegionsCard buyOptions={buyOptions} view={view} {...props('regions')} />
-      <CountriesCard view={view} {...props('countries')} />
+      <ClassesCard buyOptions={buyOptions} draft={classes} {...props('classes')} />
+      <RegionsCard
+        buyOptions={buyOptions}
+        draft={regions}
+        usedRegionIds={usedRegionIds}
+        view={view}
+        {...props('regions')}
+      />
+      <CountriesCard draft={countries} view={view} {...props('countries')} />
       <FundsCard view={view} {...props('funds')} />
       <AccountsCard view={view} {...props('accounts')} />
     </div>

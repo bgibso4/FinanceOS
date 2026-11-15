@@ -26,6 +26,7 @@ const countries = [
 function makeView(over: Partial<TargetSettingsView> = {}): TargetSettingsView {
   const setup = { classes, regions, countries };
   return {
+    baseCurrency: 'USD',
     ...setup,
     final: finalTargets(setup),
     totals: targetTotals(setup),
@@ -63,7 +64,10 @@ beforeEach(() => {
     if (key === 'GET /api/investments/securities') {
       return reply(200, {
         symbolHint: '',
-        securities: [makeSecurityItem({ id: 'sec-aaa', label: 'AAA', pricing: Pricing.Market })],
+        securities: [
+          makeSecurityItem({ id: 'sec-aaa', label: 'AAA', pricing: Pricing.Market }),
+          makeSecurityItem({ id: 'sec-old', label: 'OLDF', pricing: Pricing.None }),
+        ],
       });
     }
     return reply(404, { error: 'Not mocked' });
@@ -167,5 +171,112 @@ describe('TargetsTab', () => {
     await ready();
     expect(card('Countries').getByText('Total 99.34% · scaled to 100%')).toBeTruthy();
     expect(card('Asset classes').getByText('Total 100%')).toBeTruthy();
+  });
+
+  it('offers only market-priced securities to buy with', async () => {
+    render(<TargetsTab />);
+    await ready();
+    const select = card('Asset classes').getByLabelText('Buy with for Fixed income');
+    expect([...(select as HTMLSelectElement).options].map((o) => o.text)).toEqual(['None', 'AAA']);
+    expect(card('Stocks by region').getByLabelText('Buy with for US')).toBeTruthy();
+  });
+
+  it('keeps another card’s unsaved draft when a different card saves', async () => {
+    render(<TargetsTab />);
+    await ready();
+    const user = userEvent.setup();
+    const crypto = card('Asset classes').getByLabelText('Target for Crypto');
+    await user.clear(crypto);
+    await user.type(crypto, '9');
+    putResponse = { status: 200, body: view };
+    await user.click(card('Accounts').getAllByRole('checkbox')[0]);
+    await waitFor(() => expect(puts()).toHaveLength(1));
+    expect(
+      (card('Asset classes').getByLabelText('Target for Crypto') as HTMLInputElement).value
+    ).toBe('9');
+    expect(
+      (card('Asset classes').getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled
+    ).toBe(false);
+  });
+
+  it('parses +20 and ignores unparsable input', async () => {
+    render(<TargetsTab />);
+    await ready();
+    const user = userEvent.setup();
+    const tilt = card('Stocks by region').getByLabelText('Tilt for US');
+    await user.clear(tilt);
+    await user.type(tilt, '+20');
+    expect(card('Stocks by region').getByText('60.7%')).toBeTruthy();
+    await user.type(tilt, 'abc');
+    expect(card('Stocks by region').getByText('60.7%')).toBeTruthy();
+  });
+
+  it('shows an error from the Funds and Accounts saves', async () => {
+    render(<TargetsTab />);
+    await ready();
+    const user = userEvent.setup();
+    putResponse = { status: 400, body: { error: 'Unknown security' } };
+    await user.selectOptions(card('Funds').getByLabelText('Target for AAA'), 'Crypto');
+    expect(await card('Funds').findByText('Unknown security')).toBeTruthy();
+    putResponse = { status: 400, body: { error: 'Unknown account' } };
+    await user.click(card('Accounts').getAllByRole('checkbox')[0]);
+    expect(await card('Accounts').findByText('Unknown account')).toBeTruthy();
+  });
+
+  it('sends a half-assigned fund as Not counted so it cannot block the save', async () => {
+    view = makeView({
+      funds: [
+        ...makeView().funds,
+        {
+          securityId: 'sec-half',
+          label: 'HALF',
+          name: 'Half fund',
+          heldIn: ['Brokerage'],
+          valueBase: 10,
+          classId: 'c-stocks',
+          regionId: 'gone',
+        },
+      ],
+    });
+    render(<TargetsTab />);
+    await ready();
+    const user = userEvent.setup();
+    expect((card('Funds').getByLabelText('Target for HALF') as HTMLSelectElement).value).toBe('');
+    putResponse = { status: 200, body: view };
+    await user.selectOptions(card('Funds').getByLabelText('Target for AAA'), 'Crypto');
+    await waitFor(() => expect(puts()).toHaveLength(1));
+    expect(puts()[0].items).toEqual([
+      { securityId: 'sec-aaa', classId: 'c-crypto', regionId: null },
+      { securityId: 'sec-half', classId: null, regionId: null },
+    ]);
+  });
+
+  it('will not remove a region that countries still use', async () => {
+    render(<TargetsTab />);
+    await ready();
+    const user = userEvent.setup();
+    const remove = card('Stocks by region').getByRole('button', { name: 'Remove US' });
+    expect((remove as HTMLButtonElement).disabled).toBe(true);
+    expect(remove.getAttribute('title')).toBe('Move its countries to another region first');
+    await user.selectOptions(card('Countries').getByLabelText('Region for USA'), 'Emerging');
+    expect((remove as HTMLButtonElement).disabled).toBe(true); // saved countries still use it
+    view = makeView({
+      countries: countries.map((c) => (c.id === 'n-usa' ? { ...c, regionId: 'r-em' } : c)),
+    });
+    putResponse = { status: 200, body: view };
+    await user.click(card('Countries').getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(
+        (card('Stocks by region').getByRole('button', { name: 'Remove US' }) as HTMLButtonElement)
+          .disabled
+      ).toBe(false)
+    );
+  });
+
+  it('shows amounts in the base currency', async () => {
+    view = makeView({ baseCurrency: 'CAD' });
+    render(<TargetsTab />);
+    await ready();
+    expect(card('Funds').getByText('CA$1,000')).toBeTruthy();
   });
 });

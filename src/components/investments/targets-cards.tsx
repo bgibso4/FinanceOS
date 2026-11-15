@@ -1,454 +1,247 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { useMemo } from 'react';
 import { Select } from '@/components/ui/select';
+import { fmtMoney } from '@/lib/currency';
 import { finalTargets, targetKey, targetTotals } from '@/lib/investments/targets/allocation';
 import type { TargetChange, TargetSettingsView } from '@/lib/investments/targets/settings';
 import { ERROR, HINT } from './editor-kit';
+import {
+  BuyWithSelect,
+  CardShell,
+  EditableList,
+  MONO_CELL,
+  NameCell,
+  PctCell,
+  RemoveCell,
+  TD,
+  TableHead,
+  fraction,
+  totalNote,
+  type BuyOption,
+  type Draft,
+} from './targets-kit';
 
-/** A security that can be bought, for the "buy with" pickers. */
-export type BuyOption = { id: string; label: string };
 /** Saves one section; resolves true when it was saved. */
 export type SaveSection = (change: TargetChange) => Promise<boolean>;
 
-const TH =
-  'px-2 pb-2 text-left text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]';
-const TD = 'px-2 py-1.5 align-middle';
-const MONO_CELL = `${TD} text-right font-mono text-[13px] text-[var(--text-secondary)]`;
-const LINK_BUTTON =
-  'text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]';
-
-/** Accepts "20", "+20", "20%"; anything else is not a number. */
-export function parsePct(text: string): number | null {
-  const t = text.trim();
-  return /^[+-]?(\d+\.?\d*|\.\d+)%?$/.test(t) ? Number(t.replace('%', '')) : null;
-}
-
-const fraction = (f: number) => `${(f * 100).toFixed(1)}%`;
-
-/** "Total 100%", or the total to 2 places and that it is scaled when it is not 100. */
-export const totalNote = (total: number) =>
-  Math.abs(total - 100) > 0.005 ? `Total ${total.toFixed(2)}% · scaled to 100%` : 'Total 100%';
-
-/** A percentage field that keeps what is typed, and only reports values that parse. */
-function PctInput({
-  label,
-  signed,
-  value,
-  onChange,
-}: {
-  label: string;
-  signed?: boolean;
-  value: number;
-  onChange: (n: number) => void;
-}) {
-  const shown = (n: number) => (signed && n > 0 ? `+${n}` : String(n));
-  const [text, setText] = useState(shown(value));
-  useEffect(() => {
-    setText((t) => (parsePct(t) === value ? t : shown(value)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
-  return (
-    <Input
-      aria-label={label}
-      className="h-9 w-[84px] text-right"
-      inputMode="decimal"
-      value={text}
-      onBlur={() => setText(shown(value))}
-      onChange={(e) => {
-        setText(e.target.value);
-        const n = parsePct(e.target.value);
-        if (n !== null) onChange(n);
-      }}
-    />
-  );
-}
-
-type Row<T> = T & { key: string };
-let newRows = 0;
-const withKeys = <T extends { id?: string }>(items: T[]): Row<T>[] =>
-  items.map((i) => ({ ...i, key: i.id ?? `new-${++newRows}` }));
-const withoutKeys = <T,>(rows: Row<T>[]): T[] =>
-  rows.map(({ key: _key, ...r }) => r as unknown as T);
-
-/** The card's own draft of a list: edits stay until saved, other cards' saves don't discard them. */
-function useDraft<T extends { id?: string }>(saved: T[]) {
-  const source = useMemo(() => withKeys(saved), [saved]);
-  const [edited, setEdited] = useState<Row<T>[] | null>(null);
-  const rows = edited ?? source;
-  const dirty = edited !== null && JSON.stringify(edited) !== JSON.stringify(source);
-  const patch = (key: string, change: Partial<T>) =>
-    setEdited(rows.map((r) => (r.key === key ? { ...r, ...change } : r)));
-  const remove = (key: string) => setEdited(rows.filter((r) => r.key !== key));
-  const add = (item: T) => setEdited([...rows, ...withKeys([item])]);
-  const reset = () => setEdited(null);
-  return { rows, dirty, patch, remove, add, reset };
-}
-
-function CardShell({
-  action,
-  children,
-  subtitle,
-  title,
-}: {
-  action?: ReactNode;
-  children: ReactNode;
-  subtitle: string;
-  title: string;
-}) {
-  return (
-    <Card aria-label={title} className="p-6" role="region">
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">{title}</h2>
-          <p className="mt-1 max-w-[62ch] text-[12.5px] text-[var(--text-secondary)]">{subtitle}</p>
-        </div>
-        {action}
-      </div>
-      {children}
-    </Card>
-  );
-}
-
-/** The footer of an editable list: add link, a note, the error, and that card's Save. */
-function ListFooter({
-  add,
-  addLabel,
-  dirty,
-  error,
-  note,
-  onSave,
-  saving,
-}: {
-  add: () => void;
-  addLabel: string;
-  dirty: boolean;
-  error: string | null;
-  note: ReactNode;
-  onSave: () => void;
-  saving: boolean;
-}) {
-  return (
-    <div className="mt-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-4">
-          <button className={LINK_BUTTON} type="button" onClick={add}>
-            {addLabel}
-          </button>
-          <span className="font-mono text-xs text-[var(--text-muted)]">{note}</span>
-        </div>
-        <Button disabled={!dirty || saving} type="button" onClick={onSave}>
-          Save
-        </Button>
-      </div>
-      {error && <p className={ERROR}>{error}</p>}
-    </div>
-  );
-}
-
-function RemoveButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <Button aria-label={label} className="h-8 px-2" type="button" variant="ghost" onClick={onClick}>
-      ✕
-    </Button>
-  );
-}
-
-function BuyWithSelect({
-  label,
-  onChange,
-  options,
-  value,
-}: {
-  label: string;
-  onChange: (id: string | null) => void;
-  options: BuyOption[];
-  value: string | null;
-}) {
-  return (
-    <Select
-      aria-label={label}
-      className="h-9"
-      value={value ?? ''}
-      onChange={(e) => onChange(e.target.value || null)}
-    >
-      <option value="">None</option>
-      {options.map((o) => (
-        <option key={o.id} value={o.id}>
-          {o.label}
-        </option>
-      ))}
-    </Select>
-  );
-}
-
 type CardProps = { error: string | null; saving: boolean; onSave: SaveSection };
+type Items<S extends TargetChange['section']> = Extract<TargetChange, { section: S }>['items'];
 
-type ClassItem = Extract<TargetChange, { section: 'classes' }>['items'][number];
-type RegionItem = Extract<TargetChange, { section: 'regions' }>['items'][number];
-type CountryItem = Extract<TargetChange, { section: 'countries' }>['items'][number];
+export type ClassItem = Items<'classes'>[number];
+export type RegionItem = Items<'regions'>[number];
+export type CountryItem = Items<'countries'>[number];
 
 export function ClassesCard({
   buyOptions,
+  draft,
   error,
   onSave,
   saving,
-  view,
-}: CardProps & { buyOptions: BuyOption[]; view: TargetSettingsView }) {
-  const d = useDraft<ClassItem>(view.classes);
-  const total = d.rows.reduce((s, r) => s + r.pct, 0);
+}: CardProps & { buyOptions: BuyOption[]; draft: Draft<ClassItem> }) {
   return (
-    <CardShell
+    <EditableList<ClassItem>
+      addLabel="+ Add class"
+      columns={[
+        { label: 'Class' },
+        { label: 'Target', right: true },
+        { label: 'Buy with' },
+        { label: '' },
+      ]}
+      draft={draft}
+      error={error}
+      newItem={{ name: 'New class', pct: 0, splitByRegion: false, buySecurityId: null }}
+      note={totalNote(draft.rows.reduce((s, r) => s + r.pct, 0))}
+      renderRow={(r) => (
+        <>
+          <NameCell
+            label="Class name"
+            value={r.name}
+            onChange={(name) => draft.patch(r.key, { name })}
+          />
+          <PctCell
+            label={`Target for ${r.name}`}
+            value={r.pct}
+            onChange={(pct) => draft.patch(r.key, { pct })}
+          />
+          <td className={TD}>
+            {r.splitByRegion ? (
+              <span className="text-[12.5px] text-[var(--text-muted)]">Split by region, below</span>
+            ) : (
+              <BuyWithSelect
+                label={`Buy with for ${r.name}`}
+                options={buyOptions}
+                value={r.buySecurityId}
+                onChange={(buySecurityId) => draft.patch(r.key, { buySecurityId })}
+              />
+            )}
+          </td>
+          {r.splitByRegion ? (
+            <td className={TD} />
+          ) : (
+            <RemoveCell label={`Remove ${r.name}`} onClick={() => draft.remove(r.key)} />
+          )}
+        </>
+      )}
+      saving={saving}
       subtitle="How everything counted is split. Set one to 0 when you don’t hold it."
       title="Asset classes"
-    >
-      <table className="w-full">
-        <thead>
-          <tr>
-            <th className={TH}>Class</th>
-            <th className={`${TH} text-right`}>Target</th>
-            <th className={TH}>Buy with</th>
-            <th className={TH} />
-          </tr>
-        </thead>
-        <tbody>
-          {d.rows.map((r) => (
-            <tr key={r.key}>
-              <td className={TD}>
-                <Input
-                  aria-label="Class name"
-                  className="h-9"
-                  value={r.name}
-                  onChange={(e) => d.patch(r.key, { name: e.target.value })}
-                />
-              </td>
-              <td className={`${TD} text-right`}>
-                <PctInput
-                  label={`Target for ${r.name}`}
-                  value={r.pct}
-                  onChange={(pct) => d.patch(r.key, { pct })}
-                />
-              </td>
-              <td className={TD}>
-                {r.splitByRegion ? (
-                  <span className="text-[12.5px] text-[var(--text-muted)]">
-                    Split by region, below
-                  </span>
-                ) : (
-                  <BuyWithSelect
-                    label={`Buy with for ${r.name}`}
-                    options={buyOptions}
-                    value={r.buySecurityId}
-                    onChange={(buySecurityId) => d.patch(r.key, { buySecurityId })}
-                  />
-                )}
-              </td>
-              <td className={`${TD} text-right`}>
-                {!r.splitByRegion && (
-                  <RemoveButton label={`Remove ${r.name}`} onClick={() => d.remove(r.key)} />
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <ListFooter
-        add={() => d.add({ name: 'New class', pct: 0, splitByRegion: false, buySecurityId: null })}
-        addLabel="+ Add class"
-        dirty={d.dirty}
-        error={error}
-        note={totalNote(total)}
-        saving={saving}
-        onSave={async () => {
-          if (await onSave({ section: 'classes', items: withoutKeys(d.rows) })) d.reset();
-        }}
-      />
-    </CardShell>
+      onSave={(items) => onSave({ section: 'classes', items })}
+    />
   );
 }
 
 export function RegionsCard({
   buyOptions,
+  draft,
   error,
   onSave,
   saving,
+  usedRegionIds,
   view,
-}: CardProps & { buyOptions: BuyOption[]; view: TargetSettingsView }) {
-  const d = useDraft<RegionItem>(view.regions);
+}: CardProps & {
+  buyOptions: BuyOption[];
+  draft: Draft<RegionItem>;
+  /** Regions that some country (saved or in the countries draft) still points at. */
+  usedRegionIds: Set<string>;
+  view: TargetSettingsView;
+}) {
   const split = view.classes.find((c) => c.splitByRegion);
-  // Preview from this draft; ids are only needed to match countries, so new rows use their key.
+  // Preview from this draft; new rows have no id yet, so their key stands in for it.
   const preview = useMemo(
     () =>
       finalTargets({
         classes: view.classes,
         countries: view.countries,
-        regions: d.rows.map((r) => ({ ...r, id: r.id ?? r.key })),
+        regions: draft.rows.map((r) => ({ ...r, id: r.id ?? r.key })),
       }).filter((t) => t.classId === split?.id),
-    [view.classes, view.countries, d.rows, split?.id]
+    [view.classes, view.countries, draft.rows, split?.id]
   );
-  const forRow = (r: { id?: string; key: string }) =>
-    preview.find((t) => t.regionId === (r.id ?? r.key));
+  const name = split?.name ?? 'Stocks';
   return (
-    <CardShell
-      subtitle={`Splits the ${split?.name ?? 'stocks'} ${split?.pct ?? 0}%. Market weight comes from the countries below; tilt raises or lowers a region, then they’re scaled to 100% of ${split?.name.toLowerCase() ?? 'stocks'}.`}
-      title={`${split?.name ?? 'Stocks'} by region`}
-    >
-      <table className="w-full">
-        <thead>
-          <tr>
-            <th className={TH}>Region</th>
-            <th className={`${TH} text-right`}>Market weight</th>
-            <th className={`${TH} text-right`}>Tilt</th>
-            <th className={`${TH} text-right`}>Of stocks</th>
-            <th className={`${TH} text-right`}>Overall</th>
-            <th className={TH}>Buy with</th>
-            <th className={TH} />
-          </tr>
-        </thead>
-        <tbody>
-          {d.rows.map((r) => {
-            const t = forRow(r);
-            return (
-              <tr key={r.key}>
-                <td className={TD}>
-                  <Input
-                    aria-label="Region name"
-                    className="h-9"
-                    value={r.name}
-                    onChange={(e) => d.patch(r.key, { name: e.target.value })}
-                  />
-                </td>
-                <td className={MONO_CELL}>
-                  {t?.marketWeightPct != null ? `${t.marketWeightPct.toFixed(2)}%` : '—'}
-                </td>
-                <td className={`${TD} text-right`}>
-                  <PctInput
-                    signed
-                    label={`Tilt for ${r.name}`}
-                    value={r.tiltPct}
-                    onChange={(tiltPct) => d.patch(r.key, { tiltPct })}
-                  />
-                </td>
-                <td className={MONO_CELL}>
-                  {t?.shareOfClass != null ? fraction(t.shareOfClass) : '—'}
-                </td>
-                <td className={`${MONO_CELL} font-semibold text-[var(--text-primary)]`}>
-                  {t ? fraction(t.target) : '—'}
-                </td>
-                <td className={TD}>
-                  <BuyWithSelect
-                    label={`Buy with for ${r.name}`}
-                    options={buyOptions}
-                    value={r.buySecurityId}
-                    onChange={(buySecurityId) => d.patch(r.key, { buySecurityId })}
-                  />
-                </td>
-                <td className={`${TD} text-right`}>
-                  <RemoveButton label={`Remove ${r.name}`} onClick={() => d.remove(r.key)} />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <ListFooter
-        add={() => d.add({ name: 'New region', tiltPct: 0, buySecurityId: null })}
-        addLabel="+ Add region"
-        dirty={d.dirty}
-        error={error}
-        note="Try a US tilt of +20 to see targets move."
-        saving={saving}
-        onSave={async () => {
-          if (await onSave({ section: 'regions', items: withoutKeys(d.rows) })) d.reset();
-        }}
-      />
-    </CardShell>
+    <EditableList<RegionItem>
+      addLabel="+ Add region"
+      columns={[
+        { label: 'Region' },
+        { label: 'Market weight', right: true },
+        { label: 'Tilt', right: true },
+        { label: 'Of stocks', right: true },
+        { label: 'Overall', right: true },
+        { label: 'Buy with' },
+        { label: '' },
+      ]}
+      draft={draft}
+      error={error}
+      newItem={{ name: 'New region', tiltPct: 0, buySecurityId: null }}
+      note="Try a US tilt of +20 to see targets move."
+      renderRow={(r) => {
+        const t = preview.find((p) => p.regionId === (r.id ?? r.key));
+        return (
+          <>
+            <NameCell
+              label="Region name"
+              value={r.name}
+              onChange={(n) => draft.patch(r.key, { name: n })}
+            />
+            <td className={MONO_CELL}>
+              {t?.marketWeightPct != null ? `${t.marketWeightPct.toFixed(2)}%` : '—'}
+            </td>
+            <PctCell
+              signed
+              label={`Tilt for ${r.name}`}
+              value={r.tiltPct}
+              onChange={(tiltPct) => draft.patch(r.key, { tiltPct })}
+            />
+            <td className={MONO_CELL}>
+              {t?.shareOfClass != null ? fraction(t.shareOfClass) : '—'}
+            </td>
+            <td className={`${MONO_CELL} font-semibold text-[var(--text-primary)]`}>
+              {t ? fraction(t.target) : '—'}
+            </td>
+            <td className={TD}>
+              <BuyWithSelect
+                label={`Buy with for ${r.name}`}
+                options={buyOptions}
+                value={r.buySecurityId}
+                onChange={(buySecurityId) => draft.patch(r.key, { buySecurityId })}
+              />
+            </td>
+            <RemoveCell
+              blockedReason={
+                r.id && usedRegionIds.has(r.id)
+                  ? 'Move its countries to another region first'
+                  : undefined
+              }
+              label={`Remove ${r.name}`}
+              onClick={() => draft.remove(r.key)}
+            />
+          </>
+        );
+      }}
+      saving={saving}
+      subtitle={`Splits the ${name} ${split?.pct ?? 0}%. Market weight comes from the countries below; tilt raises or lowers a region, then they’re scaled to 100% of ${name.toLowerCase()}.`}
+      title={`${name} by region`}
+      onSave={(items) => onSave({ section: 'regions', items })}
+    />
   );
 }
 
 export function CountriesCard({
+  draft,
   error,
   onSave,
   saving,
   view,
-}: CardProps & { view: TargetSettingsView }) {
-  const d = useDraft<CountryItem>(view.countries);
-  const total = targetTotals({ ...view, countries: d.rows }).countryWeightPct;
+}: CardProps & { draft: Draft<CountryItem>; view: TargetSettingsView }) {
   return (
-    <CardShell
+    <EditableList<CountryItem>
+      addLabel="+ Add country"
+      columns={[
+        { label: 'Country' },
+        { label: 'Weight', right: true },
+        { label: 'Region' },
+        { label: '' },
+      ]}
+      draft={draft}
+      error={error}
+      newItem={{ name: 'New country', weightPct: 0, regionId: view.regions[0]?.id ?? '' }}
+      note={totalNote(targetTotals({ ...view, countries: draft.rows }).countryWeightPct)}
+      renderRow={(r) => (
+        <>
+          <NameCell
+            label="Country"
+            value={r.name}
+            onChange={(name) => draft.patch(r.key, { name })}
+          />
+          <PctCell
+            label={`Weight for ${r.name}`}
+            value={r.weightPct}
+            onChange={(weightPct) => draft.patch(r.key, { weightPct })}
+          />
+          <td className={TD}>
+            <Select
+              aria-label={`Region for ${r.name}`}
+              className="h-9"
+              value={r.regionId}
+              onChange={(e) => draft.patch(r.key, { regionId: e.target.value })}
+            >
+              {view.regions.map((region) => (
+                <option key={region.id} value={region.id}>
+                  {region.name}
+                </option>
+              ))}
+            </Select>
+          </td>
+          <RemoveCell label={`Remove ${r.name}`} onClick={() => draft.remove(r.key)} />
+        </>
+      )}
+      saving={saving}
       subtitle="Each country’s share of the global stock market, for splitting stocks. Update once a year."
       title="Countries"
-    >
-      <table className="w-full">
-        <thead>
-          <tr>
-            <th className={TH}>Country</th>
-            <th className={`${TH} text-right`}>Weight</th>
-            <th className={TH}>Region</th>
-            <th className={TH} />
-          </tr>
-        </thead>
-        <tbody>
-          {d.rows.map((r) => (
-            <tr key={r.key}>
-              <td className={TD}>
-                <Input
-                  aria-label="Country"
-                  className="h-9"
-                  value={r.name}
-                  onChange={(e) => d.patch(r.key, { name: e.target.value })}
-                />
-              </td>
-              <td className={`${TD} text-right`}>
-                <PctInput
-                  label={`Weight for ${r.name}`}
-                  value={r.weightPct}
-                  onChange={(weightPct) => d.patch(r.key, { weightPct })}
-                />
-              </td>
-              <td className={TD}>
-                <Select
-                  aria-label={`Region for ${r.name}`}
-                  className="h-9"
-                  value={r.regionId}
-                  onChange={(e) => d.patch(r.key, { regionId: e.target.value })}
-                >
-                  {view.regions.map((region) => (
-                    <option key={region.id} value={region.id}>
-                      {region.name}
-                    </option>
-                  ))}
-                </Select>
-              </td>
-              <td className={`${TD} text-right`}>
-                <RemoveButton label={`Remove ${r.name}`} onClick={() => d.remove(r.key)} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <ListFooter
-        add={() =>
-          d.add({ name: 'New country', weightPct: 0, regionId: view.regions[0]?.id ?? '' })
-        }
-        addLabel="+ Add country"
-        dirty={d.dirty}
-        error={error}
-        note={totalNote(total)}
-        saving={saving}
-        onSave={async () => {
-          if (await onSave({ section: 'countries', items: withoutKeys(d.rows) })) d.reset();
-        }}
-      />
-    </CardShell>
+      onSave={(items) => onSave({ section: 'countries', items })}
+    />
   );
 }
-
-const money = (n: number) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
 /** Saves on change: one fund's target is sent with every other fund's current one. */
 export function FundsCard({
@@ -457,63 +250,67 @@ export function FundsCard({
   saving,
   view,
 }: CardProps & { view: TargetSettingsView }) {
-  const label = (t: TargetSettingsView['final'][number]) =>
-    t.className ? `${t.className} · ${t.name}` : t.name;
-  const assign = (securityId: string, key: string) => {
-    const target = view.final.find((t) => t.key === key);
-    return onSave({
+  const shownKey = (f: TargetSettingsView['funds'][number]) => {
+    const key = targetKey(f.classId ?? '', f.regionId);
+    return view.final.some((t) => t.key === key) ? key : '';
+  };
+  const assign = (securityId: string, key: string) =>
+    onSave({
       section: 'funds',
+      // Every fund is sent as its select shows it, so a half-assigned fund goes as Not counted.
       items: view.funds.map((f) => {
-        if (f.securityId !== securityId) {
-          return { securityId: f.securityId, classId: f.classId, regionId: f.regionId };
-        }
-        return { securityId, classId: target?.classId ?? null, regionId: target?.regionId ?? null };
+        const target = view.final.find(
+          (t) => t.key === (f.securityId === securityId ? key : shownKey(f))
+        );
+        return {
+          securityId: f.securityId,
+          classId: target?.classId ?? null,
+          regionId: target?.regionId ?? null,
+        };
       }),
     });
-  };
   return (
     <CardShell subtitle="Which target each fund you hold counts toward." title="Funds">
       <table className="w-full">
-        <thead>
-          <tr>
-            <th className={TH}>Fund</th>
-            <th className={TH}>Held in</th>
-            <th className={`${TH} text-right`}>Value</th>
-            <th className={TH}>Counts toward</th>
-          </tr>
-        </thead>
+        <TableHead
+          columns={[
+            { label: 'Fund' },
+            { label: 'Held in' },
+            { label: 'Value', right: true },
+            { label: 'Counts toward' },
+          ]}
+        />
         <tbody>
-          {view.funds.map((f) => {
-            const current = targetKey(f.classId ?? '', f.regionId);
-            return (
-              <tr key={f.securityId}>
-                <td className={TD}>
-                  <div className="font-mono text-[13px] text-[var(--text-primary)]">{f.label}</div>
-                  <div className="text-[11.5px] text-[var(--text-muted)]">{f.name}</div>
-                </td>
-                <td className={`${TD} text-[12.5px] text-[var(--text-secondary)]`}>
-                  {f.heldIn.join(', ')}
-                </td>
-                <td className={MONO_CELL}>{money(f.valueBase)}</td>
-                <td className={TD}>
-                  <Select
-                    aria-label={`Target for ${f.label}`}
-                    className="h-9"
-                    disabled={saving}
-                    value={view.final.some((t) => t.key === current) ? current : ''}
-                    onChange={(e) => assign(f.securityId, e.target.value)}
-                  >
-                    <option value="">Not counted</option>
-                    {view.final.map((t) => (
-                      <option key={t.key} value={t.key}>
-                        {label(t)}
-                      </option>
-                    ))}
-                  </Select>
-                </td>
-              </tr>
-            );
-          })}
+          {view.funds.map((f) => (
+            <tr key={f.securityId}>
+              <td className={TD}>
+                <div className="font-mono text-[13px] text-[var(--text-primary)]">{f.label}</div>
+                <div className="text-[11.5px] text-[var(--text-muted)]">{f.name}</div>
+              </td>
+              <td className={`${TD} text-[12.5px] text-[var(--text-secondary)]`}>
+                {f.heldIn.join(', ')}
+              </td>
+              <td className={MONO_CELL}>
+                {fmtMoney(f.valueBase, { currency: view.baseCurrency })}
+              </td>
+              <td className={TD}>
+                <Select
+                  aria-label={`Target for ${f.label}`}
+                  className="h-9"
+                  disabled={saving}
+                  value={shownKey(f)}
+                  onChange={(e) => assign(f.securityId, e.target.value)}
+                >
+                  <option value="">Not counted</option>
+                  {view.final.map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.className ? `${t.className} · ${t.name}` : t.name}
+                    </option>
+                  ))}
+                </Select>
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
       {error && <p className={ERROR}>{error}</p>}
@@ -558,7 +355,7 @@ export function AccountsCard({
                 )}
               </span>
               <span className="font-mono text-[13px] text-[var(--text-secondary)]">
-                {money(a.valueBase)}
+                {fmtMoney(a.valueBase, { currency: view.baseCurrency })}
               </span>
             </label>
           </li>

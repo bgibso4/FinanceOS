@@ -25,6 +25,8 @@ export type TargetCountryView = {
 };
 
 export type TargetSettingsView = {
+  /** Currency of every amount in the view (`UserSettings.baseCurrency`). */
+  baseCurrency: string;
   classes: ClassInput[];
   regions: RegionInput[];
   countries: TargetCountryView[];
@@ -149,7 +151,7 @@ export class TargetSettingsService {
   async read(): Promise<TargetSettingsView> {
     const setup = await this.setup();
     const today = utcDay(this.clock.now());
-    const [{ accounts, rows }, securities] = await Promise.all([
+    const [{ accounts, baseCurrency, rows }, securities] = await Promise.all([
       loadCurrentHoldings(this.prisma, this.holdings, today),
       this.prisma.security.findMany({
         where: { OR: [{ targetClassId: { not: null } }, { targetRegionId: { not: null } }] },
@@ -176,6 +178,7 @@ export class TargetSettingsService {
       .sort((a, b) => b.valueBase - a.valueBase);
 
     return {
+      baseCurrency,
       classes: setup.classes,
       regions: setup.regions,
       countries: setup.countries,
