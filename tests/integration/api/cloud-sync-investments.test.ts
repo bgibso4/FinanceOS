@@ -170,6 +170,89 @@ describe('cloud sync — investment data', () => {
     });
   });
 
+  it('round-trips investing targets', async () => {
+    const acct = await prisma.account.create({
+      data: { ...createAccountData({ type: 'brokerage' }), inTargets: false },
+    });
+    const buy = await prisma.security.create({
+      data: { name: 'Intl Fund', type: 'etf', pricing: Pricing.Market, ticker: 'INTL' },
+    });
+    const stocks = await prisma.targetClass.create({
+      data: { name: 'Stocks', pct: 80, sortOrder: 0, splitByRegion: true },
+    });
+    const bonds = await prisma.targetClass.create({
+      data: { name: 'Fixed income', pct: 20, sortOrder: 1, buySecurityId: buy.id },
+    });
+    const region = await prisma.targetRegion.create({
+      data: { name: 'Developed ex-US', sortOrder: 1, tiltPct: 5, buySecurityId: buy.id },
+    });
+    const country = await prisma.targetCountry.create({
+      data: { name: 'Japan', weightPct: 7.4, sortOrder: 0, regionId: region.id },
+    });
+    const fund = await prisma.security.create({
+      data: {
+        name: 'World Fund',
+        type: 'etf',
+        pricing: Pricing.Market,
+        targetClassId: stocks.id,
+        targetRegionId: region.id,
+      },
+    });
+
+    const payload = await exportDatabase();
+    await resetTestDb();
+    await importDatabase(payload);
+
+    expect(await prisma.targetClass.findMany({ orderBy: { sortOrder: 'asc' } })).toEqual([
+      { ...stocks },
+      { ...bonds },
+    ]);
+    expect(await prisma.targetRegion.findUniqueOrThrow({ where: { id: region.id } })).toEqual(
+      region
+    );
+    expect(await prisma.targetCountry.findUniqueOrThrow({ where: { id: country.id } })).toEqual(
+      country
+    );
+    expect(await prisma.security.findUniqueOrThrow({ where: { id: fund.id } })).toMatchObject({
+      targetClassId: stocks.id,
+      targetRegionId: region.id,
+    });
+    expect((await prisma.account.findUniqueOrThrow({ where: { id: acct.id } })).inTargets).toBe(
+      false
+    );
+  });
+
+  it('imports a payload without targets', async () => {
+    await prisma.account.create({ data: createAccountData() });
+    await prisma.security.create({
+      data: { name: 'ETF', type: 'etf', pricing: Pricing.Market, ticker: 'TETF' },
+    });
+    const old = structuredClone(await exportDatabase()) as unknown as {
+      data: Record<string, unknown> & {
+        accounts: Record<string, unknown>[];
+        securities: Record<string, unknown>[];
+      };
+      metadata: { checksum: string };
+    };
+    for (const k of ['targetClasses', 'targetRegions', 'targetCountries']) delete old.data[k];
+    for (const a of old.data.accounts) delete a.inTargets;
+    for (const s of old.data.securities) {
+      delete s.targetClassId;
+      delete s.targetRegionId;
+    }
+    old.metadata.checksum = await generateChecksum(old.data as never);
+    await resetTestDb();
+    await importDatabase(old as unknown as SyncPayload);
+    expect(await prisma.targetClass.count()).toBe(0);
+    expect(await prisma.targetRegion.count()).toBe(0);
+    expect(await prisma.targetCountry.count()).toBe(0);
+    expect((await prisma.account.findFirstOrThrow()).inTargets).toBe(true);
+    expect(await prisma.security.findFirstOrThrow()).toMatchObject({
+      targetClassId: null,
+      targetRegionId: null,
+    });
+  });
+
   async function legacyPayload() {
     await prisma.account.create({ data: createAccountData() });
     const payload = await exportDatabase();

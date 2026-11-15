@@ -19,6 +19,7 @@ model Account {
   balanceSource    String?           // investment accounts only: BalanceSource in src/lib/investments/codes.ts
   invertAmounts    Boolean           @default(false) // Flip amount signs during bank sync (for accounts with inverted conventions)
   sortOrder        Int               @default(0)
+  inTargets        Boolean           @default(true) // counted by the invest-by-target plan
   createdAt        DateTime          @default(now())
   transactions              Transaction[]
   recurringTransactions     RecurringTransaction[]
@@ -406,6 +407,12 @@ model Security {
   proxySecurityId     String? // market-priced security whose daily moves fill this one's days without an institution price
   proxy               Security?               @relation("SecurityProxy", fields: [proxySecurityId], references: [id], onDelete: SetNull)
   proxyFor            Security[]              @relation("SecurityProxy")
+  targetClassId       String? // investing-target class this fund counts toward
+  targetClass         TargetClass?            @relation("TargetClassFunds", fields: [targetClassId], references: [id], onDelete: SetNull)
+  targetRegionId      String? // region, for funds in the class split by region
+  targetRegion        TargetRegion?           @relation("TargetRegionFunds", fields: [targetRegionId], references: [id], onDelete: SetNull)
+  targetClassBuys     TargetClass[]           @relation("TargetClassBuy")
+  targetRegionBuys    TargetRegion[]          @relation("TargetRegionBuy")
   createdAt           DateTime                @default(now())
   updatedAt           DateTime                @updatedAt
   prices              SecurityPrice[]
@@ -414,6 +421,38 @@ model Security {
   transactions        InvestmentTransaction[]
 
   @@index([ticker])
+}
+
+// Investing targets. Percentages are numbers out of 100.
+model TargetClass {
+  id            String     @id @default(uuid())
+  name          String
+  pct           Float
+  sortOrder     Int
+  splitByRegion Boolean    @default(false)
+  buySecurityId String?
+  buySecurity   Security?  @relation("TargetClassBuy", fields: [buySecurityId], references: [id], onDelete: SetNull)
+  funds         Security[] @relation("TargetClassFunds")
+}
+
+model TargetRegion {
+  id            String          @id @default(uuid())
+  name          String
+  sortOrder     Int
+  tiltPct       Float           @default(0)
+  buySecurityId String?
+  buySecurity   Security?       @relation("TargetRegionBuy", fields: [buySecurityId], references: [id], onDelete: SetNull)
+  funds         Security[]      @relation("TargetRegionFunds")
+  countries     TargetCountry[]
+}
+
+model TargetCountry {
+  id        String       @id @default(uuid())
+  name      String
+  weightPct Float
+  sortOrder Int
+  regionId  String
+  region    TargetRegion @relation(fields: [regionId], references: [id], onDelete: Cascade)
 }
 
 model SecurityPrice {

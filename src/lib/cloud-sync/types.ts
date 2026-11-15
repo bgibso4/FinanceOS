@@ -24,6 +24,7 @@ export const AccountExportSchema = z.object({
   balanceSource: z.string().nullable().optional(),
   invertAmounts: z.boolean(),
   sortOrder: z.number(),
+  inTargets: z.boolean().optional(), // absent in payloads from before investing targets
   createdAt: z.string(), // ISO 8601
 });
 export type AccountExport = z.infer<typeof AccountExportSchema>;
@@ -210,8 +211,32 @@ export const SecurityExportSchema = z.object({
   // Optional: payloads from before proxies and fetch tracking omit them.
   pricesFetchedFrom: z.string().nullable().optional(),
   proxySecurityId: z.string().nullable().optional(),
+  targetClassId: z.string().nullable().optional(),
+  targetRegionId: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
+});
+export const TargetClassExportSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  pct: z.number(),
+  sortOrder: z.number(),
+  splitByRegion: z.boolean(),
+  buySecurityId: z.string().nullable(),
+});
+export const TargetRegionExportSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  sortOrder: z.number(),
+  tiltPct: z.number(),
+  buySecurityId: z.string().nullable(),
+});
+export const TargetCountryExportSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  weightPct: z.number(),
+  sortOrder: z.number(),
+  regionId: z.string(),
 });
 export const SecurityPriceExportSchema = z.object({
   id: z.string(),
@@ -323,6 +348,9 @@ export const SyncDataSchema = z.object({
   securities: z.array(SecurityExportSchema).optional(),
   securityPrices: z.array(SecurityPriceExportSchema).optional(),
   securityEvents: z.array(SecurityEventExportSchema).optional(),
+  targetClasses: z.array(TargetClassExportSchema).optional(),
+  targetRegions: z.array(TargetRegionExportSchema).optional(),
+  targetCountries: z.array(TargetCountryExportSchema).optional(),
   holdingSnapshots: z.array(HoldingSnapshotExportSchema).optional(),
   investmentTransactions: z.array(InvestmentTransactionExportSchema).optional(),
   trips: z.array(TripExportSchema).optional(),

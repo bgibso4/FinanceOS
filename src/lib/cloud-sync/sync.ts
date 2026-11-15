@@ -104,6 +104,9 @@ export async function exportDatabase(): Promise<SyncPayload> {
     securities,
     securityPrices,
     securityEvents,
+    targetClasses,
+    targetRegions,
+    targetCountries,
     holdingSnapshots,
     investmentTransactions,
     trips,
@@ -127,6 +130,9 @@ export async function exportDatabase(): Promise<SyncPayload> {
     getPrisma().security.findMany(),
     getPrisma().securityPrice.findMany(),
     getPrisma().securityEvent.findMany(),
+    getPrisma().targetClass.findMany(),
+    getPrisma().targetRegion.findMany(),
+    getPrisma().targetCountry.findMany(),
     getPrisma().holdingSnapshot.findMany(),
     getPrisma().investmentTransaction.findMany(),
     getPrisma().trip.findMany(),
@@ -150,6 +156,7 @@ export async function exportDatabase(): Promise<SyncPayload> {
         balanceSource: a.balanceSource,
         invertAmounts: a.invertAmounts,
         sortOrder: a.sortOrder,
+        inTargets: a.inTargets,
         createdAt: a.createdAt.toISOString(),
       })
     ),
@@ -330,6 +337,8 @@ export async function exportDatabase(): Promise<SyncPayload> {
       fixedPrice: r.fixedPrice,
       pricesFetchedFrom: r.pricesFetchedFrom?.toISOString() ?? null,
       proxySecurityId: r.proxySecurityId,
+      targetClassId: r.targetClassId,
+      targetRegionId: r.targetRegionId,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
     })),
@@ -351,6 +360,9 @@ export async function exportDatabase(): Promise<SyncPayload> {
       source: r.source,
       createdAt: r.createdAt.toISOString(),
     })),
+    targetClasses,
+    targetRegions,
+    targetCountries,
     holdingSnapshots: holdingSnapshots.map((r) => ({
       id: r.id,
       accountId: r.accountId,
@@ -527,6 +539,9 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
     await tx.accountBalance.deleteMany();
     await tx.securityEvent.deleteMany();
     await tx.securityPrice.deleteMany();
+    await tx.targetCountry.deleteMany();
+    await tx.targetRegion.deleteMany();
+    await tx.targetClass.deleteMany();
     await tx.security.deleteMany();
     await tx.recurringTransaction.deleteMany();
     await tx.tripDismissal.deleteMany();
@@ -604,6 +619,7 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
             balanceSource: acc.balanceSource ?? null,
             invertAmounts: acc.invertAmounts,
             sortOrder: acc.sortOrder,
+            inTargets: acc.inTargets ?? true,
           },
         });
       } else {
@@ -621,6 +637,7 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
             balanceSource: acc.balanceSource ?? null,
             invertAmounts: acc.invertAmounts,
             sortOrder: acc.sortOrder,
+            inTargets: acc.inTargets ?? true,
             createdAt: new Date(acc.createdAt),
           },
         });
@@ -711,7 +728,13 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
 
     // Import investment data (after accounts and transactions; securities before their dependents)
     for (const r of data.securities ?? []) {
-      const { pricesFetchedFrom, proxySecurityId: _proxy, ...rest } = r;
+      const {
+        pricesFetchedFrom,
+        proxySecurityId: _proxy,
+        targetClassId: _class,
+        targetRegionId: _region,
+        ...rest
+      } = r;
       await tx.security.create({
         data: {
           ...rest,
@@ -727,6 +750,22 @@ export async function importDatabase(payload: SyncPayload): Promise<void> {
       await tx.security.update({
         where: { id: r.id },
         data: { proxySecurityId: r.proxySecurityId, updatedAt: new Date(r.updatedAt) },
+      });
+    }
+    // Targets reference securities (buy-with) and securities reference targets, so create the
+    // targets after the securities, then link each security's assignment.
+    for (const r of data.targetClasses ?? []) await tx.targetClass.create({ data: r });
+    for (const r of data.targetRegions ?? []) await tx.targetRegion.create({ data: r });
+    for (const r of data.targetCountries ?? []) await tx.targetCountry.create({ data: r });
+    for (const r of data.securities ?? []) {
+      if (!r.targetClassId && !r.targetRegionId) continue;
+      await tx.security.update({
+        where: { id: r.id },
+        data: {
+          targetClassId: r.targetClassId ?? null,
+          targetRegionId: r.targetRegionId ?? null,
+          updatedAt: new Date(r.updatedAt),
+        },
       });
     }
     for (const r of data.securityPrices ?? []) {
