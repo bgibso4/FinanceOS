@@ -1,6 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
 import { systemClock, type Clock } from '@/lib/clock';
-import { RateBook } from '@/lib/fx/rate-book';
 import { BalanceSource } from '../codes';
 import { InvestmentInputError } from '../account-guard';
 import type { CurrentHoldingsReader } from '../current-holdings';
@@ -15,6 +14,7 @@ import {
   type RegionInput,
   type TargetSetup,
 } from './allocation';
+import { loadCurrentHoldings } from './load-holdings';
 import { DEFAULT_CLASSES, DEFAULT_COUNTRIES, DEFAULT_REGIONS } from './defaults';
 
 export type TargetCountryView = {
@@ -149,25 +149,13 @@ export class TargetSettingsService {
   async read(): Promise<TargetSettingsView> {
     const setup = await this.setup();
     const today = utcDay(this.clock.now());
-    const [accounts, settings, rates, securities] = await Promise.all([
-      this.prisma.account.findMany({
-        where: { trackingMode: 'investment', isActive: true },
-        orderBy: { sortOrder: 'asc' },
-      }),
-      this.prisma.userSettings.findFirst(),
-      RateBook.load(this.prisma),
+    const [{ accounts, rows }, securities] = await Promise.all([
+      loadCurrentHoldings(this.prisma, this.holdings, today),
       this.prisma.security.findMany({
         where: { OR: [{ targetClassId: { not: null } }, { targetRegionId: { not: null } }] },
         select: { id: true, targetClassId: true, targetRegionId: true },
       }),
     ]);
-    const rows = await this.holdings.read({
-      accounts,
-      today,
-      rangeStart: today,
-      baseCurrency: settings?.baseCurrency || 'USD',
-      rates,
-    });
     const assigned = new Map(securities.map((s) => [s.id, s]));
     const accountName = new Map(accounts.map((a) => [a.id, a.name]));
 

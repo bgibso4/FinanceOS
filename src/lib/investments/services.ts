@@ -12,6 +12,7 @@ import { InvestmentOverviewService } from './overview';
 import { InvestmentRefreshService } from './refresh';
 import { ensureStoredCodes } from './rename-stored-codes';
 import { SecurityListReader } from './security-list';
+import { TargetPlanner } from './targets/planner';
 import { TargetSettingsService } from './targets/settings';
 import { ValuationService } from './valuation';
 
@@ -26,6 +27,7 @@ export type InvestmentServices = {
   overview: InvestmentOverviewService;
   securityList: SecurityListReader;
   targets: TargetSettingsService;
+  planner: TargetPlanner;
   fxRates: ExchangeRateHistory;
 };
 
@@ -44,6 +46,7 @@ export function createInvestmentServices(deps: {
   const valuation = new ValuationService(prisma, enteredBalances, clock);
   const history = new ValueHistoryService(prisma);
   const holdings = new CurrentHoldingsReader(prisma);
+  const targets = new TargetSettingsService(prisma, holdings, clock);
   return {
     prices,
     quotes,
@@ -53,7 +56,8 @@ export function createInvestmentServices(deps: {
     history,
     refresh: new InvestmentRefreshService(prices, valuation, catalog, enteredBalances),
     overview: new InvestmentOverviewService(prisma, history, holdings, prices, clock),
-    targets: new TargetSettingsService(prisma, holdings, clock),
+    targets,
+    planner: new TargetPlanner(prisma, targets, holdings, clock),
     securityList: new SecurityListReader(prisma, provider.symbolHint, clock),
     fxRates: new ExchangeRateHistory(prisma, provider, clock),
   };
