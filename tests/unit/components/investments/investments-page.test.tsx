@@ -184,4 +184,11 @@ describe('InvestmentsPage', () => {
     expect(screen.queryByRole('button', { name: 'Set symbol' })).toBeNull();
     expect(screen.queryByRole('heading', { name: /is priced$/ })).toBeNull();
   });
+
+  it('opens the invest drawer from the header', async () => {
+    render(<InvestmentsPage />);
+    await screen.findByRole('heading', { name: 'All accounts' });
+    await userEvent.click(screen.getByRole('button', { name: 'Invest' }));
+    expect(await screen.findByRole('dialog', { name: 'Invest' })).toBeInTheDocument();
+  });
 });

@@ -6,9 +6,13 @@ import { AccountDetail } from '@/components/investments/account-detail';
 import { AccountNavigator } from '@/components/investments/account-navigator';
 import { fmtDay } from '@/components/investments/format';
 import { localDay } from '@/lib/dates';
+import { InvestDrawer } from '@/components/investments/invest-drawer';
 import { HoldingsEditorModal } from '@/components/investments/holdings-editor-modal';
 import { RecordBalanceModal } from '@/components/investments/record-balance-modal';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { DRAWER_PUSH_CLASS } from '@/components/ui/drawer';
+import { cn } from '@/lib/cn';
 import { triggerSync } from '@/lib/cloud-sync';
 import type { AccountSummary, InvestmentOverview } from '@/lib/investments/overview';
 import { DEFAULT_RANGE, RANGES, type Range } from '@/lib/investments/portfolio-view';
@@ -40,6 +44,7 @@ export default function InvestmentsPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [refresh, setRefresh] = useState<RefreshState>({ running: false, failed: false });
   const [dialog, setDialog] = useState<Dialog | null>(null);
+  const [investOpen, setInvestOpen] = useState(false);
   const rangeRef = useRef(range);
   rangeRef.current = range;
   /** Id of the newest overview request; older responses are dropped. */
@@ -88,7 +93,7 @@ export default function InvestmentsPage() {
   };
 
   return (
-    <div className="animate-fade-in">
+    <div className={cn('animate-fade-in', investOpen && DRAWER_PUSH_CLASS)}>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-[-0.3px] text-[var(--text-primary)]">
           Investments
@@ -112,6 +117,13 @@ export default function InvestmentsPage() {
               </button>
             ))}
           </div>
+          <Button
+            className="px-3 py-1 text-[12px]"
+            variant="outline"
+            onClick={() => setInvestOpen(true)}
+          >
+            Invest
+          </Button>
         </div>
       </div>
 
@@ -180,6 +192,7 @@ export default function InvestmentsPage() {
           onSaved={saved}
         />
       )}
+      <InvestDrawer open={investOpen} onClose={() => setInvestOpen(false)} />
     </div>
   );
 }
