@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invest by Target Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f2f2f7; --surface: #ffffff; --fill: #e9e9ee; --ink: #1c1c1e; --ink-2: #6e6e73; --ink-3: #8a8a8e; --line: #d8d8dc;
+  --tint: #1c1c1e; --on-tint: #ffffff; --soon: #ad500e; --done: #2f7d4f; --info: #3f6fa3; --warn: #a3392f;
+  --serif: "Source Serif 4", "New York", ui-serif, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+    --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+  --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+h1, h2, h3 { text-wrap: balance; }
+.layout { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+.brand { font: 700 15px/1.2 var(--serif); }
+.brand span { display: block; font: 400 13px/1.4 var(--sans); color: var(--ink-2); margin-top: 2px; }
+.overall { background: var(--surface); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.overall b { font: 700 17px/1.2 var(--serif); color: var(--ink); }
+.toc { display: flex; flex-direction: column; gap: 1px; }
+.toc-label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin: 6px 0 6px 10px; }
+.toc a { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; text-decoration: none; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.toc a:hover { background: var(--surface); color: var(--ink); }
+.toc a.active { background: var(--surface); color: var(--ink); font-weight: 600; }
+.toc-n { width: 20px; text-align: right; color: var(--ink-3); font-size: 13px; flex: none; font-variant-numeric: tabular-nums; }
+.theme { align-self: flex-start; background: none; border: 0; color: var(--ink-3); font: 13px var(--sans); cursor: pointer; padding: 4px 10px; }
+.theme:hover { color: var(--ink); }
+main { padding: 48px 0 120px; display: flex; flex-direction: column; gap: 48px; min-width: 0; }
+.eyebrow { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.eyebrow .pill { background: var(--surface); border-radius: 99px; padding: 3px 10px; font-weight: 600; color: var(--ink); }
+h1 { font: 700 44px/1.08 var(--serif); letter-spacing: -0.6px; margin: 12px 0 14px; }
+.goal { font-size: 19px; line-height: 1.5; max-width: 66ch; margin: 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 24px; }
+.meta div { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; line-height: 1.5; }
+.meta b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 4px; }
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 14px; color: var(--ink-2); }
+.stats b { font: 700 20px var(--serif); color: var(--ink); margin-right: 4px; font-variant-numeric: tabular-nums; }
+section > h2 { font: 700 26px/1.2 var(--serif); margin: 0 0 6px; letter-spacing: -0.2px; }
+section > h3.sub { font: 700 19px/1.3 var(--serif); margin: 22px 0 8px; }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 66ch; }
+.decisions { background: var(--surface); border-radius: var(--r); padding: 6px 0; border-left: 4px solid var(--soon); }
+.decisions.agreed { border-left-color: var(--done); }
+.decisions ul { list-style: none; margin: 0; padding: 0; }
+.decision { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 18px; }
+.decision + .decision { border-top: 1px solid var(--line); }
+.dec-name { font-weight: 600; }
+.dec-id { font: 700 13px var(--serif); color: var(--ink-3); margin-right: 6px; }
+.dec-text { color: var(--ink-2); font-size: 15px; max-width: 70ch; }
+.dec-text strong { color: var(--ink); }
+.trefs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 180px; }
+.tref { flex: none; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--fill); padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.tref:hover { background: var(--tint); color: var(--on-tint); }
+.card { background: var(--surface); border-radius: var(--r); padding: 6px 20px; }
+.card ul, .card ol { margin: 0; padding: 0; list-style: none; }
+.card > ul > li, .card > ol > li { padding: 11px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.card > ul > li:first-child, .card > ol > li:first-child { border-top: 0; }
+.card li ul { list-style: disc; padding-left: 20px; margin: 6px 0 0; }
+.card li ul li { padding: 2px 0; border: 0; color: var(--ink-2); }
+.card li ul li strong { color: var(--ink); }
+.numbered { counter-reset: f; }
+.numbered > li { counter-increment: f; display: grid; grid-template-columns: 28px 1fr; gap: 6px; }
+.numbered > li::before { content: counter(f); font: 700 17px/1.4 var(--serif); color: var(--soon); }
+table.md { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border-radius: var(--r); overflow: hidden; }
+table.md th, table.md td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--line); }
+table.md th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); border-top: 0; }
+table.md td:first-child { font-weight: 600; white-space: nowrap; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; }
+.chip.mine { color: var(--soon); background: color-mix(in srgb, var(--soon) 13%, transparent); }
+.chip.agreed { color: var(--done); background: color-mix(in srgb, var(--done) 13%, transparent); }
+.chip.route { color: var(--info); background: color-mix(in srgb, var(--info) 13%, transparent); font-family: var(--mono); font-weight: 500; }
+.callout { background: var(--surface); border-radius: var(--r); padding: 14px 18px; border-left: 4px solid var(--warn); font-size: 15px; margin-top: 12px; }
+.callout b:first-child { display: block; margin-bottom: 4px; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.col { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; }
+.col h3 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 8px; }
+.col ul { margin: 0; padding-left: 16px; } .col li { margin: 5px 0; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
+  .side { position: static; height: auto; padding: 24px 0 0; }
+  .toc { display: none; }
+  h1 { font-size: 34px; }
+  .cols { grid-template-columns: 1fr; }
+  .decision { flex-direction: column; gap: 8px; }
+  .trefs { justify-content: flex-start; max-width: none; }
+}
+pre { font-family: var(--mono); font-size: 13px; line-height: 1.5; background: var(--fill); border-radius: 10px; padding: 12px 14px; overflow-x: auto; margin: 8px 0; }
+.task { background: var(--surface); border-radius: var(--r); padding: 18px 22px; }
+.task + .task { margin-top: 14px; }
+.task h3 { font: 700 19px/1.3 var(--serif); margin: 0 0 10px; }
+.task .files, .task .ifaces { font-size: 14px; color: var(--ink-2); margin: 0 0 10px; }
+.task .files code, .task .ifaces code { font-size: 12.5px; }
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+.steps > li { counter-increment: s; display: grid; grid-template-columns: 26px 1fr; gap: 6px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.steps > li::before { content: "☐"; color: var(--ink-3); }
+.steps > li:first-child { border-top: 0; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side" aria-label="Sections">
+    <div class="brand">FinanceOS<span>Plan · Invest by target</span></div>
+    <div class="overall"><span>Status</span><b>Waiting on your review</b><span>7 tasks · branch feat/invest-by-target</span></div>
+    <nav class="toc" aria-label="Sections">
+      <div class="toc-label">Overview</div>
+      <a href="#header"><span class="toc-n"></span><span>Goal &amp; architecture</span></a>
+      <a href="#constraints"><span class="toc-n"></span><span>Global constraints</span></a>
+      <a href="#focus"><span class="toc-n"></span><span>Review focus</span></a>
+      <a href="#files"><span class="toc-n"></span><span>File map</span></a>
+      <div class="toc-label">Tasks</div>
+      <a href="#t1"><span class="toc-n">1</span><span>Schema and cloud sync</span></a>
+      <a href="#t2"><span class="toc-n">2</span><span>Target math</span></a>
+      <a href="#t3"><span class="toc-n">3</span><span>Settings service and API</span></a>
+      <a href="#t4"><span class="toc-n">4</span><span>The planner and its route</span></a>
+      <a href="#t5"><span class="toc-n">5</span><span>Investing Targets tab</span></a>
+      <a href="#t6"><span class="toc-n">6</span><span>Invest drawer</span></a>
+      <a href="#t7"><span class="toc-n">7</span><span>Browser check</span></a>
+    </nav>
+    <button class="theme" type="button" id="theme">◐ Light / dark</button>
+  </aside>
+  <main>
+    <header id="header">
+      <div class="eyebrow"><span class="pill">Plan</span><span>Written 2026-11-15</span><span>·</span><span>implements the Invest by target design</span></div>
+      <h1>Invest by target: implementation plan</h1>
+      <p class="goal"><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task by task. Load the <code>principal-engineer</code> skill before writing code.</p>
+      <div class="meta">
+        <div><b>Goal</b>Settings → Investing Targets holds class and region targets. On the Investments page, an Invest drawer turns an amount into a list of funds to buy that moves the counted portfolio toward those targets.</div>
+        <div><b>Architecture</b>Three tables (classes, regions, countries), plus each security's target and each account's inclusion. One pure module, <code>allocation.ts</code>, owns the math: final targets, then trades. The client also uses it for live previews. <code>TargetSettingsService</code> reads and saves the setup. <code>TargetPlanner</code> reads holdings through the existing <code>CurrentHoldingsReader</code>, so its values match the Investments page.</div>
+        <div><b>Stack · Spec</b>Next.js, React 19, Tailwind, Prisma/SQLite, Zod, Vitest + Testing Library. Spec: <code>docs/superpowers/specs/2026-11-15-invest-by-target-design.html</code>. Mock: <code>~/Documents/FinanceOS-design-archive/design-mocks/investments/invest-by-target.html</code> (v3).</div>
+      </div>
+    </header>
+
+    <section id="constraints">
+      <h2>Global constraints</h2>
+      <div class="card"><ul>
+        <li>Apply schema changes with <code>npx prisma db push</code>; never <code>migrate dev</code>. The test database pushes the schema itself (<code>tests/helpers/db.ts</code>).</li>
+        <li>Percentages are stored as numbers out of 100 (<code>pct</code>, <code>weightPct</code>, <code>tiltPct</code>). Everything computed is a fraction from 0 to 1 (<code>target</code>, <code>shareOfClass</code>, <code>currentPct</code>, <code>afterPct</code>). Tilt must be above −100.</li>
+        <li>At most one class has <code>splitByRegion: true</code>. Its funds need a region; every other class's funds have none.</li>
+        <li>The starting setup, copied exactly:
+          <ul>
+            <li>Classes: Stocks 80 (split by region), Fixed income 15, Crypto 5.</li>
+            <li>Regions: US, Developed ex-US, Emerging. Tilt 0, no "buy with" fund.</li>
+            <li>Countries: USA 55.9 → US.</li>
+            <li>Developed ex-US: Japan 7.4, UK 4.1, France 2.9, Switzerland 2.6, Germany 2.6, Australia 2.1, Other developed 2.77, Canada 3.55.</li>
+            <li>Emerging: China 5.4, Taiwan 1.7, Other emerging 8.32.</li>
+            <li>These final targets are an acceptance value: US 0.4506, Developed ex-US 0.2251, Emerging 0.1243, Fixed income 0.15, Crypto 0.05 (4 decimal places).</li>
+          </ul></li>
+        <li>Amounts are in the base currency (<code>UserSettings.baseCurrency</code>, default USD). The buys add up to the amount to the cent, with any rounding remainder on the largest trade. A price is stale when it's more than 3 days older than today.</li>
+        <li>Copy, exactly (from the approved mock):
+          <ul>
+            <li>Tab: "Investing Targets", at <code>/settings?tab=targets</code>, after Securities.</li>
+            <li>Card titles: "Asset classes", "Stocks by region" (uses the split class's name: "&lt;name&gt; by region"), "Countries", "Funds", "Accounts".</li>
+            <li>Drawer:
+              <ul>
+                <li>Title "Invest"; amount label "Amount to invest"; switch "Allow sells".</li>
+                <li>Switch hint when off: "Off: the amount only goes to targets below." When on: "Full rebalance: sells what's over target so every target lands on it."</li>
+                <li>Card titles: "Buy list" / "Rebalance" / "Where you stand".</li>
+                <li>Row text: "Pick a fund to buy", "over target", "Sell $x" (then "pick from below"), "What you hold here", "No price yet".</li>
+                <li>"Left out", then the footer "Nothing is saved. Your next sync brings in the buys." and "Edit investing targets →".</li>
+                <li>Empty state "Set your investing targets first".</li>
+              </ul></li>
+          </ul></li>
+        <li>No vendor names outside integration boundaries. Ticker strings in tests and defaults are fine.</li>
+        <li>No <code>npm run build</code>, because the production server runs from this checkout's <code>.next</code>. For the browser check use <code>npx next dev -p 3100</code>.</li>
+        <li><code>npm run check</code> and the touched test files pass at the end of every task, and every task ends with a commit.</li>
+      </ul></div>
+    </section>
+
+    <section id="focus">
+      <h2>Review focus</h2>
+      <p class="lede">Inputs the spec implies but doesn't spell out. Each has a test in the task named.</p>
+      <div class="card"><ol class="numbered">
+        <li><strong>A fund left half-assigned</strong> (its region was deleted, or its class stopped splitting) is treated as Not counted and listed under Left out. It must not throw or count toward the wrong target. Test in Task 4.</li>
+        <li><strong>Targets that can't add up</strong> (all classes at 0, or the split class with no country weight) give <code>ready: false</code> with a reason. They must never produce NaN or a buy list that doesn't sum to the amount. Tests in Tasks 2 and 4.</li>
+        <li><strong>A bad amount</strong> (<code>-5</code>, <code>abc</code>, <code>1e12</code>) gets a 400 from the plan route. In the drawer, "1,000" and "$1,000" parse as 1000, and an empty field shows "Where you stand". Tests in Tasks 4 and 6.</li>
+        <li><strong>A "buy with" fund with no price yet</strong> shows dollars with "No price yet" and no share count. Test in Task 4.</li>
+        <li><strong>A cloud-sync payload from a device without targets</strong> imports without failing. Targets then default on next load, and accounts stay included. Test in Task 1.</li>
+      </ol></div>
+    </section>
+
+    <section id="files">
+      <h2>File map</h2>
+      <table class="md">
+        <tr><th>File</th><th>Responsibility</th></tr>
+        <tr><td><code>prisma/schema.prisma</code></td><td>Three tables, the security and account fields (T1)</td></tr>
+        <tr><td><code>src/lib/cloud-sync/types.ts</code>, <code>sync.ts</code></td><td>Carry them (T1)</td></tr>
+        <tr><td><code>src/lib/investments/targets/allocation.ts</code></td><td>Pure: final targets, totals, trades. Safe to import on the client (T2)</td></tr>
+        <tr><td><code>src/lib/investments/targets/defaults.ts</code></td><td>The starting setup (T3)</td></tr>
+        <tr><td><code>src/lib/investments/targets/settings.ts</code></td><td><code>TargetSettingsService</code>: ensure defaults, read, save one section (T3)</td></tr>
+        <tr><td><code>src/lib/prices/refresh.ts</code></td><td>Also refreshes "buy with" funds (T3)</td></tr>
+        <tr><td><code>src/app/api/investments/targets/route.ts</code></td><td>GET and PUT the setup (T3)</td></tr>
+        <tr><td><code>src/lib/investments/targets/planner.ts</code></td><td><code>TargetPlanner</code> and the <code>InvestPlan</code> type (T4)</td></tr>
+        <tr><td><code>src/app/api/investments/targets/plan/route.ts</code></td><td>GET a plan (T4)</td></tr>
+        <tr><td><code>src/lib/investments/services.ts</code></td><td>Wire both services, sharing one holdings reader (T3, T4)</td></tr>
+        <tr><td><code>src/components/investments/targets-tab.tsx</code>, <code>targets-cards.tsx</code></td><td>The tab: loading and saving; the five cards (T5)</td></tr>
+        <tr><td><code>src/app/(routes)/settings/page.tsx</code></td><td>Tab entry (T5)</td></tr>
+        <tr><td><code>src/components/investments/invest-drawer.tsx</code>, <code>invest-view.ts</code></td><td>The drawer; pure display helpers (T6)</td></tr>
+        <tr><td><code>src/app/(routes)/investments/page.tsx</code></td><td>Invest button and drawer (T6)</td></tr>
+      </table>
+    </section>
+
+    <section id="tasks">
+      <h2>Tasks</h2>
+
+      <div class="task" id="t1">
+        <h3>Task 1 · Schema and cloud sync</h3>
+        <p class="files"><b>Files:</b> modify <code>prisma/schema.prisma</code>, <code>src/lib/cloud-sync/types.ts</code> and <code>src/lib/cloud-sync/sync.ts</code> (export, delete order and import). Extend <code>tests/integration/api/cloud-sync-investments.test.ts</code>.</p>
+        <p class="ifaces"><b>Produces:</b>
+          <ul>
+            <li><code>TargetClass { id, name, pct Float, sortOrder Int, splitByRegion Boolean @default(false), buySecurityId String? }</code>.</li>
+            <li><code>TargetRegion { id, name, sortOrder Int, tiltPct Float @default(0), buySecurityId String? }</code>.</li>
+            <li><code>TargetCountry { id, name, weightPct Float, sortOrder Int, regionId }</code>, with a Cascade on its region.</li>
+            <li><code>Security.targetClassId String?</code> and <code>Security.targetRegionId String?</code>, both SetNull.</li>
+            <li><code>Account.inTargets Boolean @default(true)</code>.</li>
+            <li>Relation names, used in Task 3: Security <code>targetClassBuys</code> / <code>targetRegionBuys</code> (the "buy with" side), Security <code>targetClass</code> / <code>targetRegion</code> (the assignment side), TargetClass <code>funds</code>, TargetRegion <code>funds</code> / <code>countries</code>.</li>
+            <li>Sync payload arrays <code>targetClasses</code>, <code>targetRegions</code>, <code>targetCountries</code> are optional. <code>SecurityExport</code> gains optional nullable <code>targetClassId</code> and <code>targetRegionId</code>. <code>AccountExport</code> gains optional <code>inTargets</code>, which defaults to true on import.</li>
+          </ul>
+        </p>
+        <ol class="steps">
+          <li><div>Tests in <code>cloud-sync-investments.test.ts</code>:
+            <ul>
+              <li><code>round-trips investing targets</code>: seed a class split by region, a region with a "buy with" security, a country, a security assigned to that class and region, and an account with <code>inTargets: false</code>. Export, reset, import, and every field and link is back.</li>
+              <li><code>imports a payload without targets</code>: delete the three arrays and the new fields from an exported payload. Import succeeds, the target tables are empty, and <code>inTargets</code> is true.</li>
+            </ul></div></li>
+          <li><div>Run <code>npx vitest run tests/integration/api/cloud-sync-investments.test.ts</code>. The two new tests FAIL.</div></li>
+          <li><div>Add the models and fields, then run <code>npx prisma db push</code> and <code>npx prisma generate</code>. Security and the target tables reference each other, so on import:
+            <ul>
+              <li>Create securities without their target fields.</li>
+              <li>Then classes, regions and countries.</li>
+              <li>Then set each security's <code>targetClassId</code> / <code>targetRegionId</code>, as the existing proxy-link pass does.</li>
+            </ul>
+            On delete, remove countries, regions and classes before <code>security.deleteMany()</code>.</div></li>
+          <li><div>Run the same file, then <code>npx vitest run tests/integration/api/cloud-sync.test.ts</code>. Both PASS.</div></li>
+          <li><div>Commit: <code>feat(investments): investing targets schema and sync</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t2">
+        <h3>Task 2 · Target math</h3>
+        <p class="files"><b>Files:</b> create <code>src/lib/investments/targets/allocation.ts</code> and <code>tests/unit/lib/investments/target-allocation.test.ts</code>.</p>
+        <p class="ifaces"><b>Produces</b>. Pure and client-safe: no Prisma, no server imports.
+          <ul>
+            <li><code>type ClassInput = { id: string; name: string; pct: number; splitByRegion: boolean; buySecurityId: string | null }</code></li>
+            <li><code>type RegionInput = { id: string; name: string; tiltPct: number; buySecurityId: string | null }</code></li>
+            <li><code>type CountryInput = { weightPct: number; regionId: string }</code></li>
+            <li><code>type TargetSetup = { classes: ClassInput[]; regions: RegionInput[]; countries: CountryInput[] }</code></li>
+            <li><code>type FinalTarget = { key: string; classId: string; regionId: string | null; name: string; className: string | null; buySecurityId: string | null; marketWeightPct: number | null; shareOfClass: number | null; target: number }</code>. For a region, <code>name</code> is the region and <code>className</code> is the split class's name. For any other class, <code>name</code> is the class and <code>className</code> is null.</li>
+            <li><code>targetKey(classId: string, regionId: string | null): string</code> returns <code>classId</code>, or <code>`${classId}:${regionId}`</code> for a region.</li>
+            <li><code>finalTargets(setup: TargetSetup): FinalTarget[]</code>, in class order with each region in its own order.</li>
+            <li><code>targetTotals(setup: TargetSetup): { countryWeightPct: number; classPct: number }</code></li>
+            <li><code>planTrades(rows: { key: string; current: number; target: number }[], amount: number, sells: boolean): Record&lt;string, number&gt;</code>. It throws a <code>RangeError</code> unless the targets add to 1 (±1e-6).</li>
+          </ul>
+        </p>
+        <ol class="steps">
+          <li><div>Tests:
+            <ul>
+              <li><code>starting setup gives the acceptance targets</code>: build the starting setup inline (Global constraints). The targets match 0.4506 / 0.2251 / 0.1243 / 0.15 / 0.05 to 4 places, and the US <code>shareOfClass</code> is 0.5633.</li>
+              <li><code>tilt then scale within the class</code>: US +20 gives a US share of 0.6075 (= 55.9×1.2 / (55.9×1.2 + 27.92 + 15.42)).</li>
+              <li><code>class percentages scale</code>: classes of 40 / 40 give targets of 0.5 each, and <code>targetTotals</code> gives <code>classPct</code> 80.</li>
+              <li><code>a class at 0</code> has target 0, and the other targets still add to 1.</li>
+              <li><code>worked example</code>: current 4700 / 2000 / 1300, targets 0.6 / 0.25 / 0.15, amount 1000, sells off gives 700 / 250 / 50.</li>
+              <li><code>an overweight target leaves the rest to share by gap</code>: current 0 / 1000 / 0, targets 0.4 / 0.4 / 0.2, amount 500 gives the gaps 600 / −400 / 300, so G = 900 and the buys are 333.33 / 0 / 166.67.</li>
+              <li><code>no overweight fills every gap exactly</code>: current 100 / 0, targets 0.5 / 0.5, amount 300 gives 100 / 200. With no negative gaps, G always equals the amount, so the "split the extra by target" branch only ever moves rounding cents.</li>
+              <li><code>overweight gets 0 with sells off</code>, and no trade is negative.</li>
+              <li><code>sells on lands on target</code>: current 900 / 100, targets 0.5 / 0.5, amount 0 gives −400 / 400.</li>
+              <li><code>buys add up to the amount</code>: amount 1000.01 over three equal targets adds up to exactly 1000.01, with the largest trade taking the remainder.</li>
+              <li><code>empty portfolio splits by target</code>.</li>
+              <li><code>targets not adding to 1 throw</code>.</li>
+            </ul></div></li>
+          <li><div>Run <code>npx vitest run tests/unit/lib/investments/target-allocation.test.ts</code>. It FAILS because the module is missing.</div></li>
+          <li><div>Implement it.
+            <ul>
+              <li>A region's share is <code>weight × (1 + tilt/100)</code> over the sum of those for every region. Each class's fraction is <code>pct</code> over the sum of all class percentages.</li>
+              <li>A split class with zero total region weight gives its regions target 0.</li>
+              <li>A zero class sum gives every target 0.</li>
+              <li>In both cases the caller detects that the targets don't add to 1.</li>
+              <li><code>planTrades</code> follows spec §3: gap = <code>target × (Σcurrent + amount) − current</code>. Sells off: fill the positive gaps, then split any extra by target, or split the amount in proportion to the gaps if it's smaller. Round to cents, and put the remainder on the trade with the largest absolute value.</li>
+            </ul></div></li>
+          <li><div>Run the file. It PASSES.</div></li>
+          <li><div>Commit: <code>feat(investments): target allocation math</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t3">
+        <h3>Task 3 · Settings service and API</h3>
+        <p class="files"><b>Files:</b>
+          <ul>
+            <li>Create <code>src/lib/investments/targets/defaults.ts</code>, <code>src/lib/investments/targets/settings.ts</code>, <code>src/app/api/investments/targets/route.ts</code> and <code>tests/integration/api/investment-targets.test.ts</code>.</li>
+            <li>Modify <code>src/lib/investments/services.ts</code> and <code>src/lib/prices/refresh.ts</code>.</li>
+            <li>Extend <code>tests/unit/lib/prices/refresh.test.ts</code>.</li>
+          </ul></p>
+        <p class="ifaces"><b>Consumes:</b> the Task 1 schema, and <code>finalTargets</code> / <code>targetTotals</code> / <code>FinalTarget</code> from Task 2. <b>Produces:</b>
+          <ul>
+            <li><code>DEFAULT_CLASSES</code>, <code>DEFAULT_REGIONS</code> and <code>DEFAULT_COUNTRIES</code>. Countries refer to regions by name.</li>
+            <li><code>class TargetSettingsService(prisma, holdings: Pick&lt;CurrentHoldingsReader,'read'&gt;, clock?)</code>, with these methods:
+              <ul>
+                <li><code>ensureDefaults(): Promise&lt;void&gt;</code> creates the starting setup when there are no classes.</li>
+                <li><code>setup(): Promise&lt;TargetSetup&gt;</code></li>
+                <li><code>read(): Promise&lt;TargetSettingsView&gt;</code></li>
+                <li><code>save(change: TargetChange): Promise&lt;TargetSettingsView&gt;</code></li>
+              </ul></li>
+            <li><code>TargetSettingsView</code> has these fields:
+              <ul>
+                <li><code>classes</code>, <code>regions</code>: the inputs plus <code>id</code>.</li>
+                <li><code>countries</code>: <code>{ id; name; weightPct; regionId }[]</code></li>
+                <li><code>final</code>: <code>FinalTarget[]</code></li>
+                <li><code>totals</code></li>
+                <li><code>funds</code>: <code>{ securityId; label; name; heldIn: string[]; valueBase: number; classId: string | null; regionId: string | null }[]</code></li>
+                <li><code>accounts</code>: <code>{ id; name; typedBalance: boolean; inTargets: boolean; valueBase: number }[]</code></li>
+              </ul></li>
+            <li><code>TargetChange</code> is a union on <code>section</code>:
+              <ul>
+                <li><code>'classes'</code>: <code>items: { id?; name; pct; splitByRegion; buySecurityId }[]</code></li>
+                <li><code>'regions'</code>: <code>items: { id?; name; tiltPct; buySecurityId }[]</code></li>
+                <li><code>'countries'</code>: <code>items: { id?; name; weightPct; regionId }[]</code></li>
+                <li><code>'funds'</code>: <code>items: { securityId; classId: string | null; regionId: string | null }[]</code></li>
+                <li><code>'accounts'</code>: <code>items: { accountId; inTargets: boolean }[]</code></li>
+              </ul></li>
+            <li><code>InvestmentServices.targets: TargetSettingsService</code></li>
+            <li><code>GET</code> and <code>PUT /api/investments/targets</code></li>
+          </ul>
+        </p>
+        <ol class="steps">
+          <li><div>Integration tests, through the route handlers as <code>investment-account-apis.test.ts</code> does:
+            <ul>
+              <li><code>GET creates defaults once</code>: two GETs leave 3 classes, 3 regions and 12 countries, and <code>final</code> matches the acceptance targets.</li>
+              <li><code>funds and accounts list current holdings</code>:
+                <ul>
+                  <li>A fund held in two accounts shows both in <code>heldIn</code> and the summed <code>valueBase</code>.</li>
+                  <li>A Manual account shows <code>typedBalance: true</code> and is not in <code>funds</code>.</li>
+                  <li>Inactive and non-investment accounts are absent.</li>
+                </ul></li>
+              <li><code>PUT classes replaces the list</code>: omit Crypto and add Gold. Crypto is deleted, and so is its funds' assignment (<code>targetClassId</code> and <code>targetRegionId</code> become null). The new order is the list order.</li>
+              <li>The PUT returns 400 with an exact message in these cases:
+                <ul>
+                  <li>Two classes split by region: "Only one class can be split by region".</li>
+                  <li>A tilt of −100: "Tilt must be above −100%".</li>
+                  <li>A country with an unknown region: "Unknown region".</li>
+                  <li>A stock fund without a region: "Pick a region for this fund".</li>
+                  <li>A region on a fund in a class that isn't split: "Only funds in a class split by region have a region".</li>
+                  <li>A negative percentage: Zod's 400.</li>
+                </ul></li>
+              <li><code>PUT accounts</code> saves <code>inTargets</code>. <code>PUT funds</code> with both values null clears the assignment.</li>
+            </ul>
+            In <code>refresh.test.ts</code>, add <code>refreshes an unheld buy-with fund</code>: a market-priced security that nothing holds but that a region buys with is fetched.</div></li>
+          <li><div>Run both files. The new tests FAIL.</div></li>
+          <li><div>Implement it.
+            <ul>
+              <li>Each list section is saved in one transaction: update rows with an id, create rows without one, and delete rows that are missing. <code>sortOrder</code> is the list index. Write that once as a private helper and use it for all three lists.</li>
+              <li>Holdings come from <code>holdings.read()</code> over active investment accounts with today's date, the base currency and <code>RateBook.load</code>, as <code>overview.accountHoldings</code> does.</li>
+              <li>Securities list only holdings with <code>kind === 'security'</code>. Kind <code>'account'</code> means a typed-in balance.</li>
+              <li>The route's Zod schema mirrors <code>TargetChange</code>, and errors map through <code>investmentErrorResponse</code>.</li>
+              <li>In <code>PriceRefresher.refresh</code>, add <code>{ targetClassBuys: { some: {} } }</code> and <code>{ targetRegionBuys: { some: {} } }</code> to the <code>OR</code>.</li>
+              <li>Wire <code>targets</code> in <code>createInvestmentServices</code>, and share one <code>CurrentHoldingsReader</code> with <code>overview</code>.</li>
+            </ul></div></li>
+          <li><div>Run both files, then <code>npx vitest run tests/integration/api/investment-services-startup.test.ts</code>. All PASS.</div></li>
+          <li><div>Commit: <code>feat(investments): investing targets settings API</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t4">
+        <h3>Task 4 · The planner and its route</h3>
+        <p class="files"><b>Files:</b>
+          <ul>
+            <li>Create <code>src/lib/investments/targets/planner.ts</code>, <code>src/app/api/investments/targets/plan/route.ts</code> and <code>tests/integration/api/investment-target-plan.test.ts</code>.</li>
+            <li>Modify <code>services.ts</code>.</li>
+          </ul></p>
+        <p class="ifaces"><b>Consumes:</b> <code>TargetSettingsService.ensureDefaults/setup</code>, <code>finalTargets</code>, <code>targetTotals</code> and <code>planTrades</code>, <code>PriceBook.load(...).latest(id)</code>, <code>convertAmount</code>, and <code>CurrentHoldingsReader.read</code>. <b>Produces</b> (the drawer renders these types):
+          <ul>
+            <li><code>type PlanFund = { securityId; ticker: string; name: string; currency: string; price: number | null; priceDate: string | null; stale: boolean }</code></li>
+            <li><code>type PlanRow = { key; name; className: string | null; fund: PlanFund | null; current: number; currentPct: number; targetPct: number; trade: number; afterPct: number; shares: number | null; holdings: { label: string; accountName: string; value: number }[] }</code></li>
+            <li><code>type LeftOutReason = 'account_excluded' | 'typed_balance' | 'cash' | 'not_counted'</code>, and <code>type LeftOutItem = { label: string; reason: LeftOutReason; value: number }</code>.</li>
+            <li><code>type InvestPlan = { ready: true; baseCurrency; amount; sells; countedTotal; accountsCounted: number; rows: PlanRow[]; leftOut: LeftOutItem[]; totals: { countryWeightPct; classPct }; pricesAsOf: string | null } | { ready: false; reason: 'no_class_targets' | 'no_country_weights' }</code></li>
+            <li><code>class TargetPlanner(prisma, settings: Pick&lt;TargetSettingsService,'ensureDefaults'|'setup'&gt;, holdings, clock?)</code> with <code>plan(input: { amount: number; sells: boolean }): Promise&lt;InvestPlan&gt;</code>.</li>
+            <li><code>InvestmentServices.planner</code></li>
+            <li><code>GET /api/investments/targets/plan?amount=&lt;n&gt;&amp;sells=1</code>. A missing amount means 0. Only <code>sells=1</code> turns sells on.</li>
+          </ul>
+        </p>
+        <ol class="steps">
+          <li><div>Integration tests (clock 2026-10-09, as <code>testServices</code> sets):
+            <ul>
+              <li><code>buys toward targets across accounts</code>:
+                <ul>
+                  <li>Set up two accounts, with US and Developed funds assigned to the split class's regions, and one "buy with" fund per region with a price.</li>
+                  <li>Set the classes to Stocks 100 alone, so the expected trades follow from <code>planTrades</code>.</li>
+                  <li>The rows carry the trades, <code>shares = trade / price</code> to 3 places, <code>afterPct</code>, and the summed <code>current</code>.</li>
+                </ul></li>
+              <li><code>converts a CAD holding</code> with a seeded CAD→USD rate. Its <code>current</code> is in USD.</li>
+              <li><code>left out</code>:
+                <ul>
+                  <li>An account with <code>inTargets: false</code> is listed as <code>account_excluded</code>, with its total.</li>
+                  <li>A Manual account is <code>typed_balance</code>.</li>
+                  <li>A cash holding is <code>cash</code>.</li>
+                  <li>An unassigned fund is <code>not_counted</code>.</li>
+                  <li>A fund whose class splits but has no region is <code>not_counted</code> (Review focus 1).</li>
+                </ul>
+                None of these count in <code>countedTotal</code>.</li>
+              <li><code>sells on lists holdings</code>: a target you're over has a negative <code>trade</code>, <code>shares: null</code>, and <code>holdings</code> by account.</li>
+              <li><code>no price yet</code>: a "buy with" fund with no stored price gives <code>fund.price: null</code> and <code>shares: null</code>, while <code>trade</code> is still set (Review focus 4).</li>
+              <li><code>stale price</code>: a price dated 2026-10-05 gives <code>stale: true</code>; one dated 2026-10-07 gives false.</li>
+              <li><code>not ready</code>: all classes at 0 give <code>no_class_targets</code>. A split class whose regions have no countries, with the other classes at 0, gives <code>no_country_weights</code> (Review focus 2).</li>
+              <li>The route returns 400 for an amount of <code>-5</code>, <code>abc</code> or <code>1e12</code> (the limit is 1e9), and 200 with no amount (Review focus 3).</li>
+            </ul></div></li>
+          <li><div>Run the file. It FAILS.</div></li>
+          <li><div>Implement it.
+            <ul>
+              <li>The final targets have to add to 1 (±1e-6). If they don't, return <code>ready: false</code>: <code>no_class_targets</code> when the class sum is 0, otherwise <code>no_country_weights</code>.</li>
+              <li>A holding counts toward a final target only when its security's class and region match one by <code>targetKey</code>. Any other holding is left out under one of the reasons above.</li>
+              <li>Prices for the "buy with" funds come from <code>PriceBook.latest</code>. <code>pricesAsOf</code> is the oldest of their dates.</li>
+              <li>Shares = <code>convertAmount(trade, base, fund.currency, rates) / price</code>, rounded to 3 places. Shares are only given for buys.</li>
+            </ul></div></li>
+          <li><div>Run the file and the Task 3 file. Both PASS.</div></li>
+          <li><div>Commit: <code>feat(investments): invest planner</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t5">
+        <h3>Task 5 · Investing Targets tab</h3>
+        <p class="files"><b>Files:</b>
+          <ul>
+            <li>Create <code>src/components/investments/targets-tab.tsx</code>, <code>src/components/investments/targets-cards.tsx</code> and <code>tests/unit/components/investments/targets-tab.test.tsx</code>.</li>
+            <li>Modify <code>src/app/(routes)/settings/page.tsx</code>.</li>
+          </ul></p>
+        <p class="ifaces"><b>Consumes:</b> <code>GET/PUT /api/investments/targets</code> and <code>TargetSettingsView</code> (Task 3), <code>finalTargets</code> / <code>targetTotals</code> (Task 2), and <code>GET /api/investments/securities</code> for the "buy with" options (<code>pricing === Pricing.Market</code>). <b>Produces:</b> <code>TargetsTab()</code>.</p>
+        <ol class="steps">
+          <li><div>Component tests, with <code>fetch</code> mocked as <code>securities-tab.test.tsx</code> does:
+            <ul>
+              <li><code>shows the five cards</code> from a view.</li>
+              <li><code>tilt previews the targets live</code>: typing 20 in the US tilt changes the shown "Of stocks" to 60.7%, with no request sent.</li>
+              <li><code>saves one card</code>: changing a class % and pressing that card's Save sends <code>PUT {section:'classes', items}</code>, and the returned view is rendered.</li>
+              <li><code>shows a save error</code>: a 400 body's <code>error</code> appears in that card.</li>
+              <li><code>funds pick a target</code>: the options are each final target plus "Not counted", and choosing "Stocks · US" sends <code>{classId, regionId}</code>.</li>
+              <li><code>scaling note</code>: country weights of 99.24 show "Total 99.24% · scaled to 100%".</li>
+            </ul></div></li>
+          <li><div>Run the file. It FAILS.</div></li>
+          <li><div>Build the cards to match mock v3.
+            <ul>
+              <li>Each list card keeps its own draft, with Save enabled only once something has changed. The cards use the existing <code>Card</code>, <code>Button</code>, <code>Input</code> and <code>Select</code> components and <code>sendJson</code>.</li>
+              <li>The page adds <code>'targets'</code> to the tab list after <code>'securities'</code>, labelled "Investing Targets".</li>
+            </ul></div></li>
+          <li><div>Run the file and <code>tests/unit/components/settings</code>. Both PASS.</div></li>
+          <li><div>Commit: <code>feat(investments): Investing Targets settings tab</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t6">
+        <h3>Task 6 · Invest drawer</h3>
+        <p class="files"><b>Files:</b>
+          <ul>
+            <li>Create <code>src/components/investments/invest-drawer.tsx</code>, <code>src/components/investments/invest-view.ts</code>, <code>tests/unit/components/investments/invest-drawer.test.tsx</code> and <code>tests/unit/components/investments/invest-view.test.ts</code>.</li>
+            <li>Modify <code>src/app/(routes)/investments/page.tsx</code> and <code>tests/unit/components/investments/investments-page.test.tsx</code>.</li>
+          </ul></p>
+        <p class="ifaces"><b>Consumes:</b> <code>InvestPlan</code> and its row types, the plan route (Task 4), <code>Drawer</code> / <code>DRAWER_PUSH_CLASS</code>, and <code>fmtMoney</code>. <b>Produces:</b>
+          <ul>
+            <li><code>parseAmount(text: string): number | null</code>. It strips <code>$</code>, commas and spaces; empty gives null; invalid or negative gives null.</li>
+            <li><code>rowTag(row: PlanRow): string</code> gives "Stocks · US" or "Fixed income".</li>
+            <li><code>leftOutText(reason: LeftOutReason): string</code> gives "Account left out", "Typed-in balance, no funds to count", "Cash waiting to be invested" or "Not counted toward a target".</li>
+            <li><code>scaleNotes(totals): string[]</code> gives "Your country weights add to 99.24%; scaled to 100%." and the same for class targets. It returns nothing for a total that's 100 to 2 places.</li>
+            <li><code>InvestDrawer({ open, onClose })</code></li>
+          </ul>
+        </p>
+        <ol class="steps">
+          <li><div>Tests:
+            <ul>
+              <li><code>invest-view.test.ts</code>:
+                <ul>
+                  <li><code>parseAmount</code>: "1,000" and "$1,000" give 1000; "" gives null; "-5" and "abc" give null (Review focus 3).</li>
+                  <li><code>rowTag</code> for both kinds of row.</li>
+                  <li><code>leftOutText</code> for all four reasons.</li>
+                  <li><code>scaleNotes</code> at 99.24 and at 100.</li>
+                </ul></li>
+              <li><code>invest-drawer.test.tsx</code>, with <code>fetch</code> mocked and fake timers for the debounce:
+                <ul>
+                  <li><code>buy list</code>: amount 1000 fetches <code>amount=1000</code> and renders, for each row, the ticker, its tag, the dollars, and "7.201 sh @ $81.79".</li>
+                  <li><code>empty amount shows where you stand</code>: the title is "Where you stand" and the buy column shows "—".</li>
+                  <li><code>sells switch</code> refetches with <code>sells=1</code>. A negative row shows "Sell $400.00" and "What you hold here".</li>
+                  <li><code>missing fund and no price</code> show "Pick a fund to buy" and "No price yet".</li>
+                  <li><code>stale price</code>: a fund with <code>stale: true</code> shows "price from Oct 5" in the accent colour next to its share count.</li>
+                  <li><code>left out expands</code> to show each item's text.</li>
+                  <li><code>not ready</code> shows "Set your investing targets first" with a link to <code>/settings?tab=targets</code>.</li>
+                </ul></li>
+              <li><code>investments-page.test.tsx</code>: the header has an "Invest" button that opens the drawer.</li>
+            </ul></div></li>
+          <li><div>Run the three files. They FAIL.</div></li>
+          <li><div>Build the drawer to match mock v3.
+            <ul>
+              <li>Amount card: field, quick amounts ($500, $1,000, $2,500, $5,000) and the switch.</li>
+              <li>A plan table, then the notes, then a collapsed Left out section, then the footer link.</li>
+              <li>Debounce requests by 250 ms, and ignore a response that's out of date.</li>
+              <li>The page holds the open state, puts <code>DRAWER_PUSH_CLASS</code> on its content while the drawer is open, and puts the button after the range tabs.</li>
+            </ul></div></li>
+          <li><div>Run the three files and <code>npm run check</code>. They PASS.</div></li>
+          <li><div>Commit: <code>feat(investments): invest drawer</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t7">
+        <h3>Task 7 · Browser check</h3>
+        <p class="files"><b>Files:</b> none, unless the check finds something to fix.</p>
+        <ol class="steps">
+          <li><div>Run <code>npx vitest run</code> and <code>npm run check</code>. Everything passes, and any failures that were there before are noted.</div></li>
+          <li><div>Run <code>npx next dev -p 3100</code> against <code>prisma/dev.db</code>. Do not change any real targets or accounts beyond what the defaults create on the first load.
+            <ul>
+              <li>On Investing Targets: the five cards render, the defaults match the acceptance targets, and a tilt preview updates without saving.</li>
+              <li>On Investments: Invest opens the push drawer. Typing 1000 shows a list of funds to buy that adds up to $1,000.00. Then check the sells switch, Left out, and the "Edit investing targets →" link.</li>
+              <li>Repeat in light and dark, and at a 400px width.</li>
+            </ul></div></li>
+          <li><div>Report what was checked, with screenshots of the drawer and the tab, and anything that couldn't be checked.</div></li>
+        </ol>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  btn.addEventListener('click', function () {
+    var r = document.documentElement;
+    var dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (a) { a.classList.remove('active'); });
+        var a = map[e.target.id]; if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+})();
+</script>
+</body>
+</html>
