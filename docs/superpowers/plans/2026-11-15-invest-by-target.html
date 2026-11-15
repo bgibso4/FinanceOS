@@ -168,7 +168,7 @@ pre { font-family: var(--mono); font-size: 13px; line-height: 1.5; background: v
             <li>Countries: USA 55.9 → US.</li>
             <li>Developed ex-US: Japan 7.4, UK 4.1, France 2.9, Switzerland 2.6, Germany 2.6, Australia 2.1, Other developed 2.77, Canada 3.55.</li>
             <li>Emerging: China 5.4, Taiwan 1.7, Other emerging 8.32.</li>
-            <li>These final targets are an acceptance value: US 0.4502, Developed ex-US 0.2257, Emerging 0.1242, Fixed income 0.15, Crypto 0.05 (4 decimal places).</li>
+            <li>These final targets are an acceptance value: US 0.4502, Developed ex-US 0.2256, Emerging 0.1242, Fixed income 0.15, Crypto 0.05 (4 decimal places).</li>
           </ul></li>
         <li>Amounts are in the base currency (<code>UserSettings.baseCurrency</code>, default USD). The buys add up to the amount to the cent, with any rounding remainder on the largest trade. A price is stale when it's more than 3 days older than today.</li>
         <li>Copy, exactly (from the approved mock):
@@ -279,8 +279,8 @@ pre { font-family: var(--mono); font-size: 13px; line-height: 1.5; background: v
         <ol class="steps">
           <li><div>Tests:
             <ul>
-              <li><code>starting setup gives the acceptance targets</code>: build the starting setup inline (Global constraints). The targets match 0.4502 / 0.2257 / 0.1242 / 0.15 / 0.05 to 4 places, and the US <code>shareOfClass</code> is 0.5627.</li>
-              <li><code>tilt then scale within the class</code>: US +20 gives a US share of 0.6070 (= 55.9×1.2 / (55.9×1.2 + 28.02 + 15.42)).</li>
+              <li><code>starting setup gives the acceptance targets</code>: build the starting setup inline (Global constraints). The targets match 0.4502 / 0.2256 / 0.1242 / 0.15 / 0.05 to 4 places, and the US <code>shareOfClass</code> is 0.5627.</li>
+              <li><code>tilt then scale within the class</code>: US +20 gives a US share of 0.6069 (= 55.9×1.2 / (55.9×1.2 + 28.02 + 15.42)).</li>
               <li><code>class percentages scale</code>: classes of 40 / 40 give targets of 0.5 each, and <code>targetTotals</code> gives <code>classPct</code> 80.</li>
               <li><code>a class at 0</code> has target 0, and the other targets still add to 1.</li>
               <li><code>worked example</code>: current 4700 / 2000 / 1300, targets 0.6 / 0.25 / 0.15, amount 1000, sells off gives 700 / 250 / 50.</li>
