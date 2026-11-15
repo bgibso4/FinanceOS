@@ -111,7 +111,7 @@ table.num td { font-variant-numeric: tabular-nums; }
 <div class="layout">
   <aside class="side" aria-label="Sections">
     <div class="brand">FinanceOS<span>Design · Invest by target</span></div>
-    <div class="overall"><span>Status</span><b>Draft for review</b><span>Next: mocks approved, then the implementation plan</span></div>
+    <div class="overall"><span>Status</span><b>Waiting for approval</b><span>Mock approved · next: implementation plan</span></div>
     <nav class="toc" aria-label="Sections">
       <div class="toc-label">Overview</div>
       <a href="#mine"><span class="toc-n"></span><span>Waiting on you</span></a>
@@ -133,48 +133,52 @@ table.num td { font-variant-numeric: tabular-nums; }
   </aside>
   <main>
     <header>
-      <div class="eyebrow"><span class="pill">Design</span><span>Written 2026-11-15</span><span>·</span><span>project · after a brainstorm · not started</span></div>
+      <div class="eyebrow"><span class="pill">Design</span><span>Written 2026-11-15</span><span>·</span><span>project · after a brainstorm and three mock rounds · not started</span></div>
       <h1>Invest by target</h1>
-      <p class="goal">When you have money to invest, you open your Sheets tracker's "Global Index Allocation" tab, type in the amount, each fund's current value and its price, and it tells you what to buy. FinanceOS already knows your holdings and prices, so this moves that tool into the app. You type an amount and get a buy list that moves your whole portfolio toward a market-size target across a few regions, with an optional US tilt. It only suggests buys unless you turn on sells. It also fixes the sheet's calculation bugs. Per-purchase tracking (issue #30) stays a separate, later piece of work.</p>
+      <p class="goal">When you have money to invest, you open your Sheets tracker. "Asset Allocation" sets your split (stocks, fixed income, crypto). "Global Index Allocation" splits the stock part across regions by market size, and you type in an amount, each fund's value and its price to see what to buy. FinanceOS already knows your holdings and prices, so this moves that tool into the app. You set your targets once on a new <strong>Investing Targets</strong> settings tab. Then, on the Investments page, you type an amount and get a list of funds to buy that moves your whole portfolio toward those targets. It only suggests buys unless you turn on sells. It also fixes the sheet's calculation bugs. Per-purchase tracking (issue #30) stays a separate, later piece of work.</p>
       <div class="meta">
         <div><b>Where</b>Branch <code>feat/invest-by-target</code> off <code>main</code>. One PR against <code>main</code>.</div>
-        <div><b>Builds on</b><code>CurrentHoldingsReader</code> (<code>src/lib/investments/current-holdings.ts</code>), <code>RateBook</code> / <code>convertAmount</code>, the services root in <code>src/lib/investments/services.ts</code>, <code>SecurityPrice</code>, the Settings → Securities tab, <code>/investments</code>, and the cloud-sync payload.</div>
-        <div><b>Source</b>Sheets tracker tabs "Global Index Allocation", "… 2024" and "… 2026" (read 2026-11-15). Mocks: not made yet. They come before the plan.</div>
+        <div><b>Builds on</b><code>CurrentHoldingsReader</code> (<code>src/lib/investments/current-holdings.ts</code>), <code>RateBook</code> / <code>convertAmount</code>, the services root in <code>src/lib/investments/services.ts</code>, <code>SecurityPrice</code> and the price refresh, Settings tabs, <code>/investments</code>, and the cloud-sync payload.</div>
+        <div><b>Approved mock</b><code>~/Documents/FinanceOS-design-archive/design-mocks/investments/invest-by-target.html</code> (v3: asset classes, fund-first drawer rows). Source: the Sheets tracker's "Asset Allocation" and "Global Index Allocation" tabs.</div>
       </div>
-      <div class="stats"><span><b>6</b>design sections</span><span><b>8</b>decisions agreed</span><span><b>12</b>calls to check</span></div>
+      <div class="stats"><span><b>6</b>design sections</span><span><b>12</b>decisions agreed</span><span><b>12</b>calls to check</span></div>
     </header>
 
     <section id="mine">
       <h2>Waiting on you</h2>
-      <p class="lede">My own calls. Each is easy to change now; veto any you don't like. <strong>M2 takes back something I offered in chat.</strong></p>
+      <p class="lede">My own calls. Each is easy to change now; veto any you don't like.</p>
       <div class="decisions"><ul>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M1</span>Regions are a short list you can edit</div><div class="dec-text">It starts with three: <strong>US</strong>, <strong>Developed ex-US</strong>, and <strong>Emerging</strong>. You can rename them, add one, or remove one. Each country in the weight list belongs to exactly one region.</div></div><div class="trefs"><a class="tref" href="#targets">Targets</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>Each fund counts toward one region</div><div class="dec-text">In chat I offered to split an all-world fund like VT across regions. None of the funds you buy need that, so I've left it out. A fund belongs to one region or to none. It can be added later if you ever buy a multi-region fund.</div></div><div class="trefs"><a class="tref" href="#counted">Counted</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M3</span>Anything without a region is left out, and shown</div><div class="dec-text">Single stocks, crypto, cash, money market and target-date funds don't count toward the regions. The drawer lists what was left out and its total, so nothing disappears silently. Uninvested cash is left out too, since it's what you're about to invest.</div></div><div class="trefs"><a class="tref" href="#counted">Counted</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M4</span>The tilt is a percentage on any region</div><div class="dec-text">Each region has a tilt that starts at 0. Setting the US to +20% means the US gets 1.2 × its market weight, and every region is then scaled so the total is 100%. For example, US 56.3% becomes about 60.7%. Only the US would use it today, but putting it on each region costs nothing extra.</div></div><div class="trefs"><a class="tref" href="#targets">Targets</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M5</span>Buys go where the gaps are, in proportion</div><div class="dec-text">With sells off, the deposit goes only to regions below target, in proportion to how far below they are. If the deposit is more than all the gaps together, the gaps are filled first and the rest is split by target. Nothing goes to a region that's already over target.</div></div><div class="trefs"><a class="tref" href="#math">Math</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M6</span>Weights that don't add to 100% are scaled, with a note</div><div class="dec-text">Your list adds to about 99.2%. The tool scales it to 100% and shows a note like "Your weights add to 99.24%; scaled to 100%" so you can fix it if you want.</div></div><div class="trefs"><a class="tref" href="#targets">Targets</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M7</span>Targets live in a new Settings tab</div><div class="dec-text">The country list, regions, tilts, "buy with" funds and left-out accounts sit on a <strong>Targets</strong> tab next to Securities. Each fund's region is set on that tab, which lists your held funds. The drawer links to it. The mocks can still move this.</div></div><div class="trefs"><a class="tref" href="#ui">Screens</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M8</span>Starting data comes from your 2026 tab</div><div class="dec-text">The first setup fills in the countries and weights from the region table on "Global Index Allocation 2026", with Canada (3.55%) moved to Developed ex-US. The 401(k) and DSP start left out. The "buy with" funds start empty for you to pick. Country weights are public data, but account names stay out of the repo, so excluding those two is a step you take in the UI, not a seed.</div></div><div class="trefs"><a class="tref" href="#data">Data</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M10</span>Sells are shown in dollars, with the funds they'd come from</div><div class="dec-text">With "Allow sells" on, an overweight region shows a sell amount in dollars, not shares. The fund the region buys with may not be the one you hold there (VIU in Questrade, say), so a share count could be wrong. Under the row it lists the region's holdings by account, so you decide what to sell. Sells are rare for you, so this keeps that mode simple.</div></div><div class="trefs"><a class="tref" href="#math">Math</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M11</span>Accounts with only a typed-in balance are left out</div><div class="dec-text">An account where you enter a balance by hand has no funds, so it can't be split into regions. It's listed under "Left out" as a whole account. To count it, enter its holdings instead (the holdings editor already supports this). Today that's likely only the DSP, which you're leaving out anyway.</div></div><div class="trefs"><a class="tref" href="#counted">Counted</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M12</span>A "buy with" fund doesn't have to be held yet</div><div class="dec-text">The picker offers any market-priced security, and you can add one by ticker as you do today. Daily price updates also cover every "buy with" fund, so a fund you haven't bought yet still gets current prices.</div></div><div class="trefs"><a class="tref" href="#data">Data</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M9</span>It doesn't record anything</div><div class="dec-text">The drawer is a calculator. It doesn't save the plan or the orders you place. Your next sync brings in the buys. The sheet's "previous market value" column goes, since the app already shows change over time.</div></div><div class="trefs"><a class="tref" href="#scope">Scope</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M1</span>Classes and regions are short lists you can edit</div><div class="dec-text">The classes start as <strong>Stocks 80</strong>, <strong>Fixed income 15</strong> and <strong>Crypto 5</strong>, as in your sheet's Asset Allocation tab. Stocks is split into <strong>US</strong>, <strong>Developed ex-US</strong> and <strong>Emerging</strong>. You can rename, add or remove either kind. Only one class (Stocks) is split by region. Each country belongs to exactly one region.</div></div><div class="trefs"><a class="tref" href="#targets">Targets</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>Each fund counts toward one target</div><div class="dec-text">A fund counts toward a region of Stocks, toward another class, or not at all. Splitting one fund across several targets (an all-world fund like VT) is left out, because none of your funds need it.</div></div><div class="trefs"><a class="tref" href="#counted">Counted</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M3</span>Anything not counted is left out, and shown</div><div class="dec-text">Single stocks (such as the employer stock), target-date funds, cash and money market funds don't count toward a target. The drawer lists what was left out and its total, so nothing disappears silently. Uninvested cash is left out because it's what you're about to invest.</div></div><div class="trefs"><a class="tref" href="#counted">Counted</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M4</span>The tilt is a percentage on any region</div><div class="dec-text">Each region has a tilt that starts at 0. Setting the US to +20% means the US gets 1.2 × its market weight within Stocks, and the regions are then scaled back to 100% of Stocks. For example, US 56.3% of stocks becomes about 60.7%.</div></div><div class="trefs"><a class="tref" href="#targets">Targets</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M5</span>Buys go where the gaps are, in proportion</div><div class="dec-text">With sells off, the deposit goes only to targets you're below, in proportion to how far below each one is. If the deposit is more than all the gaps together, the gaps are filled first and the rest is split by target. Nothing goes to a target you're already over.</div></div><div class="trefs"><a class="tref" href="#math">Math</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M6</span>Totals that don't add to 100% are scaled, with a note</div><div class="dec-text">Your country weights add to about 99.2%. The tool scales them, and class percentages likewise, to 100%, and shows a note such as "Your country weights add to 99.24%; scaled to 100%" so you can fix the numbers if you want.</div></div><div class="trefs"><a class="tref" href="#targets">Targets</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M7</span>Starting data comes from your sheet</div><div class="dec-text">The first setup fills in the classes (80 / 15 / 5) and the countries and weights from the region table on "Global Index Allocation 2026", with Canada (3.55%) moved to Developed ex-US. The "buy with" funds start empty for you to pick. Country weights are public data, but account names stay out of the public repo, so you leave out the 401(k) and DSP yourself on the tab rather than through a seed.</div></div><div class="trefs"><a class="tref" href="#data">Data</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M8</span>Two funds for one slice means two classes</div><div class="dec-text">To hold both gold and bonds, make two classes, such as "Gold 7.5" and "Bonds 7.5", each with its own "buy with" fund. Giving classes their own split, as Stocks has, can come later if this gets clunky.</div></div><div class="trefs"><a class="tref" href="#targets">Targets</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M9</span>It doesn't record anything</div><div class="dec-text">The drawer is a calculator. It doesn't save the plan or the orders you place; your next sync brings in the buys. The sheet's "previous market value" column goes, since the app already shows change over time.</div></div><div class="trefs"><a class="tref" href="#scope">Scope</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M10</span>Sells are shown in dollars, with the funds they'd come from</div><div class="dec-text">With "Allow sells" on, a target you're over shows a sell amount in dollars, not shares. What you hold there may not be the "buy with" fund (VIU in Questrade, say), so a share count could be wrong. Under the row it lists what you hold there, by account, so you choose what to sell.</div></div><div class="trefs"><a class="tref" href="#math">Math</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M11</span>Accounts with only a typed-in balance are left out</div><div class="dec-text">An account where you type in a balance by hand has no funds to assign to targets. It's listed under "Left out" as a whole account, even when ticked. To count it, enter its holdings instead (the holdings editor already supports this).</div></div><div class="trefs"><a class="tref" href="#counted">Counted</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M12</span>A "buy with" fund doesn't have to be held yet</div><div class="dec-text">The picker offers any market-priced security, and you can add one by ticker as you do today. Daily price updates also cover every "buy with" fund, so one you haven't bought yet still has a current price.</div></div><div class="trefs"><a class="tref" href="#data">Data</a></div></li>
       </ul></div>
     </section>
 
     <section id="agreed">
       <h2>Agreed with you</h2>
-      <p class="lede">From the brainstorm on 2026-11-14 and 15.</p>
+      <p class="lede">From the brainstorm and mock rounds on 2026-11-14 and 15.</p>
       <div class="decisions agreed"><ul>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">A1</span>This first, per-purchase tracking later</div><div class="dec-text">The "invest this amount" tool is the core. It only needs current holdings per fund. Per-purchase tracking (issue #30) comes later and enables per-buy gains, sold-share gains, short vs long term, and the realized-gains report.</div></div><div class="trefs"><a class="tref" href="#scope">Scope</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">A2</span>Market-size weights by region</div><div class="dec-text">Targets come from each country's share of the global stock market (what your sheet calls "Global Market Distribution"). They are not GDP-based.</div></div><div class="trefs"><a class="tref" href="#targets">Targets</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">A3</span>Canada isn't tracked on its own any more</div><div class="dec-text">You tracked it while living there. Now it's simply part of Developed ex-US.</div></div><div class="trefs"><a class="tref" href="#targets">Targets</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">A4</span>An optional US tilt</div><div class="dec-text">You may want to weight the US, your home country, above its market size. It's a setting, and 0 means no tilt.</div></div><div class="trefs"><a class="tref" href="#targets">Targets</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">A5</span>All accounts by default, with some left out</div><div class="dec-text">Gaps are measured across all investment accounts together. You can leave accounts out; the 401(k) and DSP will probably be left out.</div></div><div class="trefs"><a class="tref" href="#counted">Counted</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">A6</span>Buys only, unless you turn on sells</div><div class="dec-text">You mostly buy and drift back toward the target over time. A switch, off by default, shows a full rebalance with sells and buys.</div></div><div class="trefs"><a class="tref" href="#math">Math</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">A7</span>No account picker</div><div class="dec-text">You type an amount in your base currency (USD). Each region has one "buy with" fund, and the tool suggests dollars and shares of it. Today that's Fidelity's funds. If you invest from Questrade, you change the "buy with" funds.</div></div><div class="trefs"><a class="tref" href="#ui">Screens</a></div></li>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">A8</span>Countries add up to regions (approach A)</div><div class="dec-text">You keep a country weight list. Region targets are worked out from it, and the tilt is applied on top. The yearly update stays the same as now, and fetching weights automatically later would plug straight in.</div></div><div class="trefs"><a class="tref" href="#approaches">Approaches</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A1</span>This first, per-purchase tracking later</div><div class="dec-text">The "invest this amount" tool is the core, and it only needs current holdings. Per-purchase tracking (issue #30) comes later; that's where per-buy gains, gains on shares sold, short vs long term and the realized-gains report come from.</div></div><div class="trefs"><a class="tref" href="#scope">Scope</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A2</span>Two levels: asset classes, then regions for stocks</div><div class="dec-text">Classes (Stocks, Fixed income, Crypto) each have a target % you type in. Only Stocks is split further, by region.</div></div><div class="trefs"><a class="tref" href="#targets">Targets</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A3</span>Classes you don't hold right now are set to 0</div><div class="dec-text">"Sometimes" fixed income or crypto means the targets change over time in settings. You don't pick classes per deposit.</div></div><div class="trefs"><a class="tref" href="#targets">Targets</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A4</span>"Fixed income", not "Bonds"</div><div class="dec-text">You sometimes hold gold instead of bonds. Class names are yours to edit.</div></div><div class="trefs"><a class="tref" href="#targets">Targets</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A5</span>Market-size weights by region, Canada folded in</div><div class="dec-text">Stock regions come from each country's share of the global stock market, not from GDP. Canada is no longer tracked on its own; it's part of Developed ex-US.</div></div><div class="trefs"><a class="tref" href="#targets">Targets</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A6</span>An optional US tilt</div><div class="dec-text">Weight your home country above its market size if you want to. 0 means no tilt.</div></div><div class="trefs"><a class="tref" href="#targets">Targets</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A7</span>All accounts by default, with some left out</div><div class="dec-text">Gaps are measured across all investment accounts together, with a tick box to leave accounts out. The 401(k) and DSP will probably be left out.</div></div><div class="trefs"><a class="tref" href="#counted">Counted</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A8</span>Buys only, unless you turn on sells</div><div class="dec-text">You mostly buy and drift back toward the targets. A switch, off by default, shows a full rebalance.</div></div><div class="trefs"><a class="tref" href="#math">Math</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A9</span>No account picker</div><div class="dec-text">You type an amount in USD. Each target has one "buy with" fund, and the tool suggests dollars and shares of it. Today those are Fidelity funds; if you invest from Questrade, you change them.</div></div><div class="trefs"><a class="tref" href="#ui">Screens</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A10</span>Countries add up to regions (approach A)</div><div class="dec-text">You keep a country weight list, and it's added up into regions. The yearly update stays the same as now, and fetching weights automatically later would plug straight in.</div></div><div class="trefs"><a class="tref" href="#approaches">Approaches</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A11</span>A settings tab named "Investing Targets"</div><div class="dec-text">All the setup lives there in five cards: Asset classes, Stocks by region, Countries, Funds and Accounts. The drawer links to it.</div></div><div class="trefs"><a class="tref" href="#ui">Screens</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A12</span>The drawer leads with the fund</div><div class="dec-text">Each row is the fund to buy (ticker, then its name), with a small tag for its target, such as "Stocks · US" or "Fixed income".</div></div><div class="trefs"><a class="tref" href="#ui">Screens</a></div></li>
       </ul></div>
     </section>
 
@@ -182,17 +186,17 @@ table.num td { font-variant-numeric: tabular-nums; }
       <h2>Scope</h2>
       <div class="cols">
         <div class="col"><h3>Goals</h3><ul>
-          <li>Type an amount, get a buy list in dollars and shares</li>
-          <li>Measured against all counted accounts, with live values and prices</li>
-          <li>Targets you can edit yearly, with an optional US tilt</li>
+          <li>Type an amount, get a list of funds to buy, in dollars and shares</li>
+          <li>Measured across counted accounts, with live values and prices</li>
+          <li>Class and region targets you update yearly, with an optional US tilt</li>
           <li>The sheet's calculation bugs gone</li>
         </ul></div>
         <div class="col"><h3>Non-goals</h3><ul>
           <li>Per-purchase lots and tax lots (#30)</li>
           <li>Fetching country weights automatically (later)</li>
           <li>Placing orders, or recording a plan</li>
-          <li>Splitting a multi-region fund (M2)</li>
-          <li>Stocks vs bonds targets</li>
+          <li>Splitting one fund across targets, or a class across funds (M2, M8)</li>
+          <li>Choosing classes per deposit</li>
         </ul></div>
         <div class="col"><h3>Anti-goals</h3><ul>
           <li>Suggesting a sell when sells are off</li>
@@ -205,97 +209,101 @@ table.num td { font-variant-numeric: tabular-nums; }
 
     <section id="approaches">
       <h2>Approaches</h2>
+      <p class="lede">For how the stock targets are set. Asset classes were added on top afterwards, once we read the sheet's Asset Allocation tab.</p>
       <table class="md">
         <tr><th>Approach</th><th>Trade-off</th><th>Outcome</th></tr>
-        <tr><td>A · Countries add up to regions</td><td>Matches your sheet and yearly routine, and automated weights would plug in later. About 12 rows to manage for 3 regions.</td><td><span class="chip agreed">Picked</span></td></tr>
+        <tr><td>A · Countries add up to regions</td><td>Matches your sheet and yearly routine, and automated weights would plug in later. About 12 rows to manage.</td><td><span class="chip agreed">Picked</span></td></tr>
         <tr><td>B · Enter region percentages directly</td><td>Simplest, but you'd add up countries by hand each year, and automating would need the country step back.</td><td>Rejected</td></tr>
-        <tr><td>C · General-purpose target groups</td><td>Most flexible (stocks vs bonds, sectors), but abstract and not needed by a simple index investor.</td><td>Rejected</td></tr>
+        <tr><td>C · General-purpose nested groups</td><td>Most flexible, but abstract. The two fixed levels (classes, then regions for stocks) cover everything in your sheet.</td><td>Rejected</td></tr>
       </table>
     </section>
 
     <section id="targets">
       <h2>1 · Targets</h2>
       <div class="card"><ul>
-        <li><strong>Country list:</strong> each country has a name, a weight (%) and a region. The starting list (M8):
+        <li><strong>Asset classes:</strong> each has a name, a target % and, unless it's split by region, a "buy with" fund. They start as Stocks 80 (split by region), Fixed income 15 and Crypto 5. Class percentages are scaled to 100% if they don't add up (M6).</li>
+        <li><strong>Countries:</strong> each has a name, a weight (%) and a region. They start with the numbers from the sheet's region table (M7):
           <ul>
             <li>US: USA 55.9</li>
             <li>Developed ex-US: Japan 7.4, UK 4.1, France 2.9, Switzerland 2.6, Germany 2.6, Australia 2.1, Other developed 2.77, Canada 3.55</li>
             <li>Emerging: China 5.4, Taiwan 1.7, Other emerging 8.32 (South Korea is inside it, as in the sheet)</li>
           </ul>
-          These are the numbers from the sheet's region table, carried over as they are. They add up to 99.24%, so the scaling note shows (M6). The sheet's "Global Market Distribution" list says 2.4 for Canada, but the region table used 3.55; this keeps 3.55, which is what your past plans were based on.</li>
-        <li><strong>Region target</strong> = the sum of its countries' weights × (1 + tilt), then all regions are scaled to add to 100% (M4, M6).</li>
-        <li>A region with no countries has a 0% target. A region with a target but no "buy with" fund shows "Pick a fund to buy" instead of a share count, and its dollars are still shown.</li>
+          They add up to 99.24%, so the scaling note shows. The sheet's "Global Market Distribution" list says 2.4 for Canada, but the region table used 3.55; this keeps 3.55, which is what your past plans were based on.</li>
+        <li><strong>A region's share of stocks</strong> = the sum of its countries' weights × (1 + tilt), with all regions then scaled to 100% (M4).</li>
+        <li><strong>The final targets</strong> are a single flat list: each region (its share × the Stocks class %), then every other class at its own %. The calculation runs on this list. With the starting data and no tilt: US 45.1%, Developed ex-US 22.5%, Emerging 12.4%, Fixed income 15%, Crypto 5%.</li>
+        <li>A target with no "buy with" fund shows "Pick a fund to buy" instead of a share count; its dollars are still shown. A region with no countries, or a class at 0, has a 0% target.</li>
       </ul></div>
     </section>
 
     <section id="counted">
       <h2>2 · What gets counted</h2>
       <div class="card"><ul>
-        <li>Holdings come from <code>CurrentHoldingsReader</code>, the same source as the Investments page, valued in base currency with the existing <code>RateBook</code>. This keeps both pages in agreement (anti-goal).</li>
-        <li>An account counts unless it's left out on the Targets tab (A5). Only investment accounts (<code>trackingMode: 'investment'</code>) are listed.</li>
-        <li>A holding counts toward a region when its security has that region (M2). A fund held in several accounts adds up across them. All other holdings go into the "Left out" list with their values (M3).</li>
+        <li>Holdings come from <code>CurrentHoldingsReader</code>, the same source as the Investments page, valued in base currency with the existing <code>RateBook</code>, so the two pages agree.</li>
+        <li>An account counts unless it's unticked on Investing Targets. Only investment accounts (<code>trackingMode: 'investment'</code>) are listed.</li>
+        <li>A holding counts toward a target when its security is assigned to one (M2). A fund held in several accounts adds up across them. All other holdings go into the "Left out" list with their values (M3).</li>
         <li>An account with only a typed-in balance (the reader's per-account placeholder holding) is left out as a whole account and listed under "Left out" (M11). It doesn't appear on the Funds card.</li>
-        <li>Region <strong>current value</strong> = the sum of its counted holdings. The <strong>counted total</strong> is the sum across regions.</li>
+        <li>Each target's <strong>current value</strong> = the sum of its counted holdings. The <strong>counted total</strong> is the sum across targets.</li>
       </ul></div>
     </section>
 
     <section id="math">
       <h2>3 · The calculation</h2>
-      <p class="lede">A pure function: inputs are region current values, region targets and the amount, plus a sells flag. Output is a dollar amount per region. Turning dollars into shares is a separate step.</p>
+      <p class="lede">This is a pure function. It takes each final target's current value and target %, the amount, and whether sells are on, and returns dollars per target. Turning dollars into shares is a separate step.</p>
       <div class="card"><ul>
-        <li><strong>After-deposit total</strong> <code>T = counted total + amount</code>. <strong>Gap</strong> per region <code>g = target% × T − current</code>. The gaps always add up to the amount.</li>
-        <li><strong>Sells on:</strong> each region's trade is its gap (negative = sell). Afterwards every region is exactly on target. Buys get shares as below. Sells show dollars only, plus the region's holdings by account to choose from (M10).</li>
+        <li><strong>After-deposit total</strong> <code>T = counted total + amount</code>. <strong>Gap</strong> per target <code>g = target% × T − current</code>. The gaps always add up to the amount.</li>
+        <li><strong>Sells on:</strong> each target's trade is its gap; a negative trade is a sell. Afterwards every target is exactly on. Buys get shares as below. Sells show dollars only, with what you hold there listed by account (M10).</li>
         <li><strong>Sells off (default):</strong> let <code>G</code> = the sum of the positive gaps.
           <ul>
-            <li>If <code>amount ≥ G</code>: every region with a positive gap gets that gap, and the remaining <code>amount − G</code> is split by target %.</li>
-            <li>Otherwise each positively gapped region gets <code>amount × g / G</code>. Overweight regions get 0.</li>
-            <li>No trade is ever negative. The buys always add up to the amount.</li>
+            <li>If <code>amount ≥ G</code>: every target below gets its full gap, and the remaining <code>amount − G</code> is split by target %.</li>
+            <li>Otherwise each target below gets <code>amount × g / G</code>, and targets you're over get 0.</li>
+            <li>No trade is ever negative, and the buys add up to the amount to the cent. Any rounding remainder goes on the largest buy.</li>
           </ul></li>
-        <li><strong>Shares:</strong> dollars are converted to the fund's currency with <code>RateBook</code> and divided by its latest stored price. Shares are shown to 3 decimals, since Fidelity buys fractional shares. The price's date is shown, flagged if it's more than 3 days old.</li>
-        <li>Also shown per region: current %, target %, and % after the buys, so you can see how close the deposit gets you.</li>
+        <li><strong>Shares:</strong> dollars are converted to the fund's currency with <code>RateBook</code> and divided by its latest stored price. Shares show to 3 decimals, since Fidelity buys fractional shares. The price's date is shown, and flagged if it's more than 3 days old.</li>
+        <li>Each row also shows the target's current %, its % after the trade, and its target %.</li>
       </ul></div>
-      <div class="callout"><b>Worked example (sells off)</b>Counted total $8,000: US $4,700, Developed $2,000, Emerging $1,300. Targets 60 / 25 / 15. Amount $1,000, so T = $9,000. Gaps: US 5,400 − 4,700 = +700, Developed 2,250 − 2,000 = +250, Emerging 1,350 − 1,300 = +50. G = 1,000 = amount, so the buys are $700 / $250 / $50, and every region lands on target.</div>
+      <div class="callout"><b>Worked example (sells off)</b>Counted total $8,000, with three targets: US $4,700, Developed $2,000, Emerging $1,300. Targets are 60 / 25 / 15 and the amount is $1,000, so T = $9,000. The gaps are: US 5,400 − 4,700 = +700, Developed 2,250 − 2,000 = +250, Emerging 1,350 − 1,300 = +50. G = 1,000, which equals the amount, so the buys are $700 / $250 / $50 and every target lands exactly on.</div>
     </section>
 
     <section id="ui">
       <h2>4 · Screens</h2>
-      <p class="lede">Described in words here. High-fidelity HTML mocks, with both states of the drawer, come next for your approval before the plan.</p>
+      <p class="lede">As in the approved mock.</p>
       <div class="card"><ul>
-        <li><strong>Investments page:</strong> an <b>Invest</b> button in the header opens a right-side drawer that pushes the page (your drawer preference).</li>
+        <li><strong>Investments page:</strong> an <b>Invest</b> button in the header opens a right-side drawer that pushes the page aside.</li>
         <li><strong>Drawer:</strong>
           <ul>
-            <li>An amount field (base currency) and an "Allow sells" switch, off.</li>
-            <li>A table, one row per region: buy-with fund, current %, target %, buy $ (or sell $), shares at price.</li>
-            <li>A total line.</li>
-            <li>"Left out": a collapsed line with a total that expands to the holdings and left-out accounts.</li>
-            <li>Notes: weights scaled (M6), stale prices, missing "buy with" funds.</li>
-            <li>A "Targets →" link to Settings.</li>
+            <li><strong>Amount card:</strong> an amount field in USD, quick amounts ($500, $1,000, $2,500, $5,000), and an "Allow sells" switch that starts off and explains what it does.</li>
+            <li><strong>"Buy list" card</strong> ("Rebalance" with sells on, "Where you stand" with no amount): one row per final target. Each row shows the fund ticker, its name, and a target tag such as "Stocks · US". Next to that: now → after % with a small bar (target as a tick), the target %, and the buy in dollars with shares at the price. The card ends with a total line.</li>
+            <li><strong>Notes:</strong> totals scaled (M6), the price date and CAD rate, and "Targets already over get nothing" when that applies.</li>
+            <li><strong>"Left out":</strong> collapsed, showing its total and number of items; it expands to show each item and why it's left out.</li>
+            <li><strong>Footer:</strong> "Nothing is saved", and "Edit investing targets →".</li>
           </ul>
-          It recalculates as you type. With no amount yet, it shows only current vs target.</li>
-        <li><strong>Settings → Targets tab</strong> (M7), with four cards:
+          The drawer recalculates as you type.</li>
+        <li><strong>Settings → Investing Targets</strong> (after Securities), with five cards:
           <ul>
-            <li><strong>Regions:</strong> name, tilt %, buy-with fund (picked from your securities), and the resulting target %.</li>
-            <li><strong>Countries:</strong> an editable list of name, weight and region, with the total shown.</li>
-            <li><strong>Funds:</strong> each held security with a region picker (or "Not counted").</li>
-            <li><strong>Accounts:</strong> your investment accounts with an "include" tick box.</li>
+            <li><strong>Asset classes:</strong> name, target % and "buy with" fund (Stocks says "Split by region, below"), plus the total.</li>
+            <li><strong>Stocks by region:</strong> name, market weight, tilt, share of stocks, overall target and "buy with" fund.</li>
+            <li><strong>Countries:</strong> name, weight and region, with the total.</li>
+            <li><strong>Funds:</strong> each held fund, which accounts hold it, its value, and the target it counts toward (or Not counted).</li>
+            <li><strong>Accounts:</strong> a tick box per investment account.</li>
           </ul></li>
-        <li>Empty state: before any targets exist, the drawer says "Set your targets first" and links to the tab.</li>
+        <li><strong>Empty state:</strong> before any targets exist, the drawer says "Set your investing targets first" and links to the tab.</li>
       </ul></div>
     </section>
 
     <section id="data">
       <h2>5 · Data</h2>
       <div class="card"><ul>
-        <li>New <code>TargetRegion</code> (<code>id</code>, <code>name</code>, <code>sortOrder</code>, <code>tiltPct Float @default(0)</code>, <code>buySecurityId String?</code> → <code>Security</code>, SetNull).</li>
-        <li>The price refresh (<code>src/lib/prices/refresh.ts</code>) also covers every <code>TargetRegion.buySecurityId</code>, so an unheld "buy with" fund keeps current prices (M12).</li>
+        <li>New <code>TargetClass</code> (<code>id</code>, <code>name</code>, <code>pct Float</code>, <code>sortOrder</code>, <code>splitByRegion Boolean @default(false)</code>, <code>buySecurityId String?</code> → <code>Security</code>, SetNull). At most one class may split by region; the API enforces it.</li>
+        <li>New <code>TargetRegion</code> (<code>id</code>, <code>name</code>, <code>sortOrder</code>, <code>tiltPct Float @default(0)</code>, <code>buySecurityId String?</code> → <code>Security</code>, SetNull). Regions belong to whichever class splits by region.</li>
         <li>New <code>TargetCountry</code> (<code>id</code>, <code>name</code>, <code>weightPct Float</code>, <code>regionId</code> → <code>TargetRegion</code>, Cascade).</li>
-        <li><code>Security.targetRegionId String?</code> → <code>TargetRegion</code>, SetNull.</li>
+        <li><code>Security.targetClassId String?</code> and <code>Security.targetRegionId String?</code>, both SetNull. A security assigned to the split class must have a region; one assigned to any other class has none. Neither set means Not counted.</li>
         <li><code>Account.inTargets Boolean @default(true)</code>.</li>
         <li>Apply with <code>prisma db push</code>, not <code>migrate dev</code>.</li>
-        <li>The cloud-sync export/import carries the two new tables and two new fields. The tables go after <code>Security</code>, which they reference.</li>
-        <li>Default regions and countries (M8) are created the first time the Targets tab or the drawer loads with no regions, not by a migration. They're public numbers, so they can live in code.</li>
-        <li>Routes under <code>/api/investments/targets</code> (read all, update regions, countries, fund regions and account inclusion) and <code>/api/investments/targets/plan?amount=&amp;sells=</code>, with Zod validation as usual. The plan route returns regions, left-out items and notes, and the drawer renders that.</li>
-        <li>A <code>TargetPlanner</code> service built in <code>services.ts</code>, with holdings, rates and prices injected. The calculation in section 3 is a pure function it calls, unit-tested on its own.</li>
+        <li>The cloud-sync export and import carry the new tables and fields. The tables go after <code>Security</code>, which they reference.</li>
+        <li>The price refresh (<code>src/lib/prices/refresh.ts</code>) also covers every class and region <code>buySecurityId</code> (M12).</li>
+        <li>The default classes, regions and countries (M7) are created the first time the tab or the drawer loads with no classes, not by a migration. They're public numbers, so they can live in code.</li>
+        <li>Routes go under <code>/api/investments/targets</code>: one to read everything, and updates for classes, regions, countries, fund assignments and account inclusion. <code>/api/investments/targets/plan?amount=&amp;sells=</code> returns rows, left-out items and notes, and the drawer renders that. Zod validation as usual.</li>
+        <li>A <code>TargetPlanner</code> service is built in <code>services.ts</code>, with holdings, rates and prices injected. It works out the final targets (section 1) and calls the pure calculation (section 3), and both are unit-tested on their own.</li>
       </ul></div>
     </section>
 
@@ -305,46 +313,59 @@ table.num td { font-variant-numeric: tabular-nums; }
         <tr><th>Sheet</th><th>Problem</th><th>Here</th></tr>
         <tr><td>Buy formula</td><td><code>amount × (2·target − current%)</code> ignores portfolio size and can go negative.</td><td>Gap to target after the deposit (section 3)</td></tr>
         <tr><td>2026 tab, VIU row</td><td>Divides by the wrong total (L14), so it says to sell about $1,150 of VIU.</td><td>One shared total</td></tr>
-        <tr><td>Weights</td><td>The desired % column totals 99.35%, so targets never reach 100%.</td><td>Scaled to 100%, with a note (M6)</td></tr>
+        <tr><td>Weights</td><td>The desired % column totals 99.35%, so the targets never reach 100%.</td><td>Scaled to 100%, with a note (M6)</td></tr>
         <tr><td>2024 home bias</td><td>Raised the US without shrinking the others, so totals passed 100%.</td><td>Tilt, then scale (M4)</td></tr>
-        <tr><td>Market values and prices</td><td>Typed by hand before each order.</td><td>Live from holdings and stored prices</td></tr>
+        <tr><td>Two separate tabs</td><td>Asset Allocation and the regional tab were linked by hand through "% of stock portfolio".</td><td>One set of targets, two levels (section 1)</td></tr>
+        <tr><td>Market values and prices</td><td>Typed in by hand before each order.</td><td>Live from holdings and stored prices</td></tr>
       </table>
     </section>
 
     <section id="builder">
       <h2>Left to the builder</h2>
       <div class="card"><ul>
-        <li>Rounding: the buys shown add up to the amount to the cent. Put any rounding remainder on the largest buy.</li>
-        <li>Whether the region and fund pickers reuse existing select components.</li>
+        <li>Whether the target pickers reuse existing select components.</li>
         <li>Debounce on the amount field.</li>
-        <li>Whether <code>CurrentHoldingsReader</code> needs a small option to skip range-change work for this use.</li>
-        <li>Where the Targets tab sits in the Settings tab order (next to Securities).</li>
+        <li>Whether <code>CurrentHoldingsReader</code> needs a small option to skip its range-change work for this use.</li>
+        <li>How each settings card saves: inline as you edit, or one save per card. Follow how the existing Settings tabs do it.</li>
       </ul></div>
     </section>
 
     <section id="testing">
       <h2>Testing</h2>
       <div class="card"><ul>
-        <li>Unit, for the calculation:
+        <li>Unit tests for the targets:
+          <ul>
+            <li>Class scaling.</li>
+            <li>Tilt, then scaling within stocks.</li>
+            <li>Region × class gives the final list (45.1 / 22.5 / 12.4 / 15 / 5 for the starting data).</li>
+            <li>A class at 0.</li>
+          </ul></li>
+        <li>Unit tests for the calculation:
           <ul>
             <li>The worked example.</li>
             <li>A deposit smaller than the gaps (proportional split).</li>
             <li>A deposit larger than the gaps (remainder split by target).</li>
-            <li>An overweight region gets 0 with sells off.</li>
+            <li>A target you're over gets 0 with sells off.</li>
             <li>Sells on lands exactly on target.</li>
             <li>Buys add up to the amount.</li>
-            <li>Tilt and scaling.</li>
-            <li>An empty portfolio (all by target).</li>
+            <li>An empty portfolio is split by target.</li>
           </ul></li>
-        <li>Integration:
+        <li>Integration tests:
           <ul>
-            <li>A left-out account and a fund with no region are excluded and listed.</li>
+            <li>An unticked account and a Not-counted fund are excluded and listed.</li>
             <li>A CAD holding is converted.</li>
-            <li>Defaults are created once.</li>
+            <li>Defaults are created only once.</li>
+            <li>Only one class can split by region.</li>
             <li>The plan route validates its inputs.</li>
             <li>The sync payload round-trips the new tables.</li>
           </ul></li>
-        <li>In the browser, both themes: the drawer while typing, the sells switch, the left-out list, and the Targets tab edits.</li>
+        <li>In the browser, in both themes:
+          <ul>
+            <li>The drawer while typing.</li>
+            <li>The sells switch.</li>
+            <li>The left-out list.</li>
+            <li>Edits on each Investing Targets card.</li>
+          </ul></li>
         <li>Run <code>npm run check</code> and the full suite. Use a dev server on a spare port, not the production server.</li>
       </ul></div>
     </section>
