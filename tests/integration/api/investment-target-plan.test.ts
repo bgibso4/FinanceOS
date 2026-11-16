@@ -5,6 +5,7 @@ import { setupTestDb, teardownTestDb, resetTestDb } from '../../helpers/db';
 import {
   day,
   seedInvestmentAccount,
+  seedBalance,
   seedPrice,
   seedSecurity,
   seedSnapshot,
@@ -223,10 +224,10 @@ describe('invest plan API', () => {
     expect(count('account_excluded')).toEqual([
       { label: 'Off', reason: 'account_excluded', value: 70, accountId: off.id, securityId: null },
     ]);
-    expect(count('typed_balance')).toEqual([
+    expect(count('balance_only')).toEqual([
       {
         label: 'Typed',
-        reason: 'typed_balance',
+        reason: 'balance_only',
         value: 40,
         accountId: manual.id,
         securityId: null,
@@ -238,6 +239,39 @@ describe('invest plan API', () => {
         .map((l) => l.value)
         .sort()
     ).toEqual([10, 20, 30]);
+    expect(p.countedTotal).toBe(100);
+    expect(p.accountsCounted).toBe(1);
+  });
+
+  it('lists a synced account with a balance but no reported holdings as left out', async () => {
+    const { stocks, us } = await stocksOnly();
+    const a = await seedInvestmentAccount(testPrisma, { name: 'Main' });
+    const savings = await seedInvestmentAccount(testPrisma, { name: 'Savings' });
+    const off = await seedInvestmentAccount(testPrisma, { name: 'Off' });
+    await testPrisma.account.update({ where: { id: off.id }, data: { inTargets: false } });
+    await hold(a.id, 100, { classId: stocks.id, regionId: us.id });
+    await seedBalance(testPrisma, savings.id, '2026-10-08', 56113.5);
+    await seedBalance(testPrisma, off.id, '2026-10-08', 900);
+
+    const p = await ready('');
+    expect(p.leftOut).toEqual(
+      expect.arrayContaining([
+        {
+          label: 'Savings',
+          reason: 'balance_only',
+          value: 56113.5,
+          accountId: savings.id,
+          securityId: null,
+        },
+        {
+          label: 'Off',
+          reason: 'account_excluded',
+          value: 900,
+          accountId: off.id,
+          securityId: null,
+        },
+      ])
+    );
     expect(p.countedTotal).toBe(100);
     expect(p.accountsCounted).toBe(1);
   });

@@ -33,7 +33,7 @@ describe('rowTag', () => {
 describe('leftOutText', () => {
   it('words every reason', () => {
     expect(leftOutText('account_excluded')).toBe('Account left out');
-    expect(leftOutText('typed_balance')).toBe('Typed-in balance, no funds to count');
+    expect(leftOutText('balance_only')).toBe('Balance only, no funds to count');
     expect(leftOutText('cash')).toBe('Cash waiting to be invested');
     expect(leftOutText('not_counted')).toBe('Not counted toward a target');
   });

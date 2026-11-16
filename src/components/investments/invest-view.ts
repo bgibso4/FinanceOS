@@ -12,7 +12,7 @@ export const rowTag = (row: PlanRow): string =>
 
 const LEFT_OUT_TEXT: Record<LeftOutReason, string> = {
   account_excluded: 'Account left out',
-  typed_balance: 'Typed-in balance, no funds to count',
+  balance_only: 'Balance only, no funds to count',
   cash: 'Cash waiting to be invested',
   not_counted: 'Not counted toward a target',
 };

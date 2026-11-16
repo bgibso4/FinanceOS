@@ -42,10 +42,10 @@ export type PlanRow = {
   }[];
 };
 
-export type LeftOutReason = 'account_excluded' | 'typed_balance' | 'cash' | 'not_counted';
+export type LeftOutReason = 'account_excluded' | 'balance_only' | 'cash' | 'not_counted';
 export type LeftOutItem = {
   accountId: string;
-  /** Null for account-level items (a left-out account, a typed balance). */
+  /** Null for account-level items (a left-out account, a balance with no holdings). */
   securityId: string | null;
   label: string;
   reason: LeftOutReason;
@@ -118,7 +118,7 @@ export class TargetPlanner {
     );
 
     const leftOut: LeftOutItem[] = [];
-    const typedBalance = new Set(rows.filter((r) => r.kind === 'account').map((r) => r.accountId));
+    const balanceOnly = new Set(rows.filter((r) => r.kind === 'account').map((r) => r.accountId));
     const heldBy = new Map(final.map((f) => [f.key, [] as PlanRow['holdings']]));
     const currentOf = new Map(final.map((f) => [f.key, 0]));
     for (const account of accounts.filter((a) => !a.inTargets)) {
@@ -143,7 +143,7 @@ export class TargetPlanner {
           ...item,
           securityId: null,
           label: account.name,
-          reason: 'typed_balance',
+          reason: 'balance_only',
         });
         continue;
       }
@@ -212,7 +212,7 @@ export class TargetPlanner {
       amount,
       sells,
       countedTotal,
-      accountsCounted: accounts.filter((a) => a.inTargets && !typedBalance.has(a.id)).length,
+      accountsCounted: accounts.filter((a) => a.inTargets && !balanceOnly.has(a.id)).length,
       rows: planRows,
       leftOut,
       rates: [

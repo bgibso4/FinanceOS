@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import { NextRequest } from 'next/server';
 import { setupTestDb, teardownTestDb, resetTestDb } from '../../helpers/db';
 import {
+  seedBalance,
   seedInvestmentAccount,
   seedPrice,
   seedSecurity,
@@ -122,6 +123,17 @@ describe('investing targets API', () => {
       typedBalance: false,
       valueBase: 200,
     });
+  });
+
+  it('values a synced account with a balance but no reported holdings at its balance', async () => {
+    const savings = await seedInvestmentAccount(testPrisma, { name: 'Savings' });
+    await seedBalance(testPrisma, savings.id, '2026-10-08', 56113.5);
+    const v = await view();
+    expect(v.accounts.find((x: { name: string }) => x.name === 'Savings')).toMatchObject({
+      typedBalance: false,
+      valueBase: 56113.5,
+    });
+    expect(v.funds).toEqual([]);
   });
 
   it('PUT classes replaces the list', async () => {

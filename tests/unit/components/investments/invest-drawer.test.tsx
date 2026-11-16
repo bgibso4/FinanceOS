@@ -193,7 +193,7 @@ describe('InvestDrawer', () => {
             accountId: 'a1',
             securityId: null,
             label: 'Old RRSP',
-            reason: 'typed_balance',
+            reason: 'balance_only',
             value: 500,
           },
           {
@@ -212,7 +212,7 @@ describe('InvestDrawer', () => {
     expect(screen.queryByText('Old RRSP')).toBeNull();
     await userEvent.click(toggle);
     expect(screen.getByText('Old RRSP')).toBeInTheDocument();
-    expect(screen.getByText('Typed-in balance, no funds to count')).toBeInTheDocument();
+    expect(screen.getByText('Balance only, no funds to count')).toBeInTheDocument();
     expect(screen.getByText('Cash waiting to be invested')).toBeInTheDocument();
   });
 
