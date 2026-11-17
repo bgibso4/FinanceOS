@@ -1,21 +1,24 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
-import { ERROR } from './editor-kit';
+import { cn } from '@/lib/cn';
 
 /** A security that can be bought, for the "buy with" pickers. */
 export type BuyOption = { id: string; label: string };
 
+/** Every field on the tab shares one height and look, so rows line up as a grid. */
+const FIELD =
+  'h-[30px] w-full rounded-[7px] border border-[var(--border)] bg-[var(--bg-base)] px-[9px] text-[13px] text-[var(--text-primary)] hover:border-[var(--border-hover)] focus-visible:border-[var(--accent)] focus-visible:outline-none';
 export const TH =
-  'px-2 pb-2 text-left text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]';
-export const TD = 'px-2 py-1.5 align-middle';
-export const MONO_CELL = `${TD} text-right font-mono text-[13px] text-[var(--text-secondary)]`;
-const LINK_BUTTON =
-  'text-[13px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]';
+  'pb-1.5 text-[10.5px] font-medium uppercase tracking-wide text-[var(--text-muted)]';
+export const MONO = 'font-mono text-[12.5px] tabular-nums';
+export const HINT_TEXT = 'text-xs text-[var(--text-muted)]';
+
+/** Segment colours for the targets, in the order the targets are listed. */
+const SEGMENTS = ['#9a7a58', '#c2a684', '#6b5540', '#7d9079', '#7b8791', '#8c6f80', '#b3a06a'];
+export const segmentColor = (index: number) =>
+  index < 0 ? 'var(--text-muted)' : SEGMENTS[index % SEGMENTS.length];
 
 /** Accepts "20", "+20", "20%"; anything else is not a number. */
 export function parsePct(text: string): number | null {
@@ -25,9 +28,11 @@ export function parsePct(text: string): number | null {
 
 export const fraction = (f: number) => `${(f * 100).toFixed(1)}%`;
 
+const isHundred = (total: number) => Math.abs(total - 100) <= 0.005;
+
 /** "Total 100%", or the total to 2 places and that it is scaled when it is not 100. */
-export const totalNote = (total: number) =>
-  Math.abs(total - 100) > 0.005 ? `Total ${total.toFixed(2)}% · scaled to 100%` : 'Total 100%';
+export const totalNote = (total: number, label = 'Total') =>
+  isHundred(total) ? `${label} 100%` : `${label} ${total.toFixed(2)}% · scaled to 100%`;
 
 /** A percentage field that keeps what is typed, and only reports values that parse. */
 export function PctInput({
@@ -48,18 +53,26 @@ export function PctInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
   return (
-    <Input
-      aria-label={label}
-      className="h-9 w-[84px] text-right"
-      inputMode="decimal"
-      value={text}
-      onBlur={() => setText(shown(value))}
-      onChange={(e) => {
-        setText(e.target.value);
-        const n = parsePct(e.target.value);
-        if (n !== null) onChange(n);
-      }}
-    />
+    <span className="relative block">
+      <input
+        aria-label={label}
+        className={cn(FIELD, MONO, 'pr-[22px] text-right')}
+        inputMode="decimal"
+        value={text}
+        onBlur={() => setText(shown(value))}
+        onChange={(e) => {
+          setText(e.target.value);
+          const n = parsePct(e.target.value);
+          if (n !== null) onChange(n);
+        }}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11.5px] text-[var(--text-muted)]"
+      >
+        %
+      </span>
+    </span>
   );
 }
 
@@ -72,7 +85,7 @@ const withoutKeys = <T,>(rows: Row<T>[]): T[] =>
 
 export type Draft<T> = ReturnType<typeof useDraft<T & { id?: string }>>;
 
-/** The card's own draft of a list: edits stay until saved, other cards' saves don't discard them. */
+/** A draft of a saved list: edits stay until saved or discarded. New rows get a `new-…` key. */
 export function useDraft<T extends { id?: string }>(saved: T[]) {
   const source = useMemo(() => withKeys(saved), [saved]);
   const [edited, setEdited] = useState<Row<T>[] | null>(null);
@@ -84,163 +97,205 @@ export function useDraft<T extends { id?: string }>(saved: T[]) {
     items: () => withoutKeys(rows),
     patch: (key: string, change: Partial<T>) =>
       setEdited(rows.map((r) => (r.key === key ? { ...r, ...change } : r))),
+    /** Rewrite every row, e.g. to swap a new row's key for its saved id. */
+    map: (fn: (row: Row<T>) => Row<T>) => setEdited((e) => (e ? e.map(fn) : e)),
     remove: (key: string) => setEdited(rows.filter((r) => r.key !== key)),
     add: (item: T) => setEdited([...rows, ...withKeys([item])]),
     reset: () => setEdited(null),
   };
 }
 
+export function Pill({ children, tone }: { children: ReactNode; tone?: 'ok' | 'warn' }) {
+  return (
+    <span
+      className={cn(
+        'whitespace-nowrap rounded-full px-[7px] py-px font-mono text-[11px]',
+        tone === 'ok' && 'bg-[color-mix(in_srgb,var(--green)_13%,transparent)] text-[var(--green)]',
+        tone === 'warn' &&
+          'bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] text-[var(--accent)]',
+        !tone && 'bg-[var(--border)] text-[var(--text-secondary)]'
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** A pill for a total that should be 100; `quiet` skips the amber when it is routinely off. */
+export function TotalPill({
+  label,
+  quiet,
+  total,
+}: {
+  label?: string;
+  quiet?: boolean;
+  total: number;
+}) {
+  const tone = isHundred(total) ? 'ok' : quiet ? undefined : 'warn';
+  return <Pill tone={tone}>{totalNote(total, label)}</Pill>;
+}
+
+const COLLAPSED_KEY = 'financeos:targets-collapsed';
+
+/** The cards the viewer has collapsed, remembered in this browser. */
+function readCollapsed(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]') as string[];
+  } catch {
+    return [];
+  }
+}
+
+/** A card; with a `collapseKey` its title folds it down to the header, pill included. */
 export function CardShell({
   children,
+  collapseKey,
+  pill,
   subtitle,
   title,
 }: {
   children: ReactNode;
-  subtitle: string;
+  collapseKey?: string;
+  pill?: ReactNode;
+  subtitle?: string;
   title: string;
 }) {
+  const [collapsed, setCollapsed] = useState(
+    () => !!collapseKey && readCollapsed().includes(collapseKey)
+  );
+  const toggle = () => {
+    setCollapsed(!collapsed);
+    try {
+      const rest = readCollapsed().filter((k) => k !== collapseKey);
+      localStorage.setItem(
+        COLLAPSED_KEY,
+        JSON.stringify(collapsed ? rest : [...rest, collapseKey])
+      );
+    } catch {
+      // Not remembered; the card still folds.
+    }
+  };
   return (
-    <Card aria-label={title} className="p-6" role="region">
-      <div className="mb-4">
-        <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">{title}</h2>
-        <p className="mt-1 max-w-[62ch] text-[12.5px] text-[var(--text-secondary)]">{subtitle}</p>
+    <Card aria-label={title} className="min-w-0 px-5 py-[18px]" role="region">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+          {collapseKey ? (
+            <button
+              aria-expanded={!collapsed}
+              className="-my-1 flex items-center gap-2 rounded-[5px] py-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+              type="button"
+              onClick={toggle}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  'text-[9px] text-[var(--text-muted)] transition-transform',
+                  !collapsed && 'rotate-90'
+                )}
+              >
+                ▶
+              </span>
+              {title}
+            </button>
+          ) : (
+            title
+          )}
+        </h2>
+        {pill}
       </div>
-      {children}
+      {!collapsed && (
+        <>
+          {subtitle && <p className={`${HINT_TEXT} mb-3 mt-0.5`}>{subtitle}</p>}
+          {children}
+        </>
+      )}
     </Card>
   );
 }
 
-export type Column = { label: string; right?: boolean };
-
-/** A header row; an empty label is the remove column. */
-export function TableHead({ columns }: { columns: Column[] }) {
-  return (
-    <thead>
-      <tr>
-        {columns.map((c, i) => (
-          <th key={i} className={`${TH} ${c.right ? 'text-right' : ''}`}>
-            {c.label}
-          </th>
-        ))}
-      </tr>
-    </thead>
-  );
+export function Dot({ color }: { color: string }) {
+  return <span aria-hidden className="size-2 shrink-0 rounded-sm" style={{ background: color }} />;
 }
 
-/**
- * A card that edits a list: table of draft rows, add link, a note, the error and that card's
- * Save. Saving resets the draft on success.
- */
-export function EditableList<T extends { id?: string }>({
-  addLabel,
-  columns,
-  draft,
-  error,
-  newItem,
-  note,
-  onSave,
-  renderRow,
-  saving,
-  subtitle,
-  title,
-}: {
-  addLabel: string;
-  columns: Column[];
-  draft: ReturnType<typeof useDraft<T>>;
-  error: string | null;
-  newItem: T;
-  note: ReactNode;
-  onSave: (items: T[]) => Promise<boolean>;
-  renderRow: (row: Row<T>) => ReactNode;
-  saving: boolean;
-  subtitle: string;
-  title: string;
-}) {
-  return (
-    <CardShell subtitle={subtitle} title={title}>
-      <table className="w-full">
-        <TableHead columns={columns} />
-        <tbody>
-          {draft.rows.map((r) => (
-            <tr key={r.key}>{renderRow(r)}</tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-4">
-          <button className={LINK_BUTTON} type="button" onClick={() => draft.add(newItem)}>
-            {addLabel}
-          </button>
-          <span className="font-mono text-xs text-[var(--text-muted)]">{note}</span>
-        </div>
-        <Button
-          disabled={!draft.dirty || saving}
-          type="button"
-          onClick={async () => {
-            if (await onSave(draft.items())) draft.reset();
-          }}
-        >
-          Save
-        </Button>
-      </div>
-      {error && <p className={ERROR}>{error}</p>}
-    </CardShell>
-  );
-}
-
-export function NameCell({
+export function NameInput({
+  className,
   label,
   onChange,
   value,
 }: {
+  className?: string;
   label: string;
   onChange: (name: string) => void;
   value: string;
 }) {
   return (
-    <td className={TD}>
-      <Input
-        aria-label={label}
-        className="h-9"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </td>
+    <input
+      aria-label={label}
+      className={cn(FIELD, 'min-w-0', className ?? 'font-medium')}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
   );
 }
 
-export function PctCell(props: React.ComponentProps<typeof PctInput>) {
+export function RemoveButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <td className={`${TD} text-right`}>
-      <PctInput {...props} />
-    </td>
+    <button
+      aria-label={label}
+      className="grid size-7 place-items-center rounded-[7px] text-[var(--text-muted)] opacity-60 hover:bg-[var(--border)] hover:text-[var(--red)] hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+      type="button"
+      onClick={onClick}
+    >
+      <svg
+        aria-hidden
+        className="size-3"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.5"
+        viewBox="0 0 12 12"
+      >
+        <path d="M2 2l8 8M10 2l-8 8" />
+      </svg>
+    </button>
   );
 }
 
-/** The remove column; `blockedReason` disables it and says why. */
-export function RemoveCell({
-  blockedReason,
+/** The dashed "add a row" control at the end of a list. */
+export function AddRow({
   label,
   onClick,
+  small,
 }: {
-  blockedReason?: string;
   label: string;
   onClick: () => void;
+  small?: boolean;
 }) {
   return (
-    <td className={`${TD} text-right`}>
-      <Button
-        aria-label={label}
-        className="h-8 px-2"
-        disabled={!!blockedReason}
-        title={blockedReason}
-        type="button"
-        variant="ghost"
-        onClick={onClick}
-      >
-        ✕
-      </Button>
-    </td>
+    <button
+      className={cn(
+        'block w-full rounded-[7px] border border-dashed border-[var(--border-hover)] px-2.5 text-left text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]',
+        small ? 'mt-[3px] h-7 text-xs' : 'mt-1.5 h-[30px] text-[12.5px]'
+      )}
+      type="button"
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
+/** A select in the tab's field style; `muted` greys the text for an empty choice. */
+export function FieldSelect({
+  className,
+  muted,
+  ...props
+}: React.SelectHTMLAttributes<HTMLSelectElement> & { muted?: boolean }) {
+  return (
+    <select
+      className={cn(FIELD, 'min-w-0 text-[12.5px]', muted && 'text-[var(--text-muted)]', className)}
+      {...props}
+    />
   );
 }
 
@@ -256,9 +311,9 @@ export function BuyWithSelect({
   value: string | null;
 }) {
   return (
-    <Select
+    <FieldSelect
       aria-label={label}
-      className="h-9"
+      muted={!value}
       value={value ?? ''}
       onChange={(e) => onChange(e.target.value || null)}
     >
@@ -268,6 +323,6 @@ export function BuyWithSelect({
           {o.label}
         </option>
       ))}
-    </Select>
+    </FieldSelect>
   );
 }

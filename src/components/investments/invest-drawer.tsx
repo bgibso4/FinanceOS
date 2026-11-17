@@ -10,7 +10,7 @@ import {
   rowTag,
   scaleNotes,
 } from '@/components/investments/invest-view';
-import { TD, TH, fraction } from '@/components/investments/targets-kit';
+import { fraction } from '@/components/investments/targets-kit';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Drawer } from '@/components/ui/drawer';
@@ -22,6 +22,9 @@ const QUICK_AMOUNTS = [500, 1000, 2500, 5000];
 const DEBOUNCE_MS = 250;
 const MUTED = 'text-[var(--text-muted)]';
 const MONO = 'font-mono text-[13px]';
+const TH =
+  'px-2 pb-2 text-left text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]';
+const TD = 'px-2 py-1.5 align-middle';
 
 type Ready = Extract<InvestPlan, { ready: true }>;
 type PlanState = { plan: InvestPlan | null; failed: boolean };

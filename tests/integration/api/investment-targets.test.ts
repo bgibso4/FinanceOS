@@ -109,7 +109,7 @@ describe('investing targets API', () => {
         securityId: fund.id,
         label: 'AAA',
         name: 'AAA fund',
-        heldIn: ['A', 'B'],
+        heldIn: [a.id, b.id],
         valueBase: 500,
         classId: null,
         regionId: null,
@@ -118,9 +118,10 @@ describe('investing targets API', () => {
     const names = v.accounts.map((x: { name: string }) => x.name).sort();
     expect(names).toEqual(['A', 'B', 'Typed']);
     const typed = v.accounts.find((x: { name: string }) => x.name === 'Typed');
-    expect(typed).toMatchObject({ typedBalance: true, inTargets: true, valueBase: 500 });
+    expect(typed).toMatchObject({ balanceOnly: true, inTargets: true, valueBase: 500 });
     expect(v.accounts.find((x: { name: string }) => x.name === 'A')).toMatchObject({
-      typedBalance: false,
+      balanceOnly: false,
+      institution: 'Test Bank',
       valueBase: 200,
     });
   });
@@ -130,7 +131,7 @@ describe('investing targets API', () => {
     await seedBalance(testPrisma, savings.id, '2026-10-08', 56113.5);
     const v = await view();
     expect(v.accounts.find((x: { name: string }) => x.name === 'Savings')).toMatchObject({
-      typedBalance: false,
+      balanceOnly: true,
       valueBase: 56113.5,
     });
     expect(v.funds).toEqual([]);

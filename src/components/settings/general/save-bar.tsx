@@ -1,14 +1,16 @@
 import { Button } from '@/components/ui/button';
 import { ds } from '@/lib/design-system';
 
-/** Sticky bar naming the unsaved changes, with Discard and Save changes. */
+/** Bar naming the unsaved changes, with Discard and Save changes. Sticky unless placed by `className`. */
 export function SaveBar({
+  className = 'sticky bottom-4 mt-[18px]',
   message,
   error,
   saving,
   onDiscard,
   onSave,
 }: {
+  className?: string;
   message: string;
   error: string | null;
   saving: boolean;
@@ -16,7 +18,9 @@ export function SaveBar({
   onSave: () => void;
 }) {
   return (
-    <div className="sticky bottom-4 mt-[18px] flex items-center justify-between gap-4 rounded-xl border border-[var(--border-hover)] bg-[var(--bg-card)] py-2.5 pl-[18px] pr-3 text-[13px] text-[var(--text-primary)] shadow-[0_6px_24px_rgba(0,0,0,0.08)]">
+    <div
+      className={`${className} flex items-center justify-between gap-4 rounded-xl border border-[var(--border-hover)] bg-[var(--bg-card)] py-2.5 pl-[18px] pr-3 text-[13px] text-[var(--text-primary)] shadow-[0_6px_24px_rgba(0,0,0,0.08)]`}
+    >
       <div>
         <div>{message}</div>
         {error && <div className={`text-xs ${ds.status.error.text}`}>{error}</div>}

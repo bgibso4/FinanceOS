@@ -1,6 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
 import { systemClock, type Clock } from '@/lib/clock';
-import { BalanceSource } from '../codes';
 import { InvestmentInputError } from '../account-guard';
 import type { CurrentHoldingsReader } from '../current-holdings';
 import { utcDay } from '../dates';
@@ -36,6 +35,7 @@ export type TargetSettingsView = {
     securityId: string;
     label: string;
     name: string;
+    /** Ids of the accounts holding it. */
     heldIn: string[];
     valueBase: number;
     classId: string | null;
@@ -44,7 +44,9 @@ export type TargetSettingsView = {
   accounts: {
     id: string;
     name: string;
-    typedBalance: boolean;
+    institution: string | null;
+    /** A balance with no holdings behind it: shown, but nothing to count toward a target. */
+    balanceOnly: boolean;
     inTargets: boolean;
     valueBase: number;
   }[];
@@ -159,7 +161,7 @@ export class TargetSettingsService {
       }),
     ]);
     const assigned = new Map(securities.map((s) => [s.id, s]));
-    const accountName = new Map(accounts.map((a) => [a.id, a.name]));
+    const balanceOnly = new Set(rows.filter((r) => r.kind === 'account').map((r) => r.accountId));
 
     const byFund = new Map<string, HoldingRow[]>();
     for (const r of rows.filter((h) => h.kind === 'security')) {
@@ -170,7 +172,7 @@ export class TargetSettingsService {
         securityId,
         label: lines[0].label,
         name: lines[0].name,
-        heldIn: lines.map((l) => accountName.get(l.accountId)!).sort(),
+        heldIn: lines.map((l) => l.accountId),
         valueBase: roundCents(lines.reduce((s, l) => s + l.valueBase, 0)),
         classId: assigned.get(securityId)?.targetClassId ?? null,
         regionId: assigned.get(securityId)?.targetRegionId ?? null,
@@ -188,7 +190,8 @@ export class TargetSettingsService {
       accounts: accounts.map((a) => ({
         id: a.id,
         name: a.name,
-        typedBalance: a.balanceSource === BalanceSource.Manual,
+        institution: a.institution,
+        balanceOnly: balanceOnly.has(a.id),
         inTargets: a.inTargets,
         valueBase: roundCents(
           rows.filter((h) => h.accountId === a.id).reduce((s, h) => s + h.valueBase, 0)
