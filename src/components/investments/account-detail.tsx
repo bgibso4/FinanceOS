@@ -25,6 +25,7 @@ import { HoldingsMap } from './holdings-map';
 import { HoldingsTable } from './holdings-table';
 import { ChangeChip, Notice, SourcePill } from './pills';
 import { securitySettingsHref } from './securities-view';
+import { useCollapsed } from './use-collapsed';
 import { seriesLabels, ValueChart } from './value-chart';
 import { BalanceSource } from '@/lib/investments/codes';
 
@@ -82,6 +83,61 @@ function SectionTitle({ title, hint }: { title: string; hint?: ReactNode }) {
         </span>
       )}
     </div>
+  );
+}
+
+const SECTIONS_KEY = 'financeos:investments-sections-collapsed';
+
+/** A full-width section whose header folds it down to a one-line `summary`, remembered. */
+function DetailSection({
+  id,
+  title,
+  count,
+  hint,
+  summary,
+  children,
+}: {
+  id: string;
+  title: string;
+  count: number;
+  hint: string;
+  summary: string | null;
+  children: ReactNode;
+}) {
+  const [collapsed, toggle] = useCollapsed(SECTIONS_KEY, id);
+  return (
+    <section aria-label={title} className="mt-8">
+      <button
+        aria-expanded={!collapsed}
+        className="group flex w-full items-center gap-2.5 border-b border-[var(--border-hover)] pb-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+        type="button"
+        onClick={toggle}
+      >
+        <span
+          aria-hidden
+          className={`text-[9px] text-[var(--text-muted)] transition-transform ${
+            collapsed ? '' : 'rotate-90'
+          }`}
+        >
+          ▶
+        </span>
+        <span className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--accent)]">
+          {title}
+        </span>
+        <span className="rounded-full bg-[var(--bg-elevated)] px-2 font-mono text-[11px] text-[var(--text-muted)]">
+          {count}
+        </span>
+        {collapsed && summary && (
+          <span className="ml-1 truncate font-mono text-xs text-[var(--text-secondary)]">
+            {summary}
+          </span>
+        )}
+        <span className="ml-auto shrink-0 text-[10.5px] font-medium uppercase tracking-[0.6px] text-[var(--text-muted)]">
+          {hint}
+        </span>
+      </button>
+      {!collapsed && children}
+    </section>
   );
 }
 
@@ -266,40 +322,62 @@ export function AccountDetail(props: DetailProps) {
         </div>
       )}
 
-      <div className="mt-7 grid grid-cols-1 gap-7 xl:grid-cols-[1.55fr_1fr]">
-        <div>
-          <SectionTitle
-            hint={account ? plural(lines.length, 'position') : 'combined across accounts'}
-            title="Holdings"
+      <DetailSection
+        count={lines.length}
+        hint={account ? plural(lines.length, 'position') : 'combined across accounts'}
+        id="holdings"
+        summary={
+          lines.length
+            ? `${fmtMoney(
+                lines.reduce((sum, l) => sum + l.valueBase, 0),
+                { currency }
+              )} · top: ${lines
+                .slice(0, 3)
+                .map((l) => l.label)
+                .join(', ')}`
+            : null
+        }
+        title="Holdings"
+      >
+        {lines.length ? (
+          <HoldingsTable
+            key={account?.id ?? 'all'}
+            accounts={overview.accounts}
+            currency={currency}
+            lines={lines}
+            multiAccount={!account}
           />
-          {lines.length ? (
-            <HoldingsTable
-              key={account?.id ?? 'all'}
-              accounts={overview.accounts}
-              currency={currency}
-              lines={lines}
-              multiAccount={!account}
-            />
-          ) : (
-            <p className="mt-2.5 text-xs text-[var(--text-muted)]">No holdings reported.</p>
-          )}
-        </div>
-        <div>
-          <SectionTitle hint={account ? 'recent' : 'all accounts'} title="Activity" />
-          <ActivityList
-            emptyText={activityEmptyText(account)}
-            items={activity}
-            sourceOf={
-              account
-                ? undefined
-                : (id) => {
-                    const a = byId.get(id);
-                    return a ? `${a.name} · ${a.institution}` : null;
-                  }
-            }
-          />
-        </div>
-      </div>
+        ) : (
+          <p className="mt-2.5 text-xs text-[var(--text-muted)]">No holdings reported.</p>
+        )}
+      </DetailSection>
+
+      <DetailSection
+        count={activity.length}
+        hint={account ? 'recent' : 'all accounts · recent'}
+        id="activity"
+        summary={
+          activity[0]
+            ? `latest ${fmtDay(activity[0].date)} · ${[activity[0].kind, activity[0].symbol]
+                .filter(Boolean)
+                .join(' ')}`
+            : null
+        }
+        title="Activity"
+      >
+        <ActivityList
+          emptyText={activityEmptyText(account)}
+          items={activity}
+          sourceOf={
+            account
+              ? undefined
+              : (id) => {
+                  const a = byId.get(id);
+                  return a ? `${a.name} · ${a.institution}` : null;
+                }
+          }
+        />
+      </DetailSection>
     </section>
   );
 }
