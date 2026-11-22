@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 import { PlaidReconnectButton } from '@/components/plaid/PlaidReconnectButton';
-import { ACTIVITY_SHOWN } from '@/lib/investments/activity';
 import {
   allocation,
   holdingLines,
@@ -18,14 +17,14 @@ import {
   plural,
   type NoticeKind,
 } from './account-states';
-import { ActivityList } from './activity-list';
+import { ActivitySection } from './activity-list';
 import { AllocationBars } from './allocation-bars';
 import { fmtDay, fmtMoney, spansYear } from './format';
 import { HoldingsMap } from './holdings-map';
 import { HoldingsTable } from './holdings-table';
 import { ChangeChip, Notice, SourcePill } from './pills';
 import { securitySettingsHref } from './securities-view';
-import { useCollapsed } from './use-collapsed';
+import { DetailSection } from './detail-section';
 import { seriesLabels, ValueChart } from './value-chart';
 import { BalanceSource } from '@/lib/investments/codes';
 
@@ -86,61 +85,6 @@ function SectionTitle({ title, hint }: { title: string; hint?: ReactNode }) {
   );
 }
 
-const SECTIONS_KEY = 'financeos:investments-sections-collapsed';
-
-/** A full-width section whose header folds it down to a one-line `summary`, remembered. */
-function DetailSection({
-  id,
-  title,
-  count,
-  hint,
-  summary,
-  children,
-}: {
-  id: string;
-  title: string;
-  count: number;
-  hint: string;
-  summary: string | null;
-  children: ReactNode;
-}) {
-  const [collapsed, toggle] = useCollapsed(SECTIONS_KEY, id);
-  return (
-    <section aria-label={title} className="mt-8">
-      <button
-        aria-expanded={!collapsed}
-        className="group flex w-full items-center gap-2.5 border-b border-[var(--border-hover)] pb-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
-        type="button"
-        onClick={toggle}
-      >
-        <span
-          aria-hidden
-          className={`text-[9px] text-[var(--text-muted)] transition-transform ${
-            collapsed ? '' : 'rotate-90'
-          }`}
-        >
-          ▶
-        </span>
-        <span className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--accent)]">
-          {title}
-        </span>
-        <span className="rounded-full bg-[var(--bg-elevated)] px-2 font-mono text-[11px] text-[var(--text-muted)]">
-          {count}
-        </span>
-        {collapsed && summary && (
-          <span className="ml-1 truncate font-mono text-xs text-[var(--text-secondary)]">
-            {summary}
-          </span>
-        )}
-        <span className="ml-auto shrink-0 text-[10.5px] font-medium uppercase tracking-[0.6px] text-[var(--text-muted)]">
-          {hint}
-        </span>
-      </button>
-      {!collapsed && children}
-    </section>
-  );
-}
-
 function ChartLegend({ manual }: { manual: boolean }) {
   const labels = seriesLabels(manual);
   const solid = <span className="inline-block h-0 w-4 border-t-[1.5px] border-[var(--accent)]" />;
@@ -180,9 +124,9 @@ export function AccountDetail(props: DetailProps) {
     currency: a.currency,
   }));
   const slices = allocation(rows, facts, account ? 'type' : dimension);
-  const activity = (
-    account ? overview.activity.filter((i) => i.accountId === account.id) : overview.activity
-  ).slice(0, account ? ACTIVITY_SHOWN.account : ACTIVITY_SHOWN.all);
+  const activity = account
+    ? overview.activity.filter((i) => i.accountId === account.id)
+    : overview.activity;
   const byId = new Map(overview.accounts.map((a) => [a.id, a]));
   const entries = manual ? series.filter((p) => !p.isEstimated) : [];
   const showMap = lines.length > 1;
@@ -352,32 +296,20 @@ export function AccountDetail(props: DetailProps) {
         )}
       </DetailSection>
 
-      <DetailSection
-        count={activity.length}
-        hint={account ? 'recent' : 'all accounts · recent'}
-        id="activity"
-        summary={
-          activity[0]
-            ? `latest ${fmtDay(activity[0].date)} · ${[activity[0].kind, activity[0].symbol]
-                .filter(Boolean)
-                .join(' ')}`
-            : null
+      <ActivitySection
+        key={account?.id ?? 'all'}
+        emptyText={activityEmptyText(account)}
+        hint={account ? overview.range : `all accounts · ${overview.range}`}
+        items={activity}
+        sourceOf={
+          account
+            ? undefined
+            : (id) => {
+                const a = byId.get(id);
+                return a ? `${a.name} · ${a.institution}` : null;
+              }
         }
-        title="Activity"
-      >
-        <ActivityList
-          emptyText={activityEmptyText(account)}
-          items={activity}
-          sourceOf={
-            account
-              ? undefined
-              : (id) => {
-                  const a = byId.get(id);
-                  return a ? `${a.name} · ${a.institution}` : null;
-                }
-          }
-        />
-      </DetailSection>
+      />
     </section>
   );
 }

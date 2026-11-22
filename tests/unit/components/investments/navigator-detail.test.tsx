@@ -142,6 +142,7 @@ describe('AccountDetail', () => {
           date: '2026-10-05',
           kind: 'Buy',
           symbol: 'AAA',
+          securityName: 'A Fund',
           trade: null,
           amount: -5,
           currency: 'USD',
@@ -303,6 +304,7 @@ describe('AccountDetail', () => {
       date: '2026-10-05',
       kind: 'Buy',
       symbol: 'AAA',
+      securityName: 'A Fund',
       trade: { quantity: 1, price: 5 },
       amount: -5,
       currency: 'USD',
@@ -328,7 +330,9 @@ describe('AccountDetail', () => {
       render(detail());
       await userEvent.click(header('Holdings'));
       expect(header('Holdings')).toHaveAttribute('aria-expanded', 'false');
-      expect(screen.queryByText('Security')).toBeNull();
+      expect(
+        within(screen.getByRole('region', { name: 'Holdings' })).queryByText('Security')
+      ).toBeNull();
       expect(within(header('Holdings')).getByText('$1,100 · top: AAA')).toBeInTheDocument();
 
       await userEvent.click(header('Activity'));

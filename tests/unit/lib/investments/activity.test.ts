@@ -123,15 +123,20 @@ describe('buildActivity', () => {
       tx({ type: 'buy', subtype: 'buy', date: utcDay('2026-10-02') }),
       tx({ type: 'sell', subtype: 'sell', ticker: null, securityId: 's2' }),
     ]);
-    expect(byTicker).toMatchObject({ kind: 'Buy', symbol: 'AAA' });
-    expect(byName).toMatchObject({ kind: 'Sell', symbol: 'Triple A' });
+    expect(byTicker).toMatchObject({ kind: 'Buy', symbol: 'AAA', securityName: 'Triple A' });
+    expect(byName).toMatchObject({ kind: 'Sell', symbol: 'Triple A', securityName: null });
   });
 
   it('gives a cash event with a zero quantity no trade', () => {
     const [item] = buildActivity([
       tx({ subtype: 'withdrawal', quantity: 0, price: 0, amount: 50, securityId: null }),
     ]);
-    expect(item).toMatchObject({ kind: 'Withdrawal', trade: null });
+    expect(item).toMatchObject({
+      kind: 'Withdrawal',
+      symbol: null,
+      securityName: null,
+      trade: null,
+    });
   });
 
   it('keeps each event in its transaction currency', () => {

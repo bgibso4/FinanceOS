@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { ValueChart, Sparkline } from '@/components/investments/value-chart';
@@ -6,7 +6,8 @@ import { ChangeChip, Notice, SourcePill, StatusDot } from '@/components/investme
 import { HoldingsMap } from '@/components/investments/holdings-map';
 import { AllocationBars } from '@/components/investments/allocation-bars';
 import { HoldingsTable } from '@/components/investments/holdings-table';
-import { ActivityList } from '@/components/investments/activity-list';
+import { ActivitySection } from '@/components/investments/activity-list';
+import type { ActivityItem } from '@/lib/investments/activity';
 import type { HoldingLine } from '@/lib/investments/holdings-view';
 import { BalanceSource } from '@/lib/investments/codes';
 
@@ -390,33 +391,58 @@ describe('HoldingsTable', () => {
   });
 });
 
-describe('ActivityList', () => {
-  const item = {
+describe('ActivitySection', () => {
+  beforeEach(() => localStorage.clear());
+
+  const item = (over: Partial<ActivityItem> = {}): ActivityItem => ({
     id: 't1',
     accountId: 'a1',
     date: '2026-10-05',
     kind: 'Buy',
     symbol: 'AAA',
+    securityName: 'Triple A Fund',
     trade: { quantity: 1, price: 5 },
     amount: -5,
     currency: 'USD',
-  };
+    ...over,
+  });
+  const mixed = [
+    item(),
+    item({ id: 't2', kind: 'Sell', symbol: 'BBB', securityName: null, amount: 20 }),
+    item({
+      id: 't3',
+      kind: 'Interest',
+      symbol: null,
+      securityName: null,
+      trade: null,
+      amount: 1.5,
+    }),
+  ];
+  const section = (items: ActivityItem[], sourceOf?: (id: string) => string | null) => (
+    <ActivitySection emptyText="No activity." hint="3M" items={items} sourceOf={sourceOf} />
+  );
   const rowOf = (text: string) => screen.getByText(text).closest('[role="row"]') as HTMLElement;
   const cells = (row: HTMLElement) =>
     within(row)
       .getAllByRole('cell')
       .map((c) => c.textContent);
+  const header = () => screen.getByRole('button', { name: /^Activity/ });
+  const choose = async (column: string, option: string) => {
+    await userEvent.click(screen.getByRole('button', { name: `Filter ${column}` }));
+    await userEvent.click(screen.getByRole('checkbox', { name: new RegExp(`^${option}`) }));
+  };
 
   it('shows the empty copy', () => {
-    render(<ActivityList emptyText="No activity reported." items={[]} />);
-    expect(screen.getByText('No activity reported.')).toBeInTheDocument();
+    render(section([]));
+    expect(screen.getByText('No activity.')).toBeInTheDocument();
   });
 
-  it('gives the account, shares and price their own columns in the all-accounts view', () => {
-    render(<ActivityList emptyText="" items={[item]} sourceOf={() => 'Brokerage · Test Bank'} />);
+  it('gives the security and account their own columns in the all-accounts view', () => {
+    render(section([item()], () => 'Brokerage · Test Bank'));
     expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
       'Date',
-      'Activity',
+      'Type',
+      'Security',
       'Account',
       'Shares',
       'Price',
@@ -424,7 +450,8 @@ describe('ActivityList', () => {
     ]);
     expect(cells(rowOf('AAA'))).toEqual([
       'Oct 5',
-      'BuyAAA',
+      'Buy',
+      'AAATriple A Fund',
       'Brokerage · Test Bank',
       '1',
       '$5.00',
@@ -433,27 +460,71 @@ describe('ActivityList', () => {
   });
 
   it('drops the account column for one account and dashes a cash event', () => {
-    render(
-      <ActivityList
-        emptyText=""
-        items={[{ ...item, kind: 'Interest', symbol: null, trade: null, amount: 1.5 }]}
-      />
-    );
-    expect(screen.queryByRole('columnheader', { name: 'Account' })).toBeNull();
-    expect(cells(rowOf('Interest'))).toEqual(['Oct 5', 'Interest', '—', '—', '+$1.50']);
+    render(section([mixed[2]]));
+    expect(screen.queryByRole('columnheader', { name: /Account/ })).toBeNull();
+    expect(cells(rowOf('Interest'))).toEqual(['Oct 5', 'Interest', '—', '—', '—', '+$1.50']);
+  });
+
+  it('colours money in green and money out in red', () => {
+    render(section(mixed));
+    expect(screen.getByText('+$20.00')).toHaveClass('text-[var(--green)]');
+    expect(screen.getByText('−$5.00')).toHaveClass('text-[var(--red)]');
   });
 
   it('shows amounts and prices in the transaction currency', () => {
     render(
-      <ActivityList
-        emptyText=""
-        items={[
-          { ...item, trade: { quantity: 1234.5, price: 7.5 }, amount: 12.25, currency: 'CAD' },
-        ]}
-      />
+      section([item({ trade: { quantity: 1234.5, price: 7.5 }, amount: 12.25, currency: 'CAD' })])
     );
     expect(screen.getByText('1,234.5')).toBeInTheDocument();
     expect(screen.getByText('CA$7.50')).toBeInTheDocument();
     expect(screen.getByText('+CA$12.25')).toBeInTheDocument();
+  });
+
+  it('filters by type from the column header and clears', async () => {
+    render(section(mixed));
+    await choose('Type', 'Sell');
+    expect(screen.getAllByRole('row')).toHaveLength(2);
+    expect(rowOf('BBB')).toBeInTheDocument();
+    expect(within(header()).getByText('1 of 3')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(screen.getAllByRole('row')).toHaveLength(4);
+    expect(within(header()).getByText('3')).toBeInTheDocument();
+  });
+
+  it('counts each option against the other filters', async () => {
+    render(section(mixed));
+    await choose('Type', 'Buy');
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByRole('button', { name: 'Filter Security' }));
+    expect(screen.getAllByRole('checkbox').map((c) => c.closest('label')?.textContent)).toEqual([
+      'AAA1',
+    ]);
+  });
+
+  it('filters cash events under "No security" and by account', async () => {
+    render(section(mixed, (id) => (id === 'a1' ? 'One' : 'Two')));
+    await choose('Security', 'No security');
+    expect(screen.getAllByRole('row')).toHaveLength(2);
+    expect(rowOf('Interest')).toBeInTheDocument();
+  });
+
+  it('says when a shorter range leaves nothing matching the filters', async () => {
+    const { rerender } = render(section(mixed));
+    await choose('Type', 'Sell');
+    rerender(section([mixed[0], mixed[2]]));
+    expect(screen.getByText('No activity matches these filters.')).toBeInTheDocument();
+    expect(within(header()).getByText('0 of 2')).toBeInTheDocument();
+  });
+
+  it('shows the newest 8, then 25 more at a time', async () => {
+    const many = Array.from({ length: 40 }, (_, i) => item({ id: `t${i}` }));
+    render(section(many));
+    expect(screen.getAllByRole('row')).toHaveLength(9);
+    await userEvent.click(screen.getByRole('button', { name: 'Show 25 more' }));
+    expect(screen.getAllByRole('row')).toHaveLength(34);
+    await userEvent.click(screen.getByRole('button', { name: 'Show 7 more' }));
+    expect(screen.getAllByRole('row')).toHaveLength(41);
+    expect(screen.queryByRole('button', { name: /more/ })).toBeNull();
   });
 });

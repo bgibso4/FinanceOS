@@ -24,6 +24,8 @@ export type ActivityItem = {
   kind: string;
   /** The security's ticker, else its name; null for cash events. */
   symbol: string | null;
+  /** The security's full name when `symbol` is its ticker. */
+  securityName: string | null;
   /** Shares traded and their price, in `currency`. */
   trade: { quantity: number; price: number } | null;
   amount: number; // positive = cash into the account
@@ -34,14 +36,13 @@ export type ActivityItem = {
 const symbolOf = (r: ActivityInput) => r.ticker ?? r.securityName ?? null;
 const isDividend = (r: ActivityInput) => r.type === 'cash' && r.subtype.includes('dividend');
 
-/** Items listed by the All view and by one account's view. */
-export const ACTIVITY_SHOWN = { all: 8, account: 5 } as const;
-/** Rows to load per account: enough for the longest view even if every item merges two rows. */
-export const ACTIVITY_ROWS_PER_ACCOUNT = 2 * Math.max(...Object.values(ACTIVITY_SHOWN));
-
-type Label = Pick<ActivityItem, 'kind' | 'symbol'>;
-const named = (kind: string, r: ActivityInput): Label => ({ kind, symbol: symbolOf(r) });
-const plain = (kind: string): Label => ({ kind, symbol: null });
+type Label = Pick<ActivityItem, 'kind' | 'symbol' | 'securityName'>;
+const named = (kind: string, r: ActivityInput): Label => ({
+  kind,
+  symbol: symbolOf(r),
+  securityName: r.ticker ? r.securityName : null,
+});
+const plain = (kind: string): Label => ({ kind, symbol: null, securityName: null });
 
 /** First matching rule names the event; unknown events keep the institution's description. */
 const LABEL_RULES: { match: (r: ActivityInput) => boolean; label: (r: ActivityInput) => Label }[] =
