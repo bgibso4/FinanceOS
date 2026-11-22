@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pending Transactions Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f2f2f7; --surface: #ffffff; --fill: #e9e9ee; --ink: #1c1c1e; --ink-2: #6e6e73; --ink-3: #8a8a8e; --line: #d8d8dc;
+  --tint: #1c1c1e; --on-tint: #ffffff; --soon: #ad500e; --done: #2f7d4f; --info: #3f6fa3; --warn: #a3392f;
+  --serif: "Source Serif 4", "New York", ui-serif, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+    --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+  --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+h1, h2, h3 { text-wrap: balance; }
+.layout { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+.brand { font: 700 15px/1.2 var(--serif); }
+.brand span { display: block; font: 400 13px/1.4 var(--sans); color: var(--ink-2); margin-top: 2px; }
+.overall { background: var(--surface); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.overall b { font: 700 17px/1.2 var(--serif); color: var(--ink); }
+.toc { display: flex; flex-direction: column; gap: 1px; }
+.toc-label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin: 6px 0 6px 10px; }
+.toc a { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; text-decoration: none; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.toc a:hover { background: var(--surface); color: var(--ink); }
+.toc a.active { background: var(--surface); color: var(--ink); font-weight: 600; }
+.toc-n { width: 20px; text-align: right; color: var(--ink-3); font-size: 13px; flex: none; font-variant-numeric: tabular-nums; }
+.theme { align-self: flex-start; background: none; border: 0; color: var(--ink-3); font: 13px var(--sans); cursor: pointer; padding: 4px 10px; }
+.theme:hover { color: var(--ink); }
+main { padding: 48px 0 120px; display: flex; flex-direction: column; gap: 48px; min-width: 0; }
+.eyebrow { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.eyebrow .pill { background: var(--surface); border-radius: 99px; padding: 3px 10px; font-weight: 600; color: var(--ink); }
+h1 { font: 700 44px/1.08 var(--serif); letter-spacing: -0.6px; margin: 12px 0 14px; }
+.goal { font-size: 19px; line-height: 1.5; max-width: 66ch; margin: 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 24px; }
+.meta div { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; line-height: 1.5; }
+.meta b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 4px; }
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 14px; color: var(--ink-2); }
+.stats b { font: 700 20px var(--serif); color: var(--ink); margin-right: 4px; font-variant-numeric: tabular-nums; }
+section > h2 { font: 700 26px/1.2 var(--serif); margin: 0 0 6px; letter-spacing: -0.2px; }
+section > h3.sub { font: 700 19px/1.3 var(--serif); margin: 22px 0 8px; }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 66ch; }
+.decisions { background: var(--surface); border-radius: var(--r); padding: 6px 0; border-left: 4px solid var(--soon); }
+.decisions.agreed { border-left-color: var(--done); }
+.decisions ul { list-style: none; margin: 0; padding: 0; }
+.decision { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 18px; }
+.decision + .decision { border-top: 1px solid var(--line); }
+.dec-name { font-weight: 600; }
+.dec-id { font: 700 13px var(--serif); color: var(--ink-3); margin-right: 6px; }
+.dec-text { color: var(--ink-2); font-size: 15px; max-width: 70ch; }
+.dec-text strong { color: var(--ink); }
+.trefs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 180px; }
+.tref { flex: none; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--fill); padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.tref:hover { background: var(--tint); color: var(--on-tint); }
+.card { background: var(--surface); border-radius: var(--r); padding: 6px 20px; }
+.card ul, .card ol { margin: 0; padding: 0; list-style: none; }
+.card > ul > li, .card > ol > li { padding: 11px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.card > ul > li:first-child, .card > ol > li:first-child { border-top: 0; }
+.card li ul { list-style: disc; padding-left: 20px; margin: 6px 0 0; }
+.card li ul li { padding: 2px 0; border: 0; color: var(--ink-2); }
+.card li ul li strong { color: var(--ink); }
+.numbered { counter-reset: f; }
+.numbered > li { counter-increment: f; display: grid; grid-template-columns: 28px 1fr; gap: 6px; }
+.numbered > li::before { content: counter(f); font: 700 17px/1.4 var(--serif); color: var(--soon); }
+table.md { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border-radius: var(--r); overflow: hidden; }
+table.md th, table.md td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--line); }
+table.md th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); border-top: 0; }
+table.md td:first-child { font-weight: 600; white-space: nowrap; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; }
+.chip.mine { color: var(--soon); background: color-mix(in srgb, var(--soon) 13%, transparent); }
+.chip.agreed { color: var(--done); background: color-mix(in srgb, var(--done) 13%, transparent); }
+.chip.route { color: var(--info); background: color-mix(in srgb, var(--info) 13%, transparent); font-family: var(--mono); font-weight: 500; }
+.callout { background: var(--surface); border-radius: var(--r); padding: 14px 18px; border-left: 4px solid var(--warn); font-size: 15px; margin-top: 12px; }
+.callout b:first-child { display: block; margin-bottom: 4px; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.col { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; }
+.col h3 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 8px; }
+.col ul { margin: 0; padding-left: 16px; } .col li { margin: 5px 0; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
+  .side { position: static; height: auto; padding: 24px 0 0; }
+  .toc { display: none; }
+  h1 { font-size: 34px; }
+  .cols { grid-template-columns: 1fr; }
+  .decision { flex-direction: column; gap: 8px; }
+  .trefs { justify-content: flex-start; max-width: none; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side" aria-label="Sections">
+    <div class="brand">FinanceOS<span>Design · Pending transactions</span></div>
+    <div class="overall"><span>Status</span><b>Waiting for your approval</b><span>Next: implementation plan</span></div>
+    <nav class="toc" aria-label="Sections">
+      <div class="toc-label">Overview</div>
+      <a href="#mine"><span class="toc-n"></span><span>Waiting on you</span></a>
+      <a href="#agreed"><span class="toc-n"></span><span>Agreed with you</span></a>
+      <a href="#scope"><span class="toc-n"></span><span>Scope</span></a>
+      <a href="#approaches"><span class="toc-n"></span><span>Approaches</span></a>
+      <div class="toc-label">Design</div>
+      <a href="#data"><span class="toc-n">1</span><span>The pending flag</span></a>
+      <a href="#post"><span class="toc-n">2</span><span>When a charge posts</span></a>
+      <a href="#ui"><span class="toc-n">3</span><span>List and drawer</span></a>
+      <div class="toc-label">Build</div>
+      <a href="#builder"><span class="toc-n"></span><span>Left to the builder</span></a>
+      <a href="#testing"><span class="toc-n"></span><span>Testing</span></a>
+    </nav>
+    <button class="theme" type="button" id="theme">◐ Light / dark</button>
+  </aside>
+  <main>
+    <header>
+      <div class="eyebrow"><span class="pill">Design</span><span>Written 2026-11-22</span><span>·</span><span>small change · after a brainstorm and two mock rounds · not started</span></div>
+      <h1>Pending transactions</h1>
+      <p class="goal">Bank sync brings in pending charges from Plaid accounts, but nothing marks them as pending. When a charge posts, Plaid sends it as a brand-new transaction and tells us to remove the pending one. So the category, notes, tags, trip and splits you added are deleted, and you have to redo them a few days later. This keeps your edits: when a charge posts, the transaction you already have is updated in place instead of being replaced. A quiet "· Pending" note in the list and a short notice in the drawer show which charges are still waiting.</p>
+      <div class="meta">
+        <div><b>Where</b>Branch <code>feat/pending-transactions</code> off <code>main</code>. One PR against <code>main</code>.</div>
+        <div><b>Builds on</b><code>syncPlaidTransactions</code> / <code>processPlaidTransaction</code> / <code>removeTransaction</code> in <code>src/lib/plaid-sync.ts</code>, <code>Transaction</code> in <code>prisma/schema.prisma</code>, <code>TransactionTable</code>, the transaction drawer, and the cloud-sync payload.</div>
+        <div><b>Approved mock</b><code>~/Documents/FinanceOS-design-archive/design-mocks/pending-transactions.html</code>: Option A (muted suffix) and the drawer notice.</div>
+      </div>
+      <div class="stats"><span><b>3</b>design sections</span><span><b>4</b>decisions agreed</span><span><b>4</b>calls to check</span></div>
+    </header>
+
+    <section id="mine">
+      <h2>Waiting on you</h2>
+      <p class="lede">These are my calls. Each one is easy to change now, so veto any you don't like.</p>
+      <div class="decisions"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M1</span>Your merchant name stays</div><div class="dec-text">When a charge posts, it takes the bank's final <strong>date and amount</strong> but keeps the <strong>merchant name already on the transaction</strong>. You or a rename rule may have cleaned that name up, and we can't tell whether you did, so keeping it is the safe choice. Plaid's names for pending and posted charges are usually the same anyway.</div></div><div class="trefs"><a class="tref" href="#post">Posting</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>Splits that stop adding up are left as they are</div><div class="dec-text">If the amount changes when the charge posts (a tip, a gas-station hold) and the transaction is split, the split parts are <strong>left alone</strong>. The split editor already shows when parts don't add up, so you fix it there. Splitting a pending charge is rare.</div></div><div class="trefs"><a class="tref" href="#post">Posting</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M3</span>Removals wait until the whole sync has run</div><div class="dec-text">Plaid can send the "remove pending" message on an earlier page than the posted charge. If we acted on it right away, we'd delete the row before we could carry it over. So sync <strong>collects removals and applies them at the end</strong>, once every posted charge has had a chance to take over its pending row. A row that was taken over has a new ID by then, so the removal finds nothing to delete.</div></div><div class="trefs"><a class="tref" href="#post">Posting</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M4</span>No backfill for rows already in the app</div><div class="dec-text">Pending rows synced before this change won't show "· Pending". They'll still be <strong>carried over</strong> when they post, because the link is through Plaid's IDs, which those rows already have. They'll be posted within a few days anyway.</div></div><div class="trefs"><a class="tref" href="#data">Data</a></div></li>
+      </ul></div>
+    </section>
+
+    <section id="agreed">
+      <h2>Agreed with you</h2>
+      <p class="lede">From the brainstorm and mock rounds.</p>
+      <div class="decisions agreed"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A1</span>Update in place, not replace</div><div class="dec-text">When a charge posts, the transaction you already have takes on the posted details. Everything you added to it stays.</div></div><div class="trefs"><a class="tref" href="#post">Posting</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A2</span>Pending charges count everywhere</div><div class="dec-text">They're <strong>not</strong> greyed out or left out of Analytics, the Dashboard or budgets. Leaving them out would make this week's spending look low. If that ever bothers you, a "posted only" filter can come later.</div></div><div class="trefs"><a class="tref" href="#ui">UI</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A3</span>A quiet "· Pending" note in the list</div><div class="dec-text">Mock option A: muted text after the merchant, like "· Outside budget". It shouldn't draw a lot of attention.</div></div><div class="trefs"><a class="tref" href="#ui">UI</a></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">A4</span>Categorize them whenever you like</div><div class="dec-text">Pending charges stay in the review queue and can be edited like any other transaction. Whatever you do now carries over.</div></div><div class="trefs"><a class="tref" href="#ui">UI</a></div></li>
+      </ul></div>
+    </section>
+
+    <section id="scope">
+      <h2>Scope</h2>
+      <div class="cols">
+        <div class="col"><h3>Goals</h3><ul>
+          <li>Edits made to a pending charge survive when it posts</li>
+          <li>You can see which charges are still pending</li>
+          <li>Holds that never post are still removed</li>
+        </ul></div>
+        <div class="col"><h3>Non-goals</h3><ul>
+          <li>Teller accounts. They already skip pending charges, so nothing changes there.</li>
+          <li>A "posted only" filter in Analytics</li>
+          <li>Backfilling the pending flag on rows already in the app</li>
+        </ul></div>
+        <div class="col"><h3>Anti-goals</h3><ul>
+          <li>A posted charge showing up twice (the pending row plus a new one)</li>
+          <li>A label that crowds busy rows</li>
+          <li>Quietly overwriting a merchant name you edited</li>
+        </ul></div>
+      </div>
+    </section>
+
+    <section id="approaches">
+      <h2>Approaches</h2>
+      <table class="md">
+        <tr><th>Approach</th><th>Trade-off</th><th>Outcome</th></tr>
+        <tr><td>Stop pulling pending charges, as Teller does</td><td>Simplest, but recent spending would be missing for a few days</td><td>Rejected</td></tr>
+        <tr><td>Grey out pending charges and leave them out of analytics</td><td>No numbers that later change, but this week's spending looks low, and greying them out suggests you shouldn't edit them</td><td>Rejected</td></tr>
+        <tr><td>Show the label only</td><td>You'd know what to leave alone, but you'd still categorize everything twice</td><td>Rejected</td></tr>
+        <tr><td>Add a pending flag and carry the row over when it posts, using Plaid's <code>pending_transaction_id</code></td><td>Small change in one sync file; your edits survive and the numbers stay current</td><td><span class="chip agreed">Picked</span></td></tr>
+      </table>
+    </section>
+
+    <section id="data">
+      <h2>1 · The pending flag</h2>
+      <div class="card"><ul>
+        <li>New field <code>Transaction.isPending Boolean @default(false)</code>, applied with <code>prisma db push</code>. <code>migrate dev</code> fails on this database.</li>
+        <li>Plaid sync sets it from <code>plaidTx.pending</code> when it creates a transaction, and again whenever Plaid sends a "modified" update.</li>
+        <li>Manual entries, CSV imports, Teller and Splitwise imports always leave it <code>false</code>.</li>
+        <li>The cloud-sync payload carries the field (<code>types.ts</code> plus the export and import in <code>sync.ts</code>, the same way <code>isOutsideBudget</code> is handled), so another device shows it too.</li>
+        <li>Transaction API responses include it, so the list and drawer can read it.</li>
+      </ul></div>
+    </section>
+
+    <section id="post">
+      <h2>2 · When a charge posts</h2>
+      <div class="card"><ol class="numbered">
+        <li>A new transaction arrives that has a <code>pending_transaction_id</code>. Before any other duplicate check, sync looks for a transaction in that account whose <code>externalId</code> equals that ID.</li>
+        <li>If it finds one, that transaction is updated in place. The posted ID goes in <code>externalId</code>, along with the posted <code>date</code>, <code>amount</code> and a new <code>importHash</code>, and <code>isPending</code> is set to <code>false</code>. Category, confidence, note, tags, trip, outside budget, transfer pairing, refund links and split parts stay as they are. The merchant name stays too (M1). This counts as "merged" in the sync stats.</li>
+        <li>If it finds none (the pending charge was never synced, or was outside the window), the existing path runs as usual: duplicate checks, then a new transaction.</li>
+        <li>Removals are collected over the whole sync and applied at the end (M3). A removal whose ID still matches a row deletes it, as it does today. That covers holds that never post.</li>
+        <li>The dry-run preview follows the same steps, so it shows "would merge" for a charge that will take over its pending row.</li>
+      </ol></div>
+    </section>
+
+    <section id="ui">
+      <h2>3 · List and drawer</h2>
+      <div class="card"><ul>
+        <li><code>TransactionTable</code>: a pending row reads <code>Merchant · Pending</code>, with the suffix in muted text. It comes after "· Outside budget" when both apply, and before the Split label. Category, colours and amount are unchanged.</li>
+        <li>Drawer: under the amount, a muted notice on <code>--bg-elevated</code> with a small dashed accent dot. It reads: <b>Pending.</b> "The bank may still change the amount or date. Your category, notes and tags will carry over when it posts." It disappears once the charge has posted.</li>
+        <li>Everything in the drawer stays editable. Analytics, budgets and the review queue treat pending rows like any other transaction (A2, A4).</li>
+      </ul></div>
+    </section>
+
+    <section id="builder">
+      <h2>Left to the builder</h2>
+      <div class="card"><ul>
+        <li>Where the posting step sits in <code>processPlaidTransaction</code>: one helper, used by both the real sync and the preview.</li>
+        <li>How removals are collected across pages: an array of <code>{ transactionId, accountId }</code> drained after the loop is enough.</li>
+        <li>If a unique-constraint race happens while taking over a pending row, treat it as "skipped", like the existing merge paths.</li>
+        <li>Which drawer component gets the notice: the header area of the shared <code>TransactionDrawer</code>.</li>
+      </ul></div>
+    </section>
+
+    <section id="testing">
+      <h2>Testing</h2>
+      <div class="card"><ul>
+        <li>Sync (mock the Plaid client the way the existing sync tests do):
+          <ul>
+            <li>A pending charge is created with <code>isPending</code> true.</li>
+            <li>When the posted charge arrives with <code>pending_transaction_id</code>, the same row is updated: same <code>id</code>, the new <code>externalId</code>, date and amount, the category, note, tags and trip kept, <code>isPending</code> false. There are no duplicates.</li>
+            <li>A "remove pending" that arrives on an earlier page than the posted charge still ends with one row that kept its edits.</li>
+            <li>A hold that's removed with nothing replacing it is deleted.</li>
+            <li>A posted charge whose pending row is unknown is created as before.</li>
+          </ul>
+        </li>
+        <li>Cloud sync: <code>isPending</code> round-trips.</li>
+        <li>Component: the suffix shows only for pending rows, and the drawer notice only for pending transactions.</li>
+        <li>In the browser, both themes: the list suffix on a busy row, and the drawer notice.</li>
+        <li><code>npm run check</code> and the full suite. Don't run <code>npm run build</code> while the production server is running; use a dev server on a spare port.</li>
+      </ul></div>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  btn.addEventListener('click', function () {
+    var r = document.documentElement;
+    var dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (a) { a.classList.remove('active'); });
+        var a = map[e.target.id]; if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+})();
+</script>
+</body>
+</html>
