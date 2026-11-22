@@ -55,6 +55,7 @@ export interface TransactionData {
   note?: string;
   isTransfer?: boolean;
   isOutsideBudget?: boolean;
+  isPending?: boolean;
   transferGroupId?: string;
   confidenceScore?: number;
   externalId?: string;

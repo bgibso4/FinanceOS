@@ -297,6 +297,7 @@ describe('cloud-sync integration', () => {
           note: null,
           isTransfer: false,
           isOutsideBudget: false,
+          isPending: false,
           transferGroupId: null,
           confidenceScore: 0.9,
           externalId: null,

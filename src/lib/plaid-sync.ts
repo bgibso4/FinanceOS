@@ -247,6 +247,16 @@ export async function syncPlaidTransactions(
   const transactionPreviews: TransactionPreview[] = [];
   let totalFetched = 0;
 
+  // Plaid can send "remove the pending charge" on an earlier page than the posted charge
+  // that replaces it, so removals wait until every page is in. A pending ID that a posted
+  // charge merged into is skipped: its row now belongs to the posted charge.
+  const deferredRemovals: RemovedTransaction[] = [];
+  const claimedPendingIds = new Set<string>();
+  const claimIfMerged = (plaidTx: PlaidTransaction, merged: boolean) => {
+    if (merged && plaidTx.pending_transaction_id)
+      claimedPendingIds.add(plaidTx.pending_transaction_id);
+  };
+
   while (hasMore) {
     const response = await plaidCallWithRetry(() =>
       plaid.transactionsSync({
@@ -299,6 +309,7 @@ export async function syncPlaidTransactions(
           target.invertAmounts
         );
         transactionPreviews.push(preview);
+        claimIfMerged(plaidTx, preview.wouldMerge);
 
         if (!preview.wouldCreate && !preview.wouldMerge) {
           stats.skippedDuplicates++;
@@ -321,6 +332,7 @@ export async function syncPlaidTransactions(
           'add',
           target.invertAmounts
         );
+        claimIfMerged(plaidTx, result.status === 'merged');
         if (result.status === 'created' || result.status === 'categorized') {
           stats.added++;
           bump(target.accountId, 'added');
@@ -381,35 +393,38 @@ export async function syncPlaidTransactions(
       }
     }
 
-    // Process removed transactions — route by looking up which account owns the externalId
-    for (const removedTx of removed) {
-      // Plaid RemovedTransaction has account_id — use it to route to the correct account
-      const target = removedTx.account_id ? accountMap.get(removedTx.account_id) : null;
-      const targetAccountId = target?.accountId ?? connection.accountId;
-      const targetAccountName = target?.accountName ?? connection.account.name;
-
-      if (dryRun) {
-        const preview = await previewRemovedTransaction(
-          removedTx,
-          targetAccountId,
-          targetAccountName
-        );
-        transactionPreviews.push(preview);
-        if (preview.wouldCreate) {
-          stats.removed++;
-          bump(targetAccountId, 'removed');
-        }
-      } else {
-        const result = await removeTransaction(removedTx.transaction_id, targetAccountId);
-        if (result) {
-          stats.removed++;
-          bump(targetAccountId, 'removed');
-        }
-      }
-    }
+    deferredRemovals.push(...removed);
 
     cursor = next_cursor;
     hasMore = has_more;
+  }
+
+  // Process removed transactions — route by looking up which account owns the externalId
+  for (const removedTx of deferredRemovals) {
+    if (claimedPendingIds.has(removedTx.transaction_id)) continue;
+    // Plaid RemovedTransaction has account_id — use it to route to the correct account
+    const target = removedTx.account_id ? accountMap.get(removedTx.account_id) : null;
+    const targetAccountId = target?.accountId ?? connection.accountId;
+    const targetAccountName = target?.accountName ?? connection.account.name;
+
+    if (dryRun) {
+      const preview = await previewRemovedTransaction(
+        removedTx,
+        targetAccountId,
+        targetAccountName
+      );
+      transactionPreviews.push(preview);
+      if (preview.wouldCreate) {
+        stats.removed++;
+        bump(targetAccountId, 'removed');
+      }
+    } else {
+      const result = await removeTransaction(removedTx.transaction_id, targetAccountId);
+      if (result) {
+        stats.removed++;
+        bump(targetAccountId, 'removed');
+      }
+    }
   }
 
   // A missing status (older API responses) counts as complete, so the cursor behaves as before.
@@ -496,6 +511,11 @@ async function previewPlaidTransaction(
         action,
         'Already exists (duplicate externalId)'
       );
+    }
+
+    const predecessor = await findPendingPredecessor(accountId, plaidTx);
+    if (predecessor) {
+      return createMergePreview(plaidTx, accountId, accountName, action, predecessor.id);
     }
 
     // Check importHash: catches re-enrollment duplicates
@@ -673,6 +693,23 @@ type ProcessResult = {
   transactionId?: string;
 };
 
+/**
+ * The row of the pending charge a posted charge replaces, when we have it. Plaid sends a
+ * posted charge as a new transaction naming its pending predecessor; updating that row in
+ * place keeps everything the user set on it while it was pending.
+ */
+async function findPendingPredecessor(
+  accountId: string,
+  plaidTx: PlaidTransaction
+): Promise<{ id: string } | null> {
+  const pendingId = plaidTx.pending_transaction_id;
+  if (plaidTx.pending || !pendingId) return null;
+  return prisma.transaction.findFirst({
+    where: { accountId, externalId: pendingId },
+    select: { id: true },
+  });
+}
+
 async function processPlaidTransaction(
   plaidTx: PlaidTransaction,
   accountId: string,
@@ -688,6 +725,27 @@ async function processPlaidTransaction(
     });
 
     if (existing) return { status: 'skipped' };
+
+    const predecessor = await findPendingPredecessor(accountId, plaidTx);
+    if (predecessor) {
+      try {
+        // Only the bank's facts change; the merchant and everything the user set stay.
+        await prisma.transaction.update({
+          where: { id: predecessor.id },
+          data: {
+            externalId: mapped.externalId,
+            date: mapped.date,
+            amount: mapped.amount,
+            importHash: mapped.importHash,
+            isPending: false,
+          },
+        });
+        return { status: 'merged' };
+      } catch (err) {
+        if (isUniqueConstraintError(err)) return { status: 'skipped' };
+        throw err;
+      }
+    }
 
     // Check importHash: catches re-enrollment duplicates where Plaid minted new
     // transaction IDs for the same underlying bank transactions.
