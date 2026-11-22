@@ -8,6 +8,7 @@ export type Tx = {
   confidenceScore: number;
   isTransfer: boolean;
   isOutsideBudget?: boolean;
+  isPending?: boolean;
   note?: string | null;
   tags?: string[];
   isOffset?: boolean;

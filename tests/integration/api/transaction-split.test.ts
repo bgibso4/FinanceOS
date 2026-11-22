@@ -76,6 +76,29 @@ describe('transaction split API integration', () => {
       expect(parts.every((p) => p.isOutsideBudget)).toBe(true);
     });
 
+    it('splitPartsAreNeverPending', async () => {
+      const parent = await prisma.transaction.create({
+        data: createTransactionData(testAccountId, { amount: -100, isPending: true }),
+      });
+
+      const res = await splitPost(
+        new NextRequest('http://localhost/api/transactions/split', {
+          method: 'POST',
+          body: JSON.stringify({
+            transactionId: parent.id,
+            parts: [{ amount: -60 }, { amount: -40 }],
+          }),
+        })
+      );
+
+      expect(res.status).toBe(200);
+      const parts = await prisma.transaction.findMany({
+        where: { parentTransactionId: parent.id },
+      });
+      expect(parts).toHaveLength(2);
+      expect(parts.every((p) => p.isPending === false)).toBe(true);
+    });
+
     it('splits a transaction into multiple parts', async () => {
       // Create parent transaction
       const parent = await prisma.transaction.create({

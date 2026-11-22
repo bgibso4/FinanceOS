@@ -779,6 +779,7 @@ async function processPlaidTransaction(
         merchant: mapped.merchant,
         merchantNormalized: mapped.merchantNormalized,
         date: mapped.date,
+        isPending: mapped.isPending,
       },
     });
 
@@ -807,6 +808,7 @@ function mapPlaidTransaction(
     merchantNormalized,
     accountId,
     isTransfer: false,
+    isPending: plaidTx.pending,
     note: null,
     tags: '[]',
     importHash: createImportHash(accountId, date, amount, merchantNormalized),

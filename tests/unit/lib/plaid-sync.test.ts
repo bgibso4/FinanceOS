@@ -449,6 +449,48 @@ describe('plaid-sync', () => {
       expect(tx?.amount).toBe(-30); // Inverted from Plaid's positive
     });
 
+    it('storesPendingFlag', async () => {
+      mockSyncResponse({
+        added: [
+          createMockPlaidTransaction({ transaction_id: 'p1', pending: true }),
+          createMockPlaidTransaction({ transaction_id: 'q1', pending: false, amount: 40 }),
+        ],
+      });
+
+      await syncPlaidTransactions(createMockPlaidConnection(testAccountId));
+
+      const p1 = await prisma.transaction.findFirst({ where: { externalId: 'p1' } });
+      const q1 = await prisma.transaction.findFirst({ where: { externalId: 'q1' } });
+      expect(p1?.isPending).toBe(true);
+      expect(q1?.isPending).toBe(false);
+    });
+
+    it.each([
+      [true, true],
+      [false, false],
+    ])('modifyKeepsPendingFlag (pending: %s)', async (pending, expected) => {
+      await prisma.transaction.create({
+        data: {
+          accountId: testAccountId,
+          externalId: 'p1',
+          date: new Date(),
+          amount: -25,
+          merchant: 'Cafe',
+          merchantNormalized: 'cafe',
+          isPending: true,
+        },
+      });
+      mockSyncResponse({
+        modified: [createMockPlaidTransaction({ transaction_id: 'p1', pending, amount: 30 })],
+      });
+
+      await syncPlaidTransactions(createMockPlaidConnection(testAccountId));
+
+      const tx = await prisma.transaction.findFirst({ where: { externalId: 'p1' } });
+      expect(tx?.amount).toBe(-30);
+      expect(tx?.isPending).toBe(expected);
+    });
+
     it('handles removed transactions', async () => {
       // Create existing transaction
       await prisma.transaction.create({
