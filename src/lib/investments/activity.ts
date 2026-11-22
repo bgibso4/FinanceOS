@@ -20,7 +20,12 @@ export type ActivityItem = {
   id: string;
   accountId: string;
   date: string;
-  title: string;
+  /** What happened: Buy, Sell, Dividend, Interest… or the institution's own description. */
+  kind: string;
+  /** The security's ticker, else its name; null for cash events. */
+  symbol: string | null;
+  /** The security's full name when `symbol` is its ticker. */
+  securityName: string | null;
   /** Shares traded and their price, in `currency`. */
   trade: { quantity: number; price: number } | null;
   amount: number; // positive = cash into the account
@@ -28,37 +33,41 @@ export type ActivityItem = {
   currency: string;
 };
 
-const symbolOf = (r: ActivityInput) => r.ticker ?? r.securityName ?? '';
-const titled = (label: string, r: ActivityInput) =>
-  symbolOf(r) ? `${label} · ${symbolOf(r)}` : label;
+const symbolOf = (r: ActivityInput) => r.ticker ?? r.securityName ?? null;
 const isDividend = (r: ActivityInput) => r.type === 'cash' && r.subtype.includes('dividend');
 
-/** Items listed by the All view and by one account's view. */
-export const ACTIVITY_SHOWN = { all: 8, account: 5 } as const;
-/** Rows to load per account: enough for the longest view even if every item merges two rows. */
-export const ACTIVITY_ROWS_PER_ACCOUNT = 2 * Math.max(...Object.values(ACTIVITY_SHOWN));
+type Label = Pick<ActivityItem, 'kind' | 'symbol' | 'securityName'>;
+const named = (kind: string, r: ActivityInput): Label => ({
+  kind,
+  symbol: symbolOf(r),
+  securityName: r.ticker ? r.securityName : null,
+});
+const plain = (kind: string): Label => ({ kind, symbol: null, securityName: null });
 
 /** First matching rule names the event; unknown events keep the institution's description. */
-const TITLE_RULES: { match: (r: ActivityInput) => boolean; title: (r: ActivityInput) => string }[] =
+const LABEL_RULES: { match: (r: ActivityInput) => boolean; label: (r: ActivityInput) => Label }[] =
   [
-    { match: (r) => r.type === 'buy', title: (r) => titled('Buy', r) },
-    { match: (r) => r.type === 'sell', title: (r) => titled('Sell', r) },
-    { match: isDividend, title: (r) => titled('Dividend', r) },
-    { match: (r) => r.subtype.includes('interest'), title: () => 'Interest' },
-    { match: (r) => r.type === 'fee' || r.subtype.includes('fee'), title: () => 'Fee' },
-    { match: (r) => r.subtype === 'contribution', title: () => 'Contribution' },
-    { match: (r) => r.subtype === 'deposit', title: () => 'Deposit' },
-    { match: (r) => r.subtype === 'withdrawal', title: () => 'Withdrawal' },
+    { match: (r) => r.type === 'buy', label: (r) => named('Buy', r) },
+    { match: (r) => r.type === 'sell', label: (r) => named('Sell', r) },
+    { match: isDividend, label: (r) => named('Dividend', r) },
+    { match: (r) => r.subtype.includes('interest'), label: () => plain('Interest') },
+    { match: (r) => r.type === 'fee' || r.subtype.includes('fee'), label: () => plain('Fee') },
+    { match: (r) => r.subtype === 'contribution', label: () => plain('Contribution') },
+    { match: (r) => r.subtype === 'deposit', label: () => plain('Deposit') },
+    { match: (r) => r.subtype === 'withdrawal', label: () => plain('Withdrawal') },
+    { match: (r) => r.subtype === 'income', label: () => plain('Income') },
     {
-      match: (r) => r.type === 'transfer',
-      title: (r) => (r.amount < 0 ? 'Transfer in' : 'Transfer out'),
+      match: (r) => r.type === 'transfer' || r.subtype.startsWith('transfer'),
+      label: (r) => plain(r.amount < 0 ? 'Transfer in' : 'Transfer out'),
     },
   ];
 
-const titleOf = (r: ActivityInput) => TITLE_RULES.find((rule) => rule.match(r))?.title(r) ?? r.name;
+const labelOf = (r: ActivityInput) =>
+  LABEL_RULES.find((rule) => rule.match(r))?.label(r) ?? plain(r.name);
 
+/** Shares and price, when shares changed hands; cash events report a zero quantity. */
 const tradeOf = (r: ActivityInput): ActivityItem['trade'] =>
-  r.quantity != null && r.price != null ? { quantity: Math.abs(r.quantity), price: r.price } : null;
+  r.quantity && r.price != null ? { quantity: Math.abs(r.quantity), price: r.price } : null;
 
 const sameDaySecurity = (a: ActivityInput, b: ActivityInput) =>
   a.accountId === b.accountId &&
@@ -83,7 +92,7 @@ export function buildActivity(rows: ActivityInput[]): ActivityItem[] {
       id: r.id,
       accountId: r.accountId,
       date: isoDay(r.date),
-      title: reinvest ? titled('Dividend reinvested', r) : titleOf(r),
+      ...(reinvest ? named('Dividend reinvested', r) : labelOf(r)),
       trade: tradeOf(reinvest ?? r),
       amount: -r.amount,
       currency: r.currency,

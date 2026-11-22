@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -91,6 +91,8 @@ describe('AccountNavigator', () => {
 });
 
 describe('AccountDetail', () => {
+  beforeEach(() => localStorage.clear());
+
   it('labels the All range and dates its axis with years', () => {
     render(
       <AccountDetail
@@ -138,7 +140,9 @@ describe('AccountDetail', () => {
           id: 't1',
           accountId: 'acc-ret',
           date: '2026-10-05',
-          title: 'Buy · AAA',
+          kind: 'Buy',
+          symbol: 'AAA',
+          securityName: 'A Fund',
           trade: null,
           amount: -5,
           currency: 'USD',
@@ -151,7 +155,7 @@ describe('AccountDetail', () => {
     expect(screen.getByText('combined across accounts')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /AAA/ })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByText('size = value · color = 3M change')).toBeInTheDocument();
-    expect(screen.getByText('Workplace Plan · Test Bank')).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'Workplace Plan · Test Bank' })).toBeInTheDocument();
     expect(screen.getByText('balance change · 3M')).toBeInTheDocument();
   });
 
@@ -291,5 +295,58 @@ describe('AccountDetail', () => {
     );
     expect(screen.getByText('Not enough history in this range yet.')).toBeInTheDocument();
     expect(screen.getByText('No holdings reported.')).toBeInTheDocument();
+  });
+
+  describe('Holdings and Activity sections', () => {
+    const buy = {
+      id: 't1',
+      accountId: 'acc-plaid',
+      date: '2026-10-05',
+      kind: 'Buy',
+      symbol: 'AAA',
+      securityName: 'A Fund',
+      trade: { quantity: 1, price: 5 },
+      amount: -5,
+      currency: 'USD',
+    };
+    const detail = () => (
+      <AccountDetail
+        {...handlers()}
+        overview={makeOverview({ activity: [buy] })}
+        selected="acc-plaid"
+      />
+    );
+    const header = (name: string) => screen.getByRole('button', { name: new RegExp(`^${name}`) });
+
+    it('stacks both sections open, with counts', () => {
+      render(detail());
+      expect(header('Holdings')).toHaveAttribute('aria-expanded', 'true');
+      expect(header('Activity')).toHaveAttribute('aria-expanded', 'true');
+      expect(within(header('Holdings')).getByText('1')).toBeInTheDocument();
+      expect(screen.getByRole('table')).toBeInTheDocument();
+    });
+
+    it('folds a section to a one-line summary', async () => {
+      render(detail());
+      await userEvent.click(header('Holdings'));
+      expect(header('Holdings')).toHaveAttribute('aria-expanded', 'false');
+      expect(
+        within(screen.getByRole('region', { name: 'Holdings' })).queryByText('Security')
+      ).toBeNull();
+      expect(within(header('Holdings')).getByText('$1,100 · top: AAA')).toBeInTheDocument();
+
+      await userEvent.click(header('Activity'));
+      expect(screen.queryByRole('table')).toBeNull();
+      expect(within(header('Activity')).getByText('latest Oct 5 · Buy AAA')).toBeInTheDocument();
+    });
+
+    it('remembers a folded section on the next visit', async () => {
+      const { unmount } = render(detail());
+      await userEvent.click(header('Activity'));
+      unmount();
+      render(detail());
+      expect(header('Activity')).toHaveAttribute('aria-expanded', 'false');
+      expect(header('Holdings')).toHaveAttribute('aria-expanded', 'true');
+    });
   });
 });

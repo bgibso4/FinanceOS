@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 import { PlaidReconnectButton } from '@/components/plaid/PlaidReconnectButton';
-import { ACTIVITY_SHOWN } from '@/lib/investments/activity';
 import {
   allocation,
   holdingLines,
@@ -18,13 +17,14 @@ import {
   plural,
   type NoticeKind,
 } from './account-states';
-import { ActivityList } from './activity-list';
+import { ActivitySection } from './activity-list';
 import { AllocationBars } from './allocation-bars';
 import { fmtDay, fmtMoney, spansYear } from './format';
 import { HoldingsMap } from './holdings-map';
 import { HoldingsTable } from './holdings-table';
 import { ChangeChip, Notice, SourcePill } from './pills';
 import { securitySettingsHref } from './securities-view';
+import { DetailSection } from './detail-section';
 import { seriesLabels, ValueChart } from './value-chart';
 import { BalanceSource } from '@/lib/investments/codes';
 
@@ -124,9 +124,9 @@ export function AccountDetail(props: DetailProps) {
     currency: a.currency,
   }));
   const slices = allocation(rows, facts, account ? 'type' : dimension);
-  const activity = (
-    account ? overview.activity.filter((i) => i.accountId === account.id) : overview.activity
-  ).slice(0, account ? ACTIVITY_SHOWN.account : ACTIVITY_SHOWN.all);
+  const activity = account
+    ? overview.activity.filter((i) => i.accountId === account.id)
+    : overview.activity;
   const byId = new Map(overview.accounts.map((a) => [a.id, a]));
   const entries = manual ? series.filter((p) => !p.isEstimated) : [];
   const showMap = lines.length > 1;
@@ -266,40 +266,50 @@ export function AccountDetail(props: DetailProps) {
         </div>
       )}
 
-      <div className="mt-7 grid grid-cols-1 gap-7 xl:grid-cols-[1.55fr_1fr]">
-        <div>
-          <SectionTitle
-            hint={account ? plural(lines.length, 'position') : 'combined across accounts'}
-            title="Holdings"
+      <DetailSection
+        count={lines.length}
+        hint={account ? plural(lines.length, 'position') : 'combined across accounts'}
+        id="holdings"
+        summary={
+          lines.length
+            ? `${fmtMoney(
+                lines.reduce((sum, l) => sum + l.valueBase, 0),
+                { currency }
+              )} · top: ${lines
+                .slice(0, 3)
+                .map((l) => l.label)
+                .join(', ')}`
+            : null
+        }
+        title="Holdings"
+      >
+        {lines.length ? (
+          <HoldingsTable
+            key={account?.id ?? 'all'}
+            accounts={overview.accounts}
+            currency={currency}
+            lines={lines}
+            multiAccount={!account}
           />
-          {lines.length ? (
-            <HoldingsTable
-              key={account?.id ?? 'all'}
-              accounts={overview.accounts}
-              currency={currency}
-              lines={lines}
-              multiAccount={!account}
-            />
-          ) : (
-            <p className="mt-2.5 text-xs text-[var(--text-muted)]">No holdings reported.</p>
-          )}
-        </div>
-        <div>
-          <SectionTitle hint={account ? 'recent' : 'all accounts'} title="Activity" />
-          <ActivityList
-            emptyText={activityEmptyText(account)}
-            items={activity}
-            sourceOf={
-              account
-                ? undefined
-                : (id) => {
-                    const a = byId.get(id);
-                    return a ? `${a.name} · ${a.institution}` : null;
-                  }
-            }
-          />
-        </div>
-      </div>
+        ) : (
+          <p className="mt-2.5 text-xs text-[var(--text-muted)]">No holdings reported.</p>
+        )}
+      </DetailSection>
+
+      <ActivitySection
+        key={account?.id ?? 'all'}
+        emptyText={activityEmptyText(account)}
+        hint={account ? overview.range : `all accounts · ${overview.range}`}
+        items={activity}
+        sourceOf={
+          account
+            ? undefined
+            : (id) => {
+                const a = byId.get(id);
+                return a ? `${a.name} · ${a.institution}` : null;
+              }
+        }
+      />
     </section>
   );
 }

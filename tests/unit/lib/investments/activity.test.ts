@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { utcDay } from '@/lib/investments/dates';
-import { buildActivity, type ActivityInput } from '@/lib/investments/activity';
+import { buildActivity, type ActivityInput, type ActivityItem } from '@/lib/investments/activity';
+
+/** How the old single-line title read: kind, then symbol. */
+const label = (i: ActivityItem) => (i.symbol ? `${i.kind} · ${i.symbol}` : i.kind);
 
 let n = 0;
 const tx = (over: Partial<ActivityInput>): ActivityInput => ({
@@ -55,7 +58,7 @@ describe('buildActivity', () => {
       }),
       tx({ subtype: 'deposit', amount: -500, securityId: null, ticker: null }),
     ]);
-    expect(items.map((i) => [i.title, i.trade, i.amount])).toEqual([
+    expect(items.map((i) => [label(i), i.trade, i.amount])).toEqual([
       ['Buy · AAA', { quantity: 2, price: 50 }, -100],
       ['Sell · AAA', { quantity: 2, price: 10 }, 20],
       ['Dividend · BBB', null, 3.5],
@@ -71,7 +74,7 @@ describe('buildActivity', () => {
       tx({ accountId: 'a2', type: 'buy', subtype: 'buy', quantity: 1, price: 5, amount: 5 }),
       tx({ type: 'buy', subtype: 'buy', quantity: 0.25, price: 40, amount: 10 }),
     ]);
-    expect(items.map((i) => [i.accountId, i.title, i.trade, i.amount])).toEqual([
+    expect(items.map((i) => [i.accountId, label(i), i.trade, i.amount])).toEqual([
       ['a1', 'Dividend reinvested · AAA', { quantity: 0.25, price: 40 }, 10],
       ['a2', 'Buy · AAA', { quantity: 1, price: 5 }, -5],
     ]);
@@ -83,7 +86,7 @@ describe('buildActivity', () => {
       tx({ type: 'buy', subtype: 'buy', quantity: 1, price: 4, amount: 4 }),
       tx({ type: 'buy', subtype: 'buy', quantity: 2, price: 3, amount: 6 }),
     ]);
-    expect(items.map((i) => [i.title, i.trade, i.amount])).toEqual([
+    expect(items.map((i) => [label(i), i.trade, i.amount])).toEqual([
       ['Dividend reinvested · AAA', { quantity: 1, price: 4 }, 10],
       ['Buy · AAA', { quantity: 2, price: 3 }, -6],
     ]);
@@ -98,13 +101,13 @@ describe('buildActivity', () => {
       tx({ subtype: 'dividend', amount: -10, securityId: over.securityId === null ? null : 's1' }),
       tx({ type: 'buy', subtype: 'buy', quantity: 1, price: 10, amount: 10, ...over }),
     ]);
-    expect(items.map((i) => i.title)).toHaveLength(2);
-    expect(items.map((i) => i.title)).not.toContain('Dividend reinvested · AAA');
+    expect(items.map((i) => label(i))).toHaveLength(2);
+    expect(items.map((i) => label(i))).not.toContain('Dividend reinvested · AAA');
   });
 
   it('keeps a dividend with no matching buy as a plain dividend', () => {
     const items = buildActivity([tx({ subtype: 'dividend', amount: -2 })]);
-    expect(items.map((i) => [i.title, i.trade])).toEqual([['Dividend · AAA', null]]);
+    expect(items.map((i) => [label(i), i.trade])).toEqual([['Dividend · AAA', null]]);
   });
 
   it('merges regardless of input order', () => {
@@ -112,7 +115,39 @@ describe('buildActivity', () => {
       tx({ type: 'buy', subtype: 'buy', quantity: 1, price: 2, amount: 2 }),
       tx({ subtype: 'dividend', amount: -2 }),
     ]);
-    expect(items.map((i) => i.title)).toEqual(['Dividend reinvested · AAA']);
+    expect(items.map((i) => label(i))).toEqual(['Dividend reinvested · AAA']);
+  });
+
+  it('names the security by ticker, else by name, apart from the kind', () => {
+    const [byTicker, byName] = buildActivity([
+      tx({ type: 'buy', subtype: 'buy', date: utcDay('2026-10-02') }),
+      tx({ type: 'sell', subtype: 'sell', ticker: null, securityId: 's2' }),
+    ]);
+    expect(byTicker).toMatchObject({ kind: 'Buy', symbol: 'AAA', securityName: 'Triple A' });
+    expect(byName).toMatchObject({ kind: 'Sell', symbol: 'Triple A', securityName: null });
+  });
+
+  it.each<[string, Partial<ActivityInput>, string]>([
+    ['cash income', { subtype: 'income', amount: -16 }, 'Income'],
+    ['a cash transfer in', { subtype: 'transfer_in', amount: -500 }, 'Transfer in'],
+    ['a cash transfer out', { subtype: 'transfer_out', amount: 500 }, 'Transfer out'],
+  ])('names %s by its code, not its description', (_label, over, kind) => {
+    const [item] = buildActivity([
+      tx({ securityId: null, ticker: null, name: 'RAW TEXT', ...over }),
+    ]);
+    expect(item).toMatchObject({ kind, symbol: null });
+  });
+
+  it('gives a cash event with a zero quantity no trade', () => {
+    const [item] = buildActivity([
+      tx({ subtype: 'withdrawal', quantity: 0, price: 0, amount: 50, securityId: null }),
+    ]);
+    expect(item).toMatchObject({
+      kind: 'Withdrawal',
+      symbol: null,
+      securityName: null,
+      trade: null,
+    });
   });
 
   it('keeps each event in its transaction currency', () => {
@@ -127,8 +162,11 @@ describe('buildActivity', () => {
   });
 
   it('falls back to the institution’s name for unknown events', () => {
-    expect(buildActivity([tx({ type: 'other', subtype: 'odd', name: 'Odd thing' })])[0].title).toBe(
-      'Odd thing'
-    );
+    expect(
+      buildActivity([tx({ type: 'other', subtype: 'odd', name: 'Odd thing' })])[0]
+    ).toMatchObject({
+      kind: 'Odd thing',
+      symbol: null,
+    });
   });
 });

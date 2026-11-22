@@ -5,7 +5,7 @@ import { getAccountBalances } from '@/lib/balances';
 import { convertAmount } from '@/lib/currency';
 import { RateBook } from '@/lib/fx/rate-book';
 import type { PriceFreshness, PriceRefresher } from '@/lib/prices/refresh';
-import { ACTIVITY_ROWS_PER_ACCOUNT, buildActivity, type ActivityItem } from './activity';
+import { buildActivity, type ActivityItem } from './activity';
 import type { CurrentHoldingsReader } from './current-holdings';
 import { requireInvestmentAccount } from './account-guard';
 import { isoDay, utcDay } from './dates';
@@ -141,17 +141,15 @@ export class InvestmentOverviewService {
         _max: { date: true },
         where: { accountId: { in: ids }, source: RecordSource.Synced },
       }),
-      // Newest rows per account, so a busy account can't crowd out a quieter one's rows.
-      Promise.all(
-        ids.map((accountId) =>
-          prisma.investmentTransaction.findMany({
-            where: { accountId, isCancelled: false, type: { not: 'cancel' } },
-            include: { security: { select: { ticker: true, name: true } } },
-            orderBy: { date: 'desc' },
-            take: ACTIVITY_ROWS_PER_ACCOUNT,
-          })
-        )
-      ),
+      prisma.investmentTransaction.findMany({
+        where: {
+          accountId: { in: ids },
+          date: { gte: from },
+          isCancelled: false,
+          type: { not: 'cancel' },
+        },
+        include: { security: { select: { ticker: true, name: true } } },
+      }),
       this.prices.freshness(),
     ]);
     const tradeCount = new Map(trades.map((t) => [t.accountId, t._count._all]));
@@ -216,7 +214,7 @@ export class InvestmentOverviewService {
       accounts: summaries,
       holdings,
       activity: buildActivity(
-        recent.flat().map((t) => ({
+        recent.map((t) => ({
           id: t.id,
           accountId: t.accountId,
           date: t.date,

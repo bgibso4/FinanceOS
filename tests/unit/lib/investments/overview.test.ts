@@ -11,7 +11,6 @@ import {
   seedTrade,
   testServices,
 } from '../../../helpers/investments';
-import { ACTIVITY_ROWS_PER_ACCOUNT } from '@/lib/investments/activity';
 import type { Range } from '@/lib/investments/portfolio-view';
 import { BalanceRowSource, BalanceSource, Pricing, RecordSource } from '@/lib/investments/codes';
 
@@ -158,7 +157,9 @@ describe('InvestmentOverviewService', () => {
     await seedBalance(prisma, a.id, '2026-10-05', 10);
 
     const o = await overview();
-    expect(o.activity.map((i) => [i.date, i.title])).toEqual([['2026-10-05', 'Buy · AAA']]);
+    expect(o.activity.map((i) => [i.date, i.kind, i.symbol])).toEqual([
+      ['2026-10-05', 'Buy', 'AAA'],
+    ]);
     expect(o.accounts[0].status.tradesReported).toBe(true);
   });
 
@@ -179,33 +180,24 @@ describe('InvestmentOverviewService', () => {
     expect(item).toMatchObject({ currency: 'CAD', amount: -30 });
   });
 
-  it('keeps a quiet account’s activity next to a busy one', async () => {
+  it('lists every activity in the range, and none from before it', async () => {
     const busy = await seedInvestmentAccount(prisma);
     const quiet = await seedInvestmentAccount(prisma);
     const s = await seedSecurity(prisma, { priceSymbol: 'AAA' });
-    for (let d = 1; d <= ACTIVITY_ROWS_PER_ACCOUNT + 2; d++) {
-      const date = `2026-09-${String(d).padStart(2, '0')}`;
-      await seedTrade(prisma, {
-        accountId: busy.id,
-        securityId: s.id,
-        date,
-        type: 'buy',
-        quantity: 1,
-        amount: 1,
-      });
-    }
-    await seedTrade(prisma, {
-      accountId: quiet.id,
-      securityId: s.id,
-      date: '2026-08-01',
-      type: 'buy',
-      quantity: 1,
-      amount: 1,
-    });
+    const trade = (accountId: string, date: string) =>
+      seedTrade(prisma, { accountId, securityId: s.id, date, type: 'buy', quantity: 1, amount: 1 });
+    for (let d = 15; d <= 30; d++) await trade(busy.id, `2026-09-${d}`);
+    for (let d = 1; d <= 8; d++) await trade(busy.id, `2026-10-0${d}`);
+    await trade(quiet.id, '2026-10-02');
+    await trade(quiet.id, '2026-08-01');
 
-    const { activity } = await overview();
-    expect(activity.filter((i) => i.accountId === busy.id)).toHaveLength(ACTIVITY_ROWS_PER_ACCOUNT);
-    expect(activity.filter((i) => i.accountId === quiet.id)).toHaveLength(1);
+    const month = (await overview('1M')).activity;
+    expect(month.filter((i) => i.accountId === busy.id)).toHaveLength(24);
+    expect(month.filter((i) => i.accountId === quiet.id).map((i) => i.date)).toEqual([
+      '2026-10-02',
+    ]);
+    const year = (await overview('1Y')).activity;
+    expect(year.filter((i) => i.accountId === quiet.id)).toHaveLength(2);
   });
 
   it('renders an empty overview without investment accounts', async () => {

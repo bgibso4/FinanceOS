@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/cn';
+import { useCollapsed } from './use-collapsed';
 
 /** A security that can be bought, for the "buy with" pickers. */
 export type BuyOption = { id: string; label: string };
@@ -137,15 +138,6 @@ export function TotalPill({
 
 const COLLAPSED_KEY = 'financeos:targets-collapsed';
 
-/** The cards the viewer has collapsed, remembered in this browser. */
-function readCollapsed(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]') as string[];
-  } catch {
-    return [];
-  }
-}
-
 /** A card; with a `collapseKey` its title folds it down to the header, pill included. */
 export function CardShell({
   children,
@@ -160,21 +152,7 @@ export function CardShell({
   subtitle?: string;
   title: string;
 }) {
-  const [collapsed, setCollapsed] = useState(
-    () => !!collapseKey && readCollapsed().includes(collapseKey)
-  );
-  const toggle = () => {
-    setCollapsed(!collapsed);
-    try {
-      const rest = readCollapsed().filter((k) => k !== collapseKey);
-      localStorage.setItem(
-        COLLAPSED_KEY,
-        JSON.stringify(collapsed ? rest : [...rest, collapseKey])
-      );
-    } catch {
-      // Not remembered; the card still folds.
-    }
-  };
+  const [collapsed, toggle] = useCollapsed(COLLAPSED_KEY, collapseKey);
   return (
     <Card aria-label={title} className="min-w-0 px-5 py-[18px]" role="region">
       <div className="flex items-baseline justify-between gap-3">
