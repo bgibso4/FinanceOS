@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stacked Holdings and Activity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f2f2f7; --surface: #ffffff; --fill: #e9e9ee; --ink: #1c1c1e; --ink-2: #6e6e73; --ink-3: #8a8a8e; --line: #d8d8dc;
+  --tint: #1c1c1e; --on-tint: #ffffff; --soon: #ad500e; --done: #2f7d4f; --info: #3f6fa3; --warn: #a3392f;
+  --serif: "Source Serif 4", "New York", ui-serif, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+    --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+  --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+h1, h2, h3 { text-wrap: balance; }
+.layout { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+.brand { font: 700 15px/1.2 var(--serif); }
+.brand span { display: block; font: 400 13px/1.4 var(--sans); color: var(--ink-2); margin-top: 2px; }
+.overall { background: var(--surface); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.overall b { font: 700 17px/1.2 var(--serif); color: var(--ink); }
+.toc { display: flex; flex-direction: column; gap: 1px; }
+.toc-label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin: 6px 0 6px 10px; }
+.toc a { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; text-decoration: none; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.toc a:hover { background: var(--surface); color: var(--ink); }
+.toc a.active { background: var(--surface); color: var(--ink); font-weight: 600; }
+.toc-n { width: 20px; text-align: right; color: var(--ink-3); font-size: 13px; flex: none; font-variant-numeric: tabular-nums; }
+.theme { align-self: flex-start; background: none; border: 0; color: var(--ink-3); font: 13px var(--sans); cursor: pointer; padding: 4px 10px; }
+.theme:hover { color: var(--ink); }
+main { padding: 48px 0 120px; display: flex; flex-direction: column; gap: 48px; min-width: 0; }
+.eyebrow { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.eyebrow .pill { background: var(--surface); border-radius: 99px; padding: 3px 10px; font-weight: 600; color: var(--ink); }
+h1 { font: 700 44px/1.08 var(--serif); letter-spacing: -0.6px; margin: 12px 0 14px; }
+.goal { font-size: 19px; line-height: 1.5; max-width: 66ch; margin: 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 24px; }
+.meta div { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; line-height: 1.5; }
+.meta b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 4px; }
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 14px; color: var(--ink-2); }
+.stats b { font: 700 20px var(--serif); color: var(--ink); margin-right: 4px; font-variant-numeric: tabular-nums; }
+section > h2 { font: 700 26px/1.2 var(--serif); margin: 0 0 6px; letter-spacing: -0.2px; }
+section > h3.sub { font: 700 19px/1.3 var(--serif); margin: 22px 0 8px; }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 66ch; }
+.decisions { background: var(--surface); border-radius: var(--r); padding: 6px 0; border-left: 4px solid var(--soon); }
+.decisions.agreed { border-left-color: var(--done); }
+.decisions ul { list-style: none; margin: 0; padding: 0; }
+.decision { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 18px; }
+.decision + .decision { border-top: 1px solid var(--line); }
+.dec-name { font-weight: 600; }
+.dec-id { font: 700 13px var(--serif); color: var(--ink-3); margin-right: 6px; }
+.dec-text { color: var(--ink-2); font-size: 15px; max-width: 70ch; }
+.dec-text strong { color: var(--ink); }
+.trefs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 180px; }
+.tref { flex: none; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--fill); padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.tref:hover { background: var(--tint); color: var(--on-tint); }
+.card { background: var(--surface); border-radius: var(--r); padding: 6px 20px; }
+.card ul, .card ol { margin: 0; padding: 0; list-style: none; }
+.card > ul > li, .card > ol > li { padding: 11px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.card > ul > li:first-child, .card > ol > li:first-child { border-top: 0; }
+.card li ul { list-style: disc; padding-left: 20px; margin: 6px 0 0; }
+.card li ul li { padding: 2px 0; border: 0; color: var(--ink-2); }
+.card li ul li strong { color: var(--ink); }
+.numbered { counter-reset: f; }
+.numbered > li { counter-increment: f; display: grid; grid-template-columns: 28px 1fr; gap: 6px; }
+.numbered > li::before { content: counter(f); font: 700 17px/1.4 var(--serif); color: var(--soon); }
+table.md { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border-radius: var(--r); overflow: hidden; }
+table.md th, table.md td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--line); }
+table.md th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); border-top: 0; }
+table.md td:first-child { font-weight: 600; white-space: nowrap; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; }
+.chip.mine { color: var(--soon); background: color-mix(in srgb, var(--soon) 13%, transparent); }
+.chip.agreed { color: var(--done); background: color-mix(in srgb, var(--done) 13%, transparent); }
+.chip.route { color: var(--info); background: color-mix(in srgb, var(--info) 13%, transparent); font-family: var(--mono); font-weight: 500; }
+.callout { background: var(--surface); border-radius: var(--r); padding: 14px 18px; border-left: 4px solid var(--warn); font-size: 15px; margin-top: 12px; }
+.callout b:first-child { display: block; margin-bottom: 4px; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.col { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; }
+.col h3 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 8px; }
+.col ul { margin: 0; padding-left: 16px; } .col li { margin: 5px 0; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
+  .side { position: static; height: auto; padding: 24px 0 0; }
+  .toc { display: none; }
+  h1 { font-size: 34px; }
+  .cols { grid-template-columns: 1fr; }
+  .decision { flex-direction: column; gap: 8px; }
+  .trefs { justify-content: flex-start; max-width: none; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side" aria-label="Sections">
+    <div class="brand">FinanceOS<span>Design · Stacked Holdings and Activity</span></div>
+    <div class="overall"><span>Status</span><b>Mock approved</b><span>Next: build</span></div>
+    <nav class="toc" aria-label="Sections">
+      <div class="toc-label">Overview</div>
+      <a href="#mine"><span class="toc-n"></span><span>My calls</span></a>
+      <a href="#scope"><span class="toc-n"></span><span>Scope</span></a>
+      <a href="#approaches"><span class="toc-n"></span><span>Approaches</span></a>
+      <div class="toc-label">Design</div>
+      <a href="#layout"><span class="toc-n">1</span><span>Layout and sections</span></a>
+      <a href="#activity"><span class="toc-n">2</span><span>Activity columns</span></a>
+      <div class="toc-label">Build</div>
+      <a href="#plan"><span class="toc-n"></span><span>Plan</span></a>
+      <a href="#testing"><span class="toc-n"></span><span>Testing</span></a>
+    </nav>
+    <button class="theme" type="button" id="theme">◐ Light / dark</button>
+  </aside>
+  <main>
+    <header>
+      <div class="eyebrow"><span class="pill">Design</span><span>Written 2026-11-22</span><span>·</span><span>small change · one mock round · not started</span></div>
+      <h1>Stacked Holdings and Activity</h1>
+      <p class="goal">On the Investments page, Holdings and Activity sit side by side at the bottom of the account panel. Activity gets the narrow column, so it's small and hard to read. This stacks them: Holdings runs the full width, and Activity sits underneath with its own columns. Both sections can be collapsed from a larger header.</p>
+      <div class="meta">
+        <div><b>Where</b>Branch <code>feat/stacked-holdings-activity</code> off <code>main</code>. One PR against <code>main</code>.</div>
+        <div><b>Builds on</b><code>AccountDetail</code>, <code>ActivityList</code>, <code>buildActivity</code> in <code>src/lib/investments/activity.ts</code>, and the collapsible <code>CardShell</code> in <code>targets-kit.tsx</code>.</div>
+        <div><b>Approved mock</b><code>~/Documents/FinanceOS-design-archive/design-mocks/investments/holdings-activity-stacked.html</code></div>
+      </div>
+    </header>
+
+    <section id="mine">
+      <h2>My calls</h2>
+      <p class="lede">You approved the mock without picking on these two questions, so these are the defaults I offered.</p>
+      <div class="decisions"><ul>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M1</span>Same number of activity rows</div><div class="dec-text">It still shows <strong>8</strong> rows for All accounts and <strong>5</strong> for one account. Adding more rows or a "Show more" link can come later if you want it.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>Closed sections stay closed</div><div class="dec-text">If you close a section, it stays closed on your next visit, in this browser. The Targets cards already work this way.</div></div></li>
+      </ul></div>
+    </section>
+
+    <section id="scope">
+      <h2>Scope</h2>
+      <div class="cols">
+        <div class="col"><h3>Goals</h3><ul>
+          <li>Activity is readable at a glance</li>
+          <li>Holdings and Activity can each be collapsed</li>
+          <li>Section headers stand out more</li>
+        </ul></div>
+        <div class="col"><h3>Non-goals</h3><ul>
+          <li>Changing the chart, the holdings map or allocation</li>
+          <li>More activity rows, or filters on activity</li>
+        </ul></div>
+        <div class="col"><h3>Anti-goals</h3><ul>
+          <li>A second collapsible pattern next to the Targets one</li>
+          <li>Breaking the existing open-a-holding-by-account rows</li>
+        </ul></div>
+      </div>
+    </section>
+
+    <section id="approaches">
+      <h2>Approaches</h2>
+      <table class="md">
+        <tr><th>Approach</th><th>Trade-off</th><th>Outcome</th></tr>
+        <tr><td>Keep them side by side and give Activity a wider column</td><td>Activity stays cramped on smaller screens, and Holdings gets squeezed</td><td>Rejected</td></tr>
+        <tr><td>Put Holdings and Activity on separate tabs</td><td>Both get the full width, but you can't see them together</td><td>Rejected</td></tr>
+        <tr><td>Stack them, each collapsible (your idea)</td><td>On All accounts, Activity ends up further down the page; collapsing Holdings fixes that</td><td><strong>Chosen</strong></td></tr>
+      </table>
+    </section>
+
+    <section id="layout">
+      <h2>1 · Layout and sections</h2>
+      <div class="card"><ul>
+        <li>The two-column grid at the bottom of <code>AccountDetail</code> becomes two stacked, full-width sections: Holdings first, then Activity.</li>
+        <li>Each section header is a button: an arrow, the title at 14px semibold primary, a count badge, and the existing hint on the right in uppercase. A border sits under the header. Clicking it opens or closes the section; both start open.</li>
+        <li>A closed header shows a one-line summary. Holdings: the total value and the top three tickers. Activity: the latest entry's date and title.</li>
+        <li>The open or closed state is saved in this browser (M2). The remembering code is taken out of <code>CardShell</code> into a shared <code>useCollapsed</code> hook that both use. Targets keeps its existing storage key, so cards you've already closed stay closed.</li>
+      </ul></div>
+    </section>
+
+    <section id="activity">
+      <h2>2 · Activity columns</h2>
+      <div class="card"><ul>
+        <li>Columns: <b>Date</b> · <b>Activity</b> (type, then ticker) · <b>Account</b> (All accounts only) · <b>Shares</b> · <b>Price</b> · <b>Amount</b>. A dash fills an empty Shares or Price.</li>
+        <li>The type is coloured: Buy blue, Sell accent, Dividend (including "Dividend reinvested") green, everything else secondary.</li>
+        <li>To make this possible, <code>ActivityItem.title</code> is replaced by <code>kind</code> (Buy, Sell, Dividend, Dividend reinvested, Interest, Fee and so on, or the institution's description for anything unrecognised) and <code>symbol</code> (the ticker, or the security name, or null). The naming rules stay the same.</li>
+        <li>On a phone-width screen, the table scrolls sideways inside its section rather than squeezing.</li>
+      </ul></div>
+    </section>
+
+    <section id="plan">
+      <h2>Plan</h2>
+      <div class="card"><ol class="numbered">
+        <li><b>Activity data.</b> In <code>activity.test.ts</code>, change the expected <code>title</code>s to <code>kind</code> / <code>symbol</code> pairs and watch them fail. Then change <code>TITLE_RULES</code> to return <code>{ kind, symbol }</code>. Commit.</li>
+        <li><b>Shared collapse hook.</b> Move the remembering logic out of <code>CardShell</code> into <code>useCollapsed(storageKey, id)</code> in <code>src/components/investments/use-collapsed.ts</code>, returning <code>[collapsed, toggle]</code>. The existing Targets collapse test must still pass unchanged. Commit.</li>
+        <li><b>Collapsible section.</b> Tests first in <code>navigator-detail.test.tsx</code>: both sections start open; clicking "Holdings" hides its rows and shows the summary; a closed section stays closed after remounting. Then add <code>DetailSection</code> (in <code>account-detail.tsx</code>, since nothing else uses it) and stack the two sections. Commit.</li>
+        <li><b>Activity table.</b> Tests first: the account column shows only on All accounts, shares and price get their own cells, and a dash fills missing ones. Then rewrite <code>ActivityList</code> as a grid with a header row. Commit.</li>
+        <li><b>Check.</b> <code>npm run check</code>, the full unit suite, and a look in the browser on a dev server on a spare port, in both themes and at phone width.</li>
+      </ol></div>
+    </section>
+
+    <section id="testing">
+      <h2>Testing</h2>
+      <div class="card"><ul>
+        <li>Unit tests as listed in the plan, plus every existing <code>AccountDetail</code> and Targets test still passing.</li>
+        <li>In the browser: All accounts and one account, open and closed, light and dark, and a narrow window.</li>
+        <li>Don't run <code>npm run build</code> while the production server is running.</li>
+      </ul></div>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  btn.addEventListener('click', function () {
+    var r = document.documentElement;
+    var dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (a) { a.classList.remove('active'); });
+        var a = map[e.target.id]; if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+})();
+</script>
+</body>
+</html>
