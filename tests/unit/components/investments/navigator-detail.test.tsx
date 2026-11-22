@@ -138,7 +138,8 @@ describe('AccountDetail', () => {
           id: 't1',
           accountId: 'acc-ret',
           date: '2026-10-05',
-          title: 'Buy · AAA',
+          kind: 'Buy',
+          symbol: 'AAA',
           trade: null,
           amount: -5,
           currency: 'USD',
@@ -151,7 +152,7 @@ describe('AccountDetail', () => {
     expect(screen.getByText('combined across accounts')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /AAA/ })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByText('size = value · color = 3M change')).toBeInTheDocument();
-    expect(screen.getByText('Workplace Plan · Test Bank')).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'Workplace Plan · Test Bank' })).toBeInTheDocument();
     expect(screen.getByText('balance change · 3M')).toBeInTheDocument();
   });
 

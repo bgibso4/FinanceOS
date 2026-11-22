@@ -158,7 +158,9 @@ describe('InvestmentOverviewService', () => {
     await seedBalance(prisma, a.id, '2026-10-05', 10);
 
     const o = await overview();
-    expect(o.activity.map((i) => [i.date, i.title])).toEqual([['2026-10-05', 'Buy · AAA']]);
+    expect(o.activity.map((i) => [i.date, i.kind, i.symbol])).toEqual([
+      ['2026-10-05', 'Buy', 'AAA'],
+    ]);
     expect(o.accounts[0].status.tradesReported).toBe(true);
   });
 

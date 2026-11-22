@@ -395,23 +395,52 @@ describe('ActivityList', () => {
     id: 't1',
     accountId: 'a1',
     date: '2026-10-05',
-    title: 'Buy · AAA',
+    kind: 'Buy',
+    symbol: 'AAA',
     trade: { quantity: 1, price: 5 },
     amount: -5,
     currency: 'USD',
   };
+  const rowOf = (text: string) => screen.getByText(text).closest('[role="row"]') as HTMLElement;
+  const cells = (row: HTMLElement) =>
+    within(row)
+      .getAllByRole('cell')
+      .map((c) => c.textContent);
 
   it('shows the empty copy', () => {
     render(<ActivityList emptyText="No activity reported." items={[]} />);
     expect(screen.getByText('No activity reported.')).toBeInTheDocument();
   });
 
-  it('prefixes the account in the all-accounts view and signs amounts', () => {
+  it('gives the account, shares and price their own columns in the all-accounts view', () => {
     render(<ActivityList emptyText="" items={[item]} sourceOf={() => 'Brokerage · Test Bank'} />);
-    const row = screen.getByText('Buy · AAA').closest('.grid') as HTMLElement;
-    expect(within(row).getByText('Brokerage · Test Bank · 1 sh @ $5.00')).toBeInTheDocument();
-    expect(within(row).getByText('−$5.00')).toBeInTheDocument();
-    expect(within(row).getByText('Oct 5')).toBeInTheDocument();
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
+      'Date',
+      'Activity',
+      'Account',
+      'Shares',
+      'Price',
+      'Amount',
+    ]);
+    expect(cells(rowOf('AAA'))).toEqual([
+      'Oct 5',
+      'BuyAAA',
+      'Brokerage · Test Bank',
+      '1',
+      '$5.00',
+      '−$5.00',
+    ]);
+  });
+
+  it('drops the account column for one account and dashes a cash event', () => {
+    render(
+      <ActivityList
+        emptyText=""
+        items={[{ ...item, kind: 'Interest', symbol: null, trade: null, amount: 1.5 }]}
+      />
+    );
+    expect(screen.queryByRole('columnheader', { name: 'Account' })).toBeNull();
+    expect(cells(rowOf('Interest'))).toEqual(['Oct 5', 'Interest', '—', '—', '+$1.50']);
   });
 
   it('shows amounts and prices in the transaction currency', () => {
@@ -423,7 +452,8 @@ describe('ActivityList', () => {
         ]}
       />
     );
-    expect(screen.getByText('1,234.5 sh @ CA$7.50')).toBeInTheDocument();
-    expect(screen.getByText('CA$12.25')).toBeInTheDocument();
+    expect(screen.getByText('1,234.5')).toBeInTheDocument();
+    expect(screen.getByText('CA$7.50')).toBeInTheDocument();
+    expect(screen.getByText('+CA$12.25')).toBeInTheDocument();
   });
 });
