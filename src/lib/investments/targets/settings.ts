@@ -172,7 +172,8 @@ export class TargetSettingsService {
         securityId,
         label: lines[0].label,
         name: lines[0].name,
-        heldIn: lines.map((l) => l.accountId),
+        // In account order, so the list reads the same on every load.
+        heldIn: accounts.filter((a) => lines.some((l) => l.accountId === a.id)).map((a) => a.id),
         valueBase: roundCents(lines.reduce((s, l) => s + l.valueBase, 0)),
         classId: assigned.get(securityId)?.targetClassId ?? null,
         regionId: assigned.get(securityId)?.targetRegionId ?? null,

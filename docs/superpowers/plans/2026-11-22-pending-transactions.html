@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pending Transactions Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f2f2f7; --surface: #ffffff; --fill: #e9e9ee; --ink: #1c1c1e; --ink-2: #6e6e73; --ink-3: #8a8a8e; --line: #d8d8dc;
+  --tint: #1c1c1e; --on-tint: #ffffff; --soon: #ad500e; --done: #2f7d4f; --info: #3f6fa3; --warn: #a3392f;
+  --serif: "Source Serif 4", "New York", ui-serif, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+    --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000; --surface: #1c1c1e; --fill: #2c2c2e; --ink: #f2f2f7; --ink-2: #98989f; --ink-3: #8e8e93;
+  --line: #38383a; --tint: #f2f2f7; --on-tint: #000000; --soon: #f2a65a; --done: #6cc28e; --info: #6f9bd0; --warn: #e58a7f;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 4px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--fill); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+strong { font-weight: 600; }
+h1, h2, h3 { text-wrap: balance; }
+.layout { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+.brand { font: 700 15px/1.2 var(--serif); }
+.brand span { display: block; font: 400 13px/1.4 var(--sans); color: var(--ink-2); margin-top: 2px; }
+.overall { background: var(--surface); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.overall b { font: 700 17px/1.2 var(--serif); color: var(--ink); }
+.toc { display: flex; flex-direction: column; gap: 1px; }
+.toc-label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin: 6px 0 6px 10px; }
+.toc a { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; text-decoration: none; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+.toc a:hover { background: var(--surface); color: var(--ink); }
+.toc a.active { background: var(--surface); color: var(--ink); font-weight: 600; }
+.toc-n { width: 20px; text-align: right; color: var(--ink-3); font-size: 13px; flex: none; font-variant-numeric: tabular-nums; }
+.theme { align-self: flex-start; background: none; border: 0; color: var(--ink-3); font: 13px var(--sans); cursor: pointer; padding: 4px 10px; }
+.theme:hover { color: var(--ink); }
+main { padding: 48px 0 120px; display: flex; flex-direction: column; gap: 48px; min-width: 0; }
+.eyebrow { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.eyebrow .pill { background: var(--surface); border-radius: 99px; padding: 3px 10px; font-weight: 600; color: var(--ink); }
+h1 { font: 700 44px/1.08 var(--serif); letter-spacing: -0.6px; margin: 12px 0 14px; }
+.goal { font-size: 19px; line-height: 1.5; max-width: 66ch; margin: 0; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 24px; }
+.meta div { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; line-height: 1.5; }
+.meta b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin-bottom: 4px; }
+.stats { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 20px; font-size: 14px; color: var(--ink-2); }
+.stats b { font: 700 20px var(--serif); color: var(--ink); margin-right: 4px; font-variant-numeric: tabular-nums; }
+section > h2 { font: 700 26px/1.2 var(--serif); margin: 0 0 6px; letter-spacing: -0.2px; }
+section > h3.sub { font: 700 19px/1.3 var(--serif); margin: 22px 0 8px; }
+.lede { color: var(--ink-2); margin: 0 0 16px; max-width: 66ch; }
+.decisions { background: var(--surface); border-radius: var(--r); padding: 6px 0; border-left: 4px solid var(--soon); }
+.decisions.agreed { border-left-color: var(--done); }
+.decisions ul { list-style: none; margin: 0; padding: 0; }
+.decision { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 18px; }
+.decision + .decision { border-top: 1px solid var(--line); }
+.dec-name { font-weight: 600; }
+.dec-id { font: 700 13px var(--serif); color: var(--ink-3); margin-right: 6px; }
+.dec-text { color: var(--ink-2); font-size: 15px; max-width: 70ch; }
+.dec-text strong { color: var(--ink); }
+.trefs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 180px; }
+.tref { flex: none; font-size: 13px; font-weight: 600; text-decoration: none; background: var(--fill); padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.tref:hover { background: var(--tint); color: var(--on-tint); }
+.card { background: var(--surface); border-radius: var(--r); padding: 6px 20px; }
+.card ul, .card ol { margin: 0; padding: 0; list-style: none; }
+.card > ul > li, .card > ol > li { padding: 11px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.card > ul > li:first-child, .card > ol > li:first-child { border-top: 0; }
+.card li ul { list-style: disc; padding-left: 20px; margin: 6px 0 0; }
+.card li ul li { padding: 2px 0; border: 0; color: var(--ink-2); }
+.card li ul li strong { color: var(--ink); }
+.numbered { counter-reset: f; }
+.numbered > li { counter-increment: f; display: grid; grid-template-columns: 28px 1fr; gap: 6px; }
+.numbered > li::before { content: counter(f); font: 700 17px/1.4 var(--serif); color: var(--soon); }
+table.md { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--surface); border-radius: var(--r); overflow: hidden; }
+table.md th, table.md td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--line); }
+table.md th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); border-top: 0; }
+table.md td:first-child { font-weight: 600; white-space: nowrap; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; vertical-align: 1px; white-space: nowrap; }
+.chip.mine { color: var(--soon); background: color-mix(in srgb, var(--soon) 13%, transparent); }
+.chip.agreed { color: var(--done); background: color-mix(in srgb, var(--done) 13%, transparent); }
+.chip.route { color: var(--info); background: color-mix(in srgb, var(--info) 13%, transparent); font-family: var(--mono); font-weight: 500; }
+.callout { background: var(--surface); border-radius: var(--r); padding: 14px 18px; border-left: 4px solid var(--warn); font-size: 15px; margin-top: 12px; }
+.callout b:first-child { display: block; margin-bottom: 4px; }
+.cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.col { background: var(--surface); border-radius: var(--r); padding: 14px 16px; font-size: 14px; }
+.col h3 { font: 600 12px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 0 0 8px; }
+.col ul { margin: 0; padding-left: 16px; } .col li { margin: 5px 0; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; gap: 0; padding: 0 16px; }
+  .side { position: static; height: auto; padding: 24px 0 0; }
+  .toc { display: none; }
+  h1 { font-size: 34px; }
+  .cols { grid-template-columns: 1fr; }
+  .decision { flex-direction: column; gap: 8px; }
+  .trefs { justify-content: flex-start; max-width: none; }
+}
+pre { font-family: var(--mono); font-size: 13px; line-height: 1.5; background: var(--fill); border-radius: 10px; padding: 12px 14px; overflow-x: auto; margin: 8px 0; }
+.task { background: var(--surface); border-radius: var(--r); padding: 18px 22px; }
+.task + .task { margin-top: 14px; }
+.task h3 { font: 700 19px/1.3 var(--serif); margin: 0 0 10px; }
+.task .files, .task .ifaces { font-size: 14px; color: var(--ink-2); margin: 0 0 10px; }
+.task .files code, .task .ifaces code { font-size: 12.5px; }
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+.steps > li { counter-increment: s; display: grid; grid-template-columns: 26px 1fr; gap: 6px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.steps > li::before { content: "☐"; color: var(--ink-3); }
+.steps > li:first-child { border-top: 0; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="side" aria-label="Sections">
+    <div class="brand">FinanceOS<span>Plan · Pending transactions</span></div>
+    <div class="overall"><span>Status</span><b>Waiting on your review</b><span>4 tasks · branch feat/pending-transactions</span></div>
+    <nav class="toc" aria-label="Sections">
+      <div class="toc-label">Overview</div>
+      <a href="#header"><span class="toc-n"></span><span>Goal &amp; architecture</span></a>
+      <a href="#constraints"><span class="toc-n"></span><span>Global constraints</span></a>
+      <a href="#focus"><span class="toc-n"></span><span>Review focus</span></a>
+      <a href="#files"><span class="toc-n"></span><span>File map</span></a>
+      <div class="toc-label">Tasks</div>
+      <a href="#t1"><span class="toc-n">1</span><span>The pending flag</span></a>
+      <a href="#t2"><span class="toc-n">2</span><span>Posting takes over the row</span></a>
+      <a href="#t3"><span class="toc-n">3</span><span>List suffix and drawer notice</span></a>
+      <a href="#t4"><span class="toc-n">4</span><span>Full check and browser</span></a>
+    </nav>
+    <button class="theme" type="button" id="theme">◐ Light / dark</button>
+  </aside>
+  <main>
+    <header id="header">
+      <div class="eyebrow"><span class="pill">Plan</span><span>Written 2026-11-22</span><span>·</span><span>implements the Pending transactions design</span></div>
+      <h1>Pending transactions: implementation plan</h1>
+      <p class="goal"><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task by task. Load the <code>principal-engineer</code> skill before writing code.</p>
+      <div class="meta">
+        <div><b>Goal</b>Edits made to a pending Plaid charge survive when it posts, and pending charges show a quiet "· Pending" note in the list and a notice in the drawer.</div>
+        <div><b>Architecture</b>One boolean column, <code>isPending</code>, set by Plaid sync. When a posted charge carries <code>pending_transaction_id</code>, sync updates the existing row in place instead of creating a new one. Removals are collected across all pages and applied after the loop, skipping any pending ID a posted charge took over.</div>
+        <div><b>Stack · Spec</b>Next.js, React 19, Tailwind, Prisma/SQLite, Vitest + Testing Library. Spec: <code>docs/superpowers/specs/2026-11-22-pending-transactions-design.html</code>. Mock: <code>~/Documents/FinanceOS-design-archive/design-mocks/pending-transactions.html</code> (Option A plus the drawer notice).</div>
+      </div>
+    </header>
+
+    <section id="constraints">
+      <h2>Global constraints</h2>
+      <div class="card"><ul>
+        <li>Apply schema changes with <code>npx prisma db push</code> (then <code>npx prisma generate</code>). <code>migrate dev</code> fails on this database (P3006).</li>
+        <li>Only Plaid sync ever sets <code>isPending: true</code>. Manual entries, CSV imports, Teller, Splitwise and split parts always leave it <code>false</code>.</li>
+        <li>When a charge posts, write only <code>externalId</code>, <code>date</code>, <code>amount</code>, <code>importHash</code> and <code>isPending: false</code>. Never touch the merchant, category, confidence, note, tags, trip, outside budget, transfer fields, links or split parts (spec M1, M2).</li>
+        <li>List copy: <code>· Pending</code>, in the same muted <code>text-xs</code> span as <code>· Outside budget</code>. It comes after Outside budget and before the Split label.</li>
+        <li>Drawer copy, exactly: <b>Pending.</b> "The bank may still change the amount or date. Your category, notes and tags will carry over when it posts."</li>
+        <li>Vendor names (Plaid) only in the Plaid sync module. UI copy says "bank".</li>
+        <li>Don't run <code>npm run build</code> while the production server is running. Start a dev server on a free port for the browser check.</li>
+      </ul></div>
+    </section>
+
+    <section id="focus">
+      <h2>Review focus</h2>
+      <div class="card"><ol class="numbered">
+        <li>The "remove pending" message arrives on an <strong>earlier page</strong> than the posted charge. The row must survive with its edits (Task 2, <code>removalOnEarlierPageStillCarriesOver</code>).</li>
+        <li>A pending charge is <strong>modified while still pending</strong> (for example a tip is added). It stays pending, and the "modified" path doesn't clear the flag (Task 1, <code>modifyKeepsPendingFlag</code>).</li>
+        <li>The pending row was <strong>split</strong>. After it posts, the parts still point at the same parent (Task 2, <code>postingKeepsSplitParts</code>).</li>
+        <li>A <strong>dry-run preview</strong> must not list the taken-over pending ID as "would remove" (Task 2, <code>previewDoesNotRemoveClaimedPending</code>).</li>
+        <li>A <strong>split part</strong> of a pending row must not inherit <code>isPending</code>, because nothing would ever clear it (Task 1, <code>splitPartsAreNeverPending</code>).</li>
+      </ol></div>
+    </section>
+
+    <section id="files">
+      <h2>File map</h2>
+      <table class="md">
+        <tr><th>File</th><th>Change</th></tr>
+        <tr><td><code>prisma/schema.prisma</code></td><td><code>isPending Boolean @default(false)</code> on <code>Transaction</code></td></tr>
+        <tr><td><code>src/lib/cloud-sync/types.ts</code>, <code>sync.ts</code></td><td>The field in the schema, the export (~175) and the import (~696)</td></tr>
+        <tr><td><code>src/lib/plaid-sync.ts</code></td><td>Set the flag on create and modify; posting takeover; removals deferred until after the loop; preview parity</td></tr>
+        <tr><td><code>src/components/transactions/types.ts</code></td><td><code>isPending?: boolean</code> on <code>Tx</code></td></tr>
+        <tr><td><code>src/components/transactions/transaction-table.tsx</code></td><td>The suffix</td></tr>
+        <tr><td><code>src/components/transactions/transaction-drawer.tsx</code></td><td>The notice in <code>headerExtra</code>, under the amount</td></tr>
+      </table>
+    </section>
+
+    <section>
+      <h2>Tasks</h2>
+
+      <div class="task" id="t1">
+        <h3>Task 1 · The pending flag</h3>
+        <p class="files"><b>Files:</b>
+          <ul>
+            <li>Modify <code>prisma/schema.prisma</code>, <code>src/lib/cloud-sync/types.ts</code>, <code>src/lib/cloud-sync/sync.ts</code>, <code>src/lib/plaid-sync.ts</code> (<code>mapPlaidTransaction</code> and the modify branch of <code>processPlaidTransaction</code>) and <code>src/components/transactions/types.ts</code>.</li>
+            <li>Extend <code>tests/unit/lib/plaid-sync.test.ts</code>, <code>tests/integration/api/cloud-sync.test.ts</code> and <code>tests/integration/api/transaction-split.test.ts</code>.</li>
+          </ul>
+        </p>
+        <p class="ifaces"><b>Produces:</b>
+          <ul>
+            <li>The column <code>Transaction.isPending</code>.</li>
+            <li><code>mapPlaidTransaction(...)</code> now returns <code>isPending: boolean</code> (from <code>plaidTx.pending</code>).</li>
+            <li><code>Tx.isPending?: boolean</code>. The transactions API returns every scalar column, so no route changes.</li>
+          </ul>
+        </p>
+        <ol class="steps">
+          <li><div>Plaid sync tests (in the <code>syncPlaidTransactions</code> describe, using <code>mockSyncResponse</code> / <code>createMockPlaidTransaction</code>):
+            <ul>
+              <li><code>storesPendingFlag</code>: added <code>{transaction_id:'p1', pending:true}</code> and <code>{transaction_id:'q1', pending:false}</code> → the row for <code>p1</code> has <code>isPending === true</code> and the row for <code>q1</code> has <code>false</code>.</li>
+              <li><code>modifyKeepsPendingFlag</code>: an existing row <code>{externalId:'p1', isPending:true}</code>, modified <code>{transaction_id:'p1', pending:true, amount:30}</code> → <code>amount === -30</code> and <code>isPending === true</code>. A second case with <code>pending:false</code> → <code>isPending === false</code>.</li>
+            </ul>
+          </div></li>
+          <li><div>Cloud sync, next to <code>roundTripsOutsideBudget</code>:
+            <ul>
+              <li><code>roundTripsPending</code>: export then import keeps <code>isPending true</code>.</li>
+              <li>Extend <code>oldPayloadDefaultsFalse</code> to also delete <code>isPending</code> and assert <code>false</code>.</li>
+            </ul>
+          </div></li>
+          <li><div>Split: <code>splitPartsAreNeverPending</code> in <code>transaction-split.test.ts</code>. Split a row with <code>isPending:true</code> → every part has <code>isPending === false</code>. This holds without code changes, because the split route builds parts field by field. The test pins it.</div></li>
+          <li><div>Run <code>npx vitest run tests/unit/lib/plaid-sync.test.ts tests/integration/api/cloud-sync.test.ts tests/integration/api/transaction-split.test.ts</code>. Expected: the new tests FAIL (unknown field or wrong value). <code>splitPartsAreNeverPending</code> can't compile until the column exists, so it fails too.</div></li>
+          <li><div>Make the changes:
+            <ul>
+              <li>Add the column, then run <code>npx prisma db push</code> and <code>npx prisma generate</code>.</li>
+              <li>Cloud-sync Zod: <code>isPending: z.boolean().default(false)</code>. Add it to the export and import objects beside <code>isOutsideBudget</code>.</li>
+              <li><code>mapPlaidTransaction</code>: <code>isPending: plaidTx.pending</code>.</li>
+              <li>Modify branch: add <code>isPending: mapped.isPending</code> to the <code>updateMany</code> data.</li>
+              <li>Add <code>isPending?: boolean</code> to <code>Tx</code>.</li>
+            </ul>
+          </div></li>
+          <li><div>Run the same command. Expected: PASS.</div></li>
+          <li><div>Commit: <code>feat(transactions): store the bank's pending flag</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t2">
+        <h3>Task 2 · Posting takes over the pending row</h3>
+        <p class="files"><b>Files:</b> modify <code>src/lib/plaid-sync.ts</code>; extend <code>tests/unit/lib/plaid-sync.test.ts</code> (new <code>describe('pending → posted')</code>).</p>
+        <p class="ifaces"><b>Consumes:</b> <code>isPending</code> and <code>mapPlaidTransaction</code> from Task 1.<br><b>Produces</b> (module-private):
+          <ul>
+            <li><code>findPendingPredecessor(accountId: string, plaidTx: PlaidTransaction): Promise&lt;{ id: string } | null&gt;</code>. It returns null unless <code>plaidTx.pending === false</code>, <code>plaidTx.pending_transaction_id</code> is set, and a row in <code>accountId</code> has that <code>externalId</code>. Both the process path and the preview path use it.</li>
+            <li><code>ProcessResult</code> gains <code>claimedPendingId?: string</code>.</li>
+          </ul>
+        </p>
+        <ol class="steps">
+          <li><div>Tests. Seed one pending row <code>{externalId:'pend-1', isPending:true, amount:-6.75, merchant:'Blue Bottle', categoryId, note:'latte', tags:'["Lisbon 2026"]', tripId, isOutsideBudget:true}</code>. The posted charge is <code>createMockPlaidTransaction({transaction_id:'post-1', pending:false, pending_transaction_id:'pend-1', amount:8.10, merchant_name:'BLUE BOTTLE COFFEE', date:&lt;a day later&gt;})</code>.
+            <ul>
+              <li><code>postingUpdatesTheSameRow</code>: added <code>[post-1]</code> and removed <code>[{transaction_id:'pend-1', account_id:'plaid-account-123'}]</code> on the same page → exactly one row. It has the same <code>id</code>, <code>externalId 'post-1'</code>, <code>amount -8.10</code>, the posted date and <code>isPending false</code>. <code>merchant</code> is still <code>'Blue Bottle'</code>. Category, note, tags, trip and <code>isOutsideBudget</code> are unchanged. <code>result.merged === 1</code>, <code>result.added === 0</code>, <code>result.removed === 0</code>.</li>
+              <li><code>removalOnEarlierPageStillCarriesOver</code>: page 1 (<code>has_more:true</code>) removes <code>pend-1</code>, and page 2 adds <code>post-1</code> → the same single-row assertions.</li>
+              <li><code>postingKeepsSplitParts</code>: the pending row is <code>isSplitParent</code> with two parts → after posting, both parts still have <code>parentTransactionId</code> equal to the row's id, and their amounts are unchanged.</li>
+              <li><code>cancelledHoldIsDeleted</code>: only removed <code>[pend-1]</code> → the row is gone, and <code>result.removed === 1</code>.</li>
+              <li><code>unknownPendingIdCreatesAsBefore</code>: posted with <code>pending_transaction_id:'never-seen'</code> → a new row is created, and <code>result.added === 1</code>.</li>
+              <li><code>previewDoesNotRemoveClaimedPending</code>: <code>dryRun:true</code>, same page as the first test → the <code>post-1</code> preview has <code>wouldMerge true</code> and <code>existingTransactionId</code> equal to the row id. There's no <code>action:'remove'</code> preview for <code>pend-1</code>, <code>stats.removed === 0</code>, and the database is unchanged.</li>
+            </ul>
+          </div></li>
+          <li><div>Run <code>npx vitest run tests/unit/lib/plaid-sync.test.ts -t "pending → posted"</code>. Expected: FAIL. Today the row is deleted and a new one created.</div></li>
+          <li><div>Make the changes:
+            <ul>
+              <li>At the top of the <code>add</code> branch of <code>processPlaidTransaction</code>, after the existing-externalId check, call <code>findPendingPredecessor</code>. If it finds a row, <code>update</code> it with only the fields in Global constraints and return <code>{ status: 'merged', claimedPendingId }</code>. A unique-constraint error returns <code>{ status: 'skipped' }</code>, like the merge paths.</li>
+              <li><code>previewPlaidTransaction</code> does the same lookup and returns <code>createMergePreview(..., predecessor.id)</code>.</li>
+              <li>In <code>syncPlaidTransactions</code>:
+                <ul>
+                  <li>Keep <code>claimedPendingIds = new Set&lt;string&gt;()</code>. Fill it from <code>result.claimedPendingId</code> when syncing, and from a found predecessor when previewing.</li>
+                  <li>Replace the in-loop removal handling with a push to <code>deferredRemovals: RemovedTransaction[]</code>.</li>
+                  <li>After the <code>while</code> loop, run the existing removal/preview code over <code>deferredRemovals</code>, skipping IDs in <code>claimedPendingIds</code>.</li>
+                </ul>
+              </li>
+            </ul>
+          </div></li>
+          <li><div>Run the full file <code>npx vitest run tests/unit/lib/plaid-sync.test.ts</code>. Expected: PASS, including the existing <code>handles removed transactions</code> and <code>previews removed transactions correctly</code>.</div></li>
+          <li><div>Commit: <code>feat(sync): carry edits over when a pending charge posts</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t3">
+        <h3>Task 3 · List suffix and drawer notice</h3>
+        <p class="files"><b>Files:</b> modify <code>transaction-table.tsx</code> and <code>transaction-drawer.tsx</code>; extend <code>tests/unit/components/transactions/transaction-table.test.tsx</code> and <code>transaction-drawer.test.tsx</code>.</p>
+        <p class="ifaces"><b>Consumes:</b> <code>Tx.isPending</code> from Task 1.</p>
+        <ol class="steps">
+          <li><div>Tests:
+            <ul>
+              <li><code>pendingRowShowsSuffix</code>: rows <code>[{...t1, isPending:true, isOutsideBudget:true}, t2]</code> → row 1's text contains <code>'· Outside budget· Pending'</code> (in that order), and row 2 doesn't contain <code>'Pending'</code>.</li>
+              <li><code>pendingNoticeShowsOnlyWhilePending</code>: <code>setup(edit({...base, isPending:true}))</code> → <code>getByText(/The bank may still change the amount or date/)</code> is present. Re-render with <code>base</code> → <code>queryByText</code> is null.</li>
+            </ul>
+          </div></li>
+          <li><div>Run <code>npx vitest run tests/unit/components/transactions/transaction-table.test.tsx tests/unit/components/transactions/transaction-drawer.test.tsx</code>. Expected: FAIL.</div></li>
+          <li><div>Make the changes:
+            <ul>
+              <li><b>Table:</b> a <code>{tx.isPending &amp;&amp; …}</code> span matching the Outside budget one, placed between it and the Split label.</li>
+              <li><b>Drawer:</b> in <code>headerExtra</code>, below the amount, when <code>tx.isPending</code> is true, show a <code>mt-3 flex gap-2.5 rounded-lg bg-[var(--bg-elevated)] px-3 py-2.5 text-xs text-[var(--text-secondary)]</code> block. It holds an 8px dot with a <code>1.5px dashed var(--accent)</code> border, and the copy from Global constraints, with "Pending." in <code>text-[var(--text-primary)] font-semibold</code>.</li>
+            </ul>
+          </div></li>
+          <li><div>Run the same command. Expected: PASS.</div></li>
+          <li><div>Commit: <code>feat(transactions): show pending charges in the list and drawer</code>.</div></li>
+        </ol>
+      </div>
+
+      <div class="task" id="t4">
+        <h3>Task 4 · Full check and browser</h3>
+        <ol class="steps">
+          <li><div>Run <code>npm run check</code> and <code>npm test</code>. Expected: both pass with no new warnings in the changed files.</div></li>
+          <li><div>Run <code>npx prisma db push</code> against <code>prisma/dev.db</code> if Task 1 ran against a different database. Start <code>npx next dev -p &lt;free port&gt;</code>. Using a scratch copy of the database, or a temporary <code>isPending</code> toggle on one row (reverted afterwards), check in both themes:
+            <ul>
+              <li>the suffix on a busy row (note plus tags)</li>
+              <li>the drawer notice</li>
+            </ul>
+            Stop the dev server when done.</div></li>
+          <li><div>Fix anything found, then commit. Remind Ben to rebuild and restart the production server after merge, and to run <code>npx prisma db push</code> for the prod database.</div></li>
+        </ol>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('theme');
+  btn.addEventListener('click', function () {
+    var r = document.documentElement;
+    var dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  });
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (a) { a.classList.remove('active'); });
+        var a = map[e.target.id]; if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(function (s) { io.observe(s); });
+})();
+</script>
+</body>
+</html>

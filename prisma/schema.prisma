@@ -169,6 +169,7 @@ model Transaction {
   note               String?
   isTransfer         Boolean     @default(false)
   isOutsideBudget    Boolean     @default(false)
+  isPending          Boolean     @default(false)
   transferGroupId    String?
   confidenceScore    Float       @default(0)
   externalId         String?

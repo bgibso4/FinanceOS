@@ -21,7 +21,7 @@ export async function loadCurrentHoldings(
   const [accounts, settings, rates] = await Promise.all([
     prisma.account.findMany({
       where: { trackingMode: 'investment', isActive: true },
-      orderBy: { sortOrder: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     }),
     prisma.userSettings.findFirst(),
     RateBook.load(prisma),

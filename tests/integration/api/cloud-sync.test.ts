@@ -297,6 +297,7 @@ describe('cloud-sync integration', () => {
           note: null,
           isTransfer: false,
           isOutsideBudget: false,
+          isPending: false,
           transferGroupId: null,
           confidenceScore: 0.9,
           externalId: null,
@@ -638,6 +639,20 @@ describe('cloud-sync integration', () => {
       expect(tx.isOutsideBudget).toBe(true);
     });
 
+    it('roundTripsPending', async () => {
+      const account = await prisma.account.create({ data: createAccountData() });
+      await prisma.transaction.create({
+        data: { ...createTransactionData(account.id), isPending: true },
+      });
+
+      const payload = await exportDatabase();
+      await resetTestDb();
+      await importDatabase(payload);
+
+      const [tx] = await prisma.transaction.findMany();
+      expect(tx.isPending).toBe(true);
+    });
+
     it('oldPayloadDefaultsFalse', async () => {
       const account = await prisma.account.create({ data: createAccountData() });
       await prisma.transaction.create({ data: createTransactionData(account.id) });
@@ -645,6 +660,7 @@ describe('cloud-sync integration', () => {
       const payload = await exportDatabase();
       for (const t of payload.data.transactions) {
         delete (t as Record<string, unknown>).isOutsideBudget;
+        delete (t as Record<string, unknown>).isPending;
       }
       const old = await finalizePayload(payload);
       expect(isSyncPayload(old)).toBe(true);
@@ -654,6 +670,7 @@ describe('cloud-sync integration', () => {
 
       const [tx] = await prisma.transaction.findMany();
       expect(tx.isOutsideBudget).toBe(false);
+      expect(tx.isPending).toBe(false);
     });
   });
 

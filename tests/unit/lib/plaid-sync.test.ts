@@ -449,6 +449,48 @@ describe('plaid-sync', () => {
       expect(tx?.amount).toBe(-30); // Inverted from Plaid's positive
     });
 
+    it('storesPendingFlag', async () => {
+      mockSyncResponse({
+        added: [
+          createMockPlaidTransaction({ transaction_id: 'p1', pending: true }),
+          createMockPlaidTransaction({ transaction_id: 'q1', pending: false, amount: 40 }),
+        ],
+      });
+
+      await syncPlaidTransactions(createMockPlaidConnection(testAccountId));
+
+      const p1 = await prisma.transaction.findFirst({ where: { externalId: 'p1' } });
+      const q1 = await prisma.transaction.findFirst({ where: { externalId: 'q1' } });
+      expect(p1?.isPending).toBe(true);
+      expect(q1?.isPending).toBe(false);
+    });
+
+    it.each([
+      [true, true],
+      [false, false],
+    ])('modifyKeepsPendingFlag (pending: %s)', async (pending, expected) => {
+      await prisma.transaction.create({
+        data: {
+          accountId: testAccountId,
+          externalId: 'p1',
+          date: new Date(),
+          amount: -25,
+          merchant: 'Cafe',
+          merchantNormalized: 'cafe',
+          isPending: true,
+        },
+      });
+      mockSyncResponse({
+        modified: [createMockPlaidTransaction({ transaction_id: 'p1', pending, amount: 30 })],
+      });
+
+      await syncPlaidTransactions(createMockPlaidConnection(testAccountId));
+
+      const tx = await prisma.transaction.findFirst({ where: { externalId: 'p1' } });
+      expect(tx?.amount).toBe(-30);
+      expect(tx?.isPending).toBe(expected);
+    });
+
     it('handles removed transactions', async () => {
       // Create existing transaction
       await prisma.transaction.create({
@@ -795,6 +837,174 @@ describe('plaid-sync', () => {
       expect(tx?.merchant).toBe('SQ *COFFEE SHOP #1234');
       // normalizeMerchant removes common prefixes like "SQ *" and store numbers
       expect(tx?.merchantNormalized).toContain('coffee shop');
+    });
+  });
+
+  describe('pending → posted', () => {
+    const day = (offset: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() + offset);
+      return d.toISOString().split('T')[0];
+    };
+    let pendingId: string;
+    let tripId: string;
+
+    beforeEach(async () => {
+      const trip = await prisma.trip.create({
+        data: { name: 'Lisbon 2026', startDate: day(-5), endDate: day(5) },
+      });
+      tripId = trip.id;
+      const row = await prisma.transaction.create({
+        data: {
+          accountId: testAccountId,
+          externalId: 'pend-1',
+          isPending: true,
+          date: new Date(day(-1)),
+          amount: -6.75,
+          merchant: 'Blue Bottle',
+          merchantNormalized: 'blue bottle',
+          categoryId: groceryCategoryId,
+          confidenceScore: 1,
+          note: 'latte',
+          tags: '["Lisbon 2026"]',
+          tripId,
+          isOutsideBudget: true,
+        },
+      });
+      pendingId = row.id;
+    });
+
+    const posted = () =>
+      createMockPlaidTransaction({
+        transaction_id: 'post-1',
+        pending: false,
+        pending_transaction_id: 'pend-1',
+        amount: 8.1,
+        merchant_name: 'BLUE BOTTLE COFFEE',
+        date: day(0),
+      });
+    const removedPending = { transaction_id: 'pend-1', account_id: 'plaid-account-123' };
+
+    async function expectCarriedOver() {
+      const rows = await prisma.transaction.findMany({ where: { accountId: testAccountId } });
+      expect(rows).toHaveLength(1);
+      const [tx] = rows;
+      expect(tx.id).toBe(pendingId);
+      expect(tx.externalId).toBe('post-1');
+      expect(tx.amount).toBe(-8.1);
+      expect(tx.date.toISOString().split('T')[0]).toBe(day(0));
+      expect(tx.isPending).toBe(false);
+      expect(tx.merchant).toBe('Blue Bottle');
+      expect(tx.categoryId).toBe(groceryCategoryId);
+      expect(tx.confidenceScore).toBe(1);
+      expect(tx.note).toBe('latte');
+      expect(tx.tags).toBe('["Lisbon 2026"]');
+      expect(tx.tripId).toBe(tripId);
+      expect(tx.isOutsideBudget).toBe(true);
+    }
+
+    it('postingUpdatesTheSameRow', async () => {
+      mockSyncResponse({ added: [posted()], removed: [removedPending] });
+
+      const result = (await syncPlaidTransactions(
+        createMockPlaidConnection(testAccountId)
+      )) as SyncResult;
+
+      await expectCarriedOver();
+      expect(result.merged).toBe(1);
+      expect(result.added).toBe(0);
+      expect(result.removed).toBe(0);
+    });
+
+    it('removalOnEarlierPageStillCarriesOver', async () => {
+      const page = (data: Record<string, unknown>, hasMore: boolean) => ({
+        data: {
+          added: [],
+          modified: [],
+          removed: [],
+          next_cursor: hasMore ? 'cursor-2' : 'cursor-final',
+          has_more: hasMore,
+          ...data,
+        },
+      });
+      vi.mocked(getPlaidClient).mockReturnValue({
+        transactionsSync: vi
+          .fn()
+          .mockResolvedValueOnce(page({ removed: [removedPending] }, true))
+          .mockResolvedValueOnce(page({ added: [posted()] }, false)),
+      } as unknown as ReturnType<typeof getPlaidClient>);
+
+      await syncPlaidTransactions(createMockPlaidConnection(testAccountId));
+
+      await expectCarriedOver();
+    });
+
+    it('postingKeepsSplitParts', async () => {
+      await prisma.transaction.update({ where: { id: pendingId }, data: { isSplitParent: true } });
+      for (const amount of [-4, -2.75]) {
+        await prisma.transaction.create({
+          data: {
+            accountId: testAccountId,
+            date: new Date(day(-1)),
+            amount,
+            merchant: 'Blue Bottle',
+            merchantNormalized: 'blue bottle',
+            parentTransactionId: pendingId,
+          },
+        });
+      }
+      mockSyncResponse({ added: [posted()], removed: [removedPending] });
+
+      await syncPlaidTransactions(createMockPlaidConnection(testAccountId));
+
+      const parts = await prisma.transaction.findMany({
+        where: { parentTransactionId: pendingId },
+        orderBy: { amount: 'asc' },
+      });
+      expect(parts.map((p) => p.amount)).toEqual([-4, -2.75]);
+      const parent = await prisma.transaction.findUnique({ where: { id: pendingId } });
+      expect(parent?.externalId).toBe('post-1');
+    });
+
+    it('cancelledHoldIsDeleted', async () => {
+      mockSyncResponse({ removed: [removedPending] });
+
+      const result = (await syncPlaidTransactions(
+        createMockPlaidConnection(testAccountId)
+      )) as SyncResult;
+
+      expect(await prisma.transaction.findUnique({ where: { id: pendingId } })).toBeNull();
+      expect(result.removed).toBe(1);
+    });
+
+    it('unknownPendingIdCreatesAsBefore', async () => {
+      mockSyncResponse({
+        added: [{ ...posted(), pending_transaction_id: 'never-seen', amount: 12 }],
+      });
+
+      const result = (await syncPlaidTransactions(
+        createMockPlaidConnection(testAccountId)
+      )) as SyncResult;
+
+      expect(result.added).toBe(1);
+      expect(await prisma.transaction.count({ where: { accountId: testAccountId } })).toBe(2);
+    });
+
+    it('previewDoesNotRemoveClaimedPending', async () => {
+      mockSyncResponse({ added: [posted()], removed: [removedPending] });
+
+      const result = (await syncPlaidTransactions(createMockPlaidConnection(testAccountId), {
+        dryRun: true,
+      })) as DryRunResult;
+
+      const preview = result.transactions.find((t) => t.externalId === 'post-1');
+      expect(preview?.wouldMerge).toBe(true);
+      expect(preview?.existingTransactionId).toBe(pendingId);
+      expect(result.transactions.some((t) => t.action === 'remove')).toBe(false);
+      expect(result.stats.removed).toBe(0);
+      const row = await prisma.transaction.findUnique({ where: { id: pendingId } });
+      expect(row?.externalId).toBe('pend-1');
+      expect(row?.isPending).toBe(true);
     });
   });
 

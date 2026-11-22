@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRef } from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   TransactionDrawer,
@@ -210,6 +210,15 @@ describe('TransactionDrawer', () => {
     // A changed transfer status drops any pairing so sync can pair it afresh.
     const init = fetchMock().mock.calls[0][1] as RequestInit;
     expect(JSON.parse(init.body as string)).toEqual({ isTransfer: true, transferGroupId: null });
+  });
+
+  it('pendingNoticeShowsOnlyWhilePending', () => {
+    const notice = /The bank may still change the amount or date/;
+    setup(edit({ ...base, isPending: true }));
+    expect(screen.getByText(notice)).toBeInTheDocument();
+    cleanup();
+    setup(edit(base));
+    expect(screen.queryByText(notice)).toBeNull();
   });
 
   it('drawerReloadsOnTick', async () => {

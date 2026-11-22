@@ -126,4 +126,10 @@ describe('TransactionTable', () => {
     expect(rowFor('Test Merchant 1')).toHaveTextContent('· Outside budget');
     expect(rowFor('Test Merchant 2')).not.toHaveTextContent('Outside budget');
   });
+
+  it('pendingRowShowsSuffix', () => {
+    setup({ rows: [{ ...t1, isPending: true, isOutsideBudget: true }, t2] });
+    expect(rowFor('Test Merchant 1')).toHaveTextContent('· Outside budget· Pending');
+    expect(rowFor('Test Merchant 2')).not.toHaveTextContent('Pending');
+  });
 });

@@ -41,6 +41,7 @@ export const TransactionExportSchema = z.object({
   note: z.string().nullable(),
   isTransfer: z.boolean(),
   isOutsideBudget: z.boolean().default(false),
+  isPending: z.boolean().default(false),
   transferGroupId: z.string().nullable(),
   confidenceScore: z.number(),
   externalId: z.string().nullable(),
