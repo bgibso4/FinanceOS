@@ -115,7 +115,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
 <div class="layout">
   <aside class="side" aria-label="Sections">
     <div class="brand">FinanceOS<span>Design · Pending transactions</span></div>
-    <div class="overall"><span>Status</span><b>Waiting for your approval</b><span>Next: implementation plan</span></div>
+    <div class="overall"><span>Status</span><b>Approved</b><span>Next: implementation plan</span></div>
     <nav class="toc" aria-label="Sections">
       <div class="toc-label">Overview</div>
       <a href="#mine"><span class="toc-n"></span><span>Waiting on you</span></a>
@@ -147,7 +147,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
 
     <section id="mine">
       <h2>Waiting on you</h2>
-      <p class="lede">These are my calls. Each one is easy to change now, so veto any you don't like.</p>
+      <p class="lede">These were my calls. You approved all four on 2026-11-22.</p>
       <div class="decisions"><ul>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M1</span>Your merchant name stays</div><div class="dec-text">When a charge posts, it takes the bank's final <strong>date and amount</strong> but keeps the <strong>merchant name already on the transaction</strong>. You or a rename rule may have cleaned that name up, and we can't tell whether you did, so keeping it is the safe choice. Plaid's names for pending and posted charges are usually the same anyway.</div></div><div class="trefs"><a class="tref" href="#post">Posting</a></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>Splits that stop adding up are left as they are</div><div class="dec-text">If the amount changes when the charge posts (a tip, a gas-station hold) and the transaction is split, the split parts are <strong>left alone</strong>. The split editor already shows when parts don't add up, so you fix it there. Splitting a pending charge is rare.</div></div><div class="trefs"><a class="tref" href="#post">Posting</a></div></li>
