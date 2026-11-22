@@ -63,8 +63,9 @@ const LABEL_RULES: { match: (r: ActivityInput) => boolean; label: (r: ActivityIn
 const labelOf = (r: ActivityInput) =>
   LABEL_RULES.find((rule) => rule.match(r))?.label(r) ?? plain(r.name);
 
+/** Shares and price, when shares changed hands; cash events report a zero quantity. */
 const tradeOf = (r: ActivityInput): ActivityItem['trade'] =>
-  r.quantity != null && r.price != null ? { quantity: Math.abs(r.quantity), price: r.price } : null;
+  r.quantity && r.price != null ? { quantity: Math.abs(r.quantity), price: r.price } : null;
 
 const sameDaySecurity = (a: ActivityInput, b: ActivityInput) =>
   a.accountId === b.accountId &&

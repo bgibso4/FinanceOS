@@ -127,6 +127,13 @@ describe('buildActivity', () => {
     expect(byName).toMatchObject({ kind: 'Sell', symbol: 'Triple A' });
   });
 
+  it('gives a cash event with a zero quantity no trade', () => {
+    const [item] = buildActivity([
+      tx({ subtype: 'withdrawal', quantity: 0, price: 0, amount: 50, securityId: null }),
+    ]);
+    expect(item).toMatchObject({ kind: 'Withdrawal', trade: null });
+  });
+
   it('keeps each event in its transaction currency', () => {
     const [item] = buildActivity([
       tx({ type: 'buy', subtype: 'buy', quantity: 2, price: 7.5, amount: 15, currency: 'CAD' }),
