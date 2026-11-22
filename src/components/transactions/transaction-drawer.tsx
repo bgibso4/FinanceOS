@@ -56,6 +56,23 @@ const NOTHING_PENDING: Flush = async () => true;
 const isTyping = (target: EventTarget | null) =>
   target instanceof Element && !!target.closest('input, textarea, select, [contenteditable]');
 
+function PendingNotice() {
+  return (
+    <div className="mt-3 flex gap-2.5 rounded-lg bg-[var(--bg-elevated)] px-3 py-2.5 text-xs text-[var(--text-secondary)]">
+      <span
+        aria-hidden
+        className="mt-1 h-2 w-2 flex-none rounded-full"
+        style={{ border: '1.5px dashed var(--accent)' }}
+      />
+      <span>
+        <span className="font-semibold text-[var(--text-primary)]">Pending.</span> The bank may
+        still change the amount or date. Your category, notes and tags will carry over when it
+        posts.
+      </span>
+    </div>
+  );
+}
+
 function headerAmount(amount: number, currency: string | undefined, baseCurrency: string) {
   if (!currency || currency === baseCurrency) return signedMoney(amount);
   const sign = amount < 0 ? '−' : '+';
@@ -191,13 +208,16 @@ function EditDrawer({
       actions={nav && <DrawerNav {...nav} count={list.length} index={index} onStep={step} />}
       headerExtra={
         tx && (
-          <div
-            className={`mt-1 font-mono text-[20px] ${
-              tx.amount > 0 ? 'text-[var(--green)]' : 'text-[var(--text-primary)]'
-            }`}
-          >
-            {headerAmount(tx.amount, tx.account?.currency, props.baseCurrency)}
-          </div>
+          <>
+            <div
+              className={`mt-1 font-mono text-[20px] ${
+                tx.amount > 0 ? 'text-[var(--green)]' : 'text-[var(--text-primary)]'
+              }`}
+            >
+              {headerAmount(tx.amount, tx.account?.currency, props.baseCurrency)}
+            </div>
+            {tx.isPending && <PendingNotice />}
+          </>
         )
       }
       open={tx !== null}

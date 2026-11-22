@@ -117,6 +117,9 @@ function TransactionRow({
               {tx.isOutsideBudget && (
                 <span className="ml-1.5 text-xs text-[var(--text-muted)]">· Outside budget</span>
               )}
+              {tx.isPending && (
+                <span className="ml-1.5 text-xs text-[var(--text-muted)]">· Pending</span>
+              )}
               {tx.parentTransactionId && (
                 <span className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-accent/10 text-[var(--accent)] font-medium">
                   Split
