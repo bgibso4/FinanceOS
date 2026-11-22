@@ -127,6 +127,17 @@ describe('buildActivity', () => {
     expect(byName).toMatchObject({ kind: 'Sell', symbol: 'Triple A', securityName: null });
   });
 
+  it.each<[string, Partial<ActivityInput>, string]>([
+    ['cash income', { subtype: 'income', amount: -16 }, 'Income'],
+    ['a cash transfer in', { subtype: 'transfer_in', amount: -500 }, 'Transfer in'],
+    ['a cash transfer out', { subtype: 'transfer_out', amount: 500 }, 'Transfer out'],
+  ])('names %s by its code, not its description', (_label, over, kind) => {
+    const [item] = buildActivity([
+      tx({ securityId: null, ticker: null, name: 'RAW TEXT', ...over }),
+    ]);
+    expect(item).toMatchObject({ kind, symbol: null });
+  });
+
   it('gives a cash event with a zero quantity no trade', () => {
     const [item] = buildActivity([
       tx({ subtype: 'withdrawal', quantity: 0, price: 0, amount: 50, securityId: null }),

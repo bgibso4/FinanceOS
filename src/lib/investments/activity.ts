@@ -55,8 +55,9 @@ const LABEL_RULES: { match: (r: ActivityInput) => boolean; label: (r: ActivityIn
     { match: (r) => r.subtype === 'contribution', label: () => plain('Contribution') },
     { match: (r) => r.subtype === 'deposit', label: () => plain('Deposit') },
     { match: (r) => r.subtype === 'withdrawal', label: () => plain('Withdrawal') },
+    { match: (r) => r.subtype === 'income', label: () => plain('Income') },
     {
-      match: (r) => r.type === 'transfer',
+      match: (r) => r.type === 'transfer' || r.subtype.startsWith('transfer'),
       label: (r) => plain(r.amount < 0 ? 'Transfer in' : 'Transfer out'),
     },
   ];

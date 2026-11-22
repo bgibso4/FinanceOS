@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export type FilterOption = { value: string; label: string; count: number };
 
@@ -24,17 +25,20 @@ export function HeaderFilter({
   /** Styles an option's label, e.g. the same colour the column uses. */
   optionClass?: (value: string) => string;
 }) {
-  // Where the open menu sits on screen. It is fixed-positioned so the table's sideways scroll
-  // box can't clip it, and closes on scroll rather than drifting away from its header.
+  // Where the open menu sits on screen. It is portalled to <body> and fixed-positioned, so neither
+  // the table's sideways scroll box nor an animated (transformed) ancestor can clip or shift it.
+  // It closes on scroll rather than drifting away from its header.
   const [at, setAt] = useState<{ top: number; left: number } | null>(null);
   const [query, setQuery] = useState('');
   const ref = useRef<HTMLSpanElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const open = at !== null;
 
   useEffect(() => {
     if (!open) return;
     const outside = (e: Event) => {
-      if (!ref.current?.contains(e.target as Node)) setAt(null);
+      const t = e.target as Node;
+      if (!ref.current?.contains(t) && !menuRef.current?.contains(t)) setAt(null);
     };
     const escape = (e: KeyboardEvent) => e.key === 'Escape' && setAt(null);
     document.addEventListener('mousedown', outside);
@@ -80,51 +84,54 @@ export function HeaderFilter({
           <path d="M0 2h8L4 7z" />
         </svg>
       </button>
-      {open && (
-        <div
-          className="fixed z-30 max-h-[280px] min-w-[210px] overflow-auto rounded-[10px] border border-[var(--border-hover)] bg-[var(--bg-card)] p-1.5 text-xs normal-case tracking-normal text-[var(--text-primary)] shadow-[0_12px_32px_rgba(0,0,0,0.35)]"
-          style={at}
-        >
-          {searchable && (
-            <input
-              aria-label={`Find a ${label.toLowerCase()}`}
-              className="mb-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1 text-xs text-[var(--text-primary)] outline-none"
-              placeholder={`Find a ${label.toLowerCase()}`}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          )}
-          {shown.map((o) => (
-            <label
-              key={o.value}
-              className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 hover:bg-[var(--bg-elevated)]"
-            >
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className="fixed z-30 max-h-[280px] min-w-[210px] overflow-auto rounded-[10px] border border-[var(--border-hover)] bg-[var(--bg-card)] p-1.5 text-xs normal-case tracking-normal text-[var(--text-primary)] shadow-[0_12px_32px_rgba(0,0,0,0.35)]"
+            style={at}
+          >
+            {searchable && (
               <input
-                checked={selected.has(o.value)}
-                className="accent-[var(--accent)]"
-                type="checkbox"
-                onChange={() => toggle(o.value)}
+                aria-label={`Find a ${label.toLowerCase()}`}
+                className="mb-1 w-full rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-2 py-1 text-xs text-[var(--text-primary)] outline-none"
+                placeholder={`Find a ${label.toLowerCase()}`}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
               />
-              <span className={optionClass?.(o.value)}>{o.label}</span>
-              <span className="ml-auto font-mono text-[11px] text-[var(--text-muted)]">
-                {o.count}
+            )}
+            {shown.map((o) => (
+              <label
+                key={o.value}
+                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 hover:bg-[var(--bg-elevated)]"
+              >
+                <input
+                  checked={selected.has(o.value)}
+                  className="accent-[var(--accent)]"
+                  type="checkbox"
+                  onChange={() => toggle(o.value)}
+                />
+                <span className={optionClass?.(o.value)}>{o.label}</span>
+                <span className="ml-auto font-mono text-[11px] text-[var(--text-muted)]">
+                  {o.count}
+                </span>
+              </label>
+            ))}
+            <div className="mt-1 flex justify-between border-t border-[var(--border)] px-2 pb-0.5 pt-1.5 text-[11.5px]">
+              <button
+                className={`font-medium ${selected.size ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}
+                type="button"
+                onClick={() => onChange(new Set())}
+              >
+                Clear
+              </button>
+              <span className="text-[var(--text-muted)]">
+                {selected.size ? `${selected.size} selected` : 'Showing all'}
               </span>
-            </label>
-          ))}
-          <div className="mt-1 flex justify-between border-t border-[var(--border)] px-2 pb-0.5 pt-1.5 text-[11.5px]">
-            <button
-              className={`font-medium ${selected.size ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}
-              type="button"
-              onClick={() => onChange(new Set())}
-            >
-              Clear
-            </button>
-            <span className="text-[var(--text-muted)]">
-              {selected.size ? `${selected.size} selected` : 'Showing all'}
-            </span>
-          </div>
-        </div>
-      )}
+            </div>
+          </div>,
+          document.body
+        )}
     </span>
   );
 }
