@@ -124,6 +124,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
       <div class="toc-label">Design</div>
       <a href="#layout"><span class="toc-n">1</span><span>Layout and sections</span></a>
       <a href="#activity"><span class="toc-n">2</span><span>Activity columns</span></a>
+      <a href="#filters"><span class="toc-n">3</span><span>Activity filters</span></a>
       <div class="toc-label">Build</div>
       <a href="#plan"><span class="toc-n"></span><span>Plan</span></a>
       <a href="#testing"><span class="toc-n"></span><span>Testing</span></a>
@@ -146,7 +147,7 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
       <h2>My calls</h2>
       <p class="lede">You approved the mock without picking on these two questions, so these are the defaults I offered.</p>
       <div class="decisions"><ul>
-        <li class="decision"><div><div class="dec-name"><span class="dec-id">M1</span>Same number of activity rows</div><div class="dec-text">It still shows <strong>8</strong> rows for All accounts and <strong>5</strong> for one account. Adding more rows or a "Show more" link can come later if you want it.</div></div></li>
+        <li class="decision"><div><div class="dec-name"><span class="dec-id">M1</span>Activity follows the range, 8 then 25 more</div><div class="dec-text">Superseded after the second mock: Activity loads <strong>every entry in the selected range</strong>, so the filters see all of it. It shows the newest <strong>8</strong>, then <strong>25 more</strong> at a time.</div></div></li>
         <li class="decision"><div><div class="dec-name"><span class="dec-id">M2</span>Closed sections stay closed</div><div class="dec-text">If you close a section, it stays closed on your next visit, in this browser. The Targets cards already work this way.</div></div></li>
       </ul></div>
     </section>
@@ -193,10 +194,23 @@ table.md td:first-child { font-weight: 600; white-space: nowrap; }
     <section id="activity">
       <h2>2 · Activity columns</h2>
       <div class="card"><ul>
-        <li>Columns: <b>Date</b> · <b>Activity</b> (type, then ticker) · <b>Account</b> (All accounts only) · <b>Shares</b> · <b>Price</b> · <b>Amount</b>. A dash fills an empty Shares or Price.</li>
+        <li>Columns: <b>Date</b> · <b>Type</b> · <b>Security</b> (ticker, with the fund's name underneath) · <b>Account</b> (All accounts only) · <b>Shares</b> · <b>Price</b> · <b>Amount</b>. A dash fills an empty Security, Shares or Price.</li>
+        <li>Amount is green for money into the account and red for money out, as in Transactions.</li>
+        <li>Cash events the bank codes <code>income</code>, <code>transfer_in</code> or <code>transfer_out</code> are named Income, Transfer in and Transfer out, rather than showing the bank's raw description.</li>
         <li>The type is coloured: Buy blue, Sell accent, Dividend (including "Dividend reinvested") green, everything else secondary.</li>
         <li>To make this possible, <code>ActivityItem.title</code> is replaced by <code>kind</code> (Buy, Sell, Dividend, Dividend reinvested, Interest, Fee and so on, or the institution's description for anything unrecognised) and <code>symbol</code> (the ticker, or the security name, or null). The naming rules stay the same.</li>
         <li>On a phone-width screen, the table scrolls sideways inside its section rather than squeezing.</li>
+      </ul></div>
+    </section>
+
+    <section id="filters">
+      <h2>3 · Activity filters</h2>
+      <p class="lede">Second mock: <code>design-mocks/investments/activity-filters.html</code>, approved.</p>
+      <div class="card"><ul>
+        <li>The Type, Security and Account headers each open a checklist with a count beside each option. Each option's count reflects the other filters. Security has a search box, and cash events appear under "No security (cash)".</li>
+        <li>A header with a filter on turns accent and shows how many options are ticked. The section header shows "N of M" and a "Clear filters" link.</li>
+        <li>Filters reset when you switch accounts or reload the page.</li>
+        <li>The menu renders on the page body, so the table's sideways scroll and the page's fade-in animation can't clip or shift it.</li>
       </ul></div>
     </section>
 
